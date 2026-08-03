@@ -14,12 +14,12 @@ Before making code changes, read the project documentation in this order:
 3. `docs/tech-stack.md`
 4. `docs/folder-structure.md`
 5. `docs/database-plan.md`
+6. `docs/features.md`
 
-Then read the task file that matches the work:
+Then read workflow/integration docs as needed:
 
-- Backend work: `docs/thameem-tasks.md`
-- Shared work: `docs/shared-tasks.md`
 - Git/branch work: `docs/git-workflow.md`
+- Frontend integration questions: `docs/frontend-integration.md`
 
 For backend architecture details, also read:
 
@@ -32,7 +32,7 @@ For backend architecture details, also read:
 
 Jira is the source of truth for task status, assignee, priority, and acceptance criteria.
 
-The task files in `docs/` only mirror Jira keys and summaries for quick reference. Do not invent extra tasks in the docs without creating or updating Jira first.
+Do not invent extra tasks in the docs without creating or updating Jira first.
 
 ## Tech Stack
 

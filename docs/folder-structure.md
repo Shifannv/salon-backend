@@ -32,9 +32,8 @@ salon-shared-api/
     tech-stack.md
     features.md
     folder-structure.md
+    frontend-integration.md
     database-plan.md
-    shifan-tasks.md
-    thameem-tasks.md
     git-workflow.md
 
   backend/
@@ -103,7 +102,6 @@ backend/migrations/
 backend/tests/
 backend/docs/
 docs/database-plan.md
-docs/thameem-tasks.md
 ```
 
 ## API Layering Rule

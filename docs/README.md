@@ -14,17 +14,7 @@ folder structure, and developer task ownership.
 | [features.md](./features.md) | MVP feature list and future feature ideas |
 | [folder-structure.md](./folder-structure.md) | Backend-only repository structure |
 | [database-plan.md](./database-plan.md) | Supabase schema, relationships, and security notes |
-| [shifan-tasks.md](./shifan-tasks.md) | Frontend task ownership for Shifan |
-| [thameem-tasks.md](./thameem-tasks.md) | Backend task ownership for Thameem |
-| [shared-tasks.md](./shared-tasks.md) | Shared Jira tasks for both developers |
 | [git-workflow.md](./git-workflow.md) | Branch, commit, pull request, and sync workflow |
-
-## Team Ownership
-
-| Person | Area |
-| --- | --- |
-| Shifan | Frontend apps that consume this API |
-| Thameem | FastAPI backend, Supabase database access, authorization, Firebase backend support |
 
 ## Repository Decision
 
@@ -52,3 +42,10 @@ One Jira task = one branch = one pull request
 Jira is the source of truth for all task status, ownership, priority, and acceptance criteria.
 
 The task files in this folder should only mirror Jira keys and summaries. Do not add extra task lists here without creating or updating Jira first.
+
+## Frontend Integration
+
+Frontend apps live in separate repositories. Use this guide when connecting a frontend app
+to the shared backend API:
+
+[frontend-integration.md](./frontend-integration.md)

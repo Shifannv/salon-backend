@@ -1,104 +1,81 @@
-# Features
+# Backend Features
 
-## MVP Features
+This file tracks backend feature areas for the shared API. Jira remains the source of
+truth for task status, assignee, priority, and acceptance criteria.
 
-### 1. Authentication
+## Currently Implemented
 
-Customer can:
+### Foundation
 
-- Sign up
-- Log in
-- Log out
-- Recover password
-- Stay logged in using session handling
+- `GET /health`
+- `GET /health/db`
+- `POST /v1/auth/login`
+- `POST /v1/auth/refresh`
+- `GET /v1/auth/me`
+- Supabase JWT verification through JWKS
+- Actor profile resolution from `profiles`
+- Async SQLAlchemy database session setup
+- Alembic baseline migration wrapper for the v3 SQL schema
 
-### 2. Customer Profile
+## MVP Backend Features
 
-Customer can:
+### 1. Authentication And Actor Resolution
 
-- View profile
-- Edit name
-- Edit phone number
-- Edit basic personal details
+- Login through Supabase Auth
+- Refresh Supabase Auth sessions
+- Resolve current authenticated profile
+- Reject inactive profiles
+- Resolve roles from `profiles`, not JWT role claims
 
-### 3. Salon Discovery
+### 2. Super Admin
 
-Customer can:
+- Create salon owner auth user and salon record
+- List/search salons
+- Update salon owner/salon basics
+- Deactivate salons and owner access
+- Manage global service categories and subcategories
 
-- View salon list
-- Search salons
-- Filter salons
-- View nearby salons using current GPS location
-- Open salon details
+### 3. Salon Owner
 
-### 4. Salon Details
+- View and complete salon profile
+- Manage salon images
+- Manage holidays
+- Manage working hours and settings
+- Manage services
+- Manage staff
+- Assign services to staff
+- Manage staff/service language and override data
+- Manage blocked slots
 
-Customer can:
+### 4. Booking Engine
 
-- View salon name
-- View salon images
-- View address
-- View rating
-- View service categories
-- View available services
-- View starting prices
+- Get availability through the database `get_available_slots` function
+- Create bookings through the database `create_booking` function
+- List bookings with role-scoped authorization
+- Approve, reject, complete, and cancel bookings
+- Record payment status
 
-### 5. Services
+### 5. Walk-in QR
 
-Customer can:
+- Resolve public QR token
+- Return public salon/services/staff data for QR booking
+- Support phone OTP verification through Supabase
+- Create QR walk-in bookings
 
-- View service name
-- View price
-- View duration
-- Select service for booking
+### 6. Notifications
 
-### 6. Booking Flow
+- Register device tokens
+- Deactivate device tokens
+- List notifications
+- Mark notifications as read
+- Fan out push notifications through Firebase Cloud Messaging
 
-Customer can:
+## Future Backend Features
 
-- Select salon
-- Select service
-- Select date
-- Select time slot
-- Confirm booking
-- See booking success state
-
-### 7. Appointments
-
-Customer can:
-
-- View upcoming appointments
-- View past appointments
-- View appointment details
-- Cancel appointment when allowed
-
-### 8. Notifications
-
-Customer can:
-
-- Receive booking confirmation notification
-- Receive cancellation notification
-- Receive appointment reminder notification
-- View notifications list
-- See read/unread state
-
-### 9. Current Location
-
-Customer can:
-
-- Allow location permission
-- Deny location permission
-- Use current GPS location for nearby salon discovery
-
-## Future Features
-
-- Online payment
-- Customer reviews
-- Favorite salons
+- Online payment provider integration
 - Coupons and offers
-- Salon owner app
-- Admin dashboard
+- Reviews and ratings
 - Chat support
 - Loyalty points
-- Multi-language support
-
+- Multi-language content
+- Analytics/reporting APIs

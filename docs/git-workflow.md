@@ -1,21 +1,14 @@
 # Git Workflow
 
-## Repository Setup
+This repository is for the shared FastAPI backend only.
 
-The project uses GitHub with a fork-based workflow.
+Frontend apps live in separate repositories and should not be pulled into this repo unless
+the team formally changes to a monorepo.
 
-Expected setup:
-
-```txt
-Original repo: Shifannv/salon-customer-app
-Thameem fork: Thameempp/salon-customer-app
-```
-
-## Main Branches
+## Branches
 
 ```txt
 main
-dev
 feature branches
 ```
 
@@ -25,21 +18,11 @@ Stable branch.
 
 Use for:
 
-- Tested code
-- Demo-ready code
-- Release-ready code
+- Reviewed backend code
+- Tested migrations
+- Deployment-ready API changes
 
-Do not directly work on `main`.
-
-### dev
-
-Integration branch.
-
-Use for:
-
-- Combining frontend and backend work
-- Testing features together
-- Preparing for merge into `main`
+Do not commit directly to `main` unless explicitly requested by the project owner.
 
 ### Feature Branches
 
@@ -48,8 +31,9 @@ Use one branch per Jira task.
 Examples:
 
 ```txt
-shifan/SACS-47-frontend-location
-thameem/SACS-48-backend-location
+thameem/SACS-14-backend-foundation
+thameem/SACS-29-salon-listing-api
+thameem/SACS-37-booking-create-api
 ```
 
 ## One Task Rule
@@ -60,20 +44,18 @@ One Jira task = one branch = one pull request
 
 ## Daily Workflow
 
-Start from latest branch:
+Start from latest `main`:
 
 ```bash
-git checkout dev
-git pull origin dev
+git checkout main
+git pull origin main
 ```
 
-Create task branch:
+Create a task branch:
 
 ```bash
-git checkout -b thameem/SACS-48-backend-location
+git checkout -b thameem/SACS-29-salon-listing-api
 ```
-
-Work on the task.
 
 Check changes:
 
@@ -84,46 +66,27 @@ git status
 Add only task-related files:
 
 ```bash
-git add customer-app/supabase
-git add customer-app/src/services/supabase
-git add docs/database-plan.md
+git add backend/app backend/tests backend/docs docs
 ```
 
-Commit:
+Commit with the Jira key:
 
 ```bash
-git commit -m "SACS-48 Add Supabase nearby salon query"
+git commit -m "SACS-29 Add salon listing API"
 ```
 
 Push:
 
 ```bash
-git push origin thameem/SACS-48-backend-location
+git push origin thameem/SACS-29-salon-listing-api
 ```
 
-Open pull request:
+Open a pull request:
 
 ```txt
-from: Thameempp/salon-customer-app:thameem/SACS-48-backend-location
-to: Shifannv/salon-customer-app:dev
+from: thameem/SACS-29-salon-listing-api
+to: main
 ```
-
-If there is no `dev` branch, open PR to:
-
-```txt
-Shifannv/salon-customer-app:main
-```
-
-## Fork Sync Rule
-
-Do not click Sync Fork blindly if the original repo accidentally deleted important files.
-
-Before syncing, check:
-
-- Does original repo have `customer-app`?
-- Does original repo have required docs?
-
-If original repo is missing important files, create a restore branch and PR first.
 
 ## Pull Request Checklist
 
@@ -131,7 +94,34 @@ Every PR should mention:
 
 - Jira task key
 - What changed
+- API endpoints added or changed
+- Database migrations added or changed
+- Authorization checks added or changed
 - Files/folders changed
 - How it was tested
-- Any environment variables added
-- Any database changes added
+- Environment variables added or changed
+
+## Backend Verification
+
+Before opening a PR, run from `backend/` when possible:
+
+```bash
+./.venv/bin/python -m pytest
+./.venv/bin/python -m ruff check app tests migrations
+```
+
+If dependencies are missing:
+
+```bash
+./.venv/bin/pip install -e ".[dev]"
+```
+
+## Deployment Rule
+
+Deploy from `main` only after review and merge.
+
+Frontend apps should consume the deployed backend through their own environment variable:
+
+```txt
+EXPO_PUBLIC_API_BASE_URL=https://api.yourdomain.com
+```

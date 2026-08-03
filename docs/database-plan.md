@@ -1,259 +1,115 @@
 # Database Plan
 
-## Backend Platform
-
-The backend/database will use Supabase.
-
-Supabase will handle:
-
-- Authentication
-- PostgreSQL database
-- Row-level security
-- Customer data
-- Salon data
-- Booking data
-- Notification data
-
-## Main Tables
-
-### profiles
-
-Stores customer profile information.
-
-Suggested fields:
+The database source of truth is the v3 Supabase SQL baseline:
 
 ```txt
-id
-user_id
-full_name
-phone
-avatar_url
-created_at
-updated_at
+backend/migrations/001_supabase_schema.sql
 ```
 
-Notes:
+Application code must consume this schema. Do not redesign tables from Python models.
 
-- `user_id` should link to Supabase Auth user.
-- Customer should only read/update their own profile.
+## Platform
 
-### salons
+Supabase provides:
 
-Stores salon information.
+- Postgres database
+- Supabase Auth
+- Storage
+- Row Level Security policies
+- Database functions
+- Triggers and audit columns
 
-Suggested fields:
+The FastAPI backend connects to Supabase Postgres and exposes a shared API for all
+frontend clients.
+
+## Core Tables
+
+The v3 schema includes these main areas:
+
+- `profiles`: one row per Supabase Auth user across all roles
+- `salons`: salon records created by super admins and managed by owners
+- `salon_images`: salon image records
+- `salon_holidays`: salon closure dates
+- `service_categories`: global service category catalog
+- `service_subcategories`: global service subcategory catalog
+- `services`: salon services linked to subcategories
+- `staff`: salon staff members
+- `staff_services`: services offered by specific staff, including overrides
+- `staff_service_languages`: languages supported for staff-service combinations
+- `blocked_slots`: staff or salon-wide blocked time ranges
+- `bookings`: booking records
+- `booking_services`: immutable booking line snapshots
+- `notifications`: in-app notification records
+- `device_tokens`: Firebase device tokens
+
+## Important Database Functions
+
+These functions own critical booking behavior:
+
+- `get_available_slots`: the only source for availability
+- `create_booking`: the only allowed path for booking creation
+
+Backend code must not compute availability in Python and must not insert directly into
+`bookings` or `booking_services`.
+
+## Authorization Model
+
+The schema keeps Row Level Security enabled, but this backend connects with a privileged
+database role. Because of that, every RLS policy must be mirrored in application use-case
+authorization.
+
+Rules:
+
+- Super admin checks belong in use cases.
+- Owner ownership checks belong in use cases.
+- Customer self-access checks belong in use cases.
+- Repositories are data access only.
+- Routers authenticate and delegate.
+
+The policy mapping review artifact lives here:
 
 ```txt
-id
-name
-description
-address
-city
-latitude
-longitude
-phone
-image_url
-rating
-is_active
-created_at
-updated_at
+backend/docs/AUTHORIZATION.md
 ```
 
-Notes:
+## Audit Actor Context
 
-- `latitude` and `longitude` are needed for nearby salon search.
-- Customer app should only show active salons.
+Database triggers stamp audit columns such as `created_by` and `updated_by`.
 
-### service_categories
+For authenticated requests, set the transaction-local actor context:
 
-Stores service categories.
+```sql
+SET LOCAL request.jwt.claims = '{"sub": "<verified-user-uuid>"}';
+```
 
-Suggested fields:
+The backend helper for this lives in:
 
 ```txt
-id
-name
-description
-created_at
-updated_at
+backend/app/infrastructure/db/session.py
 ```
 
-Examples:
+## Migration Rules
 
-- Hair
-- Beard
-- Facial
-- Spa
-- Bridal
-
-### services
-
-Stores salon services.
-
-Suggested fields:
-
-```txt
-id
-salon_id
-category_id
-name
-description
-price
-duration_minutes
-is_active
-created_at
-updated_at
-```
-
-Notes:
-
-- A salon can have many services.
-- A service belongs to one salon.
-
-### bookings
-
-Stores customer booking records.
-
-Suggested fields:
-
-```txt
-id
-customer_id
-salon_id
-service_id
-booking_date
-start_time
-end_time
-status
-notes
-created_at
-updated_at
-```
-
-Possible status values:
-
-```txt
-pending
-confirmed
-cancelled
-completed
-rejected
-```
-
-Notes:
-
-- Customer should only read their own bookings.
-- Backend should prevent double booking for the same salon/service/time if required.
-
-### notifications
-
-Stores notification records shown inside the app.
-
-Suggested fields:
-
-```txt
-id
-customer_id
-title
-message
-type
-is_read
-booking_id
-created_at
-updated_at
-```
-
-Possible notification types:
-
-```txt
-booking_created
-booking_cancelled
-booking_reminder
-general
-```
-
-### device_tokens
-
-Stores Firebase/FCM device tokens for push notifications.
-
-Suggested fields:
-
-```txt
-id
-customer_id
-fcm_token
-platform
-is_active
-created_at
-updated_at
-```
-
-Possible platform values:
-
-```txt
-android
-ios
-```
-
-## Relationships
-
-```txt
-profiles.user_id -> auth.users.id
-services.salon_id -> salons.id
-services.category_id -> service_categories.id
-bookings.customer_id -> profiles.id
-bookings.salon_id -> salons.id
-bookings.service_id -> services.id
-notifications.customer_id -> profiles.id
-notifications.booking_id -> bookings.id
-device_tokens.customer_id -> profiles.id
-```
-
-## Row-Level Security Notes
-
-Use Supabase RLS policies to protect customer data.
-
-Customers should be able to:
-
-- Read active salons
-- Read active services
-- Read their own profile
-- Update their own profile
-- Create their own bookings
-- Read their own bookings
-- Cancel their own eligible bookings
-- Read their own notifications
-- Update read status on their own notifications
-- Create/update their own device token
-
-Customers should not be able to:
-
-- Read another customer's profile
-- Read another customer's bookings
-- Update salon data
-- Update service data
-- Read another customer's notifications
+- Use Alembic for schema changes.
+- Keep the baseline as raw SQL.
+- Do not hand-translate the baseline into SQLAlchemy model migrations.
+- Review autogenerated migrations manually.
+- Functions, triggers, partial indexes, exclusion constraints, and RLS policies must be
+  preserved by hand-written SQL migrations when they change.
 
 ## Location Query
 
-Nearby salon discovery should use:
+Nearby salon discovery should use customer coordinates and salon coordinates from the
+schema.
 
-```txt
-customer latitude
-customer longitude
-salon latitude
-salon longitude
-```
-
-Expected backend result:
+Expected API result shape:
 
 ```txt
 salon id
 salon name
 image url
 address
-rating
+rating or display score
 distance in km
 starting price
 ```
-
