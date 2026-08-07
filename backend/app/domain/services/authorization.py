@@ -4,9 +4,28 @@ from app.domain.entities.profile import Profile, Role
 
 
 def is_super_admin(actor: Profile) -> bool:
-    """Return whether the actor is a super administrator."""
-
+    """True for the super_admin role only."""
     return actor.role == Role.super_admin
+
+
+def is_owner(actor: Profile) -> bool:
+    """True for salon owners only."""
+    return actor.role == Role.owner
+
+
+def is_staff(actor: Profile) -> bool:
+    """True for staff members only."""
+    return actor.role == Role.staff
+
+
+def is_owner_or_staff(actor: Profile) -> bool:
+    """True for salon owners and staff — can access the salon workspace."""
+    return actor.role in {Role.owner, Role.staff, Role.super_admin}
+
+
+def is_customer(actor: Profile) -> bool:
+    """True for the customer role only."""
+    return actor.role == Role.customer
 
 
 def can_read_own_profile(actor: Profile, profile_id: str) -> bool:

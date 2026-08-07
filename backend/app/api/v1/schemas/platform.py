@@ -1,0 +1,487 @@
+"""Frontend-facing API schemas."""
+
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field, model_validator
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Customer profile update request."""
+
+    full_name: str | None = Field(default=None, min_length=1)
+    phone: str | None = None
+    avatar_url: str | None = None
+
+
+class ProfileResponse(BaseModel):
+    """Profile response."""
+
+    id: str
+    role: str
+    full_name: str | None
+    email: str | None
+    phone: str | None
+    phone_verified: bool
+    avatar_url: str | None
+    is_active: bool
+
+
+class SalonSummaryResponse(BaseModel):
+    """Salon list response item."""
+
+    id: str
+    name: str
+    description: str | None = None
+    category: str | None = None
+    address: str | None = None
+    city: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    timezone: str
+    approval_mode: str
+    profile_completed: bool
+    is_active: bool
+    image_url: str | None = None
+    starting_price: Decimal | None = None
+    distance_km: float | None = None
+
+
+class SalonImageResponse(BaseModel):
+    """Salon image response."""
+
+    id: str
+    salon_id: str
+    url: str
+    caption: str | None = None
+    is_main: bool
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ServiceResponse(BaseModel):
+    """Service response."""
+
+    id: str
+    salon_id: str
+    subcategory_id: str
+    name: str
+    description: str | None = None
+    duration_minutes: int
+    price: Decimal
+    is_active: bool
+    category_name: str | None = None
+    subcategory_name: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class SalonDetailResponse(BaseModel):
+    """Salon detail response."""
+
+    id: str
+    name: str
+    description: str | None = None
+    category: str | None = None
+    address: str | None = None
+    city: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    timezone: str
+    working_hours: dict[str, Any]
+    approval_mode: str
+    slot_interval_minutes: int
+    profile_completed: bool
+    is_active: bool
+    images: list[SalonImageResponse] = Field(default_factory=list)
+    services: list[ServiceResponse] = Field(default_factory=list)
+
+
+class OwnerSalonResponse(BaseModel):
+    """Owner salon response."""
+
+    id: str
+    owner_id: str
+    name: str
+    description: str | None = None
+    category: str | None = None
+    address: str | None = None
+    city: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    timezone: str
+    working_hours: dict[str, Any]
+    approval_mode: str
+    slot_interval_minutes: int
+    qr_token: str
+    profile_completed: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class OwnerSalonUpdateRequest(BaseModel):
+    """Owner salon update request."""
+
+    name: str | None = None
+    description: str | None = None
+    category: str | None = None
+    address: str | None = None
+    city: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    timezone: str | None = None
+    working_hours: dict[str, Any] | None = None
+    approval_mode: Literal["auto", "manual"] | None = None
+    slot_interval_minutes: int | None = Field(default=None, gt=0)
+
+
+class OwnerSalonSettingsRequest(BaseModel):
+    """Owner salon settings request."""
+
+    approval_mode: Literal["auto", "manual"] | None = None
+    slot_interval_minutes: int | None = Field(default=None, gt=0)
+    working_hours: dict[str, Any] | None = None
+
+
+class SalonImageCreateRequest(BaseModel):
+    """Create salon image request."""
+
+    url: str
+    caption: str | None = None
+    is_main: bool = False
+    sort_order: int = 0
+
+
+class SalonImageUpdateRequest(BaseModel):
+    """Update salon image request."""
+
+    url: str | None = None
+    caption: str | None = None
+    is_main: bool | None = None
+    sort_order: int | None = None
+
+
+class HolidayCreateRequest(BaseModel):
+    """Create salon holiday request."""
+
+    holiday_date: date
+    title: str | None = None
+    is_recurring: bool = False
+
+
+class HolidayResponse(BaseModel):
+    """Salon holiday response."""
+
+    id: str
+    salon_id: str
+    holiday_date: date
+    title: str | None = None
+    is_recurring: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class ServiceCreateRequest(BaseModel):
+    """Create service request."""
+
+    subcategory_id: str
+    name: str
+    description: str | None = None
+    duration_minutes: int = Field(gt=0)
+    price: Decimal = Field(ge=0)
+
+
+class ServiceUpdateRequest(BaseModel):
+    """Update service request."""
+
+    subcategory_id: str | None = None
+    name: str | None = None
+    description: str | None = None
+    duration_minutes: int | None = Field(default=None, gt=0)
+    price: Decimal | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+
+class StaffCreateRequest(BaseModel):
+    """Create staff request."""
+
+    profile_id: str | None = None
+    name: str
+    photo_url: str | None = None
+    specialization: str | None = None
+    working_hours: dict[str, Any] | None = None
+
+
+class StaffUpdateRequest(BaseModel):
+    """Update staff request."""
+
+    profile_id: str | None = None
+    name: str | None = None
+    photo_url: str | None = None
+    specialization: str | None = None
+    working_hours: dict[str, Any] | None = None
+    is_active: bool | None = None
+
+
+class StaffResponse(BaseModel):
+    """Staff response (owner-facing, includes full detail)."""
+
+    id: str
+    salon_id: str
+    profile_id: str | None = None
+    name: str
+    photo_url: str | None = None
+    specialization: str | None = None
+    working_hours: dict[str, Any] | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PublicStaffResponse(BaseModel):
+    """Customer-facing staff/barber summary for salon detail and booking flow."""
+
+    id: str
+    name: str
+    photo_url: str | None = None
+    specialization: str | None = None
+
+
+class StaffServiceAssignRequest(BaseModel):
+    """Assign service to staff request."""
+
+    service_id: str
+    duration_minutes: int | None = Field(default=None, gt=0)
+    price_override: Decimal | None = Field(default=None, ge=0)
+    specialization: str | None = None
+
+
+class StaffServiceResponse(BaseModel):
+    """Staff service response."""
+
+    id: str
+    staff_id: str
+    service_id: str
+    duration_minutes: int | None = None
+    price_override: Decimal | None = None
+    specialization: str | None = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AvailabilityResponse(BaseModel):
+    """Available slot response.
+
+    Frontend ``TimeSlotPicker`` expects:
+      - ``id``         — stable key for the slot (formatted start time, e.g. "09:00 AM")
+      - ``time``       — human-readable label shown in the UI (same value as ``id``)
+      - ``barberName`` — optional barber context displayed beside the time chip
+
+    We also keep ``slot_start`` / ``slot_end`` for any consumer that needs the
+    raw datetimes.
+    """
+
+    slot_start: datetime
+    slot_end: datetime
+    # ── Frontend TimeSlotPicker fields ────────────────────────────────────────
+    id: str  # e.g. "09:00 AM" — stable key and display label
+    time: str  # same as id; explicit field for clarity
+    barberName: str | None = None  # camelCase to match the TS type verbatim  # noqa: N815
+
+
+class BookingCreateRequest(BaseModel):
+    """Create booking request."""
+
+    salon_id: str
+    staff_id: str
+    service_ids: list[str] = Field(min_length=1)
+    start_datetime: datetime
+    customer_name: str
+    customer_phone: str | None = None
+    source: Literal["app", "manual_walkin", "qr_walkin"] = "app"
+    notes: str | None = None
+
+
+class BookingLineResponse(BaseModel):
+    """Booking service line response."""
+
+    service_id: str
+    service_name: str
+    duration_minutes: int
+    price: Decimal
+
+
+# Statuses that allow a customer (or salon) to cancel.
+_CANCELLABLE_STATUSES = frozenset({"pending", "confirmed"})
+
+
+class BookingResponse(BaseModel):
+    """Booking response."""
+
+    id: str
+    salon_id: str
+    staff_id: str
+    customer_id: str | None = None
+    customer_name: str
+    customer_phone: str | None = None
+    phone_verified: bool
+    source: str
+    status: str
+    start_datetime: datetime
+    end_datetime: datetime
+    total_duration_minutes: int
+    total_price: Decimal
+    payment_status: str
+    payment_method: str | None = None
+    rejection_reason: str | None = None
+    notes: str | None = None
+    services: list[BookingLineResponse] = Field(default_factory=list)
+    # ── Denormalized display fields (joined from salons + staff) ──────────
+    salon_name: str | None = None
+    salon_address: str | None = None
+    salon_image: str | None = None
+    staff_name: str | None = None
+    staff_photo_url: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    # ── Computed UI helper ────────────────────────────────────────────────
+    can_cancel: bool = False  # set by model_validator below
+
+    @model_validator(mode="after")
+    def _set_can_cancel(self) -> "BookingResponse":
+        """Derive can_cancel from status so the frontend needs no extra logic."""
+        self.can_cancel = self.status in _CANCELLABLE_STATUSES
+        return self
+
+
+class RejectBookingRequest(BaseModel):
+    """Reject booking request."""
+
+    rejection_reason: str = Field(min_length=1)
+
+
+# Reason codes mirror the frontend ``CancellationReasonChip`` union type so
+# the client can send structured data without a free-text-only fallback.
+CancellationReasonCode = Literal[
+    "schedule_conflict",
+    "found_better",
+    "personal_emergency",
+    "booked_by_mistake",
+    "service_not_needed",
+    "barber_unavailable",
+    "other",
+]
+
+
+class CancelBookingRequest(BaseModel):
+    """Optional body for the cancel-booking endpoint.
+
+    Both fields are optional so existing callers that POST with an empty body
+    continue to work unchanged.
+    """
+
+    reason_code: CancellationReasonCode | None = Field(
+        default=None,
+        description="Structured reason chip from the cancellation flow UI.",
+    )
+    reason_text: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Free-text note typed by the user (may be empty).",
+    )
+
+
+class PaymentRequest(BaseModel):
+    """Record booking payment request."""
+
+    payment_method: Literal["cash", "upi", "card", "wallet"]
+
+
+class NotificationResponse(BaseModel):
+    """Notification response."""
+
+    id: str
+    user_id: str
+    booking_id: str | None = None
+    type: str | None = None
+    title: str
+    body: str | None = None
+    read: bool
+    read_at: datetime | None = None  # set when read flips true (migration 0002)
+    created_at: datetime
+
+
+class DeviceRegisterRequest(BaseModel):
+    """Device registration request."""
+
+    token: str
+    platform: str | None = None
+    device_name: str | None = None
+
+
+class DeviceRegisterResponse(BaseModel):
+    """Device registration response."""
+
+    id: str
+    token: str
+    platform: str | None = None
+
+
+# ── Phase 3 additions ─────────────────────────────────────────────────────────
+
+
+class LanguageResponse(BaseModel):
+    """Language reference data response."""
+
+    code: str
+    name: str
+
+
+class StaffServiceLanguagesRequest(BaseModel):
+    """Set language codes for a staff service assignment (idempotent PUT)."""
+
+    language_codes: list[str] = Field(
+        description="ISO 639-1 codes, e.g. ['en', 'ml']. Replaces the current list."
+    )
+
+
+class BlockedSlotCreateRequest(BaseModel):
+    """Create a blocked slot (staff-scoped or salon-wide)."""
+
+    staff_id: str | None = Field(
+        default=None,
+        description="Staff member to block. Leave null for a salon-wide block.",
+    )
+    start_datetime: datetime
+    end_datetime: datetime
+    block_type: Literal["leave", "break", "lunch", "training", "holiday", "other"] = "other"
+    reason: str | None = None
+    is_full_day: bool = False
+    is_recurring: bool = False
+    recurrence_rule: str | None = Field(
+        default=None, description="iCal RRULE string. Stored but not yet interpreted."
+    )
+    recurrence_end: date | None = None
+
+
+class BlockedSlotResponse(BaseModel):
+    """Blocked slot response."""
+
+    id: str
+    staff_id: str | None = None
+    salon_id: str | None = None
+    start_datetime: datetime
+    end_datetime: datetime
+    block_type: str
+    reason: str | None = None
+    is_full_day: bool
+    is_recurring: bool
+    recurrence_rule: str | None = None
+    recurrence_end: date | None = None
+    created_at: datetime
+    updated_at: datetime
+

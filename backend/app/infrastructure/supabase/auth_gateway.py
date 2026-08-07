@@ -30,6 +30,33 @@ class SupabaseAuthGateway(AuthGateway):
             {"refresh_token": payload.refresh_token},
         )
 
+    async def send_phone_otp(self, phone: str) -> None:
+        """Send a phone OTP via Supabase Auth (walk-in QR flow)."""
+
+        if not self.settings.supabase_url or not self.settings.supabase_anon_key:
+            raise ValidationError("Supabase Auth is not configured")
+        base_url = str(self.settings.supabase_url).rstrip("/")
+        headers = {
+            "apikey": self.settings.supabase_anon_key,
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"{base_url}/auth/v1/otp",
+                json={"phone": phone},
+                headers=headers,
+            )
+        if response.is_error:
+            raise ValidationError("Could not send OTP — check phone number format")
+
+    async def verify_phone_otp(self, phone: str, otp: str) -> AuthTokens:
+        """Verify a phone OTP and return tokens (walk-in QR flow)."""
+
+        return await self._post(
+            "/auth/v1/token?grant_type=otp",
+            {"phone": phone, "token": otp, "type": "sms"},
+        )
+
     async def _post(self, path: str, payload: dict[str, str]) -> AuthTokens:
         if not self.settings.supabase_url or not self.settings.supabase_anon_key:
             raise ValidationError("Supabase Auth is not configured")

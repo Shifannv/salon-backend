@@ -1,5 +1,7 @@
 """Authentication API routes."""
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import get_auth_gateway, get_current_actor
@@ -56,4 +58,4 @@ async def me(actor: Profile = Depends(get_current_actor)) -> ProfileResponse:
     """Return the profile resolved from the verified Supabase JWT subject."""
 
     output = await GetMe().execute(actor)
-    return ProfileResponse(**output.profile.__dict__)
+    return ProfileResponse(**asdict(output.profile))

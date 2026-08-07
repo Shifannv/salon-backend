@@ -1,5 +1,6 @@
 """Supabase JWT verification and actor extraction."""
 
+import time
 from typing import Any
 
 import httpx
@@ -8,6 +9,11 @@ from jose import JWTError, jwt
 from app.core.config import Settings
 from app.core.exceptions import UnauthorizedError
 
+# JWKS keys are long-lived; Supabase rotates them very rarely.
+# Cache for 60 minutes so a key rotation is picked up within an hour
+# without restarting the server.
+_JWKS_TTL_SECONDS = 3600
+
 
 class SupabaseJWTVerifier:
     """Verify Supabase JWTs against the project's JWKS endpoint."""
@@ -15,6 +21,7 @@ class SupabaseJWTVerifier:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._jwks: dict[str, Any] | None = None
+        self._jwks_fetched_at: float = 0.0  # epoch seconds
 
     async def verify_subject(self, token: str) -> str:
         """Return the verified Supabase user id from a bearer token."""
@@ -48,13 +55,39 @@ class SupabaseJWTVerifier:
         return subject
 
     async def _get_key(self, kid: str) -> dict[str, Any]:
+        """Return the JWK matching kid, refreshing the cache if stale."""
+
+        now = time.monotonic()
+        cache_expired = (now - self._jwks_fetched_at) > _JWKS_TTL_SECONDS
+
+        if self._jwks is None or cache_expired:
+            await self._refresh_jwks()
+
+        key = self._find_key(kid)
+        if key is not None:
+            return key
+
+        # kid not found — force a refresh once in case Supabase just rotated keys
+        await self._refresh_jwks()
+        key = self._find_key(kid)
+        if key is not None:
+            return key
+
+        raise UnauthorizedError("Invalid authentication credentials")
+
+    def _find_key(self, kid: str) -> dict[str, Any] | None:
         if self._jwks is None:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(str(self.settings.supabase_jwks_url))
-                response.raise_for_status()
-                self._jwks = response.json()
+            return None
         for key_data in self._jwks.get("keys", []):
             if key_data.get("kid") == kid:
                 return key_data
-        self._jwks = None
-        raise UnauthorizedError("Invalid authentication credentials")
+        return None
+
+    async def _refresh_jwks(self) -> None:
+        """Fetch fresh JWKS from Supabase and update the in-memory cache."""
+
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(str(self.settings.supabase_jwks_url))
+            response.raise_for_status()
+            self._jwks = response.json()
+            self._jwks_fetched_at = time.monotonic()

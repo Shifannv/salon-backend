@@ -14,11 +14,23 @@ class Settings(BaseSettings):
     app_name: str = "Salon Platform API"
     environment: str = "local"
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/salon_platform"
+
+    # Supabase Auth (anon / public key — safe for clients)
     supabase_url: HttpUrl | None = None
     supabase_anon_key: str | None = None
     supabase_jwks_url: HttpUrl | None = None
     supabase_jwt_audience: str | None = "authenticated"
+
+    # Supabase Auth Admin (service-role key — never expose to clients)
+    supabase_service_role_key: str | None = None
+
+    # Firebase Cloud Messaging (service account JSON string)
+    firebase_credentials_json: str | None = None
+
+    # CORS
     backend_cors_origins: list[str] = Field(default_factory=list)
+
+    # Database connection pool
     db_pool_size: int = 5
     db_max_overflow: int = 5
     db_pool_timeout_seconds: int = 10
@@ -34,6 +46,7 @@ class Settings(BaseSettings):
                     "SUPABASE_URL": self.supabase_url,
                     "SUPABASE_ANON_KEY": self.supabase_anon_key,
                     "SUPABASE_JWKS_URL": self.supabase_jwks_url,
+                    "SUPABASE_SERVICE_ROLE_KEY": self.supabase_service_role_key,
                 }.items()
                 if not value
             ]

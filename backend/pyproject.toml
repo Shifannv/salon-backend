@@ -1,31 +1,50 @@
 [project]
 name = "salon-platform-api"
 version = "0.1.0"
-description = "FastAPI backend for the salon customer and barber apps."
+description = "Shared FastAPI backend for the salon customer app, barber/owner app, and walk-in QR web flow."
 requires-python = ">=3.12"
 dependencies = [
-  "alembic>=1.13.2",
-  "asyncpg>=0.29.0",
-  "email-validator>=2.2.0",
+  # Web framework
   "fastapi>=0.112.0",
-  "greenlet>=3.0.0",
-  "httpx>=0.27.0",
-  "passlib>=1.7.4",
-  "psycopg[binary]>=3.2.1",
-  "pydantic-settings>=2.4.0",
-  "python-jose[cryptography]>=3.3.0",
-  "python-multipart>=0.0.9",
-  "sqlalchemy>=2.0.32",
-  "structlog>=24.4.0",
   "uvicorn[standard]>=0.30.5",
+  "python-multipart>=0.0.9",   # required by FastAPI for form/file parsing
+
+  # Database — async Postgres via asyncpg
+  "sqlalchemy>=2.0.32",
+  "asyncpg>=0.29.0",
+  "alembic>=1.13.2",
+
+  # Auth & JWT
+  "python-jose[cryptography]>=3.3.0",   # Supabase JWT verification (JWKS)
+
+  # HTTP client — Supabase Auth REST calls
+  "httpx>=0.27.0",
+
+  # Config & validation
+  "pydantic-settings>=2.4.0",
+  "email-validator>=2.2.0",             # required for Pydantic EmailStr
+
+  # Logging
+  "structlog>=24.4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest-asyncio>=0.23.8",
   "pytest>=8.3.2",
+  "pytest-asyncio>=0.23.8",
+  "httpx>=0.27.0",      # TestClient dependency
   "ruff>=0.5.7",
 ]
+
+# Optional — only needed when Firebase push notifications are enabled:
+# push = [
+#   "firebase-admin>=6.5.0",
+# ]
+
+# Optional — only needed when Redis caching is enabled (Phase 2):
+# cache = [
+#   "redis[asyncio]>=5.0.0",
+# ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -41,4 +60,4 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-ignore = ["B008", "FURB157", "UP017"]
+ignore = ["B008", "FURB157", "UP017", "BLE001", "DTZ001"]

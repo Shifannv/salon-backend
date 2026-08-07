@@ -1,76 +1,83 @@
-# Supabase Migrations
+# Migrations
 
-This folder contains SQL migrations for the Supabase PostgreSQL database.
+This folder manages the Supabase Postgres schema — both the full baseline and
+incremental Alembic migrations.
+
+---
 
 ## Files
 
-```txt
-001_supabase_schema.sql
+```
+migrations/
+├── 001_supabase_schema.sql   ← Full baseline schema (source of truth)
+├── env.py                    ← Alembic async engine config
+└── versions/
+    ├── 0001_baseline.py      ← Alembic: marks baseline as applied
+    └── 0002_notifications_read_at.py  ← Incremental: adds read_at to notifications
 ```
 
-This file is the full platform schema from the prompt text you provided.
+---
 
-It includes:
+## Fresh Supabase Project Setup
 
-- PostgreSQL extensions
-- enums
-- tables
-- indexes
-- triggers
-- Supabase Auth profile trigger
-- RLS helper functions
-- RLS policies
-- slot engine RPC
-- booking creation RPC
-- QR lookup RPC
+Run `001_supabase_schema.sql` once on an **empty** Supabase project:
 
-## Important
+1. Open Supabase Dashboard → SQL Editor
+2. Paste the full contents of `001_supabase_schema.sql`
+3. Run it
 
-Run `001_supabase_schema.sql` only on an empty Supabase project.
+The file creates all tables, indexes, triggers, RLS policies, and stored functions
+(`create_booking`, `get_available_slots`, `get_salon_by_qr`).
 
-The file itself says:
-
-```txt
-Run top to bottom on an EMPTY Supabase project.
-```
-
-If your Supabase database already has older versions of these tables, do not run this full migration directly. Use incremental migration files instead.
-
-## Apply Through Supabase Dashboard
-
-1. Open Supabase Dashboard.
-2. Select your project.
-3. Go to SQL Editor.
-4. Open `001_supabase_schema.sql`.
-5. Copy the full file content.
-6. Paste it into SQL Editor.
-7. Run it.
-
-## Apply Through Supabase CLI
-
-If you use Supabase CLI, copy this file into the Supabase migrations folder with a timestamped filename.
-
-Example:
-
-```txt
-supabase/migrations/20260731000100_initial_schema.sql
-```
-
-Then run:
+Then run Alembic to stamp the database at the baseline version and apply any
+incremental migrations:
 
 ```bash
-supabase db push
+cd backend
+alembic upgrade head
 ```
 
-## After Applying
+---
 
-Create your first super admin user in Supabase Auth, then promote that user:
+## Adding New Migrations
+
+Never modify the database schema from Python application code.
+All schema changes go through Alembic migration files:
+
+```bash
+# Create a new migration
+alembic revision -m "describe_the_change"
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Check current version
+alembic current
+
+# Roll back one step
+alembic downgrade -1
+```
+
+Write the actual SQL inside the `upgrade()` function of the new migration file.
+Provide a working `downgrade()` too.
+
+---
+
+## Applied Migrations
+
+| Version | What it does |
+|---|---|
+| `0001_baseline` | Marks the `001_supabase_schema.sql` schema as the starting point |
+| `0002_notifications_read_at` | Adds `read_at timestamptz` column + auto-stamp trigger to `notifications` |
+
+---
+
+## After Initial Setup
+
+Create your first super admin user in Supabase Auth dashboard, then promote them:
 
 ```sql
-update profiles
-set role = 'super_admin'
-where email = 'you@example.com';
+UPDATE profiles
+SET role = 'super_admin'
+WHERE email = 'you@example.com';
 ```
-
-Replace `you@example.com` with your real admin email.
-

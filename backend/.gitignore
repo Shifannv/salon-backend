@@ -1,9 +1,107 @@
+# =============================================================================
+# Salon Platform Backend — .gitignore
+# Python 3.12+  |  FastAPI  |  Supabase Postgres  |  Alembic  |  Firebase
+# =============================================================================
+
+# ── Secrets / Environment ─────────────────────────────────────────────────────
 .env
+.env.*
+!.env.example          # keep the example template committed
+*.pem
+*.p8
+firebase-key.json
+service-account*.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# ── Virtual environments ──────────────────────────────────────────────────────
 .venv/
+venv/
+env/
+ENV/
+
+# ── Build / packaging ─────────────────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+.installed.cfg
+wheels/
+sdist/
+develop-eggs/
+.eggs/
+lib/
+lib64/
+parts/
+var/
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+*.coveragerc
+
+# ── Linting / type checking ───────────────────────────────────────────────────
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+pyrightconfig.json
+
+# ── Database (local dev only — never SQLite in production) ───────────────────
 *.db
 *.sqlite
 *.sqlite3
-__pycache__/
-.pytest_cache/
-.ruff_cache/
-*.egg-info/
+salon_platform.db
+
+# ── Alembic ───────────────────────────────────────────────────────────────────
+# Keep migrations/versions/*.py and migrations/env.py committed.
+# Only ignore auto-generated temp files if any.
+migrations/__pycache__/
+migrations/versions/__pycache__/
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.log.*
+
+# ── Jupyter (if used for data exploration) ───────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Distribution / CI artifacts ──────────────────────────────────────────────
+.tox/
+.nox/
+.cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── Windows ───────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

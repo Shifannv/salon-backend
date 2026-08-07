@@ -13,6 +13,7 @@ engine = create_async_engine(
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout_seconds,
+    connect_args={"statement_cache_size": 0} if "asyncpg" in settings.database_url else {},
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
