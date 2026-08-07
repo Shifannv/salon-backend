@@ -16,7 +16,6 @@ folder structure, and developer task ownership.
 | [features.md](./features.md) | MVP feature list and future feature ideas |
 | [folder-structure.md](./folder-structure.md) | Backend-only repository structure |
 | [database-plan.md](./database-plan.md) | Supabase schema, relationships, and security notes |
-| [git-workflow.md](./git-workflow.md) | Branch, commit, pull request, and sync workflow |
 | [frontend-integration.md](./frontend-integration.md) | Frontend integration guide & API consumption |
 
 ---
