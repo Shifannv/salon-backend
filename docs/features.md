@@ -17,6 +17,59 @@ truth for task status, assignee, priority, and acceptance criteria.
 - Async SQLAlchemy database session setup
 - Alembic baseline migration wrapper for the v3 SQL schema
 
+### Customer App APIs
+
+- `GET /v1/customer/profile`
+- `PATCH /v1/customer/profile`
+- `GET /v1/salons`
+- `GET /v1/salons/nearby`
+- `GET /v1/salons/{salon_id}`
+- `GET /v1/salons/{salon_id}/services`
+
+### Barber/Owner App APIs
+
+- `GET /v1/salons/me`
+- `PATCH /v1/salons/me`
+- `POST /v1/salons/me/complete-profile`
+- `PATCH /v1/salons/me/settings`
+- `GET /v1/salons/me/images`
+- `POST /v1/salons/me/images`
+- `PATCH /v1/salons/me/images/{image_id}`
+- `GET /v1/salons/me/holidays`
+- `POST /v1/salons/me/holidays`
+- `GET /v1/salons/me/services`
+- `POST /v1/salons/me/services`
+- `PATCH /v1/salons/me/services/{service_id}`
+- `DELETE /v1/salons/me/services/{service_id}` soft-deactivates through `is_active`
+- `GET /v1/salons/me/staff`
+- `POST /v1/salons/me/staff`
+- `PATCH /v1/salons/me/staff/{staff_id}`
+- `DELETE /v1/salons/me/staff/{staff_id}` soft-deactivates through `is_active`
+- `POST /v1/salons/me/staff/{staff_id}/services`
+
+### Booking, Notifications, And Devices
+
+- `GET /v1/availability`
+- `POST /v1/bookings`
+- `GET /v1/bookings`
+- `GET /v1/bookings/{booking_id}`
+- `POST /v1/bookings/{booking_id}/approve`
+- `POST /v1/bookings/{booking_id}/reject`
+- `POST /v1/bookings/{booking_id}/complete`
+- `POST /v1/bookings/{booking_id}/cancel`
+- `POST /v1/bookings/{booking_id}/payment`
+- `GET /v1/notifications`
+- `POST /v1/notifications/{notification_id}/read`
+- `POST /v1/devices`
+- `DELETE /v1/devices/{token}`
+
+### Current Schema Limitations
+
+- `DELETE /v1/salons/me/images/{image_id}` is intentionally rejected because
+  `salon_images` has no `is_active` column for soft delete.
+- `DELETE /v1/salons/me/holidays/{holiday_id}` is intentionally rejected because
+  `salon_holidays` has no `is_active` column for soft delete.
+
 ## MVP Backend Features
 
 ### 1. Authentication And Actor Resolution

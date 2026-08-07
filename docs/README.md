@@ -5,7 +5,9 @@ This folder contains the main project knowledge for the shared salon platform ba
 Use this folder as the single place for backend decisions, stack details, database notes,
 folder structure, and developer task ownership.
 
-## Documents
+---
+
+## 1. Core Project Documents
 
 | File | Purpose |
 | --- | --- |
@@ -15,37 +17,49 @@ folder structure, and developer task ownership.
 | [folder-structure.md](./folder-structure.md) | Backend-only repository structure |
 | [database-plan.md](./database-plan.md) | Supabase schema, relationships, and security notes |
 | [git-workflow.md](./git-workflow.md) | Branch, commit, pull request, and sync workflow |
+| [frontend-integration.md](./frontend-integration.md) | Frontend integration guide & API consumption |
 
-## Repository Decision
+---
+
+## 2. Walk-in QR Web System Docs
+
+| File | Purpose |
+| --- | --- |
+| [web-architecture.md](../backend/docs/walkin/web-architecture.md) | Walk-in QR Web App Next.js architecture |
+| [barber-app-changes.md](../backend/docs/walkin/barber-app-changes.md) | Barber App QR Code generator & screen setup |
+| [backend-changes.md](../backend/docs/walkin/backend-changes.md) | Backend QR endpoints & DB resolution |
+
+---
+
+## 3. Backend Technical & Integration Docs
+
+| File | Purpose |
+| --- | --- |
+| [API_KEYS_AND_INTEGRATION.md](../backend/docs/API_KEYS_AND_INTEGRATION.md) | Environment variables, key sources, and step-by-step frontend connection |
+| [ARCHITECTURE.md](../backend/docs/ARCHITECTURE.md) | Layered clean architecture design rules |
+| [AUTHORIZATION.md](../backend/docs/AUTHORIZATION.md) | Supabase JWT authentication and role-based authorization |
+| [BOOKING_FLOW.md](../backend/docs/BOOKING_FLOW.md) | Booking creation & slot availability rules |
+| [RUNBOOK.md](../backend/docs/RUNBOOK.md) | Development runbook, running tests, and troubleshooting |
+
+---
+
+## 4. Repository Decision
 
 This repository is for the shared backend API only.
 
-Frontend apps should live in separate repositories and connect to this backend through
-environment-configured API base URLs.
+Frontend apps live in separate repositories and connect to this backend through
+environment-configured API base URLs:
 
 ```txt
-salon-shared-api/      FastAPI backend
+salon-backend/         FastAPI backend (this repo)
 salon-customer-app/    Expo customer app
-salon-barber-app/      Expo barber/owner app
-salon-admin-portal/    Future web admin portal
-salon-walkin-web/      Future walk-in QR web app
+salon-barber-app/      Expo owner/barber app
+salon-walkin-web/      Walk-in QR web app (Next.js)
 ```
 
-## Current Rule
+---
 
-```txt
-One Jira task = one branch = one pull request
-```
+## 5. Workflow Rules
 
-## Task Source of Truth
-
-Jira is the source of truth for all task status, ownership, priority, and acceptance criteria.
-
-The task files in this folder should only mirror Jira keys and summaries. Do not add extra task lists here without creating or updating Jira first.
-
-## Frontend Integration
-
-Frontend apps live in separate repositories. Use this guide when connecting a frontend app
-to the shared backend API:
-
-[frontend-integration.md](./frontend-integration.md)
+- **Branch naming**: `one Jira task = one branch = one pull request`
+- **Source of truth**: Jira is the source of truth for task status, ownership, priority, and acceptance criteria.
