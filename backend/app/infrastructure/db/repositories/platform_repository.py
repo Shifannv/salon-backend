@@ -579,7 +579,7 @@ class PlatformRepository:
             text(
                 """
                 with staff_info as (
-                  select name as barber_name, sl.timezone
+                  select st.name as barber_name, sl.timezone
                   from staff st
                   join salons sl on sl.id = st.salon_id
                   where st.id = :staff_id

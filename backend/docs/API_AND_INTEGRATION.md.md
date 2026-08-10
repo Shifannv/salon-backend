@@ -1696,6 +1696,10 @@ Output Response:
 
 ### Record booking payment
 
+This endpoint is for salon owner/staff payment recording. The customer app should
+not call it after demo checkout; customer payments stay unpaid until the salon records
+`cash` or `online` payment.
+
 endpoint :
 
 ```bash
@@ -1721,7 +1725,7 @@ Input Request:
     "booking_id": "66666666-6666-4666-8666-666666666666"
   },
   "body": {
-    "payment_method": "cash"
+    "payment_method": "online"
   }
 }
 ```
@@ -1744,7 +1748,7 @@ Output Response:
   "total_duration_minutes": 30,
   "total_price": "250.00",
   "payment_status": "paid",
-  "payment_method": "cash",
+  "payment_method": "online",
   "rejection_reason": null,
   "notes": null,
   "services": [],

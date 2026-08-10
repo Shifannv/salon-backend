@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -13,6 +13,29 @@ class ProfileUpdateRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=1)
     phone: str | None = None
     avatar_url: str | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_indian_phone(cls, value: str | None) -> str | None:
+        """Normalize and reject obvious fake customer phone numbers."""
+
+        if value is None:
+            return None
+
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if digits.startswith("91") and len(digits) == 12:
+            digits = digits[2:]
+
+        bad_sequences = {"0123456789", "1234567890", "9876543210"}
+        if (
+            len(digits) != 10
+            or digits[0] not in "6789"
+            or len(set(digits)) == 1
+            or digits in bad_sequences
+        ):
+            raise ValueError("Enter a valid 10-digit Indian mobile number")
+
+        return f"+91{digits}"
 
 
 class ProfileResponse(BaseModel):
@@ -394,7 +417,7 @@ class CancelBookingRequest(BaseModel):
 class PaymentRequest(BaseModel):
     """Record booking payment request."""
 
-    payment_method: Literal["cash", "upi", "card", "wallet"]
+    payment_method: Literal["cash", "online"]
 
 
 class NotificationResponse(BaseModel):
