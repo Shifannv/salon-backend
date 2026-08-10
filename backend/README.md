@@ -58,7 +58,7 @@ GET /health/db    → { "status": "ok", "db": "reachable" }
 
 | Prefix | Who uses it | Auth |
 |---|---|---|
-| `POST /v1/auth/login` · `refresh` · `GET /v1/auth/me` | All clients | Public / Bearer JWT |
+| `POST /v1/auth/refresh` · `GET /v1/auth/me` | All clients | Public / Bearer JWT |
 | `GET /v1/salons` · `/{id}` · `/services` · `/staff` | Customer app | Public |
 | `GET /v1/availability` | Customer app, walk-in web | Public |
 | `GET/POST /v1/bookings` · `/cancel` · `/approve` · `/reject` | Customer & owner apps | Bearer JWT |
@@ -75,10 +75,13 @@ Clients authenticate through Supabase Auth. The backend verifies Supabase JWTs a
 the project JWKS endpoint and resolves the verified `sub` to `profiles.id`.
 
 ```
-POST /v1/auth/login          → { access_token, refresh_token }
 POST /v1/auth/refresh        → { access_token, refresh_token }
 GET  /v1/auth/me             → Profile
 ```
+
+Google sign-in is started by the frontend through Supabase Auth. The backend does not
+accept email/password login; clients send the Supabase access token returned after
+Google OAuth.
 
 All protected requests require:
 

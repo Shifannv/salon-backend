@@ -65,6 +65,7 @@ GET /availability
   → BookingUseCases.availability()
     → PlatformRepository.get_available_slots()
       → SQL: SELECT slot_start, slot_end FROM get_available_slots(:staff_id, :date, :duration)
+      → Slot starts advance by the selected service duration, not by app code.
 
 POST /bookings
   → BookingUseCases.create_booking()

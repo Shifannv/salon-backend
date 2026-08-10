@@ -1,60 +1,52 @@
-# API Keys, API Reference, And Frontend Integration Guide
+# Salon Platform API And Integration Guide
 
-This document is the frontend integration reference for the shared FastAPI backend.
-It covers environment variables, authentication, every mounted API route, request
-formats, response formats, and common error handling.
+This is the Postman-style markdown reference for the shared FastAPI backend.
 
-The backend owns all application data access and business rules. Frontend apps may use
-Supabase directly for authentication token management only; all salon, catalog, booking,
-notification, and device data must go through this API.
+The actual mounted API prefix is:
 
----
+```bash
+/v1
+```
 
-## 1. Base URLs
+## Base URLs
 
 Local development:
 
-```txt
+```bash
 http://localhost:8000
 ```
 
 Real mobile device on the same Wi-Fi:
 
-```txt
+```bash
 http://YOUR_MAC_IP:8000
 ```
 
 Production:
 
-```txt
+```bash
 https://api.yourdomain.com
 ```
 
-All versioned API routes are under:
+OpenAPI UI:
 
-```txt
-/v1
-```
-
-OpenAPI docs are available locally at:
-
-```txt
+```bash
 http://localhost:8000/docs
 ```
 
----
+## Authentication
 
-## 2. Authentication
-
-Authenticated routes require a Supabase access token:
+Protected routes use the Supabase access token in the HTTP header.
 
 ```http
 Authorization: Bearer <supabase_access_token>
 Content-Type: application/json
 ```
 
-Roles are resolved by the backend from the `profiles` table. Clients must not rely on
-role claims inside JWT bodies for authorization decisions.
+Do not send `access_token` in the JSON body unless a specific endpoint explicitly
+documents it. Google sign-in is started by the frontend through Supabase Auth. This
+backend verifies the returned Supabase JWT and resolves the user role from
+`profiles.role`.
 
 Supported roles:
 
@@ -65,11 +57,20 @@ staff
 customer
 ```
 
----
+## Shared Datatypes
 
-## 3. Error Format
+| Type | JSON datatype | Example |
+| --- | --- | --- |
+| UUID | string | `"8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1"` |
+| Date | string, `YYYY-MM-DD` | `"2026-08-10"` |
+| Datetime | string, ISO-8601 | `"2026-08-10T09:00:00Z"` |
+| Decimal money | string in responses, number or string in requests | `"250.00"` |
+| Enum | string | `"auto"` |
+| JSON object | object | `{"mon": {"open": "09:00", "close": "18:00"}}` |
 
-Application errors use this JSON shape:
+## Error Response
+
+Application errors use this shape:
 
 ```json
 {
@@ -80,7 +81,7 @@ Application errors use this JSON shape:
 }
 ```
 
-Common codes:
+Common error codes:
 
 ```txt
 unauthorized
@@ -92,103 +93,53 @@ validation_error
 internal_error
 ```
 
-FastAPI/Pydantic request validation errors may use FastAPI's default validation format.
+FastAPI/Pydantic validation errors may use FastAPI's default validation format.
 
----
+## Frontend Environment Variables
 
-## 4. Environment Variables
-
-Every backend variable lives in `backend/.env` locally or in the hosting platform's
-secret manager in production.
-
-| Variable | Required | Purpose |
-|---|---:|---|
-| `APP_NAME` | No | Display name shown in FastAPI docs |
-| `ENVIRONMENT` | Yes | `local`, `test`, or `production` |
-| `DATABASE_URL` | Yes | Async SQLAlchemy Postgres URL |
-| `DB_POOL_SIZE` | No | Persistent DB connection count, default `5` |
-| `DB_MAX_OVERFLOW` | No | Burst connections above pool size, default `5` |
-| `DB_POOL_TIMEOUT_SECONDS` | No | Seconds to wait for a free DB connection, default `10` |
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Yes | Public anon key, safe for clients |
-| `SUPABASE_JWKS_URL` | Yes | JWT signing key URL |
-| `SUPABASE_JWT_AUDIENCE` | Yes | Usually `authenticated` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes in production | Server-only admin key, never expose to clients |
-| `FIREBASE_CREDENTIALS_JSON` | No | Firebase service account JSON for FCM |
-| `BACKEND_CORS_ORIGINS` | Yes | JSON array of allowed frontend origins |
-
-Example backend `.env`:
+Frontend apps only need the API base URL and Supabase public client values.
+Server-only values such as `DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and
+`FIREBASE_CREDENTIALS_JSON` must stay in the backend environment and must never be
+bundled into frontend apps.
 
 ```bash
-APP_NAME="Salon Platform API"
-ENVIRONMENT=local
-
-DATABASE_URL=postgresql+asyncpg://postgres.[PROJECT_REF]:[DB_PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-DB_POOL_SIZE=5
-DB_MAX_OVERFLOW=5
-DB_POOL_TIMEOUT_SECONDS=10
-
-SUPABASE_URL=https://[PROJECT_REF].supabase.co
-SUPABASE_ANON_KEY=eyJ...
-SUPABASE_JWKS_URL=https://[PROJECT_REF].supabase.co/auth/v1/.well-known/jwks.json
-SUPABASE_JWT_AUDIENCE=authenticated
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-
-FIREBASE_CREDENTIALS_JSON='{"type":"service_account","project_id":"..."}'
-BACKEND_CORS_ORIGINS=["http://localhost:19006","http://localhost:3000","http://localhost:3001","http://localhost:8081","http://127.0.0.1:8081"]
-```
-
-Frontend environment examples:
-
-```bash
-# Expo customer / owner apps
 EXPO_PUBLIC_API_URL=http://localhost:8000
 EXPO_PUBLIC_SUPABASE_URL=https://[PROJECT_REF].supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+EXPO_PUBLIC_GOOGLE_AUTH_REDIRECT_URL=salonapp://auth/callback
 
-# Next.js walk-in web app
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
----
+## Response Examples Used Below
 
-## 5. Shared Response Models
+These are representative examples of the actual Pydantic response schemas. Real
+values depend on the database row returned by Supabase.
 
-### TokenResponse
-
-```json
-{
-  "access_token": "jwt",
-  "refresh_token": "refresh-token-or-null",
-  "token_type": "bearer",
-  "expires_in": 3600
-}
-```
-
-### ProfileResponse
+### `ProfileResponse`
 
 ```json
 {
-  "id": "profile-uuid",
+  "id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
   "role": "customer",
-  "full_name": "Customer Name",
-  "email": "customer@example.com",
+  "full_name": "Thanseef",
+  "email": "thanseef@example.com",
   "phone": "+919876543210",
   "phone_verified": true,
-  "avatar_url": "https://...",
+  "avatar_url": "https://example.com/avatar.jpg",
   "is_active": true
 }
 ```
 
-### SalonSummaryResponse
+### `SalonSummaryResponse`
 
 ```json
 {
-  "id": "salon-uuid",
-  "name": "Salon Name",
-  "description": "Short description",
-  "category": "Unisex",
-  "address": "Street address",
+  "id": "11111111-1111-4111-8111-111111111111",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
   "city": "Kochi",
   "lat": 9.9312,
   "lng": 76.2673,
@@ -196,173 +147,156 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
   "approval_mode": "auto",
   "profile_completed": true,
   "is_active": true,
-  "image_url": "https://...",
+  "image_url": "https://example.com/salon.jpg",
   "starting_price": "250.00",
   "distance_km": 2.4
 }
 ```
 
-### SalonDetailResponse
+### `SalonDetailResponse`
 
 ```json
 {
-  "id": "salon-uuid",
-  "name": "Salon Name",
-  "description": "Short description",
-  "category": "Unisex",
-  "address": "Street address",
+  "id": "11111111-1111-4111-8111-111111111111",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
   "city": "Kochi",
   "lat": 9.9312,
   "lng": 76.2673,
   "timezone": "Asia/Kolkata",
-  "working_hours": {"monday": {"open": "09:00", "close": "18:00"}},
+  "working_hours": {
+    "mon": {"open": "09:00", "close": "18:00"},
+    "tue": {"open": "09:00", "close": "18:00"}
+  },
   "approval_mode": "auto",
-  "slot_interval_minutes": 30,
   "profile_completed": true,
   "is_active": true,
-  "images": [],
-  "services": []
+  "images": [
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "salon_id": "11111111-1111-4111-8111-111111111111",
+      "url": "https://example.com/salon.jpg",
+      "caption": "Front view",
+      "is_main": true,
+      "sort_order": 0,
+      "created_at": "2026-08-10T09:00:00Z",
+      "updated_at": "2026-08-10T09:00:00Z"
+    }
+  ],
+  "services": [
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "salon_id": "11111111-1111-4111-8111-111111111111",
+      "subcategory_id": "44444444-4444-4444-8444-444444444444",
+      "name": "Haircut",
+      "description": "Basic haircut",
+      "duration_minutes": 30,
+      "price": "250.00",
+      "is_active": true,
+      "category_name": "Hair",
+      "subcategory_name": "Haircut",
+      "created_at": "2026-08-10T09:00:00Z",
+      "updated_at": "2026-08-10T09:00:00Z"
+    }
+  ]
 }
 ```
 
-### OwnerSalonResponse
+### `OwnerSalonResponse`
 
 ```json
 {
-  "id": "salon-uuid",
-  "owner_id": "owner-profile-uuid",
-  "name": "Salon Name",
-  "description": "Short description",
-  "category": "Unisex",
-  "address": "Street address",
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
   "city": "Kochi",
   "lat": 9.9312,
   "lng": 76.2673,
   "timezone": "Asia/Kolkata",
-  "working_hours": {},
+  "working_hours": {
+    "mon": {"open": "09:00", "close": "18:00"}
+  },
   "approval_mode": "manual",
-  "slot_interval_minutes": 30,
-  "qr_token": "public-qr-token",
+  "qr_token": "fresh-cut-kochi-qr",
   "profile_completed": true,
   "is_active": true,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
 }
 ```
 
-### ServiceResponse
+### `BookingResponse`
 
 ```json
 {
-  "id": "service-uuid",
-  "salon_id": "salon-uuid",
-  "subcategory_id": "subcategory-uuid",
-  "name": "Haircut",
-  "description": "Basic haircut",
-  "duration_minutes": 30,
-  "price": "250.00",
-  "is_active": true,
-  "category_name": "Hair",
-  "subcategory_name": "Haircut",
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
-}
-```
-
-### StaffResponse
-
-```json
-{
-  "id": "staff-uuid",
-  "salon_id": "salon-uuid",
-  "profile_id": "profile-uuid-or-null",
-  "name": "Staff Name",
-  "photo_url": "https://...",
-  "specialization": "Hair stylist",
-  "working_hours": {},
-  "is_active": true,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
-}
-```
-
-### PublicStaffResponse
-
-```json
-{
-  "id": "staff-uuid",
-  "name": "Staff Name",
-  "photo_url": "https://...",
-  "specialization": "Hair stylist"
-}
-```
-
-### BookingResponse
-
-```json
-{
-  "id": "booking-uuid",
-  "salon_id": "salon-uuid",
-  "staff_id": "staff-uuid",
-  "customer_id": "customer-profile-uuid",
-  "customer_name": "Customer Name",
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
   "customer_phone": "+919876543210",
   "phone_verified": true,
   "source": "app",
   "status": "confirmed",
-  "start_datetime": "2026-08-07T10:00:00Z",
-  "end_datetime": "2026-08-07T10:30:00Z",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
   "total_duration_minutes": 30,
   "total_price": "250.00",
   "payment_status": "unpaid",
   "payment_method": null,
   "rejection_reason": null,
-  "notes": "Optional note",
+  "notes": "Please keep the side short",
   "services": [
     {
-      "service_id": "service-uuid",
+      "service_id": "33333333-3333-4333-8333-333333333333",
       "service_name": "Haircut",
       "duration_minutes": 30,
       "price": "250.00"
     }
   ],
-  "salon_name": "Salon Name",
-  "salon_address": "Street address",
-  "salon_image": "https://...",
-  "staff_name": "Staff Name",
-  "staff_photo_url": "https://...",
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z",
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T08:30:00Z",
   "can_cancel": true
 }
 ```
 
-Booking sources:
+## Health APIs
 
-```txt
-app
-manual_walkin
-qr_walkin
+### Check API process health
+
+endpoint :
+
+```bash
+GET /health
 ```
 
-Payment methods:
+Pydantic schema:
 
 ```txt
-cash
-upi
-card
-wallet
+Response: HealthResponse
 ```
 
----
+Input Request:
 
-## 6. Health APIs
+```json
+{
+  "headers": {},
+  "query_params": {},
+  "body": null
+}
+```
 
-### GET /health
-
-Auth: public
-
-Response `200`:
+Output Response:
 
 ```json
 {
@@ -370,708 +304,1004 @@ Response `200`:
 }
 ```
 
-### GET /health/db
+### Check database health
 
-Auth: public
+endpoint :
 
-Response `200`:
+```bash
+GET /health/db
+```
+
+Pydantic schema:
+
+```txt
+Response: DatabaseHealthResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {},
+  "query_params": {},
+  "body": null
+}
+```
+
+Output Response:
 
 ```json
 {
   "status": "ok",
-  "database": "reachable"
+  "database": "ok"
 }
 ```
 
----
+## Auth APIs
 
-## 7. Auth APIs
+### Refresh Supabase session
 
-### POST /v1/auth/login
+endpoint :
 
-Auth: public
+```bash
+POST /v1/auth/refresh
+```
 
-Request:
+Pydantic schema:
+
+```txt
+Request: RefreshRequest
+Response: TokenResponse
+```
+
+Input Request:
 
 ```json
 {
-  "email": "user@example.com",
-  "password": "password"
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "refresh_token": "supabase-refresh-token"
+  }
 }
 ```
 
-Response `200`: `TokenResponse`
-
-### POST /v1/auth/refresh
-
-Auth: public
-
-Request:
+Output Response:
 
 ```json
 {
-  "refresh_token": "refresh-token"
+  "access_token": "supabase-access-jwt",
+  "refresh_token": "supabase-refresh-token",
+  "token_type": "bearer",
+  "expires_in": 3600
 }
 ```
 
-Response `200`: `TokenResponse`
+### Get current profile
 
-### GET /v1/auth/me
+endpoint :
 
-Auth: any active authenticated user
+```bash
+GET /v1/auth/me
+```
 
-Response `200`: `ProfileResponse`
+Pydantic schema:
 
----
+```txt
+Response: ProfileResponse
+```
 
-## 8. Customer Profile APIs
-
-### GET /v1/customer/profile
-
-Auth: any active authenticated user
-
-Response `200`: `ProfileResponse`
-
-### PATCH /v1/customer/profile
-
-Auth: any active authenticated user
-
-Request, all fields optional:
+Input Request:
 
 ```json
 {
-  "full_name": "Customer Name",
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "query_params": {},
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "role": "customer",
+  "full_name": "Thanseef",
+  "email": "thanseef@example.com",
   "phone": "+919876543210",
-  "avatar_url": "https://..."
-}
-```
-
-Response `200`: `ProfileResponse`
-
----
-
-## 9. Public Salon APIs
-
-### GET /v1/salons
-
-Auth: public
-
-Query params:
-
-| Param | Type | Required | Notes |
-|---|---|---:|---|
-| `search` | string | No | Search term |
-| `city` | string | No | City filter |
-| `lat` | number | No | Latitude for distance |
-| `lng` | number | No | Longitude for distance |
-| `limit` | integer | No | Default `50`, min `1`, max `100` |
-| `offset` | integer | No | Default `0`, min `0` |
-
-Response `200`: array of `SalonSummaryResponse`
-
-### GET /v1/salons/nearby
-
-Auth: public
-
-Query params:
-
-| Param | Type | Required | Notes |
-|---|---|---:|---|
-| `lat` or `latitude` | number | No | Latitude |
-| `lng` or `longitude` | number | No | Longitude |
-| `search` | string | No | Search term |
-| `city` | string | No | City filter |
-| `limit` | integer | No | Default `50`, min `1`, max `100` |
-| `offset` | integer | No | Default `0`, min `0` |
-
-Response `200`: array of `SalonSummaryResponse`
-
-### GET /v1/salons/{salon_id}
-
-Auth: public
-
-Response `200`: `SalonDetailResponse`
-
-### GET /v1/salons/{salon_id}/services
-
-Auth: public
-
-Response `200`: array of `ServiceResponse`
-
-### GET /v1/salons/{salon_id}/staff
-
-Auth: public
-
-Response `200`: array of `PublicStaffResponse`
-
----
-
-## 10. Super Admin APIs
-
-All routes in this section require an authenticated `super_admin`.
-
-### POST /v1/admin/salons
-
-Creates a Supabase Auth owner user and a salon.
-
-Request:
-
-```json
-{
-  "email": "owner@example.com",
-  "password": "minimum-8-chars",
-  "full_name": "Owner Name",
-  "salon_name": "Salon Name",
-  "timezone": "Asia/Kolkata"
-}
-```
-
-Response `201`:
-
-```json
-{
-  "id": "salon-uuid",
-  "owner_id": "owner-profile-uuid",
-  "owner_email": "owner@example.com",
-  "owner_name": "Owner Name",
-  "name": "Salon Name",
-  "description": null,
-  "category": null,
-  "address": null,
-  "city": null,
-  "timezone": "Asia/Kolkata",
-  "approval_mode": "manual",
-  "profile_completed": false,
-  "is_active": true,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
-}
-```
-
-### GET /v1/admin/salons
-
-Query params:
-
-| Param | Type | Required | Notes |
-|---|---|---:|---|
-| `search` | string | No | Search by salon or owner details |
-| `limit` | integer | No | Default `50`, min `1`, max `200` |
-| `offset` | integer | No | Default `0`, min `0` |
-
-Response `200`: array of `AdminSalonResponse`
-
-### PATCH /v1/admin/salons/{salon_id}
-
-Request, all fields optional:
-
-```json
-{
-  "name": "Updated Salon Name",
-  "timezone": "Asia/Kolkata"
-}
-```
-
-Response `200`: `AdminSalonResponse`
-
-### POST /v1/admin/salons/{salon_id}/deactivate
-
-Request: no body
-
-Response `200`:
-
-```json
-{
-  "id": "salon-uuid",
-  "owner_id": "owner-profile-uuid"
-}
-```
-
-### GET /v1/admin/catalog/categories
-
-Query params:
-
-| Param | Type | Required | Notes |
-|---|---|---:|---|
-| `include_inactive` | boolean | No | Default `false` |
-
-Response `200`: array of `CategoryResponse`
-
-### POST /v1/admin/catalog/categories
-
-Request:
-
-```json
-{
-  "name": "Hair",
-  "slug": "hair",
-  "image_url": "https://...",
-  "description": "Hair services",
-  "sort_order": 0
-}
-```
-
-Response `201`: `CategoryResponse`
-
-### PATCH /v1/admin/catalog/categories/{category_id}
-
-Request, all fields optional:
-
-```json
-{
-  "name": "Hair",
-  "slug": "hair",
-  "image_url": "https://...",
-  "description": "Hair services",
-  "sort_order": 1,
+  "phone_verified": true,
+  "avatar_url": "https://example.com/avatar.jpg",
   "is_active": true
 }
 ```
 
-Response `200`: `CategoryResponse`
+## Customer APIs
 
-### POST /v1/admin/catalog/categories/{category_id}/deactivate
+### Get customer profile
 
-Request: no body
+endpoint :
 
-Response `200`: `CategoryResponse`
+```bash
+GET /v1/customer/profile
+```
 
-### GET /v1/admin/catalog/categories/{category_id}/subcategories
+Pydantic schema:
 
-Query params:
+```txt
+Response: ProfileResponse
+```
 
-| Param | Type | Required | Notes |
-|---|---|---:|---|
-| `include_inactive` | boolean | No | Default `false` |
-
-Response `200`: array of `SubcategoryResponse`
-
-### POST /v1/admin/catalog/subcategories
-
-Request:
+Input Request:
 
 ```json
 {
-  "category_id": "category-uuid",
-  "name": "Haircut",
-  "slug": "haircut",
-  "image_url": "https://...",
-  "description": "Haircut services",
-  "sort_order": 0
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "body": null
 }
 ```
 
-Response `201`: `SubcategoryResponse`
-
-### PATCH /v1/admin/catalog/subcategories/{subcategory_id}
-
-Request, all fields optional:
+Output Response:
 
 ```json
 {
-  "name": "Haircut",
-  "slug": "haircut",
-  "image_url": "https://...",
-  "description": "Haircut services",
-  "sort_order": 1,
+  "id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "role": "customer",
+  "full_name": "Thanseef",
+  "email": "thanseef@example.com",
+  "phone": "+919876543210",
+  "phone_verified": true,
+  "avatar_url": "https://example.com/avatar.jpg",
   "is_active": true
 }
 ```
 
-Response `200`: `SubcategoryResponse`
+### Update customer profile
 
-### POST /v1/admin/catalog/subcategories/{subcategory_id}/deactivate
+endpoint :
 
-Request: no body
+```bash
+PATCH /v1/customer/profile
+```
 
-Response `200`: `SubcategoryResponse`
+Pydantic schema:
 
-### GET /v1/admin/catalog/languages
+```txt
+Request: ProfileUpdateRequest
+Response: ProfileResponse
+```
 
-Auth: any active authenticated user
+Input Request:
 
-Response `200`:
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "full_name": "Thanseef",
+    "phone": "+919876543210",
+    "avatar_url": "https://example.com/avatar.jpg"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "role": "customer",
+  "full_name": "Thanseef",
+  "email": "thanseef@example.com",
+  "phone": "+919876543210",
+  "phone_verified": true,
+  "avatar_url": "https://example.com/avatar.jpg",
+  "is_active": true
+}
+```
+
+## Public Salon APIs
+
+### List customer-visible salons
+
+endpoint :
+
+```bash
+GET /v1/salons
+```
+
+Pydantic schema:
+
+```txt
+Response: list[SalonSummaryResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {},
+  "query_params": {
+    "search": "fresh",
+    "city": "Kochi",
+    "lat": 9.9312,
+    "lng": 76.2673,
+    "limit": 20,
+    "offset": 0
+  },
+  "body": null
+}
+```
+
+Output Response:
 
 ```json
 [
   {
-    "code": "en",
-    "name": "English"
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Fresh Cut Salon",
+    "description": "Men's grooming and styling",
+    "category": "Men",
+    "address": "MG Road, Kochi",
+    "city": "Kochi",
+    "lat": 9.9312,
+    "lng": 76.2673,
+    "timezone": "Asia/Kolkata",
+    "approval_mode": "auto",
+    "profile_completed": true,
+    "is_active": true,
+    "image_url": "https://example.com/salon.jpg",
+    "starting_price": "250.00",
+    "distance_km": 2.4
   }
 ]
 ```
 
-### CategoryResponse
+### List nearby salons
+
+endpoint :
+
+```bash
+GET /v1/salons/nearby
+```
+
+Pydantic schema:
+
+```txt
+Response: list[SalonSummaryResponse]
+```
+
+Input Request:
 
 ```json
 {
-  "id": "category-uuid",
-  "name": "Hair",
-  "slug": "hair",
-  "image_url": "https://...",
-  "description": "Hair services",
-  "sort_order": 0,
-  "is_active": true,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
+  "headers": {},
+  "query_params": {
+    "lat": 9.9312,
+    "lng": 76.2673,
+    "latitude": 9.9312,
+    "longitude": 76.2673,
+    "search": "hair",
+    "city": "Kochi",
+    "limit": 20,
+    "offset": 0
+  },
+  "body": null
 }
 ```
 
-### SubcategoryResponse
+Output Response:
+
+```json
+[
+  {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Fresh Cut Salon",
+    "description": "Men's grooming and styling",
+    "category": "Men",
+    "address": "MG Road, Kochi",
+    "city": "Kochi",
+    "lat": 9.9312,
+    "lng": 76.2673,
+    "timezone": "Asia/Kolkata",
+    "approval_mode": "auto",
+    "profile_completed": true,
+    "is_active": true,
+    "image_url": "https://example.com/salon.jpg",
+    "starting_price": "250.00",
+    "distance_km": 2.4
+  }
+]
+```
+
+### Get salon details
+
+endpoint :
+
+```bash
+GET /v1/salons/{salon_id}
+```
+
+Pydantic schema:
+
+```txt
+Response: SalonDetailResponse
+```
+
+Input Request:
 
 ```json
 {
-  "id": "subcategory-uuid",
-  "category_id": "category-uuid",
-  "name": "Haircut",
-  "slug": "haircut",
-  "image_url": "https://...",
-  "description": "Haircut services",
-  "sort_order": 0,
-  "is_active": true,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
+  "headers": {},
+  "path_params": {
+    "salon_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "body": null
 }
 ```
 
----
-
-## 11. Owner Salon APIs
-
-All routes in this section require an authenticated salon owner or authorized salon staff,
-as enforced by the application use cases.
-
-### GET /v1/salons/me
-
-Response `200`: `OwnerSalonResponse`
-
-### PATCH /v1/salons/me
-
-Request, all fields optional:
+Output Response:
 
 ```json
 {
-  "name": "Salon Name",
-  "description": "Short description",
-  "category": "Unisex",
-  "address": "Street address",
+  "id": "11111111-1111-4111-8111-111111111111",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
   "city": "Kochi",
   "lat": 9.9312,
   "lng": 76.2673,
   "timezone": "Asia/Kolkata",
-  "working_hours": {"monday": {"open": "09:00", "close": "18:00"}},
+  "working_hours": {
+    "mon": {"open": "09:00", "close": "18:00"}
+  },
   "approval_mode": "auto",
-  "slot_interval_minutes": 30
-}
-```
-
-Response `200`: `OwnerSalonResponse`
-
-### POST /v1/salons/me/complete-profile
-
-Request: no body
-
-Response `200`: `OwnerSalonResponse`
-
-### PATCH /v1/salons/me/settings
-
-Request, all fields optional:
-
-```json
-{
-  "approval_mode": "manual",
-  "slot_interval_minutes": 30,
-  "working_hours": {"monday": {"open": "09:00", "close": "18:00"}}
-}
-```
-
-Response `200`: `OwnerSalonResponse`
-
----
-
-## 12. Owner Image APIs
-
-### GET /v1/salons/me/images
-
-Auth: owner/staff
-
-Response `200`: array of `SalonImageResponse`
-
-### POST /v1/salons/me/images
-
-Auth: owner/staff
-
-Request:
-
-```json
-{
-  "url": "https://...",
-  "caption": "Front view",
-  "is_main": true,
-  "sort_order": 0
-}
-```
-
-Response `201`: `SalonImageResponse`
-
-### PATCH /v1/salons/me/images/{image_id}
-
-Auth: owner/staff
-
-Request, all fields optional:
-
-```json
-{
-  "url": "https://...",
-  "caption": "Updated caption",
-  "is_main": false,
-  "sort_order": 1
-}
-```
-
-Response `200`: `SalonImageResponse`
-
-### DELETE /v1/salons/me/images/{image_id}
-
-Auth: owner/staff
-
-Response: route is mounted as `204`, but current use case intentionally rejects deletion
-because `salon_images` has no `is_active` column for soft delete.
-
-### SalonImageResponse
-
-```json
-{
-  "id": "image-uuid",
-  "salon_id": "salon-uuid",
-  "url": "https://...",
-  "caption": "Front view",
-  "is_main": true,
-  "sort_order": 0,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
-}
-```
-
----
-
-## 13. Owner Holiday APIs
-
-### GET /v1/salons/me/holidays
-
-Auth: owner/staff
-
-Response `200`: array of `HolidayResponse`
-
-### POST /v1/salons/me/holidays
-
-Auth: owner/staff
-
-Request:
-
-```json
-{
-  "holiday_date": "2026-08-15",
-  "title": "Independence Day",
-  "is_recurring": false
-}
-```
-
-Response `201`: `HolidayResponse`
-
-### DELETE /v1/salons/me/holidays/{holiday_id}
-
-Auth: owner/staff
-
-Response: route is mounted as `204`, but current use case intentionally rejects deletion
-because `salon_holidays` has no `is_active` column for soft delete.
-
-### HolidayResponse
-
-```json
-{
-  "id": "holiday-uuid",
-  "salon_id": "salon-uuid",
-  "holiday_date": "2026-08-15",
-  "title": "Independence Day",
-  "is_recurring": false,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
-}
-```
-
----
-
-## 14. Owner Service APIs
-
-### GET /v1/salons/me/services
-
-Auth: owner/staff
-
-Response `200`: array of `ServiceResponse`
-
-### POST /v1/salons/me/services
-
-Auth: owner/staff
-
-Request:
-
-```json
-{
-  "subcategory_id": "subcategory-uuid",
-  "name": "Haircut",
-  "description": "Basic haircut",
-  "duration_minutes": 30,
-  "price": "250.00"
-}
-```
-
-Response `201`: `ServiceResponse`
-
-### PATCH /v1/salons/me/services/{service_id}
-
-Auth: owner/staff
-
-Request, all fields optional:
-
-```json
-{
-  "subcategory_id": "subcategory-uuid",
-  "name": "Haircut",
-  "description": "Updated description",
-  "duration_minutes": 45,
-  "price": "300.00",
-  "is_active": true
-}
-```
-
-Response `200`: `ServiceResponse`
-
-### DELETE /v1/salons/me/services/{service_id}
-
-Auth: owner/staff
-
-Soft-deactivates by setting `is_active = false`.
-
-Response `200`: `ServiceResponse`
-
----
-
-## 15. Owner Staff APIs
-
-### GET /v1/salons/me/staff
-
-Auth: owner/staff
-
-Response `200`: array of `StaffResponse`
-
-### POST /v1/salons/me/staff
-
-Auth: owner/staff
-
-Request:
-
-```json
-{
-  "profile_id": null,
-  "name": "Staff Name",
-  "photo_url": "https://...",
-  "specialization": "Hair stylist",
-  "working_hours": {"monday": {"open": "09:00", "close": "18:00"}}
-}
-```
-
-Response `201`: `StaffResponse`
-
-### PATCH /v1/salons/me/staff/{staff_id}
-
-Auth: owner/staff
-
-Request, all fields optional:
-
-```json
-{
-  "profile_id": null,
-  "name": "Updated Staff Name",
-  "photo_url": "https://...",
-  "specialization": "Senior stylist",
-  "working_hours": {},
-  "is_active": true
-}
-```
-
-Response `200`: `StaffResponse`
-
-### DELETE /v1/salons/me/staff/{staff_id}
-
-Auth: owner/staff
-
-Soft-deactivates by setting `is_active = false`.
-
-Response `200`: `StaffResponse`
-
-### POST /v1/salons/me/staff/{staff_id}/services
-
-Auth: owner/staff
-
-Assigns a service to a staff member with optional overrides.
-
-Request:
-
-```json
-{
-  "service_id": "service-uuid",
-  "duration_minutes": 30,
-  "price_override": "275.00",
-  "specialization": "Fade specialist"
-}
-```
-
-Response `200`:
-
-```json
-{
-  "id": "staff-service-uuid",
-  "staff_id": "staff-uuid",
-  "service_id": "service-uuid",
-  "duration_minutes": 30,
-  "price_override": "275.00",
-  "specialization": "Fade specialist",
+  "profile_completed": true,
   "is_active": true,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
+  "images": [],
+  "services": []
 }
 ```
 
-### GET /v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages
+### List salon services
 
-Auth: owner/staff
+endpoint :
 
-Response `200`:
+```bash
+GET /v1/salons/{salon_id}/services
+```
+
+Pydantic schema:
+
+```txt
+Response: list[ServiceResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {},
+  "path_params": {
+    "salon_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "body": null
+}
+```
+
+Output Response:
 
 ```json
 [
   {
-    "code": "en",
-    "name": "English"
+    "id": "33333333-3333-4333-8333-333333333333",
+    "salon_id": "11111111-1111-4111-8111-111111111111",
+    "subcategory_id": "44444444-4444-4444-8444-444444444444",
+    "name": "Haircut",
+    "description": "Basic haircut",
+    "duration_minutes": 30,
+    "price": "250.00",
+    "is_active": true,
+    "category_name": "Hair",
+    "subcategory_name": "Haircut",
+    "created_at": "2026-08-10T09:00:00Z",
+    "updated_at": "2026-08-10T09:00:00Z"
   }
 ]
 ```
 
-### PUT /v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages
+### List salon staff
 
-Auth: owner/staff
+endpoint :
 
-Idempotent. Replaces the full language list. Send an empty list to remove all languages.
+```bash
+GET /v1/salons/{salon_id}/staff
+```
 
-Request:
+Pydantic schema:
+
+```txt
+Response: list[PublicStaffResponse]
+```
+
+Input Request:
 
 ```json
 {
-  "language_codes": ["en", "ml"]
+  "headers": {},
+  "path_params": {
+    "salon_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "body": null
 }
 ```
 
-Response `200`:
+Output Response:
+
+```json
+[
+  {
+    "id": "77777777-7777-4777-8777-777777777777",
+    "name": "Ameen",
+    "photo_url": "https://example.com/staff.jpg",
+    "specialization": "Fade specialist"
+  }
+]
+```
+
+## Owner Salon APIs
+
+### Get owner salon
+
+endpoint :
+
+```bash
+GET /v1/salons/me
+```
+
+Pydantic schema:
+
+```txt
+Response: OwnerSalonResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
+  "city": "Kochi",
+  "lat": 9.9312,
+  "lng": 76.2673,
+  "timezone": "Asia/Kolkata",
+  "working_hours": {"mon": {"open": "09:00", "close": "18:00"}},
+  "approval_mode": "manual",
+  "qr_token": "fresh-cut-kochi-qr",
+  "profile_completed": true,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Update owner salon
+
+endpoint :
+
+```bash
+PATCH /v1/salons/me
+```
+
+Pydantic schema:
+
+```txt
+Request: OwnerSalonUpdateRequest
+Response: OwnerSalonResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "name": "Fresh Cut Salon",
+    "description": "Men's grooming and styling",
+    "category": "Men",
+    "address": "MG Road, Kochi",
+    "city": "Kochi",
+    "lat": 9.9312,
+    "lng": 76.2673,
+    "timezone": "Asia/Kolkata",
+    "working_hours": {"mon": {"open": "09:00", "close": "18:00"}},
+    "approval_mode": "manual"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
+  "city": "Kochi",
+  "lat": 9.9312,
+  "lng": 76.2673,
+  "timezone": "Asia/Kolkata",
+  "working_hours": {"mon": {"open": "09:00", "close": "18:00"}},
+  "approval_mode": "manual",
+  "qr_token": "fresh-cut-kochi-qr",
+  "profile_completed": true,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Complete owner profile
+
+endpoint :
+
+```bash
+POST /v1/salons/me/complete-profile
+```
+
+Pydantic schema:
+
+```txt
+Response: OwnerSalonResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
+  "city": "Kochi",
+  "lat": 9.9312,
+  "lng": 76.2673,
+  "timezone": "Asia/Kolkata",
+  "working_hours": {"mon": {"open": "09:00", "close": "18:00"}},
+  "approval_mode": "manual",
+  "qr_token": "fresh-cut-kochi-qr",
+  "profile_completed": true,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Update owner salon settings
+
+endpoint :
+
+```bash
+PATCH /v1/salons/me/settings
+```
+
+Pydantic schema:
+
+```txt
+Request: OwnerSalonSettingsRequest
+Response: OwnerSalonResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "approval_mode": "auto",
+    "working_hours": {"mon": {"open": "09:00", "close": "18:00"}}
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
+  "category": "Men",
+  "address": "MG Road, Kochi",
+  "city": "Kochi",
+  "lat": 9.9312,
+  "lng": 76.2673,
+  "timezone": "Asia/Kolkata",
+  "working_hours": {"mon": {"open": "09:00", "close": "18:00"}},
+  "approval_mode": "auto",
+  "qr_token": "fresh-cut-kochi-qr",
+  "profile_completed": true,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Owner image endpoints
+
+Do not call the delete endpoint from frontend yet. It exists in the backend route
+table, but intentionally rejects deletion until `salon_images` supports soft delete.
+
+endpoint :
+
+```bash
+GET /v1/salons/me/images
+POST /v1/salons/me/images
+PATCH /v1/salons/me/images/{image_id}
+DELETE /v1/salons/me/images/{image_id}
+```
+
+Pydantic schema:
+
+```txt
+Create Request: SalonImageCreateRequest
+Update Request: SalonImageUpdateRequest
+Response: SalonImageResponse or list[SalonImageResponse]
+DELETE Response: 204 No Content
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "image_id": "22222222-2222-4222-8222-222222222222"
+  },
+  "body_for_post": {
+    "url": "https://example.com/salon.jpg",
+    "caption": "Front view",
+    "is_main": true,
+    "sort_order": 0
+  },
+  "body_for_patch": {
+    "caption": "Updated caption",
+    "is_main": true,
+    "sort_order": 1
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "url": "https://example.com/salon.jpg",
+  "caption": "Front view",
+  "is_main": true,
+  "sort_order": 0,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Owner holiday endpoints
+
+Do not call the delete endpoint from frontend yet. It exists in the backend route
+table, but intentionally rejects deletion until `salon_holidays` supports soft delete.
+
+endpoint :
+
+```bash
+GET /v1/salons/me/holidays
+POST /v1/salons/me/holidays
+DELETE /v1/salons/me/holidays/{holiday_id}
+```
+
+Pydantic schema:
+
+```txt
+Create Request: HolidayCreateRequest
+Response: HolidayResponse or list[HolidayResponse]
+DELETE Response: 204 No Content
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "holiday_id": "99999999-9999-4999-8999-999999999999"
+  },
+  "body_for_post": {
+    "holiday_date": "2026-08-15",
+    "title": "Independence Day",
+    "is_recurring": true
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "99999999-9999-4999-8999-999999999999",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "holiday_date": "2026-08-15",
+  "title": "Independence Day",
+  "is_recurring": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Owner service endpoints
+
+endpoint :
+
+```bash
+GET /v1/salons/me/services
+POST /v1/salons/me/services
+PATCH /v1/salons/me/services/{service_id}
+DELETE /v1/salons/me/services/{service_id}
+```
+
+Pydantic schema:
+
+```txt
+Create Request: ServiceCreateRequest
+Update Request: ServiceUpdateRequest
+Response: ServiceResponse or list[ServiceResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "service_id": "33333333-3333-4333-8333-333333333333"
+  },
+  "body_for_post": {
+    "subcategory_id": "44444444-4444-4444-8444-444444444444",
+    "name": "Haircut",
+    "description": "Basic haircut",
+    "duration_minutes": 30,
+    "price": "250.00"
+  },
+  "body_for_patch": {
+    "name": "Premium Haircut",
+    "duration_minutes": 45,
+    "price": "350.00",
+    "is_active": true
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "subcategory_id": "44444444-4444-4444-8444-444444444444",
+  "name": "Haircut",
+  "description": "Basic haircut",
+  "duration_minutes": 30,
+  "price": "250.00",
+  "is_active": true,
+  "category_name": "Hair",
+  "subcategory_name": "Haircut",
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Owner staff endpoints
+
+endpoint :
+
+```bash
+GET /v1/salons/me/staff
+POST /v1/salons/me/staff
+PATCH /v1/salons/me/staff/{staff_id}
+DELETE /v1/salons/me/staff/{staff_id}
+```
+
+Pydantic schema:
+
+```txt
+Create Request: StaffCreateRequest
+Update Request: StaffUpdateRequest
+Response: StaffResponse or list[StaffResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "staff_id": "77777777-7777-4777-8777-777777777777"
+  },
+  "body_for_post": {
+    "profile_id": null,
+    "name": "Ameen",
+    "photo_url": "https://example.com/staff.jpg",
+    "specialization": "Fade specialist",
+    "working_hours": {"mon": {"open": "09:00", "close": "18:00"}}
+  },
+  "body_for_patch": {
+    "name": "Ameen K",
+    "is_active": true
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "77777777-7777-4777-8777-777777777777",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "profile_id": null,
+  "name": "Ameen",
+  "photo_url": "https://example.com/staff.jpg",
+  "specialization": "Fade specialist",
+  "working_hours": {"mon": {"open": "09:00", "close": "18:00"}},
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Assign service to staff
+
+endpoint :
+
+```bash
+POST /v1/salons/me/staff/{staff_id}/services
+```
+
+Pydantic schema:
+
+```txt
+Request: StaffServiceAssignRequest
+Response: StaffServiceResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "staff_id": "77777777-7777-4777-8777-777777777777"
+  },
+  "body": {
+    "service_id": "33333333-3333-4333-8333-333333333333",
+    "duration_minutes": 30,
+    "price_override": "275.00",
+    "specialization": "Fade specialist"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "service_id": "33333333-3333-4333-8333-333333333333",
+  "duration_minutes": 30,
+  "price_override": "275.00",
+  "specialization": "Fade specialist",
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Staff service languages
+
+endpoint :
+
+```bash
+GET /v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages
+PUT /v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages
+```
+
+Pydantic schema:
+
+```txt
+PUT Request: StaffServiceLanguagesRequest
+Response: list[LanguageResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "staff_id": "77777777-7777-4777-8777-777777777777",
+    "staff_service_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  },
+  "body_for_put": {
+    "language_codes": ["en", "ml"]
+  }
+}
+```
+
+Output Response:
 
 ```json
 [
@@ -1086,321 +1316,661 @@ Response `200`:
 ]
 ```
 
----
+### Owner blocked slots
 
-## 16. Owner Blocked Slot APIs
+endpoint :
 
-### GET /v1/salons/me/blocks
+```bash
+GET /v1/salons/me/blocks
+POST /v1/salons/me/blocks
+DELETE /v1/salons/me/blocks/{block_id}
+```
 
-Auth: owner/staff
+Pydantic schema:
 
-Response `200`: array of `BlockedSlotResponse`
+```txt
+Create Request: BlockedSlotCreateRequest
+Response: BlockedSlotResponse or list[BlockedSlotResponse]
+DELETE Response: 204 No Content
+```
 
-### POST /v1/salons/me/blocks
-
-Auth: owner/staff
-
-Set `staff_id` for a staff-specific block. Leave `staff_id` as `null` for a salon-wide
-block.
-
-Request:
+Input Request:
 
 ```json
 {
-  "staff_id": "staff-uuid",
-  "start_datetime": "2026-08-07T13:00:00Z",
-  "end_datetime": "2026-08-07T14:00:00Z",
-  "block_type": "lunch",
-  "reason": "Lunch break",
-  "is_full_day": false,
-  "is_recurring": false,
-  "recurrence_rule": null,
-  "recurrence_end": null
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "block_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  },
+  "body_for_post": {
+    "staff_id": "77777777-7777-4777-8777-777777777777",
+    "start_datetime": "2026-08-10T12:00:00Z",
+    "end_datetime": "2026-08-10T13:00:00Z",
+    "block_type": "lunch",
+    "reason": "Lunch break",
+    "is_full_day": false,
+    "is_recurring": false,
+    "recurrence_rule": null,
+    "recurrence_end": null
+  }
 }
 ```
 
-`block_type` values:
-
-```txt
-leave
-break
-lunch
-training
-holiday
-other
-```
-
-Response `201`: `BlockedSlotResponse`
-
-### DELETE /v1/salons/me/blocks/{block_id}
-
-Auth: owner/staff
-
-Hard-deletes a blocked slot because `blocked_slots` has no `is_active` column.
-
-Response `204`: no body
-
-### BlockedSlotResponse
+Output Response:
 
 ```json
 {
-  "id": "block-uuid",
-  "staff_id": "staff-uuid",
-  "salon_id": "salon-uuid",
-  "start_datetime": "2026-08-07T13:00:00Z",
-  "end_datetime": "2026-08-07T14:00:00Z",
+  "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "start_datetime": "2026-08-10T12:00:00Z",
+  "end_datetime": "2026-08-10T13:00:00Z",
   "block_type": "lunch",
   "reason": "Lunch break",
   "is_full_day": false,
   "is_recurring": false,
   "recurrence_rule": null,
   "recurrence_end": null,
-  "created_at": "2026-08-07T09:00:00Z",
-  "updated_at": "2026-08-07T09:00:00Z"
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
 }
 ```
 
----
+## Booking And Availability APIs
 
-## 17. Availability And Booking APIs
+### Get available booking slots
 
-### GET /v1/availability
+endpoint :
 
-Auth: public
-
-Availability is always fetched from the Postgres `get_available_slots` function. The
-backend must not compute slots in Python.
-
-Query params:
-
-| Param | Type | Required | Notes |
-|---|---|---:|---|
-| `staff_id` | string | Yes | Staff UUID |
-| `date` | date | Yes | Booking date, `YYYY-MM-DD` |
-| `service_ids` | string[] | Yes | Repeat query param for each service |
-
-Example:
-
-```txt
-/v1/availability?staff_id=staff-uuid&date=2026-08-07&service_ids=service-1&service_ids=service-2
+```bash
+GET /v1/availability
 ```
 
-Response `200`:
+Pydantic schema:
+
+```txt
+Response: list[AvailabilityResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {},
+  "query_params": {
+    "staff_id": "77777777-7777-4777-8777-777777777777",
+    "date": "2026-08-10",
+    "service_ids": ["33333333-3333-4333-8333-333333333333"]
+  },
+  "body": null
+}
+```
+
+Output Response:
 
 ```json
 [
   {
-    "slot_start": "2026-08-07T10:00:00Z",
-    "slot_end": "2026-08-07T10:30:00Z",
-    "id": "10:00 AM",
-    "time": "10:00 AM",
-    "barberName": "Staff Name"
+    "slot_start": "2026-08-10T09:00:00Z",
+    "slot_end": "2026-08-10T09:30:00Z",
+    "id": "09:00 AM",
+    "time": "09:00 AM",
+    "barberName": "Ameen"
   }
 ]
 ```
 
-### POST /v1/bookings
+### Create booking
 
-Auth: any active authenticated user
+endpoint :
 
-Booking creation always calls the Postgres `create_booking` function. Slot conflicts
-return `409` with `error.code = "slot_unavailable"`.
-
-Request:
-
-```json
-{
-  "salon_id": "salon-uuid",
-  "staff_id": "staff-uuid",
-  "service_ids": ["service-uuid"],
-  "start_datetime": "2026-08-07T10:00:00Z",
-  "customer_name": "Customer Name",
-  "customer_phone": "+919876543210",
-  "source": "app",
-  "notes": "Optional note"
-}
+```bash
+POST /v1/bookings
 ```
 
-Response `201`: `BookingResponse`
-
-### GET /v1/bookings
-
-Auth: any active authenticated user
-
-Owners see bookings for their salon. Customers see only their own bookings.
-
-Response `200`: array of `BookingResponse`
-
-### GET /v1/bookings/{booking_id}
-
-Auth: any active authenticated user with access to the booking
-
-Response `200`: `BookingResponse`
-
-### POST /v1/bookings/{booking_id}/approve
-
-Auth: owner/staff
-
-Request: no body
-
-Response `200`: `BookingResponse`
-
-### POST /v1/bookings/{booking_id}/reject
-
-Auth: owner/staff
-
-Request:
-
-```json
-{
-  "rejection_reason": "Staff unavailable"
-}
-```
-
-Response `200`: `BookingResponse`
-
-### POST /v1/bookings/{booking_id}/complete
-
-Auth: owner/staff
-
-Request: no body
-
-Response `200`: `BookingResponse`
-
-### POST /v1/bookings/{booking_id}/cancel
-
-Auth: customer owner of booking, owner, or staff
-
-Request body is optional:
-
-```json
-{
-  "reason_code": "schedule_conflict",
-  "reason_text": "Need to reschedule"
-}
-```
-
-`reason_code` values:
+Pydantic schema:
 
 ```txt
-schedule_conflict
-found_better
-personal_emergency
-booked_by_mistake
-service_not_needed
-barber_unavailable
-other
+Request: BookingCreateRequest
+Response: BookingResponse
 ```
 
-Response `200`: `BookingResponse`
-
-### POST /v1/bookings/{booking_id}/payment
-
-Auth: owner/staff
-
-Request:
+Input Request:
 
 ```json
 {
-  "payment_method": "upi"
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "salon_id": "11111111-1111-4111-8111-111111111111",
+    "staff_id": "77777777-7777-4777-8777-777777777777",
+    "service_ids": ["33333333-3333-4333-8333-333333333333"],
+    "start_datetime": "2026-08-10T09:00:00Z",
+    "customer_name": "Thanseef",
+    "customer_phone": "+919876543210",
+    "source": "app",
+    "notes": "Please keep the side short"
+  }
 }
 ```
 
-Response `200`: `BookingResponse`
+Output Response:
 
----
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
+  "customer_phone": "+919876543210",
+  "phone_verified": true,
+  "source": "app",
+  "status": "confirmed",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
+  "total_duration_minutes": 30,
+  "total_price": "250.00",
+  "payment_status": "unpaid",
+  "payment_method": null,
+  "rejection_reason": null,
+  "notes": "Please keep the side short",
+  "services": [
+    {
+      "service_id": "33333333-3333-4333-8333-333333333333",
+      "service_name": "Haircut",
+      "duration_minutes": 30,
+      "price": "250.00"
+    }
+  ],
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T08:30:00Z",
+  "can_cancel": true
+}
+```
 
-## 18. Notification And Device APIs
+### Booking read and status endpoints
 
-### GET /v1/notifications
+endpoint :
 
-Auth: any active authenticated user
+```bash
+GET /v1/bookings
+GET /v1/bookings/{booking_id}
+POST /v1/bookings/{booking_id}/approve
+POST /v1/bookings/{booking_id}/complete
+```
 
-Response `200`:
+Pydantic schema:
+
+```txt
+Response: BookingResponse or list[BookingResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "path_params": {
+    "booking_id": "66666666-6666-4666-8666-666666666666"
+  },
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
+  "customer_phone": "+919876543210",
+  "phone_verified": true,
+  "source": "app",
+  "status": "confirmed",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
+  "total_duration_minutes": 30,
+  "total_price": "250.00",
+  "payment_status": "unpaid",
+  "payment_method": null,
+  "rejection_reason": null,
+  "notes": "Please keep the side short",
+  "services": [],
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T08:30:00Z",
+  "can_cancel": true
+}
+```
+
+### Reject booking
+
+endpoint :
+
+```bash
+POST /v1/bookings/{booking_id}/reject
+```
+
+Pydantic schema:
+
+```txt
+Request: RejectBookingRequest
+Response: BookingResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "booking_id": "66666666-6666-4666-8666-666666666666"
+  },
+  "body": {
+    "rejection_reason": "Staff unavailable"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
+  "customer_phone": "+919876543210",
+  "phone_verified": true,
+  "source": "app",
+  "status": "rejected",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
+  "total_duration_minutes": 30,
+  "total_price": "250.00",
+  "payment_status": "unpaid",
+  "payment_method": null,
+  "rejection_reason": "Staff unavailable",
+  "notes": null,
+  "services": [],
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T08:45:00Z",
+  "can_cancel": false
+}
+```
+
+### Cancel booking
+
+endpoint :
+
+```bash
+POST /v1/bookings/{booking_id}/cancel
+```
+
+Pydantic schema:
+
+```txt
+Request: CancelBookingRequest
+Response: BookingResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "booking_id": "66666666-6666-4666-8666-666666666666"
+  },
+  "body": {
+    "reason_code": "schedule_conflict",
+    "reason_text": "Need to reschedule"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
+  "customer_phone": "+919876543210",
+  "phone_verified": true,
+  "source": "app",
+  "status": "cancelled",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
+  "total_duration_minutes": 30,
+  "total_price": "250.00",
+  "payment_status": "unpaid",
+  "payment_method": null,
+  "rejection_reason": null,
+  "notes": "Cancelled: schedule_conflict - Need to reschedule",
+  "services": [],
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T08:45:00Z",
+  "can_cancel": false
+}
+```
+
+### Record booking payment
+
+endpoint :
+
+```bash
+POST /v1/bookings/{booking_id}/payment
+```
+
+Pydantic schema:
+
+```txt
+Request: PaymentRequest
+Response: BookingResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "booking_id": "66666666-6666-4666-8666-666666666666"
+  },
+  "body": {
+    "payment_method": "cash"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
+  "customer_phone": "+919876543210",
+  "phone_verified": true,
+  "source": "app",
+  "status": "completed",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
+  "total_duration_minutes": 30,
+  "total_price": "250.00",
+  "payment_status": "paid",
+  "payment_method": "cash",
+  "rejection_reason": null,
+  "notes": null,
+  "services": [],
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T09:45:00Z",
+  "can_cancel": false
+}
+```
+
+## Notification And Device APIs
+
+### List notifications
+
+endpoint :
+
+```bash
+GET /v1/notifications
+```
+
+Pydantic schema:
+
+```txt
+Response: list[NotificationResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "body": null
+}
+```
+
+Output Response:
 
 ```json
 [
   {
-    "id": "notification-uuid",
-    "user_id": "profile-uuid",
-    "booking_id": "booking-uuid",
-    "type": "booking_confirmed",
+    "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "user_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+    "booking_id": "66666666-6666-4666-8666-666666666666",
+    "type": "booking_status",
     "title": "Booking confirmed",
-    "body": "Your booking was confirmed",
+    "body": "Your booking has been confirmed.",
     "read": false,
     "read_at": null,
-    "created_at": "2026-08-07T09:00:00Z"
+    "created_at": "2026-08-10T09:00:00Z"
   }
 ]
 ```
 
-### POST /v1/notifications/{notification_id}/read
+### Mark notification read
 
-Auth: notification owner
+endpoint :
 
-Request: no body
+```bash
+POST /v1/notifications/{notification_id}/read
+```
 
-Response `200`: `NotificationResponse`
+Pydantic schema:
 
-### POST /v1/devices
+```txt
+Response: NotificationResponse
+```
 
-Auth: any active authenticated user
-
-Registers or reactivates an FCM device token.
-
-Request:
+Input Request:
 
 ```json
 {
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "path_params": {
+    "notification_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+  },
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "user_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "booking_id": "66666666-6666-4666-8666-666666666666",
+  "type": "booking_status",
+  "title": "Booking confirmed",
+  "body": "Your booking has been confirmed.",
+  "read": true,
+  "read_at": "2026-08-10T09:05:00Z",
+  "created_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Register device token
+
+endpoint :
+
+```bash
+POST /v1/devices
+```
+
+Pydantic schema:
+
+```txt
+Request: DeviceRegisterRequest
+Response: DeviceRegisterResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "token": "fcm-device-token",
+    "platform": "ios",
+    "device_name": "Thanseef iPhone"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   "token": "fcm-device-token",
   "platform": "ios",
-  "device_name": "iPhone 15"
+  "device_name": "Thanseef iPhone",
+  "is_active": true,
+  "last_seen_at": "2026-08-10T09:00:00Z"
 }
 ```
 
-Response `200`:
+### Deactivate device token
+
+endpoint :
+
+```bash
+DELETE /v1/devices/{token}
+```
+
+Pydantic schema:
+
+```txt
+Response: 204 No Content
+```
+
+Input Request:
 
 ```json
 {
-  "id": "device-token-row-uuid",
-  "token": "fcm-device-token",
-  "platform": "ios"
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "path_params": {
+    "token": "fcm-device-token"
+  },
+  "body": null
 }
 ```
 
-### DELETE /v1/devices/{token}
+Output Response:
 
-Auth: owner of the device token
+```json
+null
+```
 
-Response `204`: no body
+## Walk-In QR APIs
 
----
+### Resolve QR token
 
-## 19. Walk-in QR APIs
+endpoint :
 
-### GET /v1/walkin/{qr_token}
+```bash
+GET /v1/walkin/{qr_token}
+```
 
-Auth: public
+Pydantic schema:
 
-Resolves a public QR token into the salon page data.
+```txt
+Response: WalkInSalonResponse
+```
 
-Response `200`:
+Input Request:
 
 ```json
 {
-  "id": "salon-uuid",
-  "name": "Salon Name",
-  "description": "Short description",
+  "headers": {},
+  "path_params": {
+    "qr_token": "fresh-cut-kochi-qr"
+  },
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "name": "Fresh Cut Salon",
+  "description": "Men's grooming and styling",
   "city": "Kochi",
-  "address": "Street address",
-  "image_url": "https://...",
+  "address": "MG Road, Kochi",
+  "image_url": "https://example.com/salon.jpg",
   "timezone": "Asia/Kolkata",
   "approval_mode": "auto",
   "services": [
     {
-      "id": "service-uuid",
-      "salon_id": "salon-uuid",
-      "subcategory_id": "subcategory-uuid",
+      "id": "33333333-3333-4333-8333-333333333333",
+      "salon_id": "11111111-1111-4111-8111-111111111111",
+      "subcategory_id": "44444444-4444-4444-8444-444444444444",
       "name": "Haircut",
       "description": "Basic haircut",
       "duration_minutes": 30,
@@ -1412,146 +1982,439 @@ Response `200`:
   ],
   "staff": [
     {
-      "id": "staff-uuid",
-      "name": "Staff Name",
-      "photo_url": "https://...",
-      "specialization": "Hair stylist"
+      "id": "77777777-7777-4777-8777-777777777777",
+      "name": "Ameen",
+      "photo_url": "https://example.com/staff.jpg",
+      "specialization": "Fade specialist"
     }
   ]
 }
 ```
 
-### POST /v1/walkin/{qr_token}/verify-phone
+### Send or verify phone OTP
 
-Auth: public
+endpoint :
 
-Send OTP request:
+```bash
+POST /v1/walkin/{qr_token}/verify-phone
+```
+
+Pydantic schema:
+
+```txt
+Request: WalkInVerifyPhoneRequest
+Response: WalkInVerifyPhoneResponse
+```
+
+Input Request:
 
 ```json
 {
-  "phone": "+919876543210"
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "qr_token": "fresh-cut-kochi-qr"
+  },
+  "body_to_send_otp": {
+    "phone": "+919876543210"
+  },
+  "body_to_verify_otp": {
+    "phone": "+919876543210",
+    "otp": "123456"
+  }
 }
 ```
 
-Send OTP response `200`:
-
-```json
-{
-  "verified": false,
-  "access_token": null,
-  "refresh_token": null
-}
-```
-
-Verify OTP request:
-
-```json
-{
-  "phone": "+919876543210",
-  "otp": "123456"
-}
-```
-
-Verify OTP response `200`:
+Output Response:
 
 ```json
 {
   "verified": true,
-  "access_token": "jwt",
-  "refresh_token": "refresh-token"
+  "access_token": "supabase-access-jwt",
+  "refresh_token": "supabase-refresh-token"
 }
 ```
 
-### POST /v1/walkin/{qr_token}/bookings
+### Create QR walk-in booking
 
-Auth: customer JWT returned by phone verification
+endpoint :
 
-Creates a booking with `source = "qr_walkin"` through the same database booking function.
+```bash
+POST /v1/walkin/{qr_token}/bookings
+```
 
-Request:
+Pydantic schema:
+
+```txt
+Request: BookingCreateRequest
+Response: BookingResponse
+```
+
+Input Request:
 
 ```json
 {
-  "salon_id": "salon-uuid",
-  "staff_id": "staff-uuid",
-  "service_ids": ["service-uuid"],
-  "start_datetime": "2026-08-07T10:00:00Z",
-  "customer_name": "Customer Name",
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "path_params": {
+    "qr_token": "fresh-cut-kochi-qr"
+  },
+  "body": {
+    "salon_id": "11111111-1111-4111-8111-111111111111",
+    "staff_id": "77777777-7777-4777-8777-777777777777",
+    "service_ids": ["33333333-3333-4333-8333-333333333333"],
+    "start_datetime": "2026-08-10T09:00:00Z",
+    "customer_name": "Thanseef",
+    "customer_phone": "+919876543210",
+    "source": "qr_walkin",
+    "notes": null
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "66666666-6666-4666-8666-666666666666",
+  "salon_id": "11111111-1111-4111-8111-111111111111",
+  "staff_id": "77777777-7777-4777-8777-777777777777",
+  "customer_id": "8efc2d51-9d4c-4f1d-8e2e-0f6f0d624aa1",
+  "customer_name": "Thanseef",
   "customer_phone": "+919876543210",
+  "phone_verified": true,
   "source": "qr_walkin",
-  "notes": null
+  "status": "confirmed",
+  "start_datetime": "2026-08-10T09:00:00Z",
+  "end_datetime": "2026-08-10T09:30:00Z",
+  "total_duration_minutes": 30,
+  "total_price": "250.00",
+  "payment_status": "unpaid",
+  "payment_method": null,
+  "rejection_reason": null,
+  "notes": null,
+  "services": [],
+  "salon_name": "Fresh Cut Salon",
+  "salon_address": "MG Road, Kochi",
+  "salon_image": "https://example.com/salon.jpg",
+  "staff_name": "Ameen",
+  "staff_photo_url": "https://example.com/staff.jpg",
+  "created_at": "2026-08-10T08:30:00Z",
+  "updated_at": "2026-08-10T08:30:00Z",
+  "can_cancel": true
 }
 ```
 
-Response `201`: `BookingResponse`
+## Super Admin APIs
 
----
+All endpoints in this section require:
 
-## 20. Frontend Fetch Helpers
+```http
+Authorization: Bearer <super_admin_supabase_access_token>
+```
 
-Expo apps can call the backend with the Supabase access token:
+### Create salon owner and salon
 
-```typescript
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+endpoint :
 
-export async function apiFetch(path: string, options?: RequestInit) {
-  const token = await getSupabaseAccessToken();
-  return fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
+```bash
+POST /v1/admin/salons
+```
+
+Pydantic schema:
+
+```txt
+Request: AdminCreateSalonRequest
+Response: AdminSalonResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer super-admin-supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "email": "owner@example.com",
+    "password": "StrongPass123",
+    "full_name": "Salon Owner",
+    "salon_name": "Fresh Cut Salon",
+    "timezone": "Asia/Kolkata"
+  }
 }
 ```
 
-Walk-in web only needs the API base URL for public QR and OTP calls. It passes the OTP
-JWT only when creating the QR booking:
+Output Response:
 
-```typescript
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-export const api = {
-  get: (path: string) => fetch(`${BASE}${path}`).then((r) => r.json()),
-  post: (path: string, body: unknown, token?: string) =>
-    fetch(`${BASE}${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    }).then((r) => r.json()),
-};
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "owner_email": "owner@example.com",
+  "owner_name": "Salon Owner",
+  "name": "Fresh Cut Salon",
+  "description": null,
+  "category": null,
+  "address": null,
+  "city": null,
+  "timezone": "Asia/Kolkata",
+  "approval_mode": "manual",
+  "profile_completed": false,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
 ```
 
----
+### Admin salon management
 
-## 21. Security Rules
-
-| Rule | Reason |
-|---|---|
-| Never expose `SUPABASE_SERVICE_ROLE_KEY` to any client | It bypasses RLS and has admin power |
-| Never expose `FIREBASE_CREDENTIALS_JSON` to any client | It can send push notifications |
-| Clients may use `SUPABASE_ANON_KEY` for Auth only | Business data goes through FastAPI |
-| Add frontend domains to `BACKEND_CORS_ORIGINS` | Browsers need explicit CORS permission |
-| Set `ENVIRONMENT=production` in production | Enables startup validation for required secrets |
-
----
-
-## 22. Local Startup
+endpoint :
 
 ```bash
-cd backend
-./.venv/bin/pip install -e ".[dev]"
-./.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+GET /v1/admin/salons
+PATCH /v1/admin/salons/{salon_id}
+POST /v1/admin/salons/{salon_id}/deactivate
 ```
 
-Verification:
+Pydantic schema:
+
+```txt
+List Response: list[AdminSalonResponse]
+Patch Request: AdminUpdateSalonRequest
+Patch Response: AdminSalonResponse
+Deactivate Response: AdminDeactivateSalonResponse
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer super-admin-supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "query_params_for_get": {
+    "search": "fresh",
+    "limit": 50,
+    "offset": 0
+  },
+  "path_params": {
+    "salon_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "body_for_patch": {
+    "name": "Fresh Cut Salon",
+    "timezone": "Asia/Kolkata"
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "owner_id": "55555555-5555-4555-8555-555555555555",
+  "owner_email": "owner@example.com",
+  "owner_name": "Salon Owner",
+  "name": "Fresh Cut Salon",
+  "description": null,
+  "category": null,
+  "address": null,
+  "city": null,
+  "timezone": "Asia/Kolkata",
+  "approval_mode": "manual",
+  "profile_completed": false,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Admin category endpoints
+
+endpoint :
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/health/db
+GET /v1/admin/catalog/categories
+POST /v1/admin/catalog/categories
+PATCH /v1/admin/catalog/categories/{category_id}
+POST /v1/admin/catalog/categories/{category_id}/deactivate
 ```
+
+Pydantic schema:
+
+```txt
+Create Request: CategoryCreateRequest
+Update Request: CategoryUpdateRequest
+Response: CategoryResponse or list[CategoryResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer super-admin-supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "query_params_for_get": {
+    "include_inactive": false
+  },
+  "path_params": {
+    "category_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+  },
+  "body_for_post": {
+    "name": "Hair",
+    "slug": "hair",
+    "image_url": "https://example.com/hair.jpg",
+    "description": "Hair services",
+    "sort_order": 1
+  },
+  "body_for_patch": {
+    "name": "Hair Care",
+    "slug": "hair-care",
+    "is_active": true
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  "name": "Hair",
+  "slug": "hair",
+  "image_url": "https://example.com/hair.jpg",
+  "description": "Hair services",
+  "sort_order": 1,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### Admin subcategory endpoints
+
+endpoint :
+
+```bash
+GET /v1/admin/catalog/categories/{category_id}/subcategories
+POST /v1/admin/catalog/subcategories
+PATCH /v1/admin/catalog/subcategories/{subcategory_id}
+POST /v1/admin/catalog/subcategories/{subcategory_id}/deactivate
+```
+
+Pydantic schema:
+
+```txt
+Create Request: SubcategoryCreateRequest
+Update Request: SubcategoryUpdateRequest
+Response: SubcategoryResponse or list[SubcategoryResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer super-admin-supabase-access-jwt",
+    "Content-Type": "application/json"
+  },
+  "query_params_for_get": {
+    "include_inactive": false
+  },
+  "path_params": {
+    "category_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    "subcategory_id": "44444444-4444-4444-8444-444444444444"
+  },
+  "body_for_post": {
+    "category_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    "name": "Haircut",
+    "slug": "haircut",
+    "image_url": "https://example.com/haircut.jpg",
+    "description": "Haircut services",
+    "sort_order": 1
+  },
+  "body_for_patch": {
+    "name": "Premium Haircut",
+    "slug": "premium-haircut",
+    "is_active": true
+  }
+}
+```
+
+Output Response:
+
+```json
+{
+  "id": "44444444-4444-4444-8444-444444444444",
+  "category_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  "name": "Haircut",
+  "slug": "haircut",
+  "image_url": "https://example.com/haircut.jpg",
+  "description": "Haircut services",
+  "sort_order": 1,
+  "is_active": true,
+  "created_at": "2026-08-10T09:00:00Z",
+  "updated_at": "2026-08-10T09:00:00Z"
+}
+```
+
+### List supported languages
+
+endpoint :
+
+```bash
+GET /v1/admin/catalog/languages
+```
+
+Pydantic schema:
+
+```txt
+Response: list[LanguageResponse]
+```
+
+Input Request:
+
+```json
+{
+  "headers": {
+    "Authorization": "Bearer supabase-access-jwt"
+  },
+  "body": null
+}
+```
+
+Output Response:
+
+```json
+[
+  {
+    "code": "en",
+    "name": "English"
+  },
+  {
+    "code": "ml",
+    "name": "Malayalam"
+  }
+]
+```
+
+## Notes For Frontend Integration
+
+1. Use Supabase Auth in the frontend for Google sign-in and token refresh storage.
+2. Send the Supabase access token to this API in the `Authorization` header.
+3. Do not compute availability in the frontend. Use `GET /v1/availability`.
+4. Do not create bookings directly in Supabase. Use `POST /v1/bookings` or
+   `POST /v1/walkin/{qr_token}/bookings`.
+5. Treat all UUID fields as strings.
+6. Treat money values returned by the API as strings to avoid floating point issues.
+7. `DELETE /v1/salons/me/images/{image_id}` and
+   `DELETE /v1/salons/me/holidays/{holiday_id}` intentionally reject deletion until
+   the schema supports soft delete for those tables.

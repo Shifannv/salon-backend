@@ -16,14 +16,6 @@ class AuthTokens:
 
 
 @dataclass(frozen=True, slots=True)
-class LoginInput:
-    """Email-password login input."""
-
-    email: str
-    password: str
-
-
-@dataclass(frozen=True, slots=True)
 class RefreshInput:
     """Refresh-token input."""
 

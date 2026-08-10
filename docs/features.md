@@ -9,9 +9,9 @@ truth for task status, assignee, priority, and acceptance criteria.
 
 - `GET /health`
 - `GET /health/db`
-- `POST /v1/auth/login`
 - `POST /v1/auth/refresh`
 - `GET /v1/auth/me`
+- Supabase Google OAuth sign-in support through frontend-managed Supabase sessions
 - Supabase JWT verification through JWKS
 - Actor profile resolution from `profiles`
 - Async SQLAlchemy database session setup
@@ -74,7 +74,7 @@ truth for task status, assignee, priority, and acceptance criteria.
 
 ### 1. Authentication And Actor Resolution
 
-- Login through Supabase Auth
+- Google sign-in through Supabase Auth
 - Refresh Supabase Auth sessions
 - Resolve current authenticated profile
 - Reject inactive profiles

@@ -70,7 +70,6 @@ The following backend APIs are currently active:
 ```txt
 GET  /health
 GET  /health/db
-POST /v1/auth/login
 POST /v1/auth/refresh
 GET  /v1/auth/me
 
@@ -178,10 +177,12 @@ export type ProfileResponse = {
   is_active: boolean;
 };
 
-export function login(email: string, password: string) {
-  return apiRequest<TokenResponse>("/v1/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
+export function signInWithGoogle() {
+  return supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: process.env.EXPO_PUBLIC_GOOGLE_AUTH_REDIRECT_URL,
+    },
   });
 }
 
@@ -244,19 +245,26 @@ export async function clearTokens() {
 
 Recommended frontend flow:
 
-1. User submits email and password.
-2. Frontend calls `POST /v1/auth/login`.
-3. Frontend stores `access_token` and `refresh_token`.
-4. Frontend calls `GET /v1/auth/me` with `Authorization: Bearer <access_token>`.
-5. Frontend routes the user based on `profile.role`.
+1. User taps "Continue with Google".
+2. Frontend calls Supabase `signInWithOAuth({ provider: "google" })`.
+3. Supabase completes Google OAuth and returns a session.
+4. Frontend stores or reads `session.access_token` and `session.refresh_token`.
+5. Frontend calls `GET /v1/auth/me` with `Authorization: Bearer <access_token>`.
+6. Frontend routes the user based on `profile.role`.
 
 Example:
 
 ```ts
-const tokens = await login(email, password);
-await saveTokens(tokens);
+await signInWithGoogle();
 
-const profile = await getMe(tokens.access_token);
+const { data } = await supabase.auth.getSession();
+const session = data.session;
+
+if (!session) {
+  throw new Error("Google sign-in did not return a Supabase session");
+}
+
+const profile = await getMe(session.access_token);
 
 if (profile.role === "customer") {
   // Navigate to customer app home.
@@ -283,7 +291,8 @@ The backend uses Supabase Auth.
 
 That means:
 
-- The login email/password must exist in Supabase Auth.
+- Google OAuth must be enabled in the Supabase project.
+- The frontend signs in with Supabase `signInWithOAuth({ provider: "google" })`.
 - The Supabase Auth user id must have a matching row in the `profiles` table.
 - The frontend should not send or trust a role manually.
 - The backend resolves the role from `profiles`.

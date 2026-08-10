@@ -5,13 +5,6 @@ from pydantic import BaseModel, EmailStr, Field
 from app.domain.entities.profile import Role
 
 
-class LoginRequest(BaseModel):
-    """Email-password login request."""
-
-    email: EmailStr
-    password: str = Field(min_length=1)
-
-
 class RefreshRequest(BaseModel):
     """Refresh-token request."""
 

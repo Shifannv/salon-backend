@@ -100,7 +100,7 @@ async def update_settings(
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> OwnerSalonResponse:
-    """Update owner salon settings (approval mode, slot interval, working hours)."""
+    """Update owner salon settings (approval mode and working hours)."""
 
     salon = await _use_cases(session).update_my_salon(actor, payload.model_dump(exclude_unset=True))
     return OwnerSalonResponse(**salon)

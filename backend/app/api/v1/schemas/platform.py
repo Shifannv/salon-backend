@@ -92,7 +92,6 @@ class SalonDetailResponse(BaseModel):
     timezone: str
     working_hours: dict[str, Any]
     approval_mode: str
-    slot_interval_minutes: int
     profile_completed: bool
     is_active: bool
     images: list[SalonImageResponse] = Field(default_factory=list)
@@ -114,7 +113,6 @@ class OwnerSalonResponse(BaseModel):
     timezone: str
     working_hours: dict[str, Any]
     approval_mode: str
-    slot_interval_minutes: int
     qr_token: str
     profile_completed: bool
     is_active: bool
@@ -135,14 +133,12 @@ class OwnerSalonUpdateRequest(BaseModel):
     timezone: str | None = None
     working_hours: dict[str, Any] | None = None
     approval_mode: Literal["auto", "manual"] | None = None
-    slot_interval_minutes: int | None = Field(default=None, gt=0)
 
 
 class OwnerSalonSettingsRequest(BaseModel):
     """Owner salon settings request."""
 
     approval_mode: Literal["auto", "manual"] | None = None
-    slot_interval_minutes: int | None = Field(default=None, gt=0)
     working_hours: dict[str, Any] | None = None
 
 
@@ -290,7 +286,7 @@ class AvailabilityResponse(BaseModel):
     # ── Frontend TimeSlotPicker fields ────────────────────────────────────────
     id: str  # e.g. "09:00 AM" — stable key and display label
     time: str  # same as id; explicit field for clarity
-    barberName: str | None = None  # camelCase to match the TS type verbatim  # noqa: N815
+    barberName: str | None = None  # camelCase to match the TS type verbatim
 
 
 class BookingCreateRequest(BaseModel):
@@ -484,4 +480,3 @@ class BlockedSlotResponse(BaseModel):
     recurrence_end: date | None = None
     created_at: datetime
     updated_at: datetime
-

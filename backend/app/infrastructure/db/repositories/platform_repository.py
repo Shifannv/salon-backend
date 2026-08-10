@@ -143,6 +143,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Salon not found")
         salon = dict(row)
+        salon["id"] = str(salon["id"])
         salon["images"] = await self.list_salon_images(salon_id)
         salon["services"] = await self.list_public_services(salon_id)
         return salon
@@ -161,7 +162,8 @@ class PlatformRepository:
             ),
             {"salon_id": salon_id},
         )
-        return [dict(row) for row in result.mappings().all()]
+        rows = result.mappings().all()
+        return [{**dict(row), "id": str(row["id"])} for row in rows]
 
     async def list_public_services(self, salon_id: str) -> list[dict[str, Any]]:
         """List public active services for a salon."""
@@ -182,7 +184,16 @@ class PlatformRepository:
             ),
             {"salon_id": salon_id},
         )
-        return [dict(row) for row in result.mappings().all()]
+        rows = result.mappings().all()
+        return [
+            {
+                **dict(row),
+                "id": str(row["id"]),
+                "salon_id": str(row["salon_id"]),
+                "subcategory_id": str(row["subcategory_id"]) if row.get("subcategory_id") else None,
+            }
+            for row in rows
+        ]
 
     async def list_salon_images(self, salon_id: str) -> list[dict[str, Any]]:
         """List images for a salon."""
@@ -198,7 +209,15 @@ class PlatformRepository:
             ),
             {"salon_id": salon_id},
         )
-        return [dict(row) for row in result.mappings().all()]
+        rows = result.mappings().all()
+        return [
+            {
+                **dict(row),
+                "id": str(row["id"]),
+                "salon_id": str(row["salon_id"]),
+            }
+            for row in rows
+        ]
 
     async def get_owner_salon(self, actor_id: str) -> dict[str, Any]:
         """Return the salon owned by an actor."""
@@ -677,7 +696,17 @@ class PlatformRepository:
             ),
             {"actor_id": actor_id},
         )
-        return [dict(row) for row in result.mappings().all()]
+        rows = result.mappings().all()
+        return [
+            {
+                **dict(row),
+                "id": str(row["id"]),
+                "salon_id": str(row["salon_id"]),
+                "staff_id": str(row["staff_id"]),
+                "customer_id": str(row["customer_id"]) if row.get("customer_id") else None,
+            }
+            for row in rows
+        ]
 
     async def get_booking(self, booking_id: str, actor_id: str | None) -> dict[str, Any] | None:
         """Read one booking enriched with salon and staff display fields."""
@@ -731,7 +760,15 @@ class PlatformRepository:
             {"booking_id": booking_id, "actor_id": actor_id},
         )
         row = result.mappings().one_or_none()
-        return dict(row) if row else None
+        if not row:
+            return None
+        return {
+            **dict(row),
+            "id": str(row["id"]),
+            "salon_id": str(row["salon_id"]),
+            "staff_id": str(row["staff_id"]),
+            "customer_id": str(row["customer_id"]) if row.get("customer_id") else None,
+        }
 
     async def update_booking_status(
         self,

@@ -400,12 +400,12 @@ class BookingUseCases:
                 body=body,
             )
             # Lazy import: firebase-admin is optional — only needed when FCM is configured.
-            from app.core.config import settings  # noqa: PLC0415
-            from app.infrastructure.push.fcm_gateway import FCMGateway  # noqa: PLC0415
+            from app.core.config import settings
+            from app.infrastructure.push.fcm_gateway import FCMGateway
 
             fcm = FCMGateway(settings, self.repository.session)
             await fcm.fan_out(str(notification["id"]), str(customer_id))
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Push delivery failures must never affect the booking workflow.
             _log.warning(
                 "Failed to send push notification for booking %s", booking.get("id")

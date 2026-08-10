@@ -52,12 +52,13 @@ The active backend currently exposes Phase 1 foundation APIs:
 
 - `GET /health`
 - `GET /health/db`
-- `POST /v1/auth/login`
 - `POST /v1/auth/refresh`
 - `GET /v1/auth/me`
+- Supabase Google OAuth JWT verification
 
-Legacy local-password routes and Python booking/slot services still exist in old files
-for reference, but they are not mounted by the active FastAPI app.
+Google sign-in is initiated by frontend apps through Supabase Auth. The backend does
+not accept email-password login; it verifies the Supabase access token returned after
+Google OAuth.
 
 ## Team
 

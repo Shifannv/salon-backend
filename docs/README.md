@@ -34,7 +34,7 @@ folder structure, and developer task ownership.
 
 | File | Purpose |
 | --- | --- |
-| [API_KEYS_AND_INTEGRATION.md](../backend/docs/API_KEYS_AND_INTEGRATION.md) | Environment variables, key sources, and step-by-step frontend connection |
+| [API_AND_INTEGRATION.md.md](../backend/docs/API_AND_INTEGRATION.md.md) | Environment variables, API request/response formats, and frontend connection |
 | [ARCHITECTURE.md](../backend/docs/ARCHITECTURE.md) | Layered clean architecture design rules |
 | [AUTHORIZATION.md](../backend/docs/AUTHORIZATION.md) | Supabase JWT authentication and role-based authorization |
 | [BOOKING_FLOW.md](../backend/docs/BOOKING_FLOW.md) | Booking creation & slot availability rules |

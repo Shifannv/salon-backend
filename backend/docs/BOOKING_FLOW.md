@@ -48,6 +48,11 @@ Customer App                       API                          Database
 availability check and booking, the API returns `{"error": {"code": "slot_unavailable"}}`.
 The client must re-fetch availability and prompt the user to choose again.
 
+**Slot timing:** Available slot starts advance by the selected service duration. If the
+barber sets a service duration of 30 minutes and working hours are `09:00` to `18:00`,
+availability is generated as `09:00-09:30`, `09:30-10:00`, `10:00-10:30`, and so on.
+There is no separate slot interval setting exposed to the frontend.
+
 ---
 
 ## 2. Manual Walk-in (Owner App — no QR)

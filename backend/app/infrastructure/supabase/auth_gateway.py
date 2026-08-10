@@ -2,7 +2,7 @@
 
 import httpx
 
-from app.application.dto.auth import AuthTokens, LoginInput, RefreshInput
+from app.application.dto.auth import AuthTokens, RefreshInput
 from app.application.ports.auth_gateway import AuthGateway
 from app.core.config import Settings
 from app.core.exceptions import UnauthorizedError, ValidationError
@@ -13,14 +13,6 @@ class SupabaseAuthGateway(AuthGateway):
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-
-    async def login(self, payload: LoginInput) -> AuthTokens:
-        """Sign in with email and password."""
-
-        return await self._post(
-            "/auth/v1/token?grant_type=password",
-            {"email": payload.email, "password": payload.password},
-        )
 
     async def refresh(self, payload: RefreshInput) -> AuthTokens:
         """Refresh a session token."""

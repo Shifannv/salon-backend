@@ -16,8 +16,8 @@ from app.api.v1.schemas.platform import (
 )
 from app.application.use_cases.platform import CustomerUseCases
 from app.domain.entities.profile import Profile
-from app.infrastructure.db.session import get_session
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
+from app.infrastructure.db.session import get_session
 
 router = APIRouter()
 salons_router = APIRouter()

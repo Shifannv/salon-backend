@@ -5,31 +5,14 @@ from dataclasses import asdict
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import get_auth_gateway, get_current_actor
-from app.api.v1.schemas.auth import LoginRequest, ProfileResponse, RefreshRequest, TokenResponse
-from app.application.dto.auth import LoginInput, RefreshInput
+from app.api.v1.schemas.auth import ProfileResponse, RefreshRequest, TokenResponse
+from app.application.dto.auth import RefreshInput
 from app.application.ports.auth_gateway import AuthGateway
-from app.application.use_cases.auth.login import Login
 from app.application.use_cases.auth.me import GetMe
 from app.application.use_cases.auth.refresh import Refresh
 from app.domain.entities.profile import Profile
 
 router = APIRouter()
-
-
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Sign in with Supabase Auth",
-)
-async def login(
-    payload: LoginRequest,
-    auth_gateway: AuthGateway = Depends(get_auth_gateway),
-) -> TokenResponse:
-    """Authenticate an email-password user through Supabase Auth."""
-
-    tokens = await Login(auth_gateway).execute(LoginInput(email=str(payload.email), password=payload.password))
-    return TokenResponse(**tokens.__dict__)
 
 
 @router.post(

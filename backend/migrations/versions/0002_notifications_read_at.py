@@ -30,13 +30,21 @@ def upgrade() -> None:
     # Back-fill already-read rows so the column is immediately useful.
     op.execute(
         """
-        update notifications
-        set read_at = updated_at
-        where read = true and read_at is null
-          and exists (
+        do $$
+        begin
+          if exists (
             select 1 from information_schema.columns
-            where table_name = 'notifications' and column_name = 'updated_at'
-          );
+            where table_schema = 'public'
+              and table_name = 'notifications'
+              and column_name = 'updated_at'
+          ) then
+            execute 'update notifications set read_at = updated_at where read = true and read_at is null';
+          else
+            update notifications
+            set read_at = created_at
+            where read = true and read_at is null;
+          end if;
+        end $$;
         """
     )
 
@@ -55,10 +63,9 @@ def upgrade() -> None:
         """
     )
 
+    op.execute("drop trigger if exists trg_notification_read_at on notifications;")
     op.execute(
         """
-        drop trigger if exists trg_notification_read_at on notifications;
-
         create trigger trg_notification_read_at
           before update on notifications
           for each row execute procedure stamp_notification_read_at();

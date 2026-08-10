@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
@@ -16,7 +16,10 @@ from app.infrastructure.db.session import get_session, set_actor_context
 from app.infrastructure.supabase.auth_admin import SupabaseAuthAdminGateway
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/login")
+bearer_scheme = HTTPBearer(
+    scheme_name="Supabase Google OAuth",
+    description="Supabase access token returned after Google OAuth sign-in.",
+)
 _jwt_verifier = SupabaseJWTVerifier(settings)
 
 
@@ -36,7 +39,7 @@ def get_auth_admin_gateway() -> AuthAdminGateway:
 
 
 async def get_current_actor(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> Profile:
     """Verify the bearer token and resolve it to a profile row.
@@ -46,7 +49,7 @@ async def get_current_actor(
     Actor context is set once in get_authenticated_session; not here.
     """
 
-    actor_id = await _jwt_verifier.verify_subject(token)
+    actor_id = await _jwt_verifier.verify_subject(credentials.credentials)
     profile = await SQLProfileRepository(session).get_by_id(actor_id)
     if not profile or not profile.is_active:
         raise UnauthorizedError("User not found")
