@@ -1,7 +1,11 @@
 """Application exception hierarchy and HTTP mappings."""
 
+import logging
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 class AppError(Exception):
@@ -56,12 +60,76 @@ class ValidationError(AppError):
     code = "validation_error"
 
 
+def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str]:
+    """Build CORS headers for the response, based on the request Origin.
+
+    The ``Exception`` catch-all handler is routed by Starlette to
+    ``ServerErrorMiddleware``, which sits *outside* ``CORSMiddleware`` in the
+    middleware stack.  Responses returned from that handler therefore bypass
+    ``CORSMiddleware`` entirely, so we must inject the headers manually here.
+    """
+    origin = request.headers.get("origin", "")
+    if origin in allowed_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+    return {}
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register one HTTP translation point for application exceptions."""
 
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.core.config import settings
+
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
+        # AppError is a named type → routed to ExceptionMiddleware (inside CORSMiddleware).
+        # CORSMiddleware adds Access-Control-Allow-Origin automatically.
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": exc.code, "message": exc.message}},
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        """Handle all SQLAlchemy/asyncpg errors with a safe 500.
+
+        SQLAlchemyError is a named type → routed to ExceptionMiddleware (inside
+        CORSMiddleware), so the browser receives Access-Control-Allow-Origin
+        automatically.  We log the full error but never expose SQL fragments to
+        the client.
+        """
+        logger.exception(
+            "Database error on %s %s",
+            request.method,
+            request.url.path,
+            exc_info=exc,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": {"code": "internal_error", "message": "A database error occurred. Please try again."}},
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        """Catch-all for any remaining unexpected errors.
+
+        ``Exception`` is special-cased by Starlette — it is routed to
+        ``ServerErrorMiddleware`` (the *outermost* layer), which runs before
+        ``CORSMiddleware``.  Responses from this handler therefore bypass
+        ``CORSMiddleware``, so we must inject the CORS headers manually.
+        """
+        logger.exception(
+            "Unhandled server error on %s %s",
+            request.method,
+            request.url.path,
+            exc_info=exc,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": {"code": "internal_error", "message": "An unexpected server error occurred."}},
+            headers=_cors_headers(request, settings.backend_cors_origins),
         )

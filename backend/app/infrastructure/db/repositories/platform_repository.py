@@ -749,10 +749,10 @@ class PlatformRepository:
                 left join booking_services bs on bs.booking_id = b.id
                 where b.id = :booking_id
                   and (
-                    :actor_id is null
-                    or b.customer_id = :actor_id
-                    or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
-                    or exists (select 1 from staff st2 where st2.id = b.staff_id and st2.profile_id = :actor_id)
+                    :actor_id::uuid is null
+                    or b.customer_id = :actor_id::uuid
+                    or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id::uuid)
+                    or exists (select 1 from staff st2 where st2.id = b.staff_id and st2.profile_id = :actor_id::uuid)
                   )
                 group by b.id, s.name, s.address, img.url, st.name, st.photo_url
                 """
