@@ -14,8 +14,10 @@ class SalonRepository(Protocol):
     ) -> dict[str, Any]:
         """Update owner-editable salon fields. Raises NotFoundError if absent."""
 
-    async def complete_owner_salon(self, actor_id: str) -> dict[str, Any]:
-        """Set profile_completed = True on the owner's salon."""
+    async def complete_owner_salon(
+        self, actor_id: str, values: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Create/update the owner's salon and set profile_completed = True."""
 
     async def list_salon_images(self, salon_id: str) -> list[dict[str, Any]]:
         """Return images for a salon ordered by sort_order."""

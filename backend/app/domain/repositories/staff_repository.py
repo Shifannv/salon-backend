@@ -29,6 +29,11 @@ class StaffRepository(Protocol):
     ) -> dict[str, Any]:
         """Upsert a staff_services row with optional duration/price overrides."""
 
+    async def list_staff_services(
+        self, actor_id: str, staff_id: str
+    ) -> list[dict[str, Any]]:
+        """Return service assignments for a staff member."""
+
     async def list_staff_service_languages(
         self, actor_id: str, staff_id: str, staff_service_id: str
     ) -> list[dict[str, Any]]:

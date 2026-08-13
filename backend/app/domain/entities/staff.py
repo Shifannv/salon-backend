@@ -57,6 +57,7 @@ class Staff:
     name: str
     photo_url: str | None
     specialization: str | None
+    experience: str | None
     working_hours: dict | None  # None → inherit salon hours
     is_active: bool
     created_at: datetime

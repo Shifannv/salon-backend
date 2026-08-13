@@ -2,10 +2,20 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.routes import admin, auth, bookings, customer, notifications, owner, walkin
+from app.api.v1.routes import (
+    admin,
+    auth,
+    bookings,
+    customer,
+    notifications,
+    owner,
+    profiles,
+    walkin,
+)
 
 api_v1_router = APIRouter(prefix="/v1")
 api_v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_v1_router.include_router(profiles.router, prefix="/profiles", tags=["profiles"])
 api_v1_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_v1_router.include_router(customer.router, prefix="/customer", tags=["customer"])
 api_v1_router.include_router(owner.router, prefix="/salons", tags=["salon owner"])

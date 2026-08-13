@@ -17,17 +17,43 @@ class PlatformRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def update_profile(self, profile_id: str, values: dict[str, Any]) -> dict[str, Any]:
-        """Update the actor's profile."""
+    def _prepare_jsonb_values(self, values: dict[str, Any]) -> dict[str, Any]:
+        """Serialize JSONB fields for raw SQL text statements."""
 
-        allowed = {key: value for key, value in values.items() if value is not None}
-        if not allowed:
+        prepared = dict(values)
+        if "working_hours" in prepared and prepared["working_hours"] is not None:
+            prepared["working_hours"] = json.dumps(prepared["working_hours"])
+        return prepared
+
+    def _sql_value_placeholder(self, key: str) -> str:
+        """Return the SQL placeholder for a writable column."""
+
+        if key == "working_hours":
+            return f"cast(:{key} as jsonb)"
+        return f":{key}"
+
+    def _sql_assignment(self, key: str) -> str:
+        """Return a safe assignment fragment for a writable column."""
+
+        return f"{key} = {self._sql_value_placeholder(key)}"
+
+    async def update_profile(self, profile_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        """Update the actor's profile.
+
+        ``values`` contains only keys the caller explicitly set (``exclude_unset`` in the
+        Pydantic schema).  An explicit ``null`` clears the corresponding nullable column
+        (phone, full_name, avatar_url).  Omitted keys are not in the dict at all, so they
+        are never touched.
+        """
+
+        # Empty dict → nothing was sent; return the current row unchanged.
+        if not values:
             profile = await self.get_profile(profile_id)
             if profile is None:
                 raise NotFoundError("Profile not found")
             return profile
 
-        assignments = ", ".join(f"{key} = :{key}" for key in allowed)
+        assignments = ", ".join(self._sql_assignment(key) for key in values)
         result = await self.session.execute(
             text(
                 f"""
@@ -37,7 +63,7 @@ class PlatformRepository:
                 returning id, role, full_name, email, phone, phone_verified, avatar_url, is_active
                 """
             ),
-            {**allowed, "profile_id": profile_id},
+            {**values, "profile_id": profile_id},
         )
         row = result.mappings().one_or_none()
         if row is None:
@@ -220,7 +246,37 @@ class PlatformRepository:
         ]
 
     async def get_owner_salon(self, actor_id: str) -> dict[str, Any]:
-        """Return the salon owned by an actor."""
+        """Return the salon owned by an actor, auto-provisioning a blank one on first login.
+
+        Owners are created via the Supabase ``handle_new_user`` trigger which only inserts
+        into ``profiles``. A salon row does not exist until either an admin creates it or —
+        for Google OAuth owners — this method creates it on the first owner-salon request.
+        """
+
+        row = await self._get_owner_salon_row(actor_id)
+        if row is None:
+            return await self.provision_owner_salon(actor_id)
+        return await self._owner_salon_with_images(row)
+
+    async def _lock_owner_salon(self, actor_id: str) -> None:
+        """Serialize owner-salon creation for one actor within this API."""
+
+        await self.session.execute(
+            text("select pg_advisory_xact_lock(hashtext(:actor_id))"),
+            {"actor_id": actor_id},
+        )
+
+    async def _owner_salon_with_images(self, row: Any) -> dict[str, Any]:
+        """Return an owner salon row in the shape expected by the owner app."""
+
+        salon = dict(row)
+        salon["id"] = str(salon["id"])
+        salon["owner_id"] = str(salon["owner_id"])
+        salon["images"] = await self.list_salon_images(salon["id"])
+        return salon
+
+    async def _get_owner_salon_row(self, actor_id: str):
+        """Raw DB read — returns the mapping row or None, never raises."""
 
         result = await self.session.execute(
             text(
@@ -236,20 +292,50 @@ class PlatformRepository:
             ),
             {"actor_id": actor_id},
         )
-        row = result.mappings().one_or_none()
-        if row is None:
-            raise NotFoundError("Salon not found")
-        return dict(row)
+        return result.mappings().one_or_none()
+
+    async def provision_owner_salon(self, actor_id: str) -> dict[str, Any]:
+        """Create a blank salon for a new owner and return it.
+
+        Idempotent for API traffic: an owner-scoped advisory lock makes concurrent
+        first-login requests check for an existing active salon before inserting.
+        """
+
+        await self._lock_owner_salon(actor_id)
+        existing = await self._get_owner_salon_row(actor_id)
+        if existing is not None:
+            return await self._owner_salon_with_images(existing)
+
+        result = await self.session.execute(
+            text(
+                """
+                insert into salons (owner_id, name, is_active, profile_completed)
+                values (:actor_id, '', true, false)
+                returning id, owner_id, name, description, category, address, city, lat, lng,
+                          timezone, working_hours, approval_mode, slot_interval_minutes,
+                          qr_token, profile_completed, is_active, created_at, updated_at
+                """
+            ),
+            {"actor_id": actor_id},
+        )
+        await self.session.commit()
+        return await self._owner_salon_with_images(result.mappings().one())
 
     async def update_owner_salon(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Update owner-editable salon fields."""
 
         salon = await self.get_owner_salon(actor_id)
-        allowed = {key: value for key, value in values.items() if value is not None}
+        # _prepare_jsonb_values serialises working_hours so Postgres receives a JSON string
+        # that can be cast to jsonb, not a raw Python dict which would raise ProgrammingError.
+        allowed = self._prepare_jsonb_values(
+            {key: value for key, value in values.items() if value is not None}
+        )
         if not allowed:
             return salon
 
-        assignments = ", ".join(f"{key} = :{key}" for key in allowed)
+        # _sql_assignment emits `key = :key` for plain columns and
+        # `key = cast(:key as jsonb)` for working_hours — same as complete_owner_salon.
+        assignments = ", ".join(self._sql_assignment(key) for key in allowed)
         result = await self.session.execute(
             text(
                 f"""
@@ -267,12 +353,59 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Salon not found")
         await self.session.commit()
-        return dict(row)
+        return await self._owner_salon_with_images(row)
 
-    async def complete_owner_salon(self, actor_id: str) -> dict[str, Any]:
-        """Mark the owner's salon profile as completed."""
+    async def complete_owner_salon(
+        self, actor_id: str, values: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Create/update the owner's salon from onboarding data and publish it."""
 
-        return await self.update_owner_salon(actor_id, {"profile_completed": True})
+        allowed = self._prepare_jsonb_values(dict(values or {}))
+        payload = {**allowed, "profile_completed": True}
+
+        await self._lock_owner_salon(actor_id)
+        salon = await self._get_owner_salon_row(actor_id)
+        if salon is None:
+            if not payload.get("name"):
+                raise ValidationError("Salon name is required to complete setup")
+            fields = ["owner_id", *payload.keys()]
+            params = {"owner_id": actor_id, **payload}
+            columns = ", ".join(fields)
+            placeholders = ", ".join(self._sql_value_placeholder(field) for field in fields)
+            result = await self.session.execute(
+                text(
+                    f"""
+                    insert into salons ({columns})
+                    values ({placeholders})
+                    returning id, owner_id, name, description, category, address, city, lat, lng,
+                              timezone, working_hours, approval_mode, slot_interval_minutes,
+                              qr_token, profile_completed, is_active, created_at, updated_at
+                    """
+                ),
+                params,
+            )
+            await self.session.commit()
+            return await self._owner_salon_with_images(result.mappings().one())
+
+        assignments = ", ".join(self._sql_assignment(key) for key in payload)
+        result = await self.session.execute(
+            text(
+                f"""
+                update salons
+                set {assignments}
+                where id = :salon_id and owner_id = :actor_id and is_active
+                returning id, owner_id, name, description, category, address, city, lat, lng,
+                          timezone, working_hours, approval_mode, slot_interval_minutes,
+                          qr_token, profile_completed, is_active, created_at, updated_at
+                """
+            ),
+            {**payload, "salon_id": salon["id"], "actor_id": actor_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Salon not found")
+        await self.session.commit()
+        return await self._owner_salon_with_images(row)
 
     async def create_salon_image(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Create an image for the owner's salon."""
@@ -382,25 +515,68 @@ class PlatformRepository:
             ),
             {"salon_id": salon["id"]},
         )
-        return [dict(row) for row in result.mappings().all()]
+        return [self._service_response(row) for row in result.mappings().all()]
 
     async def create_owner_service(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Create a salon service."""
 
         salon = await self.get_owner_salon(actor_id)
+        subcategory_id = values.get("subcategory_id") or await self._default_service_subcategory_id()
         result = await self.session.execute(
             text(
                 """
-                insert into services (salon_id, subcategory_id, name, description, duration_minutes, price)
-                values (:salon_id, :subcategory_id, :name, :description, :duration_minutes, :price)
+                insert into services (salon_id, subcategory_id, name, description, duration_minutes, price, is_active)
+                values (:salon_id, :subcategory_id, :name, :description, :duration_minutes, :price, :is_active)
                 returning id, salon_id, subcategory_id, name, description, duration_minutes,
                           price, is_active, created_at, updated_at
                 """
             ),
-            {**values, "salon_id": salon["id"]},
+            {
+                **values,
+                "salon_id": salon["id"],
+                "subcategory_id": subcategory_id,
+                "is_active": values.get("is_active", True),
+            },
         )
         await self.session.commit()
-        return dict(result.mappings().one())
+        return self._service_response(result.mappings().one())
+
+    @staticmethod
+    def _service_response(row: Any) -> dict[str, Any]:
+        """Normalize DB UUID values for Pydantic v2 string response fields."""
+
+        service = dict(row)
+        service["id"] = str(service["id"])
+        service["salon_id"] = str(service["salon_id"])
+        service["subcategory_id"] = str(service["subcategory_id"])
+        return service
+
+    async def _default_service_subcategory_id(self) -> str:
+        """Return a general service subcategory for owner-created services."""
+
+        category = await self.session.execute(
+            text(
+                """
+                insert into service_categories (name, slug, description, sort_order, is_active)
+                values ('General', 'general', 'Default category for owner-created services', 0, true)
+                on conflict (slug) do update set is_active = true
+                returning id
+                """
+            )
+        )
+        category_id = category.scalar_one()
+        subcategory = await self.session.execute(
+            text(
+                """
+                insert into service_subcategories (category_id, name, slug, description, sort_order, is_active)
+                values (:category_id, 'General', 'general', 'Default subcategory for owner-created services', 0, true)
+                on conflict (category_id, slug) do update set is_active = true
+                returning id
+                """
+            ),
+            {"category_id": category_id},
+        )
+        return str(subcategory.scalar_one())
 
     async def update_owner_service(
         self, actor_id: str, service_id: str, values: dict[str, Any]
@@ -428,7 +604,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Service not found")
         await self.session.commit()
-        return dict(row)
+        return self._service_response(row)
 
     async def deactivate_owner_service(self, actor_id: str, service_id: str) -> dict[str, Any]:
         """Soft-delete a salon service."""
@@ -442,7 +618,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, salon_id, profile_id, name, photo_url, specialization,
+                select id, salon_id, profile_id, name, photo_url, specialization, experience,
                        working_hours, is_active, created_at, updated_at
                 from staff
                 where salon_id = :salon_id
@@ -451,25 +627,44 @@ class PlatformRepository:
             ),
             {"salon_id": salon["id"]},
         )
-        return [dict(row) for row in result.mappings().all()]
+        return [self._staff_response(row) for row in result.mappings().all()]
 
     async def create_owner_staff(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Create a staff member."""
 
         salon = await self.get_owner_salon(actor_id)
+        payload = self._prepare_jsonb_values(values)
+        for key in ("profile_id", "photo_url", "specialization", "experience", "working_hours"):
+            payload.setdefault(key, None)
         result = await self.session.execute(
             text(
                 """
-                insert into staff (salon_id, profile_id, name, photo_url, specialization, working_hours)
-                values (:salon_id, :profile_id, :name, :photo_url, :specialization, :working_hours)
-                returning id, salon_id, profile_id, name, photo_url, specialization,
+                insert into staff (
+                  salon_id, profile_id, name, photo_url, specialization, experience, working_hours
+                )
+                values (
+                  :salon_id, :profile_id, :name, :photo_url, :specialization, :experience,
+                  cast(:working_hours as jsonb)
+                )
+                returning id, salon_id, profile_id, name, photo_url, specialization, experience,
                           working_hours, is_active, created_at, updated_at
                 """
             ),
-            {**values, "salon_id": salon["id"]},
+            {**payload, "salon_id": salon["id"]},
         )
         await self.session.commit()
-        return dict(result.mappings().one())
+        return self._staff_response(result.mappings().one())
+
+    @staticmethod
+    def _staff_response(row: Any) -> dict[str, Any]:
+        """Normalize DB UUID values for Pydantic v2 string response fields."""
+
+        staff = dict(row)
+        staff["id"] = str(staff["id"])
+        staff["salon_id"] = str(staff["salon_id"])
+        if staff["profile_id"] is not None:
+            staff["profile_id"] = str(staff["profile_id"])
+        return staff
 
     async def update_owner_staff(
         self, actor_id: str, staff_id: str, values: dict[str, Any]
@@ -477,17 +672,19 @@ class PlatformRepository:
         """Update a staff member."""
 
         salon = await self.get_owner_salon(actor_id)
-        allowed = {key: value for key, value in values.items() if value is not None}
+        allowed = self._prepare_jsonb_values(
+            {key: value for key, value in values.items() if value is not None}
+        )
         if not allowed:
             raise ValidationError("No staff fields provided")
-        assignments = ", ".join(f"{key} = :{key}" for key in allowed)
+        assignments = ", ".join(self._sql_assignment(key) for key in allowed)
         result = await self.session.execute(
             text(
                 f"""
                 update staff
                 set {assignments}
                 where id = :staff_id and salon_id = :salon_id
-                returning id, salon_id, profile_id, name, photo_url, specialization,
+                returning id, salon_id, profile_id, name, photo_url, specialization, experience,
                           working_hours, is_active, created_at, updated_at
                 """
             ),
@@ -497,7 +694,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Staff member not found")
         await self.session.commit()
-        return dict(row)
+        return self._staff_response(row)
 
     async def deactivate_owner_staff(self, actor_id: str, staff_id: str) -> dict[str, Any]:
         """Soft-delete a staff member."""
@@ -538,7 +735,39 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Staff member or service not found")
         await self.session.commit()
-        return dict(row)
+        return self._staff_service_response(row)
+
+    @staticmethod
+    def _staff_service_response(row: Any) -> dict[str, Any]:
+        """Normalize DB UUID values for Pydantic v2 string response fields."""
+
+        service = dict(row)
+        service["id"] = str(service["id"])
+        service["staff_id"] = str(service["staff_id"])
+        service["service_id"] = str(service["service_id"])
+        return service
+
+    async def list_staff_services(self, actor_id: str, staff_id: str) -> list[dict[str, Any]]:
+        """List service assignments for a staff member."""
+
+        salon = await self.get_owner_salon(actor_id)
+        result = await self.session.execute(
+            text(
+                """
+                select ss.id, ss.staff_id, ss.service_id, ss.duration_minutes,
+                       ss.price_override, ss.specialization, ss.is_active,
+                       ss.created_at, ss.updated_at
+                from staff_services ss
+                join staff st on st.id = ss.staff_id
+                join services sv on sv.id = ss.service_id and sv.salon_id = st.salon_id
+                where ss.staff_id = :staff_id
+                  and st.salon_id = :salon_id
+                order by ss.is_active desc, sv.name
+                """
+            ),
+            {"staff_id": staff_id, "salon_id": salon["id"]},
+        )
+        return [self._staff_service_response(row) for row in result.mappings().all()]
 
     async def get_service_duration_sum(self, staff_id: str, service_ids: Iterable[str]) -> int:
         """Return the effective duration for a service list and staff member."""

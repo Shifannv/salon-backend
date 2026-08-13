@@ -26,7 +26,22 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def set_actor_context(session: AsyncSession, actor_id: str) -> None:
-    """Set the per-transaction actor consumed by Supabase-style audit triggers."""
+    """Set the per-transaction actor consumed by Supabase-style audit triggers.
+
+    Supabase's ``auth.uid()`` reads ``current_setting('request.jwt.claim.sub', true)``
+    (singular, flat). PostgREST policies read the JSON blob from
+    ``request.jwt.claims`` (plural). We set both so that:
+
+    - ``auth.uid()``  used by the ``set_audit_actor`` trigger returns the right UUID
+    - Row-level security policies that inspect claims work the same way
+    """
 
     escaped = actor_id.replace('"', '\\"')
-    await session.execute(text(f"""SET LOCAL request.jwt.claims = '{{"sub":"{escaped}"}}'"""))
+    await session.execute(
+        text(
+            f"""
+            SELECT set_config('request.jwt.claims', '{{"sub":"{escaped}"}}', true),
+                   set_config('request.jwt.claim.sub', '{escaped}', true)
+            """
+        )
+    )

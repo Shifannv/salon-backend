@@ -304,6 +304,7 @@ create table staff (
   name           text not null,
   photo_url      text,
   specialization text,
+  experience     text,
   working_hours  jsonb,        -- null = inherit the salon's hours
   is_active      boolean not null default true,
   created_by     uuid references profiles(id),

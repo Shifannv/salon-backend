@@ -8,7 +8,12 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ProfileUpdateRequest(BaseModel):
-    """Customer profile update request."""
+    """Shared profile update request (PATCH /profiles/me).
+
+    Used by owners, staff, and customers — not customer-only despite the name.
+    Fields are all optional; only explicitly sent fields are written.
+    Sending ``null`` for a nullable field (e.g. ``phone``) clears it.
+    """
 
     full_name: str | None = Field(default=None, min_length=1)
     phone: str | None = None
@@ -136,9 +141,11 @@ class OwnerSalonResponse(BaseModel):
     timezone: str
     working_hours: dict[str, Any]
     approval_mode: str
+    slot_interval_minutes: int
     qr_token: str
     profile_completed: bool
     is_active: bool
+    images: list[SalonImageResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -156,6 +163,10 @@ class OwnerSalonUpdateRequest(BaseModel):
     timezone: str | None = None
     working_hours: dict[str, Any] | None = None
     approval_mode: Literal["auto", "manual"] | None = None
+
+
+class OwnerSalonCompleteProfileRequest(OwnerSalonUpdateRequest):
+    """Final onboarding payload used to create/update and publish an owner salon."""
 
 
 class OwnerSalonSettingsRequest(BaseModel):
@@ -206,11 +217,12 @@ class HolidayResponse(BaseModel):
 class ServiceCreateRequest(BaseModel):
     """Create service request."""
 
-    subcategory_id: str
+    subcategory_id: str | None = None
     name: str
     description: str | None = None
     duration_minutes: int = Field(gt=0)
     price: Decimal = Field(ge=0)
+    is_active: bool = True
 
 
 class ServiceUpdateRequest(BaseModel):
@@ -231,6 +243,7 @@ class StaffCreateRequest(BaseModel):
     name: str
     photo_url: str | None = None
     specialization: str | None = None
+    experience: str | None = None
     working_hours: dict[str, Any] | None = None
 
 
@@ -241,6 +254,7 @@ class StaffUpdateRequest(BaseModel):
     name: str | None = None
     photo_url: str | None = None
     specialization: str | None = None
+    experience: str | None = None
     working_hours: dict[str, Any] | None = None
     is_active: bool | None = None
 
@@ -254,6 +268,7 @@ class StaffResponse(BaseModel):
     name: str
     photo_url: str | None = None
     specialization: str | None = None
+    experience: str | None = None
     working_hours: dict[str, Any] | None = None
     is_active: bool
     created_at: datetime

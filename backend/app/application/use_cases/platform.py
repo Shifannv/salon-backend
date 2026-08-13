@@ -81,11 +81,11 @@ class OwnerUseCases:
         self._assert_owner_workspace(actor)
         return await self.repository.update_owner_salon(actor.id, values)
 
-    async def complete_profile(self, actor: Profile) -> dict[str, Any]:
-        """Mark the actor's salon profile as complete."""
+    async def complete_profile(self, actor: Profile, values: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Create/update the actor's salon profile and mark it complete."""
 
         self._assert_owner_workspace(actor)
-        return await self.repository.complete_owner_salon(actor.id)
+        return await self.repository.complete_owner_salon(actor.id, values or {})
 
     async def list_images(self, actor: Profile) -> list[dict[str, Any]]:
         """List salon images."""
@@ -108,9 +108,13 @@ class OwnerUseCases:
         return await self.repository.update_salon_image(actor.id, image_id, values)
 
     async def delete_image(self, _actor: Profile, _image_id: str) -> None:
-        """Reject image deletion until the schema supports soft delete."""
+        """Not yet implemented — salon images have no is_active column for soft delete.
 
-        raise ValidationError("Salon images do not support soft delete in the current schema")
+        Raises ``ValidationError`` so the HTTP layer returns 501 Not Implemented.
+        The route exists as a stub so the API surface is complete when the migration lands.
+        """
+
+        raise ValidationError("Image deletion is not yet implemented. The schema does not support soft delete for salon images.")
 
     async def list_holidays(self, actor: Profile) -> list[dict[str, Any]]:
         """List salon holidays."""
@@ -125,9 +129,13 @@ class OwnerUseCases:
         return await self.repository.create_holiday(actor.id, values)
 
     async def delete_holiday(self, _actor: Profile, _holiday_id: str) -> None:
-        """Reject holiday deletion until the schema supports soft delete."""
+        """Not yet implemented — holidays have no deletion route in the schema.
 
-        raise ValidationError("Salon holidays do not support soft delete in the current schema")
+        Raises ``ValidationError`` so the HTTP layer returns 501 Not Implemented.
+        The route exists as a stub so the API surface is complete when supported.
+        """
+
+        raise ValidationError("Holiday deletion is not yet implemented.")
 
     async def list_services(self, actor: Profile) -> list[dict[str, Any]]:
         """List owner services."""
@@ -188,6 +196,14 @@ class OwnerUseCases:
 
         self._assert_owner_workspace(actor)
         return await self.repository.assign_staff_service(actor.id, staff_id, values)
+
+    async def list_staff_services(
+        self, actor: Profile, staff_id: str
+    ) -> list[dict[str, Any]]:
+        """List service assignments for staff."""
+
+        self._assert_owner_workspace(actor)
+        return await self.repository.list_staff_services(actor.id, staff_id)
 
     # --- Staff service language assignments ---
 

@@ -107,6 +107,7 @@ def make_mock_repo() -> MagicMock:
         "update_owner_staff",
         "deactivate_owner_staff",
         "assign_staff_service",
+        "list_staff_services",
         "list_staff_service_languages",
         "set_staff_service_languages",
         "list_blocked_slots",

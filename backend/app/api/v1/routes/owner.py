@@ -1,6 +1,7 @@
 """Barber/owner app API routes."""
 
 from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor
@@ -10,6 +11,7 @@ from app.api.v1.schemas.platform import (
     HolidayCreateRequest,
     HolidayResponse,
     LanguageResponse,
+    OwnerSalonCompleteProfileRequest,
     OwnerSalonResponse,
     OwnerSalonSettingsRequest,
     OwnerSalonUpdateRequest,
@@ -80,12 +82,14 @@ async def update_my_salon(
     summary="Complete owner salon profile",
 )
 async def complete_profile(
+    payload: OwnerSalonCompleteProfileRequest | None = None,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> OwnerSalonResponse:
-    """Mark the owner salon as complete."""
+    """Create/update the owner salon from onboarding data and mark it complete."""
 
-    salon = await _use_cases(session).complete_profile(actor)
+    values = payload.model_dump(exclude_unset=True) if payload is not None else {}
+    salon = await _use_cases(session).complete_profile(actor, values)
     return OwnerSalonResponse(**salon)
 
 
@@ -162,18 +166,20 @@ async def update_image(
 
 @router.delete(
     "/me/images/{image_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete owner salon image",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    summary="Delete owner salon image (not implemented)",
 )
 async def delete_image(
     image_id: str,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
-) -> Response:
-    """Reject image deletion until the schema supports soft delete."""
+) -> JSONResponse:
+    """Return 501 — image deletion is not yet supported in the current schema."""
 
-    await _use_cases(session).delete_image(actor, image_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return JSONResponse(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        content={"error": {"code": "not_implemented", "message": "Image deletion is not yet implemented."}},
+    )
 
 
 # ── Holidays ──────────────────────────────────────────────────────────────────
@@ -214,18 +220,20 @@ async def create_holiday(
 
 @router.delete(
     "/me/holidays/{holiday_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete owner salon holiday",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    summary="Delete owner salon holiday (not implemented)",
 )
 async def delete_holiday(
     holiday_id: str,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
-) -> Response:
-    """Reject holiday deletion until the schema supports soft delete."""
+) -> JSONResponse:
+    """Return 501 — holiday deletion is not yet supported in the current schema."""
 
-    await _use_cases(session).delete_holiday(actor, holiday_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return JSONResponse(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        content={"error": {"code": "not_implemented", "message": "Holiday deletion is not yet implemented."}},
+    )
 
 
 # ── Services ──────────────────────────────────────────────────────────────────
@@ -376,6 +384,23 @@ async def assign_staff_service(
 
     row = await _use_cases(session).assign_staff_service(actor, staff_id, payload.model_dump())
     return StaffServiceResponse(**row)
+
+
+@router.get(
+    "/me/staff/{staff_id}/services",
+    response_model=list[StaffServiceResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List services assigned to staff",
+)
+async def list_staff_services(
+    staff_id: str,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> list[StaffServiceResponse]:
+    """Return service assignments for a staff member."""
+
+    rows = await _use_cases(session).list_staff_services(actor, staff_id)
+    return [StaffServiceResponse(**row) for row in rows]
 
 
 # ── Staff service languages ───────────────────────────────────────────────────
