@@ -29,6 +29,33 @@ class SQLProfileRepository(ProfileRepository):
         row = result.mappings().one_or_none()
         return _profile_from_row(row) if row else None
 
+    async def grant_owner_role(self, profile_id: str) -> Profile | None:
+        """Promote an active customer profile to owner.
+
+        The ``role = 'customer'`` predicate is what makes this safe to call on every
+        sign-in: an owner, a staff member, or the super admin matches no row and is
+        returned unchanged by the caller rather than being rewritten.
+        """
+
+        result = await self.session.execute(
+            text(
+                """
+                update profiles
+                set role = 'owner'
+                where id = :profile_id
+                  and is_active
+                  and role = 'customer'
+                returning id, role, full_name, email, phone, phone_verified, avatar_url, is_active
+                """
+            ),
+            {"profile_id": profile_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            return None
+        await self.session.commit()
+        return _profile_from_row(row)
+
 
 def _profile_from_row(row: RowMapping) -> Profile:
     return Profile(

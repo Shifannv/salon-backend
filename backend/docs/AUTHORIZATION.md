@@ -11,6 +11,7 @@ an explicit authorization check in the application layer.
 | Schema policy intent | Application guard | Code location |
 |---|---|---|
 | Active authenticated user can read self | `GetMe` resolves JWT `sub` to `profiles.id` and rejects inactive profiles | `api/deps.py → get_current_actor` |
+| User can update self (`profiles_self_update`) | `EnsureOwnerAccess` promotes only the actor's own row, and only from `customer` | `use_cases/auth/owner_access.py` |
 | Super-admin creates salon owners | `require_role(Role.super_admin)` dependency | `routes/admin.py` |
 | Super-admin updates/deactivates salons | `require_role(Role.super_admin)` dependency | `routes/admin.py` |
 | Super-admin manages catalog (categories/subcategories/languages) | `require_role(Role.super_admin)` dependency | `routes/admin.py` |
@@ -26,6 +27,24 @@ an explicit authorization check in the application layer.
 | Customer owns notification | `mark_notification_read` → `user_id = :actor_id` predicate | `platform_repository.py` |
 | Device token belongs to actor | `register_device(actor_id)` / `deactivate_device_for_actor(actor_id)` | `platform_repository.py` |
 | Walk-in is unauthenticated but salon must be active | `get_salon_by_qr` calls `get_salon_by_qr` Postgres fn which checks `is_active` | `platform_repository.py` |
+
+---
+
+## Owner Sign-Up Is Self-Service
+
+Salon owners are **not** allocated by the super admin any more. Anyone who signs in
+to the owner app with Google gets a salon workspace:
+
+1. Supabase creates the `auth.users` row; the `handle_new_user` trigger inserts a
+   `profiles` row at its default `role = 'customer'` (that default still belongs to
+   the customer surface and is deliberately unchanged).
+2. The owner app calls `POST /v1/auth/owner-access` once per sign-in. `EnsureOwnerAccess`
+   promotes a `customer` to `owner` and returns every other role untouched, so a staff
+   member keeps their salon and the super admin is never demoted.
+3. `POST /v1/salons/me/complete-profile` creates the salon row at the end of onboarding.
+
+`POST /v1/admin/salons` still exists for admin-provisioned owners; it is now one of two
+ways to become an owner rather than the only one.
 
 ---
 
