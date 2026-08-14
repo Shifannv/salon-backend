@@ -27,6 +27,7 @@ For backend architecture details, also read:
 2. `backend/docs/AUTHORIZATION.md`
 3. `backend/docs/BOOKING_FLOW.md`
 4. `backend/docs/RUNBOOK.md`
+5. `backend/docs/DOCKER_DEPLOYMENT.md`
 
 ## Source of Truth
 
@@ -42,13 +43,24 @@ Do not invent extra tasks in the docs without creating or updating Jira first.
 - Authentication provider: Supabase Auth JWTs
 - Migrations: Alembic, with the v3 SQL schema as the raw SQL baseline
 - Push notifications: Firebase / FCM
+- Container/runtime deployment: Docker, Docker Compose, GCP Compute Engine VM, optional GCP Cloud Run
 - Tests: pytest and pytest-asyncio
 
 ## Code Ownership
 
 - Thameem owns backend work in `backend/app/`, `backend/migrations/`, `backend/tests/`, and `backend/docs/`.
+- Backend deployment/config ownership also includes `backend/Dockerfile`, `backend/docker-compose.yml`, `backend/.dockerignore`, `backend/.env.example`, `backend/.env.gcp.example`, `backend/scripts/`, `backend/requirements*.txt`, `backend/setup.py`, and `backend/setup_backend.py`.
 - Shifan owns frontend apps in their separate repositories.
 - Docs in `docs/` describe shared project decisions and should stay aligned with backend reality.
+
+## Secrets And Environment
+
+- Never commit real environment files or secrets. `backend/.env` must stay ignored.
+- Commit only templates such as `backend/.env.example` and `backend/.env.gcp.example`.
+- Treat Supabase service-role keys, database URLs, JWTs, Firebase credentials, and private keys as secrets even if a user pastes them into chat.
+- Do not copy real secrets into docs, tests, Dockerfiles, Compose files, examples, logs, or final answers.
+- Runtime secrets for GCP VM deployment belong in `backend/.env` on the VM, or in the hosting provider's secret/environment settings.
+- Keep `BACKEND_CORS_ORIGINS` environment-driven; do not hard-code frontend production URLs in application code.
 
 ## Backend Architecture Rules
 
@@ -78,6 +90,28 @@ infrastructure -> domain/application ports
 - Do not compute available slots in Python.
 - Use soft delete through `is_active`; do not add hard-delete behavior for platform data.
 - Do not expose raw Postgres errors, constraint names, or SQL fragments in HTTP responses.
+
+## Deployment Rules
+
+- The current backend deployment target is GCP VM Instance + Docker Compose, with optional GCP Cloud Run support.
+- Render deployment files should not be reintroduced unless the project owner explicitly asks for Render again.
+- Docker build context should be `backend/`; do not build images from the repository root unless the Dockerfile and ignore rules are intentionally changed.
+- Keep the backend image backend-only. Do not copy frontend app code into the Docker image.
+- Use `backend/Dockerfile` for the API image and `backend/docker-compose.yml` for GCP VM runtime.
+- Use `backend/scripts/gcp-vm-install-docker.sh` to bootstrap Docker on an Ubuntu/Debian GCP VM.
+- Use `backend/scripts/gcp-vm-deploy.sh` to build and run/update the API container on the VM.
+- Do not run Alembic migrations automatically in the container startup command. Migrations must be a reviewed, explicit deploy step.
+- For VM deployment, `backend/.env` should be created from `backend/.env.gcp.example` and filled on the VM only.
+- The API container must bind to `0.0.0.0` and read `PORT`, defaulting to `8000`.
+- Keep health checks pointed at `/health`.
+
+## Dependency And Setup Files
+
+- Keep `backend/pyproject.toml`, `backend/requirements.txt`, `backend/requirements-dev.txt`, and `backend/setup.py` aligned when changing Python dependencies.
+- `backend/setup_backend.py` is the local developer bootstrap runner. It may create `.env`, create `.venv`, install requirements, optionally run migrations, and run uvicorn.
+- `backend/setup.py` is for package/install compatibility. Do not put deployment secrets or environment-specific behavior in it.
+- Prefer `pip install -r requirements.txt` for production container builds.
+- Prefer `pip install -e ".[dev]"` or `python setup_backend.py` for local development.
 
 ## Auth Rules
 
@@ -125,3 +159,13 @@ If dependencies are missing, install with:
 ```bash
 ./.venv/bin/pip install -e ".[dev]"
 ```
+
+For deployment-file changes, additionally check what is feasible locally:
+
+```bash
+bash -n scripts/gcp-vm-install-docker.sh
+bash -n scripts/gcp-vm-deploy.sh
+docker build -t salon-platform-api .
+```
+
+If Docker is not installed or the daemon is unavailable, say that clearly and still run the Python tests/lint and shell syntax checks.
