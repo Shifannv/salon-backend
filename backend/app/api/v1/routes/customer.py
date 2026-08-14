@@ -67,6 +67,8 @@ async def list_salons(
     city: str | None = None,
     lat: float | None = None,
     lng: float | None = None,
+    ids: list[str] | None = Query(default=None),
+    include_services: bool = False,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
@@ -74,7 +76,14 @@ async def list_salons(
     """List active completed salons — public, no auth required."""
 
     rows = await _use_cases(session).list_salons(
-        search=search, city=city, lat=lat, lng=lng, limit=limit, offset=offset
+        search=search,
+        city=city,
+        lat=lat,
+        lng=lng,
+        ids=ids,
+        limit=limit,
+        offset=offset,
+        include_services=include_services,
     )
     return [SalonSummaryResponse(**row) for row in rows]
 
@@ -93,6 +102,8 @@ async def nearby_salons(
     longitude: float | None = Query(default=None),
     search: str | None = None,
     city: str | None = None,
+    ids: list[str] | None = Query(default=None),
+    include_services: bool = False,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
@@ -102,7 +113,14 @@ async def nearby_salons(
     resolved_lat = lat or latitude
     resolved_lng = lng or longitude
     rows = await _use_cases(session).list_salons(
-        search=search, city=city, lat=resolved_lat, lng=resolved_lng, limit=limit, offset=offset
+        search=search,
+        city=city,
+        lat=resolved_lat,
+        lng=resolved_lng,
+        ids=ids,
+        limit=limit,
+        offset=offset,
+        include_services=include_services,
     )
     return [SalonSummaryResponse(**row) for row in rows]
 

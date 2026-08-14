@@ -27,16 +27,23 @@ class ProfileUpdateRequest(BaseModel):
         if value is None:
             return None
 
-        digits = "".join(ch for ch in value if ch.isdigit())
-        if digits.startswith("91") and len(digits) == 12:
-            digits = digits[2:]
+        raw = value.strip()
+        if raw.startswith("+91"):
+            digits = raw[3:]
+        else:
+            digits = raw
 
-        bad_sequences = {"0123456789", "1234567890", "9876543210"}
+        sequential_runs = {
+            "012345", "12345", "23456", "34567", "45678", "56789",
+            "98765", "87654", "76543", "65432", "54321", "43210",
+        }
         if (
-            len(digits) != 10
+            not digits.isdigit()
+            or len(digits) != 10
             or digits[0] not in "6789"
             or len(set(digits)) == 1
-            or digits in bad_sequences
+            or digits[:2] * 5 == digits
+            or any(sequence in digits for sequence in sequential_runs)
         ):
             raise ValueError("Enter a valid 10-digit Indian mobile number")
 
@@ -74,6 +81,7 @@ class SalonSummaryResponse(BaseModel):
     image_url: str | None = None
     starting_price: Decimal | None = None
     distance_km: float | None = None
+    services: list["ServiceResponse"] = Field(default_factory=list)
 
 
 class SalonImageResponse(BaseModel):

@@ -4,8 +4,9 @@ import json
 from collections.abc import Iterable
 from datetime import date
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError, SlotUnavailableError, ValidationError
@@ -36,6 +37,13 @@ class PlatformRepository:
         """Return a safe assignment fragment for a writable column."""
 
         return f"{key} = {self._sql_value_placeholder(key)}"
+
+    def _profile_response(self, row: Any) -> dict[str, Any]:
+        """Normalize profile rows for Pydantic response schemas."""
+
+        profile = dict(row)
+        profile["id"] = str(profile["id"])
+        return profile
 
     async def update_profile(self, profile_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Update the actor's profile.
@@ -69,7 +77,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Profile not found")
         await self.session.commit()
-        return dict(row)
+        return self._profile_response(row)
 
     async def get_profile(self, profile_id: str) -> dict[str, Any] | None:
         """Read a profile row."""
@@ -85,7 +93,7 @@ class PlatformRepository:
             {"profile_id": profile_id},
         )
         row = result.mappings().one_or_none()
-        return dict(row) if row else None
+        return self._profile_response(row) if row else None
 
     async def list_salons(
         self,
@@ -96,58 +104,90 @@ class PlatformRepository:
         lng: float | None,
         limit: int,
         offset: int,
+        ids: list[str] | None = None,
+        include_services: bool = False,
     ) -> list[dict[str, Any]]:
         """List public active completed salons."""
 
+        normalized_ids: list[str] = []
+        if ids is not None:
+            for salon_id in ids:
+                try:
+                    normalized_ids.append(str(UUID(salon_id.strip())))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+            if not normalized_ids:
+                return []
         params = {
             "search": f"%{search}%" if search else None,
             "city": city,
             "lat": lat,
             "lng": lng,
+            "ids": normalized_ids,
             "limit": limit,
             "offset": offset,
         }
+        ids_filter = "and s.id in :ids" if normalized_ids else ""
+        statement = text(
+            f"""
+            select
+              s.id, s.name, s.description, s.category, s.address, s.city,
+              s.lat, s.lng, s.timezone, s.approval_mode, s.profile_completed,
+              s.is_active, img.url as image_url, min(sv.price) as starting_price,
+              case
+                when cast(:lat as double precision) is not null
+                     and cast(:lng as double precision) is not null
+                     and s.lat is not null and s.lng is not null
+                then 6371 * acos(
+                  least(1, greatest(-1,
+                    cos(radians(cast(:lat as double precision))) * cos(radians(s.lat)) *
+                    cos(radians(s.lng) - radians(cast(:lng as double precision))) +
+                    sin(radians(cast(:lat as double precision))) * sin(radians(s.lat))
+                  ))
+                )
+                else null
+              end as distance_km
+            from salons s
+            left join lateral (
+              select url
+              from salon_images
+              where salon_id = s.id
+              order by is_main desc, sort_order asc, created_at asc
+              limit 1
+            ) img on true
+            left join services sv on sv.salon_id = s.id
+              and sv.is_active
+              and exists (
+                select 1
+                from staff_services stsv
+                join staff st on st.id = stsv.staff_id
+                where stsv.service_id = sv.id
+                  and stsv.is_active
+                  and st.is_active
+                  and st.salon_id = sv.salon_id
+              )
+            where s.is_active and s.profile_completed
+              and (cast(:search as text) is null or s.name ilike cast(:search as text))
+              and (cast(:city as text) is null or s.city = cast(:city as text))
+              {ids_filter}
+            group by s.id, img.url
+            order by distance_km nulls last, s.name
+            limit cast(:limit as int) offset cast(:offset as int)
+            """
+        )
+        if normalized_ids:
+            statement = statement.bindparams(bindparam("ids", expanding=True))
         result = await self.session.execute(
-            text(
-                """
-                select
-                  s.id, s.name, s.description, s.category, s.address, s.city,
-                  s.lat, s.lng, s.timezone, s.approval_mode, s.profile_completed,
-                  s.is_active, img.url as image_url, min(sv.price) as starting_price,
-                  case
-                    when cast(:lat as double precision) is not null
-                         and cast(:lng as double precision) is not null
-                         and s.lat is not null and s.lng is not null
-                    then 6371 * acos(
-                      least(1, greatest(-1,
-                        cos(radians(cast(:lat as double precision))) * cos(radians(s.lat)) *
-                        cos(radians(s.lng) - radians(cast(:lng as double precision))) +
-                        sin(radians(cast(:lat as double precision))) * sin(radians(s.lat))
-                      ))
-                    )
-                    else null
-                  end as distance_km
-                from salons s
-                left join lateral (
-                  select url
-                  from salon_images
-                  where salon_id = s.id
-                  order by is_main desc, sort_order asc, created_at asc
-                  limit 1
-                ) img on true
-                left join services sv on sv.salon_id = s.id and sv.is_active
-                where s.is_active and s.profile_completed
-                  and (cast(:search as text) is null or s.name ilike cast(:search as text))
-                  and (cast(:city as text) is null or s.city = cast(:city as text))
-                group by s.id, img.url
-                order by distance_km nulls last, s.name
-                limit cast(:limit as int) offset cast(:offset as int)
-                """
-            ),
+            statement,
             params,
         )
         rows = result.mappings().all()
-        return [{**dict(row), "id": str(row["id"])} for row in rows]
+        salons = [{**dict(row), "id": str(row["id"])} for row in rows]
+        if include_services:
+            services_by_salon = await self.list_public_services_for_salons([salon["id"] for salon in salons])
+            for salon in salons:
+                salon["services"] = services_by_salon.get(salon["id"], [])
+        return salons
 
 
     async def get_public_salon(self, salon_id: str) -> dict[str, Any]:
@@ -205,6 +245,15 @@ class PlatformRepository:
                 join service_categories sc on sc.id = ss.category_id
                 where sv.salon_id = :salon_id
                   and sv.is_active and ss.is_active and sc.is_active
+                  and exists (
+                    select 1
+                    from staff_services stsv
+                    join staff st on st.id = stsv.staff_id
+                    where stsv.service_id = sv.id
+                      and stsv.is_active
+                      and st.is_active
+                      and st.salon_id = sv.salon_id
+                  )
                 order by sc.sort_order, ss.sort_order, sv.name
                 """
             ),
@@ -220,6 +269,50 @@ class PlatformRepository:
             }
             for row in rows
         ]
+
+    async def list_public_services_for_salons(self, salon_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """List public active services grouped by salon for summary cards."""
+
+        if not salon_ids:
+            return {}
+        result = await self.session.execute(
+            text(
+                """
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                       sv.duration_minutes, sv.price, sv.is_active,
+                       sc.name as category_name, ss.name as subcategory_name
+                from services sv
+                join service_subcategories ss on ss.id = sv.subcategory_id
+                join service_categories sc on sc.id = ss.category_id
+                where sv.salon_id in (
+                    select value::uuid
+                    from jsonb_array_elements_text(cast(:salon_ids_json as jsonb)) value
+                )
+                  and sv.is_active and ss.is_active and sc.is_active
+                  and exists (
+                    select 1
+                    from staff_services stsv
+                    join staff st on st.id = stsv.staff_id
+                    where stsv.service_id = sv.id
+                      and stsv.is_active
+                      and st.is_active
+                      and st.salon_id = sv.salon_id
+                  )
+                order by sv.salon_id, sc.sort_order, ss.sort_order, sv.name
+                """
+            ),
+            {"salon_ids_json": json.dumps(salon_ids)},
+        )
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in result.mappings().all():
+            service = {
+                **dict(row),
+                "id": str(row["id"]),
+                "salon_id": str(row["salon_id"]),
+                "subcategory_id": str(row["subcategory_id"]) if row.get("subcategory_id") else None,
+            }
+            grouped.setdefault(service["salon_id"], []).append(service)
+        return grouped
 
     async def list_salon_images(self, salon_id: str) -> list[dict[str, Any]]:
         """List images for a salon."""
@@ -789,6 +882,38 @@ class PlatformRepository:
             raise ValidationError("No valid services selected")
         return int(duration)
 
+    async def staff_offers_services(self, staff_id: str, service_ids: Iterable[str]) -> bool:
+        """Return whether a staff member actively offers every requested service."""
+
+        ids = list(service_ids)
+        if not ids:
+            return False
+        result = await self.session.execute(
+            text(
+                """
+                select count(distinct ss.service_id) = :service_count
+                from staff_services ss
+                join staff st on st.id = ss.staff_id
+                join services sv on sv.id = ss.service_id
+                where ss.staff_id = :staff_id
+                  and ss.service_id in (
+                    select value::uuid
+                    from jsonb_array_elements_text(cast(:service_ids_json as jsonb)) value
+                  )
+                  and ss.is_active
+                  and st.is_active
+                  and sv.is_active
+                  and sv.salon_id = st.salon_id
+                """
+            ),
+            {
+                "staff_id": staff_id,
+                "service_ids_json": json.dumps(ids),
+                "service_count": len(set(ids)),
+            },
+        )
+        return bool(result.scalar_one())
+
     async def get_available_slots(
         self, staff_id: str, booking_date: date, service_ids: list[str]
     ) -> list[dict[str, Any]]:
@@ -802,6 +927,9 @@ class PlatformRepository:
         * ``time``       — same human-readable label (e.g. "09:00 AM")
         * ``barberName`` — the staff member's display name
         """
+
+        if not await self.staff_offers_services(staff_id, service_ids):
+            return []
 
         duration = await self.get_service_duration_sum(staff_id, service_ids)
         result = await self.session.execute(
@@ -861,6 +989,8 @@ class PlatformRepository:
         except Exception as exc:
             await self.session.rollback()
             message = str(exc)
+            if "not offered by this staff" in message.lower():
+                raise ValidationError("Selected staff member does not offer this service") from exc
             if "slot" in message.lower() or "available" in message.lower():
                 raise SlotUnavailableError("Selected slot is no longer available") from exc
             raise ConflictError("Booking could not be created") from exc
@@ -877,7 +1007,8 @@ class PlatformRepository:
             predicate = "b.customer_id = :actor_id"
         elif role in {"owner", "staff"}:
             predicate = """
-              exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
+              b.customer_id = :actor_id
+              or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
               or exists (select 1 from staff st2 where st2.id = b.staff_id and st2.profile_id = :actor_id)
             """
         else:

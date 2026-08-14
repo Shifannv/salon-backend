@@ -5,9 +5,15 @@ from app.api.v1.schemas.platform import ProfileUpdateRequest
 
 
 def test_profile_update_normalizes_indian_mobile() -> None:
-    payload = ProfileUpdateRequest(phone="98765 43211")
+    payload = ProfileUpdateRequest(phone="9090908080")
 
-    assert payload.phone == "+919876543211"
+    assert payload.phone == "+919090908080"
+
+
+def test_profile_update_accepts_plus_91_storage_format() -> None:
+    payload = ProfileUpdateRequest(phone="+919876000012")
+
+    assert payload.phone == "+919876000012"
 
 
 def test_profile_update_allows_repeated_digits_inside_valid_mobile() -> None:
@@ -23,7 +29,13 @@ def test_profile_update_allows_repeated_digits_inside_valid_mobile() -> None:
         "9876543210",
         "0000000000",
         "1111111111",
+        "1212121212",
+        "111222333",
+        "12345",
+        "4321",
         "98765",
+        "98765 43211",
+        "90909abc80",
     ],
 )
 def test_profile_update_rejects_fake_or_invalid_mobile(phone: str) -> None:

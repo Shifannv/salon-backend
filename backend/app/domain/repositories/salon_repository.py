@@ -49,6 +49,8 @@ class SalonRepository(Protocol):
         lng: float | None,
         limit: int,
         offset: int,
+        ids: list[str] | None = None,
+        include_services: bool = False,
     ) -> list[dict[str, Any]]:
         """Return active, completed, public salons."""
 

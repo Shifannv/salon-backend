@@ -8,7 +8,7 @@ from fastapi import BackgroundTasks
 
 from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile, Role
-from app.domain.services.authorization import is_customer, is_owner_or_staff
+from app.domain.services.authorization import is_owner_or_staff
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 _log = logging.getLogger(__name__)
@@ -23,8 +23,8 @@ class CustomerUseCases:
     async def update_profile(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
         """Update the customer profile owned by the actor."""
 
-        if not is_customer(actor):
-            raise ForbiddenError("Customer access required")
+        if actor.role not in {Role.customer, Role.owner}:
+            raise ForbiddenError("Customer or owner access required")
         return await self.repository.update_profile(actor.id, values)
 
     async def list_salons(
@@ -36,11 +36,20 @@ class CustomerUseCases:
         lng: float | None,
         limit: int,
         offset: int,
+        ids: list[str] | None = None,
+        include_services: bool = False,
     ) -> list[dict[str, Any]]:
         """List customer-visible salons."""
 
         return await self.repository.list_salons(
-            search=search, city=city, lat=lat, lng=lng, limit=limit, offset=offset
+            search=search,
+            city=city,
+            lat=lat,
+            lng=lng,
+            limit=limit,
+            offset=offset,
+            ids=ids,
+            include_services=include_services,
         )
 
     async def get_salon(self, salon_id: str) -> dict[str, Any]:
@@ -276,8 +285,8 @@ class BookingUseCases:
 
         if values.get("source") == "manual_walkin" and actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Manual walk-in bookings require salon workspace access")
-        if values.get("source") == "app" and actor.role != Role.customer:
-            raise ForbiddenError("Customer app bookings require customer access")
+        if values.get("source") == "app" and actor.role not in {Role.customer, Role.owner}:
+            raise ForbiddenError("Customer app bookings require customer or owner access")
         return await self.repository.create_booking({**values, "actor_id": actor.id})
 
     async def list_bookings(self, actor: Profile) -> list[dict[str, Any]]:

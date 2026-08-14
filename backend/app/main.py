@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -13,19 +14,31 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, set_request_id
 
+_log = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage startup and graceful shutdown.
 
-    On startup: nothing yet (engine is module-level in session.py).
+    On startup: warm the remote database connection pool so the first customer
+    request does not pay the Supabase connection setup cost.
     On shutdown: dispose the SQLAlchemy engine connection pool so no
     in-flight connections are left dangling.
     """
 
-    yield  # Application runs here
+    from sqlalchemy import text
 
-    from app.infrastructure.db.session import engine
+    from app.infrastructure.db.session import AsyncSessionLocal, engine
+
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("select 1"))
+        _log.info("Database connection pool warmed")
+    except Exception:
+        _log.exception("Database warm-up failed")
+
+    yield  # Application runs here
 
     await engine.dispose()
 

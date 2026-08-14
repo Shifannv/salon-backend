@@ -57,6 +57,49 @@ async def test_create_booking_customer_app():
 
 
 @pytest.mark.asyncio
+async def test_create_booking_customer_app_allows_owner_as_customer():
+    repo = make_mock_repo()
+    repo.create_booking.return_value = make_booking()
+    uc = BookingUseCases(repo)
+    actor = make_owner()
+
+    payload = {"source": "app", "staff_id": "s1", "service_ids": ["sv1"]}
+    booking = await uc.create_booking(actor, payload)
+
+    assert booking["status"] == "pending"
+    repo.create_booking.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_booking_customer_app_allows_multiple_separate_bookings():
+    repo = make_mock_repo()
+    repo.create_booking.side_effect = [
+        {**make_booking(), "id": "booking-001", "start_datetime": "2025-06-01T10:00:00"},
+        {**make_booking(), "id": "booking-002", "start_datetime": "2025-06-01T11:00:00"},
+    ]
+    uc = BookingUseCases(repo)
+    actor = make_profile(role=Role.customer)
+
+    first_payload = {
+        "source": "app",
+        "staff_id": "s1",
+        "service_ids": ["sv1"],
+        "start_datetime": "2025-06-01T10:00:00",
+    }
+    second_payload = {
+        **first_payload,
+        "start_datetime": "2025-06-01T11:00:00",
+    }
+
+    first_booking = await uc.create_booking(actor, first_payload)
+    second_booking = await uc.create_booking(actor, second_payload)
+
+    assert first_booking["id"] == "booking-001"
+    assert second_booking["id"] == "booking-002"
+    assert repo.create_booking.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_create_booking_manual_walkin_requires_owner():
     repo = make_mock_repo()
     uc = BookingUseCases(repo)
@@ -68,10 +111,10 @@ async def test_create_booking_manual_walkin_requires_owner():
 
 
 @pytest.mark.asyncio
-async def test_create_booking_app_source_requires_customer():
+async def test_create_booking_app_source_rejects_staff():
     repo = make_mock_repo()
     uc = BookingUseCases(repo)
-    actor = make_owner()
+    actor = make_profile(role=Role.staff)
 
     payload = {"source": "app", "staff_id": "s1", "service_ids": ["sv1"]}
     with pytest.raises(ForbiddenError):

@@ -11,6 +11,7 @@ an explicit authorization check in the application layer.
 | Schema policy intent | Application guard | Code location |
 |---|---|---|
 | Active authenticated user can read self | `GetMe` resolves JWT `sub` to `profiles.id` and rejects inactive profiles | `api/deps.py → get_current_actor` |
+| Customer app profile update | `update_profile` allows `customer` and `owner`; owners can edit their personal account from the customer app | `use_cases/platform.py` |
 | User can update self (`profiles_self_update`) | `EnsureOwnerAccess` promotes only the actor's own row, and only from `customer` | `use_cases/auth/owner_access.py` |
 | Super-admin creates salon owners | `require_role(Role.super_admin)` dependency | `routes/admin.py` |
 | Super-admin updates/deactivates salons | `require_role(Role.super_admin)` dependency | `routes/admin.py` |
@@ -21,8 +22,9 @@ an explicit authorization check in the application layer.
 | Staff belongs to owner salon | `assign_staff_service` checks `st.salon_id = :salon_id` | `platform_repository.py` |
 | Staff service language belongs to owner | `set_staff_service_languages` verifies `st.salon_id = :salon_id` before deleting/inserting | `platform_repository.py` |
 | Blocked slot belongs to owner salon | `create_blocked_slot` / `delete_blocked_slot` scope to `salon_id` from `get_owner_salon` | `platform_repository.py` |
+| Customer app booking creation | `create_booking(source="app")` allows `customer` and `owner`; owners can book personal appointments from the customer app | `use_cases/platform.py` |
 | Customer sees only own bookings | `list_bookings(role="customer")` → `customer_id = :actor_id` | `platform_repository.py` |
-| Owner sees only their salon bookings | `list_bookings(role="owner")` → `owner_id = :actor_id` via subquery | `platform_repository.py` |
+| Owner sees salon and personal bookings | `list_bookings(role="owner")` → `customer_id = :actor_id` or `owner_id = :actor_id` via salon subquery | `platform_repository.py` |
 | Customer can only cancel own booking | `cancel(customer_only=True)` → `customer_id = :actor_id` predicate | `platform_repository.py` |
 | Customer owns notification | `mark_notification_read` → `user_id = :actor_id` predicate | `platform_repository.py` |
 | Device token belongs to actor | `register_device(actor_id)` / `deactivate_device_for_actor(actor_id)` | `platform_repository.py` |

@@ -43,7 +43,7 @@ class BookingRepository(Protocol):
         """Return role-scoped bookings.
 
         - customer: own bookings only
-        - owner/staff: bookings for their salon
+        - owner/staff: personal customer bookings plus workspace bookings
         - super_admin: all bookings
         """
 
