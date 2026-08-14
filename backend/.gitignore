@@ -6,7 +6,9 @@
 # ── Secrets / Environment ─────────────────────────────────────────────────────
 .env
 .env.*
-!.env.example          # keep the example template committed
+# Keep example templates committed.
+!.env.example
+!.env.gcp.example
 *.pem
 *.p8
 firebase-key.json

@@ -23,6 +23,25 @@ API docs (Swagger): `http://127.0.0.1:8000/docs`
 > The baseline schema is in `migrations/001_supabase_schema.sql`.
 > Incremental changes use Alembic: `alembic upgrade head`.
 
+### Docker
+
+```bash
+cd backend
+docker build -t salon-platform-api .
+docker run --env-file .env -p 8000:8000 salon-platform-api
+```
+
+The same Docker image can deploy to GCP Cloud Run. For a GCP VM instance, use
+Docker Compose:
+
+```bash
+cd backend
+cp .env.gcp.example .env
+bash scripts/gcp-vm-deploy.sh
+```
+
+See [`docs/DOCKER_DEPLOYMENT.md`](docs/DOCKER_DEPLOYMENT.md).
+
 ---
 
 ## Environment Variables
