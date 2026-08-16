@@ -1811,13 +1811,20 @@ class PlatformRepository:
             raise NotFoundError("Salon not found or not accepting walk-ins")
         salon = dict(row)
 
-        # Step 2: fetch extra display fields from the salons table
+        # Step 2: fetch extra display fields from the salons table/image table
         extra = await self.session.execute(
             text(
                 """
-                select address, image_url
-                from salons
-                where id = :salon_id
+                select s.address, img.url as image_url
+                from salons s
+                left join lateral (
+                  select url
+                  from salon_images
+                  where salon_id = s.id
+                  order by is_main desc, sort_order asc, created_at asc
+                  limit 1
+                ) img on true
+                where s.id = :salon_id
                 """
             ),
             {"salon_id": str(salon["id"])},
@@ -1827,7 +1834,8 @@ class PlatformRepository:
             salon["address"] = extra_row["address"]
             salon["image_url"] = extra_row["image_url"]
 
-        salon["services"] = await self.list_public_services(str(salon["id"]))
+        salon["id"] = str(salon["id"])
+        salon["services"] = await self.list_public_services(salon["id"])
         salon["staff"] = await self._list_walkin_staff(str(salon["id"]))
         return salon
 
@@ -1845,7 +1853,7 @@ class PlatformRepository:
             ),
             {"salon_id": salon_id},
         )
-        return [dict(row) for row in result.mappings().all()]
+        return [{**dict(row), "id": str(row["id"])} for row in result.mappings().all()]
 
     # ------------------------------------------------------------------
     # Fix: register_device now accepts the actor_id explicitly
