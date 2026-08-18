@@ -1,0 +1,104 @@
+# ───────────────────────────────────────────────────────────────────────────────
+# CI — Lint & Test
+# ───────────────────────────────────────────────────────────────────────────────
+# Runs on every push and pull request.
+# Two jobs:
+#   1. lint  — ruff check (fast gate)
+#   2. test  — pytest (only if lint passes)
+# ───────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel redundant runs for the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ── Lint ──────────────────────────────────────────────────────────────────
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-lint-${{ runner.os }}-${{ hashFiles('backend/requirements-dev.txt') }}
+          restore-keys: pip-lint-${{ runner.os }}-
+
+      - name: Install linter
+        run: pip install --upgrade pip && pip install ruff>=0.5.7
+
+      - name: Run ruff check
+        working-directory: backend
+        run: ruff check app tests migrations
+
+  # ── Test ──────────────────────────────────────────────────────────────────
+  test:
+    name: Pytest
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          # Minimal dummy env so the app settings module can load without
+          # crashing.  Real secrets never appear here.
+          APP_NAME: "Salon Platform API"
+          ENVIRONMENT: "test"
+          DATABASE_URL: "postgresql+asyncpg://test:test@localhost:5432/test"
+          SUPABASE_URL: "https://test.supabase.co"
+          SUPABASE_ANON_KEY: "test-anon-key"
+          SUPABASE_JWKS_URL: "https://test.supabase.co/auth/v1/.well-known/jwks.json"
+          SUPABASE_JWT_AUDIENCE: "authenticated"
+          SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key"
+          BACKEND_CORS_ORIGINS: '["http://localhost:3000"]'
+        run: pytest tests/ -v --tb=short --junitxml=test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: backend/test-results.xml
+          retention-days: 30
