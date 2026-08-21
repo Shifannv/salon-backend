@@ -139,6 +139,7 @@ class QrCodeUrlResponse(BaseModel):
 
 @router.get(
     "/me/qr",
+    response_model=None,
     status_code=status.HTTP_200_OK,
     summary="Get salon walk-in QR code URL",
     description=(

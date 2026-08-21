@@ -48,6 +48,7 @@ async def resolve_qr(
 
 @router.get(
     "/{qr_token}/qr",
+    response_model=None,
     status_code=status.HTTP_200_OK,
     summary="Get salon walk-in QR code image — public",
     description=(
