@@ -1,15 +1,18 @@
 """Barber/owner app API routes."""
 
-from fastapi import APIRouter, Depends, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_current_actor
+from app.api.deps import get_authenticated_session, get_current_actor, get_storage_gateway
 from app.api.v1.schemas.platform import (
     BlockedSlotCreateRequest,
     BlockedSlotResponse,
     HolidayCreateRequest,
     HolidayResponse,
+    ImageUploadUrlRequest,
+    ImageUploadUrlResponse,
     LanguageResponse,
     OwnerSalonCompleteProfileRequest,
     OwnerSalonResponse,
@@ -28,15 +31,26 @@ from app.api.v1.schemas.platform import (
     StaffServiceResponse,
     StaffUpdateRequest,
 )
+from app.application.ports.storage_gateway import StorageGateway
 from app.application.use_cases.platform import OwnerUseCases
+from app.core.config import settings
+from app.core.qr import make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 router = APIRouter()
 
 
-def _use_cases(session: AsyncSession) -> OwnerUseCases:
-    return OwnerUseCases(PlatformRepository(session))
+def _use_cases(
+    session: AsyncSession,
+    storage_gateway: StorageGateway | None = None,
+) -> OwnerUseCases:
+    return OwnerUseCases(PlatformRepository(session), storage_gateway=storage_gateway)
+
+
+def _bucket() -> str:
+    """Return the configured R2 bucket name, falling back to the default."""
+    return settings.r2_bucket or "salon-images"
 
 
 # ── Salon profile ─────────────────────────────────────────────────────────────
@@ -110,7 +124,150 @@ async def update_settings(
     return OwnerSalonResponse(**salon)
 
 
+# ── QR code ───────────────────────────────────────────────────────────────
+
+
+class QrCodeUrlResponse(BaseModel):
+    """Response for the QR code URL endpoint."""
+
+    url: str
+    """Permanent Cloudflare R2 public URL of the walk-in QR code PNG."""
+
+    cached: bool = False
+    """True if the image was already stored and no generation took place."""
+
+
+@router.get(
+    "/me/qr",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+    summary="Get salon walk-in QR code URL",
+    description=(
+        "Returns the permanent URL of the salon's walk-in QR code PNG stored in Cloudflare R2. "
+        "The image is generated on the **first call only** and then cached permanently in the "
+        "database (`salons.qr_image_url`). Subsequent calls return the cached URL instantly "
+        "with no image generation. "
+        "The QR encodes: <WALKIN_BASE_URL>/<qr_token>. "
+        "If R2 is not configured the response falls back to a streaming PNG for local dev."
+    ),
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {"type": "string", "format": "uri"},
+                            "cached": {"type": "boolean"},
+                        },
+                        "required": ["url"],
+                    }
+                },
+                "image/png": {"schema": {"type": "string", "format": "binary"}},
+            },
+            "description": "QR code URL (JSON) or raw PNG stream in fallback mode.",
+        }
+    },
+)
+async def get_my_qr(
+    fmt: str = Query(
+        default="png",
+        alias="format",
+        pattern="^(png|svg|url)$",
+        description="'url' (default JSON response with CDN link), 'png' stream, or 'svg' stream.",
+    ),
+    scale: int = Query(
+        default=12,
+        ge=4,
+        le=30,
+        description="Module size used when generating. 12 = ~440 px wide PNG.",
+    ),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    storage_gateway: StorageGateway = Depends(get_storage_gateway),
+) -> StreamingResponse | JSONResponse:
+    """Return the owner's salon walk-in QR code.
+
+    Primary path (format=png, default): checks if the image is already uploaded to R2.
+    - If yes  → returns { url, cached: true } immediately.
+    - If no   → generates PNG via segno, uploads to R2, stores the URL, returns { url, cached: false }.
+
+    The QR token is stable (never rotated after creation), so the cached image is permanent.
+    """
+    repo = PlatformRepository(session)
+    salon = await _use_cases(session).get_my_salon(actor)
+    qr_token: str = str(salon["qr_token"])
+    salon_id: str = str(salon["id"])
+    salon_name: str = str(salon.get("name", "salon")).replace(" ", "_").lower()
+
+    # SVG stream — always on-the-fly, no caching needed (resolution-independent, tiny)
+    if fmt == "svg":
+        svg_content = make_qr_svg(qr_token, settings.walkin_base_url, scale=scale)
+        return StreamingResponse(
+            iter([svg_content]),
+            media_type="image/svg+xml",
+            headers={"Content-Disposition": f'attachment; filename="{salon_name}_qr.svg"'},
+        )
+
+    # PNG — check the write-once cache first
+    cached_url = await repo.get_qr_image_url(salon_id)
+    if cached_url:
+        return JSONResponse(content={"url": cached_url, "cached": True})
+
+    # Generate the PNG (only happens once per salon lifetime)
+    png_bytes = make_qr_png(qr_token, settings.walkin_base_url, scale=scale)
+
+    # Upload to R2 and persist the URL
+    try:
+        bucket = _bucket()
+        r2_path = f"qr/{salon_id}/walkin_qr.png"
+        public_url = await storage_gateway.upload_bytes(
+            bucket, r2_path, png_bytes, "image/png"
+        )
+        await repo.set_qr_image_url(salon_id, public_url)
+        return JSONResponse(content={"url": public_url, "cached": False})
+    except Exception:
+        # R2 not configured or upload failed — fall back to streaming the PNG directly.
+        # The URL will not be cached, so next request will try R2 again.
+        return StreamingResponse(
+            iter([png_bytes]),
+            media_type="image/png",
+            headers={"Content-Disposition": f'attachment; filename="{salon_name}_qr.png"'},
+        )
+
+
 # ── Images ────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/me/images/upload-url",
+    response_model=ImageUploadUrlResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get presigned R2 upload URL for a salon image",
+    description=(
+        "Returns a short-lived presigned PUT URL and the resulting public URL for "
+        "uploading a salon image directly to Cloudflare R2.\n\n"
+        "**Upload flow:**\n"
+        "1. Call this endpoint to get `upload_url` and `public_url`.\n"
+        "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
+        "3. Call `POST /owner/me/images` with `{ \"url\": \"<public_url>\" }` to record it in the DB."
+    ),
+)
+async def get_image_upload_url(
+    payload: ImageUploadUrlRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    storage_gateway: StorageGateway = Depends(get_storage_gateway),
+) -> ImageUploadUrlResponse:
+    """Generate a presigned R2 PUT URL for a direct client image upload."""
+
+    result = await _use_cases(session, storage_gateway).get_image_upload_url(
+        actor,
+        content_type=payload.content_type,
+        filename=payload.filename,
+        bucket=_bucket(),
+    )
+    return ImageUploadUrlResponse(**result)
 
 
 @router.get(
@@ -401,6 +558,39 @@ async def list_staff_services(
 
     rows = await _use_cases(session).list_staff_services(actor, staff_id)
     return [StaffServiceResponse(**row) for row in rows]
+
+
+@router.post(
+    "/me/staff/{staff_id}/photo-upload-url",
+    response_model=ImageUploadUrlResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get presigned R2 upload URL for a staff photo",
+    description=(
+        "Returns a short-lived presigned PUT URL and the resulting public URL for "
+        "uploading a staff member's photo directly to Cloudflare R2.\n\n"
+        "**Upload flow:**\n"
+        "1. Call this endpoint to get `upload_url` and `public_url`.\n"
+        "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
+        "3. Call `PATCH /owner/me/staff/{staff_id}` with `{ \"photo_url\": \"<public_url>\" }` to persist."
+    ),
+)
+async def get_staff_photo_upload_url(
+    staff_id: str,
+    payload: ImageUploadUrlRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    storage_gateway: StorageGateway = Depends(get_storage_gateway),
+) -> ImageUploadUrlResponse:
+    """Generate a presigned R2 PUT URL for a direct staff photo upload."""
+
+    result = await _use_cases(session, storage_gateway).get_staff_photo_upload_url(
+        actor,
+        staff_id=staff_id,
+        content_type=payload.content_type,
+        filename=payload.filename,
+        bucket=_bucket(),
+    )
+    return ImageUploadUrlResponse(**result)
 
 
 # ── Staff service languages ───────────────────────────────────────────────────

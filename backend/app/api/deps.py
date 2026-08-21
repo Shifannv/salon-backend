@@ -7,12 +7,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
+from app.application.ports.storage_gateway import StorageGateway
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import SupabaseJWTVerifier
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
 from app.infrastructure.db.session import get_session, set_actor_context
+from app.infrastructure.r2.storage import R2StorageGateway
 from app.infrastructure.supabase.auth_admin import SupabaseAuthAdminGateway
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
 
@@ -36,6 +38,16 @@ def get_auth_admin_gateway() -> AuthAdminGateway:
     """
 
     return SupabaseAuthAdminGateway(settings)
+
+
+def get_storage_gateway() -> StorageGateway:
+    """Return the configured Cloudflare R2 storage gateway.
+
+    Raises ValidationError (-> HTTP 422) if R2 environment variables are absent,
+    leaving all other endpoints unaffected.
+    """
+
+    return R2StorageGateway(settings)
 
 
 async def get_current_actor(

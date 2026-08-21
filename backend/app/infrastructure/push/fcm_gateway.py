@@ -56,12 +56,33 @@ class FCMGateway(PushGateway):
     async def fan_out(self, notification_id: str, user_id: str) -> None:
         """Deliver a notification to all active devices of a user."""
 
+        notification = await self._get_notification(notification_id)
+        if notification is None:
+            logger.warning("Notification %s not found; skipping push fan-out", notification_id)
+            return
+
         tokens = await self._get_active_tokens(user_id)
         if not tokens:
             return
 
         for token, platform in tokens:
-            await self._send_one(notification_id, token, platform)
+            await self._send_one(notification, token, platform)
+
+    async def _get_notification(self, notification_id: str) -> dict[str, Any] | None:
+        """Return the notification payload to send to push providers."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select id, booking_id, type, title, body
+                from notifications
+                where id = :notification_id
+                """
+            ),
+            {"notification_id": notification_id},
+        )
+        row = result.mappings().one_or_none()
+        return dict(row) if row else None
 
     async def _get_active_tokens(self, user_id: str) -> list[tuple[str, str | None]]:
         """Return active (token, platform) pairs via the DB function."""
@@ -74,20 +95,20 @@ class FCMGateway(PushGateway):
 
     async def _send_one(
         self,
-        notification_id: str,
+        notification: dict[str, Any],
         token: str,
         platform: str | None,
     ) -> None:
         """Dispatch to the appropriate push channel and record delivery."""
 
         if token.startswith(_EXPO_TOKEN_PREFIX):
-            await self._send_expo(notification_id, token)
+            await self._send_expo(notification, token)
         else:
-            await self._send_fcm(notification_id, token, platform)
+            await self._send_fcm(notification, token, platform)
 
     # ── Expo push path ─────────────────────────────────────────────────────
 
-    async def _send_expo(self, notification_id: str, token: str) -> None:
+    async def _send_expo(self, notification: dict[str, Any], token: str) -> None:
         """Send via Expo's push API and record the delivery attempt."""
 
         delivered = False
@@ -97,13 +118,21 @@ class FCMGateway(PushGateway):
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
                     _EXPO_PUSH_URL,
-                    json={"to": token},
+                    json={
+                        "to": token,
+                        "sound": "default",
+                        "title": str(notification["title"]),
+                        "body": notification.get("body") or "",
+                        "data": self._provider_data(notification),
+                    },
                     headers={"Accept": "application/json", "Accept-Encoding": "gzip, deflate"},
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                # Expo returns a `data` list; each item has a `status` field.
-                item = (data.get("data") or [{}])[0]
+                # Expo returns either one data object or a list, depending on request shape.
+                response_data = data.get("data")
+                item = response_data[0] if isinstance(response_data, list) else response_data
+                item = item if isinstance(item, dict) else {}
                 if item.get("status") == "ok":
                     delivered = True
                 else:
@@ -116,26 +145,30 @@ class FCMGateway(PushGateway):
             error_msg = str(exc)
             logger.warning("Expo push failed for token %s: %s", token[:40], error_msg)
 
-        await self._write_delivery(notification_id, token, delivered, error_msg)
+        await self._write_delivery(str(notification["id"]), token, delivered, error_msg)
 
     # ── FCM push path ──────────────────────────────────────────────────────
 
     async def _send_fcm(
         self,
-        notification_id: str,
+        notification: dict[str, Any],
         token: str,
         platform: str | None,  # reserved for future platform-specific config
     ) -> None:
         """Send via the firebase-admin SDK and record the delivery attempt."""
 
         if not self.settings.firebase_credentials_json:
-            logger.warning("FCM not configured; skipping push for notification %s", notification_id)
+            error_msg = "FCM not configured; FIREBASE_CREDENTIALS_JSON is missing"
+            logger.warning("%s for notification %s", error_msg, notification["id"])
+            await self._write_delivery(str(notification["id"]), token, False, error_msg)
             return
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             app = await loop.run_in_executor(_executor, self._get_or_init_app)
-            await loop.run_in_executor(_executor, partial(self._send_sync, app, token))
+            await loop.run_in_executor(
+                _executor, partial(self._send_sync, app, token, notification)
+            )
             delivered = True
             error_msg = None
         except Exception as exc:
@@ -144,15 +177,22 @@ class FCMGateway(PushGateway):
             if "registration-token-not-registered" in error_msg or "invalid-argument" in error_msg:
                 await self._deactivate_token(token)
 
-        await self._write_delivery(notification_id, token, delivered, error_msg)
+        await self._write_delivery(str(notification["id"]), token, delivered, error_msg)
 
-    def _send_sync(self, app: Any, token: str) -> None:
+    def _send_sync(self, app: Any, token: str, notification: dict[str, Any]) -> None:
         """Synchronous FCM send — runs in the thread pool."""
 
         # Import here to avoid import-time failure when firebase-admin is absent.
         from firebase_admin import messaging  # type: ignore[import]
 
-        message = messaging.Message(token=token)
+        message = messaging.Message(
+            token=token,
+            notification=messaging.Notification(
+                title=str(notification["title"]),
+                body=notification.get("body") or "",
+            ),
+            data=self._provider_data(notification),
+        )
         messaging.send(message, app=app)
 
     def _get_or_init_app(self) -> Any:
@@ -166,6 +206,12 @@ class FCMGateway(PushGateway):
         import firebase_admin  # type: ignore[import]
         from firebase_admin import credentials  # type: ignore[import]
 
+        try:
+            self._app = firebase_admin.get_app()
+            return self._app
+        except ValueError:
+            pass
+
         cred = credentials.Certificate(
             json.loads(self.settings.firebase_credentials_json)  # type: ignore[arg-type]
         )
@@ -173,6 +219,16 @@ class FCMGateway(PushGateway):
         return self._app
 
     # ── Shared helpers ─────────────────────────────────────────────────────
+
+    def _provider_data(self, notification: dict[str, Any]) -> dict[str, str]:
+        """Return string-only metadata accepted by Expo and FCM."""
+
+        data = {
+            "notification_id": notification.get("id"),
+            "booking_id": notification.get("booking_id"),
+            "type": notification.get("type"),
+        }
+        return {key: str(value) for key, value in data.items() if value is not None}
 
     async def _deactivate_token(self, token: str) -> None:
         """Deactivate a token reported as permanently invalid."""

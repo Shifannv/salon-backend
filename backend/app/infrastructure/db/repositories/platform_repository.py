@@ -105,9 +105,18 @@ class PlatformRepository:
         limit: int,
         offset: int,
         ids: list[str] | None = None,
-        include_services: bool = False,
+        category: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List public active completed salons."""
+        """List public active completed salons.
+
+        Services are NOT bundled. Callers that need service data should use
+        the dedicated GET /salons/{salon_id}/services endpoint.
+
+        ``category`` filters to salons that have at least one active, staff-assigned
+        service whose ``service_categories.name`` matches the value (ILIKE wildcard).
+        For example ``category="Hair Cutting"`` matches the "Hair Cutting" category row.
+        Omit or pass ``None`` to return all categories.
+        """
 
         normalized_ids: list[str] = []
         if ids is not None:
@@ -126,13 +135,14 @@ class PlatformRepository:
             "ids": normalized_ids,
             "limit": limit,
             "offset": offset,
+            "category_pattern": f"%{category}%" if category else None,
         }
         ids_filter = "and s.id in :ids" if normalized_ids else ""
         statement = text(
             f"""
             select
               s.id, s.name, s.description, s.category, s.address, s.city,
-              s.lat, s.lng, s.timezone, s.approval_mode, s.profile_completed,
+              s.lat, s.lng, s.timezone, s.working_hours, s.approval_mode, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
               case
                 when cast(:lat as double precision) is not null
@@ -171,6 +181,20 @@ class PlatformRepository:
               and (cast(:city as text) is null or s.city = cast(:city as text))
               {ids_filter}
             group by s.id, img.url
+            having (
+              cast(:category_pattern as text) is null
+              or exists (
+                select 1
+                from services sv2
+                join service_subcategories ss2 on ss2.id = sv2.subcategory_id
+                join service_categories sc2 on sc2.id = ss2.category_id
+                where sv2.salon_id = s.id
+                  and sv2.is_active
+                  and ss2.is_active
+                  and sc2.is_active
+                  and sc2.name ilike cast(:category_pattern as text)
+              )
+            )
             order by distance_km nulls last, s.name
             limit cast(:limit as int) offset cast(:offset as int)
             """
@@ -182,16 +206,15 @@ class PlatformRepository:
             params,
         )
         rows = result.mappings().all()
-        salons = [{**dict(row), "id": str(row["id"])} for row in rows]
-        if include_services:
-            services_by_salon = await self.list_public_services_for_salons([salon["id"] for salon in salons])
-            for salon in salons:
-                salon["services"] = services_by_salon.get(salon["id"], [])
-        return salons
-
+        return [{**dict(row), "id": str(row["id"])} for row in rows]
 
     async def get_public_salon(self, salon_id: str) -> dict[str, Any]:
-        """Read public salon details."""
+        """Read public salon details (core fields + images only).
+
+        Services and staff are NOT bundled here. Use the dedicated endpoints:
+          - GET /salons/{salon_id}/services
+          - GET /salons/{salon_id}/staff
+        """
 
         result = await self.session.execute(
             text(
@@ -211,7 +234,6 @@ class PlatformRepository:
         salon = dict(row)
         salon["id"] = str(salon["id"])
         salon["images"] = await self.list_salon_images(salon_id)
-        salon["services"] = await self.list_public_services(salon_id)
         return salon
 
     async def list_public_staff(self, salon_id: str) -> list[dict[str, Any]]:
@@ -1765,6 +1787,27 @@ class PlatformRepository:
     # ------------------------------------------------------------------
     # Walk-in QR
     # ------------------------------------------------------------------
+
+    async def get_qr_image_url(self, salon_id: str) -> str | None:
+        """Return the cached QR image URL from the salons table, or None if not yet set."""
+        result = await self.session.execute(
+            text("select qr_image_url from salons where id = :salon_id"),
+            {"salon_id": salon_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            return None
+        return row["qr_image_url"]  # may be None if column is NULL
+
+    async def set_qr_image_url(self, salon_id: str, url: str) -> None:
+        """Persist the QR image URL so future requests return immediately."""
+        await self.session.execute(
+            text(
+                "update salons set qr_image_url = :url where id = :salon_id"
+            ),
+            {"salon_id": salon_id, "url": url},
+        )
+        await self.session.commit()
 
     async def validate_qr_token(self, qr_token: str) -> str:
         """Validate a QR token and return the salon_id (UUID as str).
