@@ -465,6 +465,14 @@ class NotificationResponse(BaseModel):
     read_at: datetime | None = None  # set when read flips true (migration 0002)
     created_at: datetime
 
+    @field_validator("id", "user_id", "booking_id", mode="before")
+    @classmethod
+    def _coerce_uuid_to_str(cls, v: Any) -> Any:
+        """DB returns UUID objects; coerce to str for Pydantic."""
+        if v is not None and not isinstance(v, str):
+            return str(v)
+        return v
+
 
 class DeviceRegisterRequest(BaseModel):
     """Device registration request."""
@@ -480,6 +488,14 @@ class DeviceRegisterResponse(BaseModel):
     id: str
     token: str
     platform: str | None = None
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _coerce_uuid_to_str(cls, v: Any) -> Any:
+        """DB returns UUID objects; coerce to str for Pydantic."""
+        if v is not None and not isinstance(v, str):
+            return str(v)
+        return v
 
 
 # ── Phase 3 additions ─────────────────────────────────────────────────────────
