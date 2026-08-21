@@ -12,7 +12,6 @@ Create Date: 2026-08-21
 """
 
 from alembic import op
-import sqlalchemy as sa
 
 revision = "0007_salon_qr_image_url"
 down_revision = "0006_enable_realtime"
