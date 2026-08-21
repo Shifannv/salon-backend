@@ -24,11 +24,26 @@ class Settings(BaseSettings):
     # Supabase Auth Admin (service-role key — never expose to clients)
     supabase_service_role_key: str | None = None
 
+    # Cloudflare R2 object storage (S3-compatible)
+    # Used to generate presigned PUT URLs for direct client uploads.
+    # R2 is opt-in — leave unset to fall back to an unconfigured storage gateway.
+    r2_account_id: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_bucket: str | None = None
+    # Public base URL for delivered objects (e.g. https://pub-xxx.r2.dev or a custom domain).
+    # Must NOT have a trailing slash.
+    r2_public_url: str | None = None
+
     # Firebase Cloud Messaging (service account JSON string)
     firebase_credentials_json: str | None = None
 
     # CORS
     backend_cors_origins: list[str] = Field(default_factory=list)
+
+    # Walk-in QR — URL prefix of the customer-facing web booking route.
+    # QR codes encode: <walkin_base_url>/<qr_token>
+    walkin_base_url: str = "http://localhost:3000"
 
     # Database connection pool
     db_pool_size: int = 5

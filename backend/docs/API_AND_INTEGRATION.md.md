@@ -3,7 +3,8 @@
 A concise integration guide for the shared FastAPI backend.
 
 > **API prefix:** `/v1`  
-> **Interactive API documentation:** `http://localhost:8000/docs`
+> **Interactive API docs (local):** `http://localhost:8000/docs`  
+> **Production API:** `https://apiv1.mudassirmhd.in`
 
 ## Contents
 
@@ -21,19 +22,27 @@ A concise integration guide for the shared FastAPI backend.
 | --- | --- |
 | Local development | `http://localhost:8000` |
 | Mobile device on the same network | `http://YOUR_MAC_IP:8000` |
-| Production | `https://api.yourdomain.com` |
+| **Production (deployed)** | `https://apiv1.mudassirmhd.in` |
 
 ### Frontend environment variables
 
 ```bash
-# Expo / React Native
-EXPO_PUBLIC_API_URL=http://localhost:8000
+# Expo / React Native — production
+EXPO_PUBLIC_API_URL=https://apiv1.mudassirmhd.in
+
+# Expo / React Native — local dev
+# EXPO_PUBLIC_API_URL=http://localhost:8000
+
 EXPO_PUBLIC_SUPABASE_URL=https://[PROJECT_REF].supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 EXPO_PUBLIC_GOOGLE_AUTH_REDIRECT_URL=salonapp://auth/callback
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=[WEB_CLIENT_ID].apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=[IOS_CLIENT_ID].apps.googleusercontent.com
+# Optional; app.config.js derives this from EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID if omitted.
+EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.[IOS_CLIENT_ID]
 
 # Next.js
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
 ```
 
 Keep `DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `FIREBASE_CREDENTIALS_JSON` on the server. Never expose them in a frontend bundle.
@@ -51,7 +60,7 @@ Authorization: Bearer <supabase_access_token>
 Content-Type: application/json
 ```
 
-Use Supabase Auth in the client for Google sign-in and session persistence. The backend validates the Supabase JWT and determines the role from `profiles.role`.
+Use Supabase Auth in the client for Google sign-in and session persistence. Native Expo builds use Google Sign-In to get an ID token, then call Supabase `signInWithIdToken` when Google client IDs are configured; web builds and unconfigured local native builds use Supabase `signInWithOAuth`. The backend validates the resulting Supabase JWT and determines the role from `profiles.role`.
 
 | Role | Primary access |
 | --- | --- |
@@ -120,18 +129,40 @@ Returns `access_token`, `refresh_token`, `token_type`, and `expires_in`.
 | --- | --- | --- | --- |
 | `GET` | `/v1/salons` | No | Search customer-visible salons |
 | `GET` | `/v1/salons/nearby` | No | Find salons near coordinates |
-| `GET` | `/v1/salons/{salon_id}` | No | Get salon details, images, and services |
+| `GET` | `/v1/salons/{salon_id}` | No | Get salon core details and images |
 | `GET` | `/v1/salons/{salon_id}/services` | No | List active salon services |
 | `GET` | `/v1/salons/{salon_id}/staff` | No | List publicly visible staff |
+
+> **Each endpoint returns its own data only.** Services and staff are never embedded in the salon list or detail response. Call the dedicated endpoints separately.
 
 **Salon list parameters**
 
 | Endpoint | Supported query parameters |
 | --- | --- |
-| `/v1/salons` | `search`, `city`, `lat`, `lng`, `limit`, `offset` |
-| `/v1/salons/nearby` | `lat`, `lng`, `latitude`, `longitude`, `search`, `city`, `limit`, `offset` |
+| `/v1/salons` | `search`, `city`, `lat`, `lng`, `category`, `limit`, `offset` |
+| `/v1/salons/nearby` | `lat`, `lng`, `latitude`, `longitude`, `search`, `city`, `category`, `limit`, `offset` |
 
-A salon summary includes its identity, description, category, address, coordinates, timezone, approval mode, main image, starting price, and optional `distance_km`.
+**`category` filter**
+
+Pass a human-readable category name to filter salons to only those that offer at least one active, staff-assigned service in that category. The match is case-insensitive (`ILIKE '%value%'`) against `service_categories.name`.
+
+Example values: `Hair Cutting`, `Beard Care`, `Facial`, `Hair Styling`, `Head Massage`, `Grooming`, `Makeup`, `Home Service`.
+
+```http
+GET /v1/salons?category=Hair+Cutting
+GET /v1/salons/nearby?lat=11.05&lng=76.08&category=Beard+Care
+```
+
+Omit `category` (or do not send it) to return salons across all service categories.
+
+**Response shapes**
+
+| Endpoint | What is returned |
+| --- | --- |
+| `GET /v1/salons` / `nearby` | `id`, `name`, `description`, `category`, `address`, `city`, `lat`, `lng`, `timezone`, `approval_mode`, `profile_completed`, `is_active`, `image_url`, `starting_price`, `distance_km` |
+| `GET /v1/salons/{salon_id}` | All of the above plus `working_hours` and `images` (full image objects) |
+| `GET /v1/salons/{salon_id}/services` | `id`, `salon_id`, `subcategory_id`, `name`, `description`, `duration_minutes`, `price`, `is_active`, `category_name`, `subcategory_name` |
+| `GET /v1/salons/{salon_id}/staff` | `id`, `name`, `photo_url`, `specialization` |
 
 ### Owner salon management
 
@@ -435,7 +466,10 @@ All routes in this section require a `super_admin` Supabase access token.
 
 1. Authenticate with Supabase and attach the access token to protected API calls.
 2. Discover a salon with `GET /v1/salons` or `GET /v1/salons/nearby`.
-3. Fetch salon details, services, and staff.
+3. Open the salon detail page by making three **separate** calls in parallel:
+   - `GET /v1/salons/{salon_id}` — core details and images
+   - `GET /v1/salons/{salon_id}/services` — bookable services
+   - `GET /v1/salons/{salon_id}/staff` — available staff
 4. Request available slots through `GET /v1/availability`.
 5. Create the booking through `POST /v1/bookings`.
 6. Use `GET /v1/bookings` and `GET /v1/notifications` to render booking state and updates.
@@ -465,3 +499,4 @@ All routes in this section require a `super_admin` Supabase access token.
 - Treat all response money values as strings to avoid floating-point precision issues.
 - Image and holiday delete routes exist but intentionally reject requests until their respective tables support soft deletion. Do not expose these actions in the frontend yet.
 - Standard booking responses include status, payment state, salon/staff display information, ordered services, timestamps, and `can_cancel`.
+- **Salon discovery uses separate endpoints.** `GET /v1/salons/{salon_id}` returns only core salon fields and images. Services and staff must be fetched independently via `GET /v1/salons/{salon_id}/services` and `GET /v1/salons/{salon_id}/staff`. The `include_services` query parameter no longer exists on the list endpoints.

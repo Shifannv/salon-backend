@@ -64,7 +64,11 @@ class ProfileResponse(BaseModel):
 
 
 class SalonSummaryResponse(BaseModel):
-    """Salon list response item."""
+    """Salon list response item.
+
+    Services are NOT embedded here. Call GET /salons/{salon_id}/services
+    to fetch services for a specific salon.
+    """
 
     id: str
     name: str
@@ -78,10 +82,10 @@ class SalonSummaryResponse(BaseModel):
     approval_mode: str
     profile_completed: bool
     is_active: bool
+    working_hours: dict[str, Any] | None = None
     image_url: str | None = None
     starting_price: Decimal | None = None
     distance_km: float | None = None
-    services: list["ServiceResponse"] = Field(default_factory=list)
 
 
 class SalonImageResponse(BaseModel):
@@ -115,7 +119,13 @@ class ServiceResponse(BaseModel):
 
 
 class SalonDetailResponse(BaseModel):
-    """Salon detail response."""
+    """Salon detail response.
+
+    Images are embedded here as they are always needed for the detail view.
+    Services and staff are NOT embedded — use the dedicated endpoints:
+      - GET /salons/{salon_id}/services
+      - GET /salons/{salon_id}/staff
+    """
 
     id: str
     name: str
@@ -131,7 +141,6 @@ class SalonDetailResponse(BaseModel):
     profile_completed: bool
     is_active: bool
     images: list[SalonImageResponse] = Field(default_factory=list)
-    services: list[ServiceResponse] = Field(default_factory=list)
 
 
 class OwnerSalonResponse(BaseModel):
@@ -526,3 +535,53 @@ class BlockedSlotResponse(BaseModel):
     recurrence_end: date | None = None
     created_at: datetime
     updated_at: datetime
+
+
+
+# ── Image upload (Cloudflare R2) ──────────────────────────────────────────────
+
+
+class ImageUploadUrlRequest(BaseModel):
+    """Request body for generating a presigned R2 upload URL.
+
+    The client uses this to get a short-lived PUT URL so it can upload
+    images directly to Cloudflare R2 without routing binary data through
+    the API server.
+    """
+
+    content_type: str = Field(
+        default="image/jpeg",
+        description="MIME type of the image to upload (e.g. 'image/jpeg', 'image/png').",
+    )
+    filename: str = Field(
+        min_length=1,
+        description="Original filename (e.g. 'cover.jpg'). Used only to derive the file extension.",
+    )
+
+    @field_validator("content_type")
+    @classmethod
+    def validate_content_type(cls, value: str) -> str:
+        """Reject MIME types that are not supported image formats."""
+        from app.application.ports.storage_gateway import _ALLOWED_CONTENT_TYPES
+
+        if value not in _ALLOWED_CONTENT_TYPES:
+            allowed = ", ".join(sorted(_ALLOWED_CONTENT_TYPES))
+            raise ValueError(
+                f"Unsupported content_type '{value}'. Allowed types: {allowed}"
+            )
+        return value
+
+
+class ImageUploadUrlResponse(BaseModel):
+    """Response containing the presigned upload URL and the resulting public URL.
+
+    Upload flow:
+    1. POST /owner/me/images/upload-url  → receive upload_url + public_url
+    2. PUT <upload_url> with the image binary and a 'Content-Type: <mime>' header
+    3. POST /owner/me/images { "url": "<public_url>", ... } to record in DB
+    """
+
+    upload_url: str = Field(description="Presigned PUT URL. Client must PUT to this within expires_in seconds.")
+    public_url: str = Field(description="Permanent public URL of the uploaded object. Store this in the DB.")
+    expires_in: int = Field(description="Upload URL TTL in seconds.")
+

@@ -1,6 +1,7 @@
 """Walk-in QR API routes — public (unauthenticated) and customer-authenticated."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor, get_session
@@ -15,6 +16,7 @@ from app.api.v1.schemas.walkin import (
 )
 from app.application.use_cases.walkin import WalkInUseCases
 from app.core.config import settings
+from app.core.qr import make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
@@ -42,6 +44,64 @@ async def resolve_qr(
 
     salon = await _use_cases(session).resolve_qr_token(qr_token)
     return WalkInSalonResponse(**salon)
+
+
+@router.get(
+    "/{qr_token}/qr",
+    status_code=status.HTTP_200_OK,
+    summary="Get salon walk-in QR code image — public",
+    description=(
+        "Returns the QR code for this salon as a PNG (default) or SVG. "
+        "No authentication required. "
+        "The QR encodes: <WALKIN_BASE_URL>/<qr_token>. "
+        "Embed directly in the web app or download for printing."
+    ),
+    responses={
+        200: {
+            "content": {
+                "image/png": {"schema": {"type": "string", "format": "binary"}},
+                "image/svg+xml": {"schema": {"type": "string"}},
+            },
+            "description": "QR code image",
+        }
+    },
+)
+async def get_qr_image(
+    qr_token: str,
+    fmt: str = Query(
+        default="png",
+        alias="format",
+        pattern="^(png|svg)$",
+        description="Image format: 'png' (default) or 'svg'.",
+    ),
+    scale: int = Query(
+        default=10,
+        ge=4,
+        le=30,
+        description="Module size. 10 ≈ 370 px wide PNG; use 20+ for print.",
+    ),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """Return the salon QR code image for a validated walk-in token."""
+
+    # Validate token exists + salon is active before generating anything
+    salon = await _use_cases(session).resolve_qr_token(qr_token)
+    salon_name: str = str(salon.get("name", "salon")).replace(" ", "_").lower()
+
+    if fmt == "svg":
+        svg_content = make_qr_svg(qr_token, settings.walkin_base_url, scale=scale)
+        return StreamingResponse(
+            iter([svg_content]),
+            media_type="image/svg+xml",
+            headers={"Content-Disposition": f'inline; filename="{salon_name}_qr.svg"'},
+        )
+
+    png_bytes = make_qr_png(qr_token, settings.walkin_base_url, scale=scale)
+    return StreamingResponse(
+        iter([png_bytes]),
+        media_type="image/png",
+        headers={"Content-Disposition": f'inline; filename="{salon_name}_qr.png"'},
+    )
 
 
 @router.post(

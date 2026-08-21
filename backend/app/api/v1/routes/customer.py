@@ -68,12 +68,23 @@ async def list_salons(
     lat: float | None = None,
     lng: float | None = None,
     ids: list[str] | None = Query(default=None),
-    include_services: bool = False,
+    category: str | None = Query(
+        default=None,
+        description=(
+            "Filter salons to those offering services in this category. "
+            "Matched case-insensitively against service_categories.name, "
+            "e.g. 'Hair Cutting', 'Beard Care', 'Facial'."
+        ),
+    ),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> list[SalonSummaryResponse]:
-    """List active completed salons — public, no auth required."""
+    """List active completed salons — public, no auth required.
+
+    Services are NOT embedded. Call GET /salons/{salon_id}/services for service data.
+    Use `category` to filter by service category (e.g. ?category=Hair+Cutting).
+    """
 
     rows = await _use_cases(session).list_salons(
         search=search,
@@ -81,9 +92,9 @@ async def list_salons(
         lat=lat,
         lng=lng,
         ids=ids,
+        category=category,
         limit=limit,
         offset=offset,
-        include_services=include_services,
     )
     return [SalonSummaryResponse(**row) for row in rows]
 
@@ -103,12 +114,23 @@ async def nearby_salons(
     search: str | None = None,
     city: str | None = None,
     ids: list[str] | None = Query(default=None),
-    include_services: bool = False,
+    category: str | None = Query(
+        default=None,
+        description=(
+            "Filter salons to those offering services in this category. "
+            "Matched case-insensitively against service_categories.name, "
+            "e.g. 'Hair Cutting', 'Beard Care', 'Facial'."
+        ),
+    ),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> list[SalonSummaryResponse]:
-    """List active completed salons ordered by distance — public, no auth required."""
+    """List active completed salons ordered by distance — public, no auth required.
+
+    Services are NOT embedded. Call GET /salons/{salon_id}/services for service data.
+    Use `category` to filter by service category (e.g. ?category=Hair+Cutting).
+    """
 
     resolved_lat = lat or latitude
     resolved_lng = lng or longitude
@@ -118,9 +140,9 @@ async def nearby_salons(
         lat=resolved_lat,
         lng=resolved_lng,
         ids=ids,
+        category=category,
         limit=limit,
         offset=offset,
-        include_services=include_services,
     )
     return [SalonSummaryResponse(**row) for row in rows]
 

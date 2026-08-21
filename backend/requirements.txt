@@ -11,6 +11,13 @@ alembic>=1.13.2
 
 python-jose[cryptography]>=3.3.0
 httpx>=0.27.0
+firebase-admin>=6.5.0
 pydantic-settings>=2.4.0
 email-validator>=2.2.0
 structlog>=24.4.0
+
+# QR code generation (pure Python, no Pillow needed)
+segno>=1.6.1
+
+# Cloudflare R2 / S3-compatible object storage — presigned upload URL generation
+boto3>=1.35.0

@@ -1,11 +1,13 @@
 """Frontend-facing platform use cases."""
 
 import logging
+import uuid
 from datetime import date
 from typing import Any
 
 from fastapi import BackgroundTasks
 
+from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
 from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.authorization import is_owner_or_staff
@@ -14,17 +16,107 @@ from app.infrastructure.db.repositories.platform_repository import PlatformRepos
 _log = logging.getLogger(__name__)
 
 
+def _derive_extension(filename: str) -> str:
+    """Derive a safe file extension from the client-supplied filename.
+
+    Falls back to 'jpeg' when the extension is absent or unrecognised.
+    """
+    if "." in filename:
+        raw_ext = filename.rsplit(".", 1)[-1].lower()
+        if raw_ext in {"jpg", "jpeg", "png", "webp", "heic", "heif"}:
+            return "jpeg" if raw_ext == "jpg" else raw_ext
+    return "jpeg"
+
+
+def _extract_r2_object_key(public_url: str, r2_public_base: str) -> str | None:
+    """Extract the R2 object key from a public URL.
+
+    Returns the path component after the R2 public base URL, or ``None`` if
+    the URL does not belong to this R2 bucket (e.g. an external avatar URL).
+
+    Args:
+        public_url: The full public URL stored in the database.
+        r2_public_base: The configured R2_PUBLIC_URL base (e.g. 'https://pub-xxx.r2.dev').
+
+    Returns:
+        Object key string (e.g. 'avatars/abc/avatar.jpeg'), or None.
+    """
+    base = r2_public_base.rstrip("/")
+    if public_url.startswith(base + "/"):
+        return public_url[len(base) + 1:]
+    return None
+
+
+def _upload_result(upload_url: str, public_url: str) -> dict[str, Any]:
+    """Return the standard upload URL response payload."""
+    return {
+        "upload_url": upload_url,
+        "public_url": public_url,
+        "expires_in": _UPLOAD_TTL_SECONDS,
+    }
+
+
 class CustomerUseCases:
     """Customer app use cases."""
 
-    def __init__(self, repository: PlatformRepository) -> None:
+    def __init__(
+        self,
+        repository: PlatformRepository,
+        storage_gateway: StorageGateway | None = None,
+    ) -> None:
         self.repository = repository
+        self.storage_gateway = storage_gateway
 
-    async def update_profile(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
-        """Update the customer profile owned by the actor."""
+    async def update_profile(
+        self,
+        actor: Profile,
+        values: dict[str, Any],
+        *,
+        bucket: str | None = None,
+        r2_public_base: str | None = None,
+    ) -> dict[str, Any]:
+        """Update the customer profile owned by the actor.
+
+        When ``avatar_url`` is being replaced and both ``bucket`` and
+        ``r2_public_base`` are provided (and a storage gateway is wired in),
+        the previous R2 object is deleted best-effort before returning.  The
+        deletion never raises — a warning is logged on failure so the profile
+        update is never blocked.
+
+        Args:
+            actor: Authenticated profile (customer or owner).
+            values: Fields to update (``exclude_unset`` dict from Pydantic).
+            bucket: R2 bucket name; required to trigger old-avatar cleanup.
+            r2_public_base: Configured R2_PUBLIC_URL; used to extract the
+                object key from the stored public URL.
+        """
 
         if actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer or owner access required")
+
+        # --- Best-effort cleanup of the previous avatar from R2 ---
+        new_avatar_url = values.get("avatar_url")
+        old_avatar_url = actor.avatar_url
+        should_cleanup = (
+            new_avatar_url is not None           # caller is changing the avatar
+            and new_avatar_url != old_avatar_url  # it is actually a different URL
+            and old_avatar_url                    # there is an existing avatar to remove
+            and self.storage_gateway is not None
+            and bucket is not None
+            and r2_public_base is not None
+        )
+        if should_cleanup:
+            old_key = _extract_r2_object_key(str(old_avatar_url), str(r2_public_base))
+            if old_key:
+                try:
+                    await self.storage_gateway.delete_object(bucket, old_key)  # type: ignore[union-attr]
+                except Exception:
+                    _log.warning(
+                        "Failed to delete old avatar from R2 (key=%s). "
+                        "Profile update will still proceed.",
+                        old_key,
+                    )
+
         return await self.repository.update_profile(actor.id, values)
 
     async def list_salons(
@@ -37,9 +129,14 @@ class CustomerUseCases:
         limit: int,
         offset: int,
         ids: list[str] | None = None,
-        include_services: bool = False,
+        category: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List customer-visible salons."""
+        """List customer-visible salons.
+
+        Services are NOT included. Use GET /salons/{salon_id}/services for service data.
+        Pass ``category`` (e.g. ``"Hair Cutting"``) to filter salons by service category;
+        the backend does a case-insensitive ILIKE match against ``service_categories.name``.
+        """
 
         return await self.repository.list_salons(
             search=search,
@@ -49,7 +146,7 @@ class CustomerUseCases:
             limit=limit,
             offset=offset,
             ids=ids,
-            include_services=include_services,
+            category=category,
         )
 
     async def get_salon(self, salon_id: str) -> dict[str, Any]:
@@ -67,12 +164,55 @@ class CustomerUseCases:
 
         return await self.repository.list_public_staff(salon_id)
 
+    async def get_avatar_upload_url(
+        self,
+        actor: Profile,
+        content_type: str,
+        filename: str,
+        bucket: str,
+    ) -> dict[str, Any]:
+        """Generate a presigned R2 upload URL for a user profile avatar.
+
+        Available to all authenticated roles (customer, owner, staff).
+        The client should:
+        1. Receive ``upload_url`` and ``public_url`` from this method.
+        2. PUT the image binary directly to ``upload_url`` with the matching Content-Type header.
+        3. Call PATCH /profiles/me with { "avatar_url": public_url } to record the URL.
+
+        Args:
+            actor: Authenticated profile (any role).
+            content_type: MIME type of the image.
+            filename: Original filename; used only to derive the file extension.
+            bucket: R2 bucket name (read from settings in the router).
+
+        Returns:
+            Dict with keys: upload_url, public_url, expires_in.
+        """
+        if not self.storage_gateway:
+            raise ValidationError(
+                "Image upload is not configured on this server (R2 storage gateway is missing)."
+            )
+
+        ext = _derive_extension(filename)
+        # Use a fixed canonical key so re-uploads overwrite the previous object
+        # in R2 rather than accumulating orphaned blobs.
+        object_key = f"avatars/{actor.id}/avatar.{ext}"
+
+        upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
+        public_url = self.storage_gateway.get_public_url(bucket, object_key)
+        return _upload_result(upload_url, public_url)
+
 
 class OwnerUseCases:
     """Barber/owner app use cases."""
 
-    def __init__(self, repository: PlatformRepository) -> None:
+    def __init__(
+        self,
+        repository: PlatformRepository,
+        storage_gateway: StorageGateway | None = None,
+    ) -> None:
         self.repository = repository
+        self.storage_gateway = storage_gateway
 
     def _assert_owner_workspace(self, actor: Profile) -> None:
         if not is_owner_or_staff(actor):
@@ -124,6 +264,90 @@ class OwnerUseCases:
         """
 
         raise ValidationError("Image deletion is not yet implemented. The schema does not support soft delete for salon images.")
+
+    async def get_image_upload_url(
+        self,
+        actor: Profile,
+        content_type: str,
+        filename: str,
+        bucket: str,
+    ) -> dict[str, Any]:
+        """Generate a presigned R2 upload URL for a salon gallery image.
+
+        The client should:
+        1. Receive ``upload_url`` and ``public_url`` from this method.
+        2. PUT the image binary directly to ``upload_url`` with the matching Content-Type header.
+        3. Call POST /owner/me/images with { "url": public_url } to record the image in the DB.
+
+        Args:
+            actor: Authenticated owner/staff profile.
+            content_type: MIME type of the image (e.g. 'image/jpeg', 'image/png').
+            filename: Original filename; used only to derive the file extension.
+            bucket: R2 bucket name (read from settings in the router).
+
+        Returns:
+            Dict with keys: upload_url, public_url, expires_in.
+        """
+        self._assert_owner_workspace(actor)
+
+        if not self.storage_gateway:
+            raise ValidationError(
+                "Image upload is not configured on this server (R2 storage gateway is missing)."
+            )
+
+        salon = await self.get_my_salon(actor)
+        salon_id = str(salon["id"])
+
+        ext = _derive_extension(filename)
+        object_key = f"salon-images/{salon_id}/{uuid.uuid4()}.{ext}"
+
+        upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
+        public_url = self.storage_gateway.get_public_url(bucket, object_key)
+        return _upload_result(upload_url, public_url)
+
+    async def get_staff_photo_upload_url(
+        self,
+        actor: Profile,
+        staff_id: str,
+        content_type: str,
+        filename: str,
+        bucket: str,
+    ) -> dict[str, Any]:
+        """Generate a presigned R2 upload URL for a staff member's photo.
+
+        The client should:
+        1. Receive ``upload_url`` and ``public_url`` from this method.
+        2. PUT the image binary directly to ``upload_url`` with the matching Content-Type header.
+        3. Call PATCH /owner/me/staff/{staff_id} with { "photo_url": public_url } to record it.
+
+        Args:
+            actor: Authenticated owner/staff profile.
+            staff_id: ID of the staff member whose photo is being uploaded.
+            content_type: MIME type of the image.
+            filename: Original filename; used only to derive the file extension.
+            bucket: R2 bucket name (read from settings in the router).
+
+        Returns:
+            Dict with keys: upload_url, public_url, expires_in.
+        """
+        self._assert_owner_workspace(actor)
+
+        if not self.storage_gateway:
+            raise ValidationError(
+                "Image upload is not configured on this server (R2 storage gateway is missing)."
+            )
+
+        salon = await self.get_my_salon(actor)
+        salon_id = str(salon["id"])
+
+        ext = _derive_extension(filename)
+        # Use a fixed canonical key so re-uploads overwrite the previous object
+        # in R2 rather than accumulating orphaned blobs.
+        object_key = f"staff-photos/{salon_id}/{staff_id}/photo.{ext}"
+
+        upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
+        public_url = self.storage_gateway.get_public_url(bucket, object_key)
+        return _upload_result(upload_url, public_url)
 
     async def list_holidays(self, actor: Profile) -> list[dict[str, Any]]:
         """List salon holidays."""

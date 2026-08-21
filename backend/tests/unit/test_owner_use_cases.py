@@ -283,3 +283,120 @@ async def test_list_blocked_slots_requires_owner():
 
     with pytest.raises(ForbiddenError):
         await uc.list_blocked_slots(customer)
+
+
+# ---------------------------------------------------------------------------
+# Image upload URL
+# ---------------------------------------------------------------------------
+
+
+class _FakeStorageGateway:
+    """Minimal in-memory StorageGateway stub for upload use case tests."""
+
+    async def get_upload_url(self, bucket: str, path: str, content_type: str = "image/jpeg") -> str:
+        return f"https://presigned.example.com/{path}"
+
+    def get_public_url(self, bucket: str, path: str) -> str:
+        return f"https://pub.example.com/{path}"
+
+    async def delete_object(self, bucket: str, path: str) -> None:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_get_image_upload_url_returns_upload_result():
+    repo = make_mock_repo()
+    repo.get_owner_salon.return_value = SALON
+    gw = _FakeStorageGateway()
+    uc = OwnerUseCases(repo, storage_gateway=gw)
+    owner = make_owner()
+
+    result = await uc.get_image_upload_url(
+        owner,
+        content_type="image/jpeg",
+        filename="cover.jpg",
+        bucket="salon-images",
+    )
+
+    assert "upload_url" in result
+    assert "public_url" in result
+    assert result["expires_in"] == 300
+    assert "salon-images/salon-001/" in result["upload_url"]
+    assert "salon-images/salon-001/" in result["public_url"]
+
+
+@pytest.mark.asyncio
+async def test_get_image_upload_url_raises_when_no_gateway():
+    repo = make_mock_repo()
+    repo.get_owner_salon.return_value = SALON
+    uc = OwnerUseCases(repo)  # no storage_gateway
+    owner = make_owner()
+
+    with pytest.raises(ValidationError, match="R2 storage gateway is missing"):
+        await uc.get_image_upload_url(owner, content_type="image/jpeg", filename="f.jpg", bucket="salon-images")
+
+
+@pytest.mark.asyncio
+async def test_get_image_upload_url_raises_for_non_owner():
+    repo = make_mock_repo()
+    gw = _FakeStorageGateway()
+    uc = OwnerUseCases(repo, storage_gateway=gw)
+    customer = make_profile(role=Role.customer)
+
+    with pytest.raises(ForbiddenError):
+        await uc.get_image_upload_url(customer, content_type="image/jpeg", filename="f.jpg", bucket="salon-images")
+
+
+# ---------------------------------------------------------------------------
+# Staff photo upload URL
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_staff_photo_upload_url_returns_upload_result():
+    repo = make_mock_repo()
+    repo.get_owner_salon.return_value = SALON
+    gw = _FakeStorageGateway()
+    uc = OwnerUseCases(repo, storage_gateway=gw)
+    owner = make_owner()
+
+    result = await uc.get_staff_photo_upload_url(
+        owner,
+        staff_id="staff-007",
+        content_type="image/webp",
+        filename="photo.webp",
+        bucket="salon-images",
+    )
+
+    assert "upload_url" in result
+    assert "public_url" in result
+    assert result["expires_in"] == 300
+    # Object key must be scoped to salon + staff
+    assert "staff-photos/salon-001/staff-007/" in result["upload_url"]
+    assert "staff-photos/salon-001/staff-007/" in result["public_url"]
+
+
+@pytest.mark.asyncio
+async def test_get_staff_photo_upload_url_raises_when_no_gateway():
+    repo = make_mock_repo()
+    repo.get_owner_salon.return_value = SALON
+    uc = OwnerUseCases(repo)  # no storage_gateway
+    owner = make_owner()
+
+    with pytest.raises(ValidationError, match="R2 storage gateway is missing"):
+        await uc.get_staff_photo_upload_url(
+            owner, staff_id="staff-007", content_type="image/jpeg", filename="f.jpg", bucket="salon-images"
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_staff_photo_upload_url_raises_for_non_owner():
+    repo = make_mock_repo()
+    gw = _FakeStorageGateway()
+    uc = OwnerUseCases(repo, storage_gateway=gw)
+    customer = make_profile(role=Role.customer)
+
+    with pytest.raises(ForbiddenError):
+        await uc.get_staff_photo_upload_url(
+            customer, staff_id="staff-007", content_type="image/jpeg", filename="f.jpg", bucket="salon-images"
+        )
