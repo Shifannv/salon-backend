@@ -30,11 +30,6 @@ A concise integration guide for the shared FastAPI backend.
 EXPO_PUBLIC_API_URL=http://localhost:8000
 EXPO_PUBLIC_SUPABASE_URL=https://[PROJECT_REF].supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-EXPO_PUBLIC_GOOGLE_AUTH_REDIRECT_URL=salonapp://auth/callback
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=[WEB_CLIENT_ID].apps.googleusercontent.com
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=[IOS_CLIENT_ID].apps.googleusercontent.com
-# Optional; app.config.js derives this from EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID if omitted.
-EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.[IOS_CLIENT_ID]
 
 # Next.js
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
@@ -55,7 +50,13 @@ Authorization: Bearer <supabase_access_token>
 Content-Type: application/json
 ```
 
-Use Supabase Auth in the client for Google sign-in and session persistence. Native Expo builds use Google Sign-In to get an ID token, then call Supabase `signInWithIdToken` when Google client IDs are configured; web builds and unconfigured local native builds use Supabase `signInWithOAuth`. The backend validates the resulting Supabase JWT and determines the role from `profiles.role`.
+Use Supabase Auth in the client for Google sign-in and session persistence. Native Expo builds should call Supabase `signInWithOAuth` with `skipBrowserRedirect: true`, open the returned URL with Expo `WebBrowser.openAuthSessionAsync`, and exchange the returned PKCE code with `supabase.auth.exchangeCodeForSession`. The backend validates the resulting Supabase JWT and determines the role from `profiles.role`.
+
+The owner app scheme is `salonowner`; add this exact native redirect URL to Supabase Dashboard -> Authentication -> URL Configuration -> Redirect URLs:
+
+```txt
+salonowner://auth/callback
+```
 
 | Role | Primary access |
 | --- | --- |
@@ -467,5 +468,5 @@ All routes in this section require a `super_admin` Supabase access token.
 - Send the Supabase access token only in the `Authorization` header unless an endpoint explicitly asks for a token in its body.
 - Do not write bookings directly to Supabase; use the booking endpoints so availability, authorization, and status rules are enforced.
 - Treat all response money values as strings to avoid floating-point precision issues.
-- Image and holiday delete routes exist but intentionally reject requests until their respective tables support soft deletion. Do not expose these actions in the frontend yet.
+- The holiday delete route exists but intentionally rejects requests until its table supports soft deletion. Do not expose this action in the frontend yet. Image deletion is fully supported.
 - Standard booking responses include status, payment state, salon/staff display information, ordered services, timestamps, and `can_cancel`.

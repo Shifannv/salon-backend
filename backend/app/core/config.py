@@ -1,6 +1,7 @@
 """Environment-backed application configuration."""
 
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic import Field, HttpUrl, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,7 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Runtime settings validated at process boot."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_name: str = "Salon Platform API"
     environment: str = "local"
@@ -31,6 +36,9 @@ class Settings(BaseSettings):
     r2_access_key_id: str | None = None
     r2_secret_access_key: str | None = None
     r2_bucket: str | None = None
+    # Legacy names kept for existing deploy/local env files.
+    r2_endpoint_url: str | None = None
+    r2_bucket_name: str | None = None
     # Public base URL for delivered objects (e.g. https://pub-xxx.r2.dev or a custom domain).
     # Must NOT have a trailing slash.
     r2_public_url: str | None = None
@@ -49,6 +57,21 @@ class Settings(BaseSettings):
     db_pool_size: int = 5
     db_max_overflow: int = 5
     db_pool_timeout_seconds: int = 10
+
+    @model_validator(mode="after")
+    def normalize_legacy_r2_settings(self) -> "Settings":
+        """Accept older R2 env names used by earlier deployment setup."""
+
+        if not self.r2_bucket and self.r2_bucket_name:
+            self.r2_bucket = self.r2_bucket_name
+
+        if not self.r2_account_id and self.r2_endpoint_url:
+            host = urlparse(self.r2_endpoint_url).hostname or ""
+            suffix = ".r2.cloudflarestorage.com"
+            if host.endswith(suffix):
+                self.r2_account_id = host.removesuffix(suffix)
+
+        return self
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":

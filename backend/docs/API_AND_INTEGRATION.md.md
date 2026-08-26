@@ -35,11 +35,6 @@ EXPO_PUBLIC_API_URL=https://apiv1.mudassirmhd.in
 
 EXPO_PUBLIC_SUPABASE_URL=https://[PROJECT_REF].supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-EXPO_PUBLIC_GOOGLE_AUTH_REDIRECT_URL=salonapp://auth/callback
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=[WEB_CLIENT_ID].apps.googleusercontent.com
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=[IOS_CLIENT_ID].apps.googleusercontent.com
-# Optional; app.config.js derives this from EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID if omitted.
-EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.[IOS_CLIENT_ID]
 
 # Next.js
 NEXT_PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
@@ -60,7 +55,13 @@ Authorization: Bearer <supabase_access_token>
 Content-Type: application/json
 ```
 
-Use Supabase Auth in the client for Google sign-in and session persistence. Native Expo builds use Google Sign-In to get an ID token, then call Supabase `signInWithIdToken` when Google client IDs are configured; web builds and unconfigured local native builds use Supabase `signInWithOAuth`. The backend validates the resulting Supabase JWT and determines the role from `profiles.role`.
+Use Supabase Auth in the client for Google sign-in and session persistence. Native Expo builds should call Supabase `signInWithOAuth` with `skipBrowserRedirect: true`, open the returned URL with Expo `WebBrowser.openAuthSessionAsync`, and exchange the returned PKCE code with `supabase.auth.exchangeCodeForSession`. The backend validates the resulting Supabase JWT and determines the role from `profiles.role`.
+
+The owner app scheme is `salonowner`; add this exact native redirect URL to Supabase Dashboard -> Authentication -> URL Configuration -> Redirect URLs:
+
+```txt
+salonowner://auth/callback
+```
 
 | Role | Primary access |
 | --- | --- |
@@ -193,7 +194,7 @@ Use `working_hours` as a JSON object keyed by day:
 | `GET` | `/v1/salons/me/images` | Owner | List salon images |
 | `POST` | `/v1/salons/me/images` | Owner | Add a salon image |
 | `PATCH` | `/v1/salons/me/images/{image_id}` | Owner | Update image metadata |
-| `DELETE` | `/v1/salons/me/images/{image_id}` | Owner | Reserved; currently rejects deletion |
+| `DELETE` | `/v1/salons/me/images/{image_id}` | Owner | Soft-delete a salon image |
 | `GET` | `/v1/salons/me/holidays` | Owner | List holidays |
 | `POST` | `/v1/salons/me/holidays` | Owner | Add a holiday |
 | `DELETE` | `/v1/salons/me/holidays/{holiday_id}` | Owner | Reserved; currently rejects deletion |

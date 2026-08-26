@@ -337,7 +337,10 @@ class PlatformRepository:
         return grouped
 
     async def list_salon_images(self, salon_id: str) -> list[dict[str, Any]]:
-        """List images for a salon."""
+        """List active images for a salon.
+
+        Soft-deleted images (is_active = false) are excluded.
+        """
 
         result = await self.session.execute(
             text(
@@ -345,6 +348,7 @@ class PlatformRepository:
                 select id, salon_id, url, caption, is_main, sort_order, created_at, updated_at
                 from salon_images
                 where salon_id = :salon_id
+                  and is_active = true
                 order by is_main desc, sort_order asc, created_at asc
                 """
             ),
@@ -359,6 +363,33 @@ class PlatformRepository:
             }
             for row in rows
         ]
+
+    async def delete_salon_image(self, actor_id: str, image_id: str) -> str | None:
+        """Soft-delete a salon image (set is_active = false).
+
+        Returns the ``url`` of the deleted row so the caller can clean up the
+        corresponding R2 object, or ``None`` if the image was not found.
+        """
+
+        salon = await self.get_owner_salon(actor_id)
+        result = await self.session.execute(
+            text(
+                """
+                update salon_images
+                   set is_active = false
+                 where id = :image_id
+                   and salon_id = :salon_id
+                   and is_active = true
+                returning url
+                """
+            ),
+            {"image_id": image_id, "salon_id": salon["id"]},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            return None
+        await self.session.commit()
+        return str(row["url"])
 
     async def get_owner_salon(self, actor_id: str) -> dict[str, Any]:
         """Return the salon owned by an actor, auto-provisioning a blank one on first login.

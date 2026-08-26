@@ -127,18 +127,63 @@ def test_staff_service_response_normalizes_uuid_ids_for_api_schema():
 
 
 # ---------------------------------------------------------------------------
-# Images — soft delete not supported
+# Images — soft delete
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_delete_image_raises_validation_error():
+async def test_delete_image_soft_deletes_and_calls_r2():
+    """delete_image soft-deletes the DB row and removes the R2 object."""
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import NotFoundError
+
     repo = make_mock_repo()
+    repo.get_owner_salon.return_value = SALON
+    # Simulate the DB returning the deleted image's URL
+    deleted_url = "https://pub-test.r2.dev/salon-images/salon-001/abc.jpeg"
+    repo.delete_salon_image = AsyncMock(return_value=deleted_url)
+
+    storage = AsyncMock()
+    storage.delete_object = AsyncMock()
+
+    uc = OwnerUseCases(repo, storage_gateway=storage)
+    owner = make_owner()
+
+    await uc.delete_image(
+        owner,
+        image_id="image-001",
+        bucket="salon-images",
+        r2_public_base="https://pub-test.r2.dev",
+    )
+
+    repo.delete_salon_image.assert_awaited_once_with(owner.id, "image-001")
+    storage.delete_object.assert_awaited_once_with(
+        "salon-images", "salon-images/salon-001/abc.jpeg"
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_image_raises_not_found_when_missing():
+    """delete_image raises NotFoundError if the image does not exist."""
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import NotFoundError
+
+    repo = make_mock_repo()
+    repo.get_owner_salon.return_value = SALON
+    repo.delete_salon_image = AsyncMock(return_value=None)  # row not found
+
     uc = OwnerUseCases(repo)
     owner = make_owner()
 
-    with pytest.raises(ValidationError, match="soft delete"):
-        await uc.delete_image(owner, "image-001")
+    with pytest.raises(NotFoundError, match="Image not found"):
+        await uc.delete_image(
+            owner,
+            image_id="missing-id",
+            bucket="salon-images",
+            r2_public_base="https://pub-test.r2.dev",
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -256,14 +256,48 @@ class OwnerUseCases:
         self._assert_owner_workspace(actor)
         return await self.repository.update_salon_image(actor.id, image_id, values)
 
-    async def delete_image(self, _actor: Profile, _image_id: str) -> None:
-        """Not yet implemented — salon images have no is_active column for soft delete.
+    async def delete_image(
+        self,
+        actor: Profile,
+        image_id: str,
+        bucket: str,
+        r2_public_base: str,
+    ) -> None:
+        """Soft-delete a salon image and best-effort remove the R2 object.
 
-        Raises ``ValidationError`` so the HTTP layer returns 501 Not Implemented.
-        The route exists as a stub so the API surface is complete when the migration lands.
+        Steps:
+        1. Soft-delete the DB row (set is_active = false) and retrieve its URL.
+        2. Extract the R2 object key from the URL.
+        3. Delete the object from R2 (best-effort — a failure is logged but does
+           not roll back the DB soft-delete so the image stays hidden from users).
+
+        Args:
+            actor: Authenticated owner/staff profile.
+            image_id: UUID of the image to delete.
+            bucket: R2 bucket name (read from settings in the router).
+            r2_public_base: Configured R2_PUBLIC_URL base used to derive the key.
+
+        Raises:
+            NotFoundError: If the image does not exist or belongs to another salon.
         """
+        self._assert_owner_workspace(actor)
 
-        raise ValidationError("Image deletion is not yet implemented. The schema does not support soft delete for salon images.")
+        deleted_url = await self.repository.delete_salon_image(actor.id, image_id)
+        if deleted_url is None:
+            raise NotFoundError("Image not found or already deleted")
+
+        # Best-effort R2 cleanup — never block the response on storage errors.
+        if self.storage_gateway and r2_public_base:
+            key = _extract_r2_object_key(deleted_url, r2_public_base)
+            if key:
+                try:
+                    await self.storage_gateway.delete_object(bucket, key)
+                except Exception:
+                    _log.warning(
+                        "Failed to delete salon image from R2 (key=%s). "
+                        "The DB row has already been soft-deleted.",
+                        key,
+                    )
 
     async def get_image_upload_url(
         self,

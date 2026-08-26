@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: salon-platform-api:latest
+    image: ${SALON_API_IMAGE:-salon-platform-api:latest}
     container_name: salon-platform-api
     env_file:
       - .env

@@ -34,6 +34,7 @@ from app.api.v1.schemas.platform import (
 from app.application.ports.storage_gateway import StorageGateway
 from app.application.use_cases.platform import OwnerUseCases
 from app.core.config import settings
+from app.core.exceptions import ValidationError
 from app.core.qr import make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -141,6 +142,7 @@ class QrCodeUrlResponse(BaseModel):
     "/me/qr",
     response_model=None,
     status_code=status.HTTP_200_OK,
+    response_model=None,
     summary="Get salon walk-in QR code URL",
     description=(
         "Returns the permanent URL of the salon's walk-in QR code PNG stored in Cloudflare R2. "
@@ -148,7 +150,7 @@ class QrCodeUrlResponse(BaseModel):
         "database (`salons.qr_image_url`). Subsequent calls return the cached URL instantly "
         "with no image generation. "
         "The QR encodes: <WALKIN_BASE_URL>/<qr_token>. "
-        "If R2 is not configured the response falls back to a streaming PNG for local dev."
+        "Cloudflare R2 must be configured before the first request can persist the QR image."
     ),
     responses={
         200: {
@@ -163,18 +165,18 @@ class QrCodeUrlResponse(BaseModel):
                         "required": ["url"],
                     }
                 },
-                "image/png": {"schema": {"type": "string", "format": "binary"}},
+                "image/svg+xml": {"schema": {"type": "string"}},
             },
-            "description": "QR code URL (JSON) or raw PNG stream in fallback mode.",
+            "description": "QR code URL as JSON, or SVG when format=svg.",
         }
     },
 )
 async def get_my_qr(
     fmt: str = Query(
-        default="png",
+        default="url",
         alias="format",
         pattern="^(png|svg|url)$",
-        description="'url' (default JSON response with CDN link), 'png' stream, or 'svg' stream.",
+        description="'url' returns cached CDN link, 'png' is a legacy alias, or 'svg' streams SVG.",
     ),
     scale: int = Query(
         default=12,
@@ -188,7 +190,7 @@ async def get_my_qr(
 ) -> StreamingResponse | JSONResponse:
     """Return the owner's salon walk-in QR code.
 
-    Primary path (format=png, default): checks if the image is already uploaded to R2.
+    Primary path (format=url, default): checks if the image is already uploaded to R2.
     - If yes  → returns { url, cached: true } immediately.
     - If no   → generates PNG via segno, uploads to R2, stores the URL, returns { url, cached: false }.
 
@@ -209,7 +211,7 @@ async def get_my_qr(
             headers={"Content-Disposition": f'attachment; filename="{salon_name}_qr.svg"'},
         )
 
-    # PNG — check the write-once cache first
+    # PNG URL — check the write-once cache first
     cached_url = await repo.get_qr_image_url(salon_id)
     if cached_url:
         return JSONResponse(content={"url": cached_url, "cached": True})
@@ -226,14 +228,10 @@ async def get_my_qr(
         )
         await repo.set_qr_image_url(salon_id, public_url)
         return JSONResponse(content={"url": public_url, "cached": False})
-    except Exception:
-        # R2 not configured or upload failed — fall back to streaming the PNG directly.
-        # The URL will not be cached, so next request will try R2 again.
-        return StreamingResponse(
-            iter([png_bytes]),
-            media_type="image/png",
-            headers={"Content-Disposition": f'attachment; filename="{salon_name}_qr.png"'},
-        )
+    except ValidationError:
+        raise
+    except Exception as exc:
+        raise ValidationError("Could not store salon QR image") from exc
 
 
 # ── Images ────────────────────────────────────────────────────────────────────
@@ -323,20 +321,29 @@ async def update_image(
 
 @router.delete(
     "/me/images/{image_id}",
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
-    summary="Delete owner salon image (not implemented)",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete owner salon image",
+    description=(
+        "Soft-deletes the salon image (sets `is_active = false`) and best-effort "
+        "removes the corresponding object from Cloudflare R2. "
+        "Returns 204 on success, 404 if the image is not found or already deleted."
+    ),
 )
 async def delete_image(
     image_id: str,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
-) -> JSONResponse:
-    """Return 501 — image deletion is not yet supported in the current schema."""
+    storage_gateway: StorageGateway = Depends(get_storage_gateway),
+) -> Response:
+    """Soft-delete a salon image and remove the corresponding R2 object."""
 
-    return JSONResponse(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        content={"error": {"code": "not_implemented", "message": "Image deletion is not yet implemented."}},
+    await _use_cases(session, storage_gateway).delete_image(
+        actor,
+        image_id=image_id,
+        bucket=_bucket(),
+        r2_public_base=settings.r2_public_url or "",
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Holidays ──────────────────────────────────────────────────────────────────

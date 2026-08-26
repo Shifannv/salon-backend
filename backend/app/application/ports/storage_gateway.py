@@ -56,8 +56,9 @@ class StorageGateway(ABC):
     async def delete_object(self, bucket: str, path: str) -> None:
         """Delete an object from storage. No-op if the object does not exist.
 
-        Not yet wired to any HTTP route — the 501 stub remains until the schema
-        supports soft-delete on ``salon_images``.
+        Called best-effort after a salon image soft-delete so the binary is
+        removed from R2.  A storage failure must not prevent the DB soft-delete
+        from being committed.
 
         Args:
             bucket: Storage bucket name.
