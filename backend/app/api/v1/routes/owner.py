@@ -142,7 +142,6 @@ class QrCodeUrlResponse(BaseModel):
     "/me/qr",
     response_model=None,
     status_code=status.HTTP_200_OK,
-    response_model=None,
     summary="Get salon walk-in QR code URL",
     description=(
         "Returns the permanent URL of the salon's walk-in QR code PNG stored in Cloudflare R2. "

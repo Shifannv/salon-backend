@@ -136,8 +136,6 @@ async def test_delete_image_soft_deletes_and_calls_r2():
     """delete_image soft-deletes the DB row and removes the R2 object."""
     from unittest.mock import AsyncMock
 
-    from app.core.exceptions import NotFoundError
-
     repo = make_mock_repo()
     repo.get_owner_salon.return_value = SALON
     # Simulate the DB returning the deleted image's URL
