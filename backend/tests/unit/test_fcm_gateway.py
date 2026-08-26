@@ -134,7 +134,13 @@ async def test_raw_fcm_without_credentials_records_failed_delivery() -> None:
     """Raw FCM tokens are not silently dropped when Firebase credentials are absent."""
 
     session = FakeSession("raw-fcm-token", platform="android")
-    gateway = FCMGateway(Settings(environment="test"), session)  # type: ignore[arg-type]
+    # Explicitly set firebase_credentials_json=None so the test always hits the
+    # "credentials missing" branch, even when a real .env with Firebase creds
+    # is present on the developer's machine or CI environment.
+    gateway = FCMGateway(
+        Settings(environment="test", firebase_credentials_json=None),  # type: ignore[arg-type]
+        session,
+    )
 
     await gateway.fan_out(NOTIFICATION["id"], "user-001")
 

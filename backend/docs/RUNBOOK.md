@@ -137,10 +137,14 @@ In that case, query the `blocked_slots` table for the staff member and the time 
 
 ### Push notifications not delivered
 
-1. Check `FIREBASE_CREDENTIALS_JSON` is set and is valid JSON (no trailing newline).
+1. Check `FIREBASE_CREDENTIALS_JSON` is set and is valid JSON. Store the service-account
+   JSON as an environment variable on the server; do not commit the JSON file.
 2. Query `notification_deliveries` for `delivered = false` rows and inspect `error`.
-3. If `error` contains `registration-token-not-registered`, the device token is stale.
-   The gateway deactivates it automatically on first failure — no action needed.
+3. Expo app tokens start with `ExponentPushToken[` and are sent through Expo's push API.
+   Raw FCM registration tokens require `FIREBASE_CREDENTIALS_JSON`.
+4. If `error` contains `registration-token-not-registered` or Expo reports
+   `DeviceNotRegistered`, the device token is stale. The gateway deactivates it
+   automatically on first failure — no action needed.
 
 ---
 

@@ -18,6 +18,7 @@ from app.infrastructure.r2.storage import R2StorageGateway
 # ---------------------------------------------------------------------------
 
 _FULL_SETTINGS = Settings(
+    _env_file=None,
     r2_account_id="test-account",
     r2_access_key_id="test-key",
     r2_secret_access_key="test-secret",
@@ -26,6 +27,7 @@ _FULL_SETTINGS = Settings(
 )
 
 _PARTIAL_SETTINGS = Settings(
+    _env_file=None,
     r2_account_id="test-account",
     # r2_access_key_id intentionally missing
     r2_secret_access_key="test-secret",
@@ -63,6 +65,7 @@ def test_get_public_url_constructs_url_correctly():
 
 def test_get_public_url_strips_trailing_slash_from_base():
     settings = Settings(
+        _env_file=None,
         r2_account_id="acct",
         r2_access_key_id="key",
         r2_secret_access_key="sec",
