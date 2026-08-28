@@ -1269,7 +1269,14 @@ class PlatformRepository:
             ),
             {"actor_id": actor_id},
         )
-        return [dict(row) for row in result.mappings().all()]
+        rows = []
+        for row in result.mappings().all():
+            r = dict(row)
+            for col in ("id", "user_id", "booking_id"):
+                if r.get(col) is not None:
+                    r[col] = str(r[col])
+            rows.append(r)
+        return rows
 
     async def mark_notification_read(self, actor_id: str, notification_id: str) -> dict[str, Any]:
         """Mark one notification as read."""
@@ -1289,7 +1296,11 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Notification not found")
         await self.session.commit()
-        return dict(row)
+        r = dict(row)
+        for col in ("id", "user_id", "booking_id"):
+            if r.get(col) is not None:
+                r[col] = str(r[col])
+        return r
 
     # register_device with actor_id is defined in the section below (line ~1334)
 
