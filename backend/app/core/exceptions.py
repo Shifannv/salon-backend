@@ -80,9 +80,49 @@ def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str
 def register_exception_handlers(app: FastAPI) -> None:
     """Register one HTTP translation point for application exceptions."""
 
+    from fastapi.exceptions import RequestValidationError
     from sqlalchemy.exc import SQLAlchemyError
 
     from app.core.config import settings
+
+    @app.exception_handler(RequestValidationError)
+    async def safe_validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """Override FastAPI's default 422 handler to avoid UnicodeDecodeError.
+
+        FastAPI's built-in handler calls ``jsonable_encoder(exc.errors())``,
+        which tries to UTF-8–decode any ``bytes`` values embedded in the error
+        detail.  When a client sends a binary file (e.g. a JPEG) to a JSON
+        endpoint the raw bytes end up in the validation-error context and the
+        decode crashes with ``UnicodeDecodeError``.
+
+        This handler sanitises the error list before serialising it: any
+        ``bytes`` value is replaced with a human-readable placeholder so the
+        server always returns a clean 422 JSON response.
+        """
+
+        def _sanitise(obj: object) -> object:
+            """Recursively replace bytes with a safe placeholder."""
+            if isinstance(obj, bytes):
+                return f"<{len(obj)} binary bytes — not shown>"
+            if isinstance(obj, dict):
+                return {k: _sanitise(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_sanitise(i) for i in obj]
+            return obj
+
+        safe_errors = _sanitise(exc.errors())
+        logger.warning(
+            "Request validation error on %s %s: %s",
+            request.method,
+            request.url.path,
+            safe_errors,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": safe_errors},
+        )
 
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
