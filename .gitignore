@@ -159,6 +159,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Firebase service account secrets
+*firebase-adminsdk*.json
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -220,3 +223,5 @@ __marimo__/
 .streamlit/secrets.toml
 
 frontend/
+
+changes-log.txt
