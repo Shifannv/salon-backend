@@ -370,12 +370,13 @@ async def test_get_image_upload_url_returns_upload_result():
 
 @pytest.mark.asyncio
 async def test_get_image_upload_url_raises_when_no_gateway():
+    """Calling get_image_upload_url without a gateway is a programming error."""
     repo = make_mock_repo()
     repo.get_owner_salon.return_value = SALON
-    uc = OwnerUseCases(repo)  # no storage_gateway
+    uc = OwnerUseCases(repo)  # no storage_gateway — assert guards against this
     owner = make_owner()
 
-    with pytest.raises(ValidationError, match="R2 storage gateway is missing"):
+    with pytest.raises(AssertionError, match="storage_gateway is required for image upload"):
         await uc.get_image_upload_url(owner, content_type="image/jpeg", filename="f.jpg", bucket="salon-images")
 
 
@@ -421,12 +422,13 @@ async def test_get_staff_photo_upload_url_returns_upload_result():
 
 @pytest.mark.asyncio
 async def test_get_staff_photo_upload_url_raises_when_no_gateway():
+    """Calling get_staff_photo_upload_url without a gateway is a programming error."""
     repo = make_mock_repo()
     repo.get_owner_salon.return_value = SALON
-    uc = OwnerUseCases(repo)  # no storage_gateway
+    uc = OwnerUseCases(repo)  # no storage_gateway — assert guards against this
     owner = make_owner()
 
-    with pytest.raises(ValidationError, match="R2 storage gateway is missing"):
+    with pytest.raises(AssertionError, match="storage_gateway is required for staff photo upload"):
         await uc.get_staff_photo_upload_url(
             owner, staff_id="staff-007", content_type="image/jpeg", filename="f.jpg", bucket="salon-images"
         )

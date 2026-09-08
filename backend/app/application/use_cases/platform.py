@@ -187,11 +187,13 @@ class CustomerUseCases:
 
         Returns:
             Dict with keys: upload_url, public_url, expires_in.
+
+        Note:
+            ``storage_gateway`` is always a fully configured ``R2StorageGateway``
+            when called from the router — ``get_storage_gateway()`` validates R2
+            env vars at dependency-injection time before this method is reached.
         """
-        if not self.storage_gateway:
-            raise ValidationError(
-                "Image upload is not configured on this server (R2 storage gateway is missing)."
-            )
+        assert self.storage_gateway is not None, "storage_gateway is required for avatar upload"
 
         ext = _derive_extension(filename)
         # Use a fixed canonical key so re-uploads overwrite the previous object
@@ -321,13 +323,14 @@ class OwnerUseCases:
 
         Returns:
             Dict with keys: upload_url, public_url, expires_in.
+
+        Note:
+            ``storage_gateway`` is always a fully configured ``R2StorageGateway``
+            when called from the router — ``get_storage_gateway()`` validates R2
+            env vars at dependency-injection time before this method is reached.
         """
         self._assert_owner_workspace(actor)
-
-        if not self.storage_gateway:
-            raise ValidationError(
-                "Image upload is not configured on this server (R2 storage gateway is missing)."
-            )
+        assert self.storage_gateway is not None, "storage_gateway is required for image upload"
 
         salon = await self.get_my_salon(actor)
         salon_id = str(salon["id"])
@@ -363,13 +366,14 @@ class OwnerUseCases:
 
         Returns:
             Dict with keys: upload_url, public_url, expires_in.
+
+        Note:
+            ``storage_gateway`` is always a fully configured ``R2StorageGateway``
+            when called from the router — ``get_storage_gateway()`` validates R2
+            env vars at dependency-injection time before this method is reached.
         """
         self._assert_owner_workspace(actor)
-
-        if not self.storage_gateway:
-            raise ValidationError(
-                "Image upload is not configured on this server (R2 storage gateway is missing)."
-            )
+        assert self.storage_gateway is not None, "storage_gateway is required for staff photo upload"
 
         salon = await self.get_my_salon(actor)
         salon_id = str(salon["id"])
@@ -626,15 +630,12 @@ class BookingUseCases:
         reason_code: str | None = None,
         reason_text: str | None = None,
     ) -> dict[str, Any]:
-        """Cancel a booking with role-scoped ownership.
+        """Cancel a booking as the customer.
 
-        ``reason_code`` mirrors the frontend ``CancellationReasonChip`` values;
-        ``reason_text`` holds any free-text note. Both are accepted so the
-        endpoint returns 200 instead of 422 when the frontend sends a body,
-        but they are **not** persisted to the ``bookings`` row (no column
-        exists for them in the current schema). The frontend stores the full
-        ``CancellationRecord`` directly to Supabase's ``cancellation_records``
-        table in a separate call.
+        ``reason_code`` and ``reason_text`` are accepted for future analytics
+        but the customer-side cancel does not persist them to ``bookings`` —
+        customers can cancel without explaining why.  The frontend stores a
+        full ``CancellationRecord`` to Supabase directly if it needs to.
         """
 
         booking = await self.repository.update_booking_status(
@@ -643,11 +644,60 @@ class BookingUseCases:
             "cancelled",
             customer_only=actor.role == Role.customer,
         )
-        if background_tasks is not None and actor.role != Role.customer:
-            # Notify the customer when the salon cancels
+        # No push needed when the customer themselves cancels.
+        return booking
+
+    async def barber_cancel(
+        self,
+        actor: Profile,
+        booking_id: str,
+        background_tasks: BackgroundTasks | None = None,
+        *,
+        reason_code: str,
+        reason_text: str | None = None,
+    ) -> dict[str, Any]:
+        """Cancel a booking as the barber/owner — reason is required.
+
+        Builds a human-readable ``cancellation_reason`` string from the
+        structured ``reason_code`` and optional free-text ``reason_text``,
+        persists it to ``bookings.cancellation_reason``, and notifies the
+        customer via push so they see the reason immediately.
+
+        Args:
+            actor: Must be owner or staff of the booking's salon.
+            booking_id: UUID of the booking to cancel.
+            background_tasks: FastAPI background task runner for push delivery.
+            reason_code: Structured code from ``BarberCancellationReasonCode``.
+            reason_text: Optional free-text context appended to the reason.
+        """
+
+        if not is_owner_or_staff(actor):
+            raise ForbiddenError("Salon workspace access required")
+
+        # Build human-readable label from the structured code.
+        _reason_labels: dict[str, str] = {
+            "barber_unavailable": "Barber unavailable",
+            "salon_emergency": "Salon emergency",
+            "overbooking": "Overbooking",
+            "customer_no_show": "Customer no-show",
+            "equipment_issue": "Equipment issue",
+            "other": "Other reason",
+        }
+        label = _reason_labels.get(reason_code, reason_code.replace("_", " ").capitalize())
+        cancellation_reason = f"{label} — {reason_text}" if reason_text else label
+
+        booking = await self.repository.update_booking_status(
+            actor.id,
+            booking_id,
+            "cancelled",
+            cancellation_reason=cancellation_reason,
+        )
+        if background_tasks is not None:
             background_tasks.add_task(
-                self._notify_customer, booking, "Booking Cancelled",
-                "Your appointment has been cancelled by the salon."
+                self._notify_customer,
+                booking,
+                "Booking Cancelled",
+                f"Your appointment was cancelled by the salon: {cancellation_reason}",
             )
         return booking
 

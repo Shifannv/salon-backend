@@ -389,6 +389,7 @@ class BookingResponse(BaseModel):
     payment_status: str
     payment_method: str | None = None
     rejection_reason: str | None = None
+    cancellation_reason: str | None = None
     notes: str | None = None
     services: list[BookingLineResponse] = Field(default_factory=list)
     # ── Denormalized display fields (joined from salons + staff) ──────────
@@ -410,39 +411,83 @@ class BookingResponse(BaseModel):
 
 
 class RejectBookingRequest(BaseModel):
-    """Reject booking request."""
+    """Reject booking request.
 
-    rejection_reason: str = Field(min_length=1)
+    The barber must pick a reason so the customer knows why their booking
+    was declined.  Free-form text is the backing field; the UI is expected
+    to offer preset chips that map to localised strings.
+    """
+
+    rejection_reason: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Human-readable reason shown to the customer in the push notification and booking detail screen.",
+    )
 
 
-# Reason codes mirror the frontend ``CancellationReasonChip`` union type so
-# the client can send structured data without a free-text-only fallback.
-CancellationReasonCode = Literal[
+# ── Cancellation reason codes ─────────────────────────────────────────────────
+# Customer-side codes — shown in the customer app cancellation flow UI.
+CustomerCancellationReasonCode = Literal[
     "schedule_conflict",
     "found_better",
     "personal_emergency",
     "booked_by_mistake",
     "service_not_needed",
-    "barber_unavailable",
     "other",
 ]
 
+# Barber/owner-side codes — shown in the owner app when cancelling on behalf
+# of the salon.  These are intentionally different from customer codes.
+BarberCancellationReasonCode = Literal[
+    "barber_unavailable",
+    "salon_emergency",
+    "overbooking",
+    "customer_no_show",
+    "equipment_issue",
+    "other",
+]
+
+# Union kept for schema docs / OpenAPI — both sets share the same DB column.
+CancellationReasonCode = CustomerCancellationReasonCode | BarberCancellationReasonCode
+
 
 class CancelBookingRequest(BaseModel):
-    """Optional body for the cancel-booking endpoint.
+    """Optional body for the customer cancel-booking endpoint.
 
-    Both fields are optional so existing callers that POST with an empty body
-    continue to work unchanged.
+    Both fields are optional so customers who cancel without specifying a
+    reason (e.g. one-tap cancel) continue to work unchanged.
     """
 
-    reason_code: CancellationReasonCode | None = Field(
+    reason_code: CustomerCancellationReasonCode | None = Field(
         default=None,
-        description="Structured reason chip from the cancellation flow UI.",
+        description="Structured reason chip from the customer cancellation flow UI.",
     )
     reason_text: str | None = Field(
         default=None,
         max_length=500,
-        description="Free-text note typed by the user (may be empty).",
+        description="Free-text note typed by the customer (may be empty).",
+    )
+
+
+class BarberCancelBookingRequest(BaseModel):
+    """Request body for the barber/owner cancel-booking endpoint.
+
+    ``reason_code`` is **required** when the salon cancels so the customer
+    always receives a clear, localised explanation.  ``reason_text`` is
+    optional additional context.
+
+    The combined human-readable string (e.g. ``"Barber unavailable — staffing
+    issue this week"``) is stored in ``bookings.cancellation_reason`` and sent
+    to the customer as a push notification body.
+    """
+
+    reason_code: BarberCancellationReasonCode = Field(
+        description="Structured reason chip shown to the customer.",
+    )
+    reason_text: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Optional free-text note with additional context (shown to the customer).",
     )
 
 

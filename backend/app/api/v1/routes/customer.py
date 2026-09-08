@@ -2,10 +2,11 @@
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor
+from app.api.v1.schemas.admin import CategoryResponse, SubcategoryResponse
 from app.api.v1.schemas.platform import (
     ProfileResponse,
     ProfileUpdateRequest,
@@ -21,6 +22,7 @@ from app.infrastructure.db.session import get_session
 
 router = APIRouter()
 salons_router = APIRouter()
+catalog_router = APIRouter()
 
 
 def _use_cases(session: AsyncSession) -> CustomerUseCases:
@@ -193,3 +195,52 @@ async def list_salon_staff(
 
     rows = await _use_cases(session).list_salon_staff(salon_id)
     return [PublicStaffResponse(**row) for row in rows]
+
+
+# ── Public catalog endpoints (no auth — used by owner & customer apps) ────────
+
+
+@catalog_router.get(
+    "/categories",
+    response_model=list[CategoryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List active service categories — public",
+    description=(
+        "Returns all active service categories ordered by sort_order. "
+        "Used by the owner app to populate the category picker when creating services, "
+        "and by the customer app for category-based filtering."
+    ),
+)
+async def list_public_categories(
+    session: AsyncSession = Depends(get_session),
+) -> list[CategoryResponse]:
+    """Return active service categories — no authentication required."""
+
+    repo = PlatformRepository(session)
+    rows = await repo.list_categories(include_inactive=False)
+    return [CategoryResponse(**{**row, "id": str(row["id"])}) for row in rows]
+
+
+@catalog_router.get(
+    "/categories/{category_id}/subcategories",
+    response_model=list[SubcategoryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List active subcategories for a category — public",
+    description=(
+        "Returns all active subcategories for the given category. "
+        "Used by the owner app to let the barber pick a specific subcategory "
+        "when creating or editing a service."
+    ),
+)
+async def list_public_subcategories(
+    category_id: str = Path(description="The service category UUID"),
+    session: AsyncSession = Depends(get_session),
+) -> list[SubcategoryResponse]:
+    """Return active subcategories for a category — no authentication required."""
+
+    repo = PlatformRepository(session)
+    rows = await repo.list_subcategories(category_id, include_inactive=False)
+    return [
+        SubcategoryResponse(**{**row, "id": str(row["id"]), "category_id": str(row["category_id"])})
+        for row in rows
+    ]
