@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_authenticated_session, get_current_actor
 from app.api.v1.schemas.platform import (
     AvailabilityResponse,
+    BarberCancelBookingRequest,
     BookingCreateRequest,
     BookingResponse,
     CancelBookingRequest,
@@ -161,7 +162,13 @@ async def complete_booking(
     "/bookings/{booking_id}/cancel",
     response_model=BookingResponse,
     status_code=status.HTTP_200_OK,
-    summary="Cancel booking",
+    summary="Cancel booking (customer)",
+    description=(
+        "Cancels a booking on behalf of the **customer**. "
+        "Both `reason_code` and `reason_text` are optional — "
+        "customers can cancel with a single tap and provide context later. "
+        "To cancel as the **salon/barber**, use `POST /bookings/{id}/cancel/barber`."
+    ),
 )
 async def cancel_booking(
     booking_id: str,
@@ -170,9 +177,41 @@ async def cancel_booking(
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
-    """Cancel a booking. If cancelled by the salon, notifies the customer via push."""
+    """Cancel a booking as the customer. No reason required."""
 
     row = await _use_cases(session).cancel(
+        actor,
+        booking_id,
+        background_tasks,
+        reason_code=payload.reason_code,
+        reason_text=payload.reason_text,
+    )
+    return BookingResponse(**row)
+
+
+@router.post(
+    "/bookings/{booking_id}/cancel/barber",
+    response_model=BookingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Cancel booking (barber/owner)",
+    description=(
+        "Cancels a booking on behalf of the **salon**. "
+        "`reason_code` is **required** so the customer always receives "
+        "a clear explanation. The combined reason is stored in "
+        "`cancellation_reason` and included in the push notification "
+        "sent to the customer."
+    ),
+)
+async def barber_cancel_booking(
+    booking_id: str,
+    payload: BarberCancelBookingRequest,
+    background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> BookingResponse:
+    """Cancel a booking as the barber/owner — requires a reason."""
+
+    row = await _use_cases(session).barber_cancel(
         actor,
         booking_id,
         background_tasks,

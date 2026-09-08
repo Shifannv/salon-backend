@@ -646,17 +646,21 @@ class PlatformRepository:
         return dict(result.mappings().one())
 
     async def list_owner_services(self, actor_id: str) -> list[dict[str, Any]]:
-        """List services for the owner salon."""
+        """List services for the owner salon, including category and subcategory names."""
 
         salon = await self.get_owner_salon(actor_id)
         result = await self.session.execute(
             text(
                 """
-                select id, salon_id, subcategory_id, name, description, duration_minutes,
-                       price, is_active, created_at, updated_at
-                from services
-                where salon_id = :salon_id
-                order by is_active desc, name
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                       sv.duration_minutes, sv.price, sv.is_active,
+                       sv.created_at, sv.updated_at,
+                       sc.name as category_name, ss.name as subcategory_name
+                from services sv
+                left join service_subcategories ss on ss.id = sv.subcategory_id
+                left join service_categories sc on sc.id = ss.category_id
+                where sv.salon_id = :salon_id
+                order by sv.is_active desc, sc.sort_order, ss.sort_order, sv.name
                 """
             ),
             {"salon_id": salon["id"]},
@@ -664,7 +668,7 @@ class PlatformRepository:
         return [self._service_response(row) for row in result.mappings().all()]
 
     async def create_owner_service(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
-        """Create a salon service."""
+        """Create a salon service and return it with category/subcategory names."""
 
         salon = await self.get_owner_salon(actor_id)
         subcategory_id = values.get("subcategory_id") or await self._default_service_subcategory_id()
@@ -673,8 +677,7 @@ class PlatformRepository:
                 """
                 insert into services (salon_id, subcategory_id, name, description, duration_minutes, price, is_active)
                 values (:salon_id, :subcategory_id, :name, :description, :duration_minutes, :price, :is_active)
-                returning id, salon_id, subcategory_id, name, description, duration_minutes,
-                          price, is_active, created_at, updated_at
+                returning id
                 """
             ),
             {
@@ -685,7 +688,8 @@ class PlatformRepository:
             },
         )
         await self.session.commit()
-        return self._service_response(result.mappings().one())
+        service_id = str(result.scalar_one())
+        return await self._get_service_with_categories(service_id)
 
     @staticmethod
     def _service_response(row: Any) -> dict[str, Any]:
@@ -696,6 +700,32 @@ class PlatformRepository:
         service["salon_id"] = str(service["salon_id"])
         service["subcategory_id"] = str(service["subcategory_id"])
         return service
+
+    async def _get_service_with_categories(self, service_id: str) -> dict[str, Any]:
+        """Re-fetch a service row joined with category and subcategory names.
+
+        Used after INSERT/UPDATE where RETURNING cannot join other tables.
+        """
+
+        result = await self.session.execute(
+            text(
+                """
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                       sv.duration_minutes, sv.price, sv.is_active,
+                       sv.created_at, sv.updated_at,
+                       sc.name as category_name, ss.name as subcategory_name
+                from services sv
+                left join service_subcategories ss on ss.id = sv.subcategory_id
+                left join service_categories sc on sc.id = ss.category_id
+                where sv.id = :service_id
+                """
+            ),
+            {"service_id": service_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Service not found")
+        return self._service_response(row)
 
     async def _default_service_subcategory_id(self) -> str:
         """Return a general service subcategory for owner-created services."""
@@ -727,7 +757,7 @@ class PlatformRepository:
     async def update_owner_service(
         self, actor_id: str, service_id: str, values: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update a salon service."""
+        """Update a salon service and return it with category/subcategory names."""
 
         salon = await self.get_owner_salon(actor_id)
         allowed = {key: value for key, value in values.items() if value is not None}
@@ -740,8 +770,7 @@ class PlatformRepository:
                 update services
                 set {assignments}
                 where id = :service_id and salon_id = :salon_id
-                returning id, salon_id, subcategory_id, name, description, duration_minutes,
-                          price, is_active, created_at, updated_at
+                returning id
                 """
             ),
             {**allowed, "service_id": service_id, "salon_id": salon["id"]},
@@ -750,7 +779,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Service not found")
         await self.session.commit()
-        return self._service_response(row)
+        return await self._get_service_with_categories(str(row["id"]))
 
     async def deactivate_owner_service(self, actor_id: str, service_id: str) -> dict[str, Any]:
         """Soft-delete a salon service."""
@@ -1076,7 +1105,7 @@ class PlatformRepository:
                   b.start_datetime, b.end_datetime,
                   b.total_duration_minutes, b.total_price,
                   b.payment_status, b.payment_method,
-                  b.rejection_reason, b.notes,
+                  b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name  as salon_name,
                   s.address as salon_address,
@@ -1134,7 +1163,7 @@ class PlatformRepository:
                   b.start_datetime, b.end_datetime,
                   b.total_duration_minutes, b.total_price,
                   b.payment_status, b.payment_method,
-                  b.rejection_reason, b.notes,
+                  b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name   as salon_name,
                   s.address as salon_address,
@@ -1190,6 +1219,7 @@ class PlatformRepository:
         status: str,
         *,
         rejection_reason: str | None = None,
+        cancellation_reason: str | None = None,
         customer_only: bool = False,
     ) -> dict[str, Any]:
         """Update booking status if visible to the actor."""
@@ -1204,7 +1234,8 @@ class PlatformRepository:
                 f"""
                 update bookings
                 set status = cast(:status as booking_status),
-                    rejection_reason = coalesce(:rejection_reason, rejection_reason)
+                    rejection_reason = coalesce(:rejection_reason, rejection_reason),
+                    cancellation_reason = coalesce(:cancellation_reason, cancellation_reason)
                 where id = :booking_id and ({predicate})
                 returning id
                 """
@@ -1214,6 +1245,7 @@ class PlatformRepository:
                 "booking_id": booking_id,
                 "status": status,
                 "rejection_reason": rejection_reason,
+                "cancellation_reason": cancellation_reason,
             },
         )
         row = result.mappings().one_or_none()

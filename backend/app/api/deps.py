@@ -43,11 +43,18 @@ def get_auth_admin_gateway() -> AuthAdminGateway:
 def get_storage_gateway() -> StorageGateway:
     """Return the configured Cloudflare R2 storage gateway.
 
-    Raises ValidationError (-> HTTP 422) if R2 environment variables are absent,
-    leaving all other endpoints unaffected.
+    Validates that all required R2 environment variables are set at
+    dependency-injection time so callers get a clear error message
+    (e.g. "Cloudflare R2 is not fully configured. Missing: R2_ACCESS_KEY_ID")
+    instead of a cryptic failure deep inside an upload call.
+
+    Raises:
+        ValidationError → HTTP 422 if any R2 env var is absent.
     """
 
-    return R2StorageGateway(settings)
+    gateway = R2StorageGateway(settings)
+    gateway._assert_configured()
+    return gateway
 
 
 async def get_current_actor(
