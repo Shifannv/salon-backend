@@ -86,8 +86,8 @@ async def get_qr_image(
     """Return the salon QR code image for a validated walk-in token."""
 
     # Validate token exists + salon is active before generating anything
-    salon = await _use_cases(session).resolve_qr_token(qr_token)
-    salon_name: str = str(salon.get("name", "salon")).replace(" ", "_").lower()
+    await _use_cases(session).resolve_qr_token(qr_token)
+    salon_name: str = "salon"
 
     if fmt == "svg":
         svg_content = make_qr_svg(qr_token, settings.walkin_base_url, scale=scale)

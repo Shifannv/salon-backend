@@ -2,6 +2,9 @@
 
 A concise integration guide for the shared FastAPI backend.
 
+For frontend setup, authentication, uploads, QR rendering, reports, and deployment
+checklists, use the canonical [Frontend Integration Guide](../../docs/frontend-integration.md).
+
 > **API prefix:** `/v1`  
 > **Interactive API docs (local):** `http://localhost:8000/docs`  
 > **Production API:** `https://apiv1.mudassirmhd.in`
@@ -95,6 +98,7 @@ Common application error codes: `unauthorized`, `forbidden`, `not_found`, `confl
 | `GET` | `/health/db` | No | Check database connectivity |
 | `POST` | `/v1/auth/refresh` | No | Exchange a refresh token for a new session |
 | `GET` | `/v1/auth/me` | Yes | Return the current user profile |
+| `POST` | `/v1/auth/owner-access` | Yes | Claim or confirm owner access after sign-in |
 
 **Refresh a session**
 
@@ -115,6 +119,8 @@ Returns `access_token`, `refresh_token`, `token_type`, and `expires_in`.
 | --- | --- | --- | --- |
 | `GET` | `/v1/customer/profile` | Customer | Get the current profile |
 | `PATCH` | `/v1/customer/profile` | Customer | Update profile fields |
+| `POST` | `/v1/customer/profile/avatar` | Customer / Owner | Upload and persist an avatar |
+| `POST` | `/v1/reports` | Customer / Owner | Submit a salon report |
 
 ```json
 {
@@ -192,9 +198,11 @@ Use `working_hours` as a JSON object keyed by day:
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/v1/salons/me/images` | Owner | List salon images |
+| `POST` | `/v1/salons/me/images/upload-url` | Owner | Get a presigned Cloudflare R2 upload URL |
 | `POST` | `/v1/salons/me/images` | Owner | Add a salon image |
 | `PATCH` | `/v1/salons/me/images/{image_id}` | Owner | Update image metadata |
 | `DELETE` | `/v1/salons/me/images/{image_id}` | Owner | Soft-delete a salon image |
+| `GET` | `/v1/salons/me/qr` | Owner | Return the public QR image URL or SVG |
 | `GET` | `/v1/salons/me/holidays` | Owner | List holidays |
 | `POST` | `/v1/salons/me/holidays` | Owner | Add a holiday |
 | `DELETE` | `/v1/salons/me/holidays/{holiday_id}` | Owner | Reserved; currently rejects deletion |
@@ -232,6 +240,7 @@ Use `working_hours` as a JSON object keyed by day:
 | `POST` | `/v1/salons/me/staff` | Owner | Create a staff member |
 | `PATCH` | `/v1/salons/me/staff/{staff_id}` | Owner | Update staff details |
 | `DELETE` | `/v1/salons/me/staff/{staff_id}` | Owner | Delete staff |
+| `POST` | `/v1/salons/me/staff/{staff_id}/photo-upload-url` | Owner | Get a signed staff-photo upload URL |
 | `POST` | `/v1/salons/me/staff/{staff_id}/services` | Owner | Assign a service to staff |
 | `GET` | `/v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages` | Owner | List languages for a staff service |
 | `PUT` | `/v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages` | Owner | Replace languages for a staff service |
@@ -382,6 +391,7 @@ Payment recording is for salon owner/staff workflows. The customer app should no
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/v1/walkin/{qr_token}` | No | Resolve a salon QR token |
+| `GET` | `/v1/walkin/{qr_token}/qr` | No | Return the QR image as PNG or SVG |
 | `POST` | `/v1/walkin/{qr_token}/verify-phone` | No | Send or verify a phone OTP |
 | `POST` | `/v1/walkin/{qr_token}/bookings` | Yes | Create a booking from a verified QR flow |
 
@@ -484,7 +494,7 @@ All routes in this section require a `super_admin` Supabase access token.
 
 ### Owner setup flow
 
-1. Retrieve the owner salon with `GET /v1/salons/me`.
+1. Call `POST /v1/auth/owner-access`, then retrieve the salon with `GET /v1/salons/me`.
 2. Update salon details and working hours.
 3. Add images, services, and staff.
 4. Assign services and languages to staff.
@@ -498,6 +508,6 @@ All routes in this section require a `super_admin` Supabase access token.
 - Send the Supabase access token only in the `Authorization` header unless an endpoint explicitly asks for a token in its body.
 - Do not write bookings directly to Supabase; use the booking endpoints so availability, authorization, and status rules are enforced.
 - Treat all response money values as strings to avoid floating-point precision issues.
-- Image and holiday delete routes exist but intentionally reject requests until their respective tables support soft deletion. Do not expose these actions in the frontend yet.
+- Salon image deletion is supported through soft delete. Holiday deletion still rejects requests until that table supports soft deletion.
 - Standard booking responses include status, payment state, salon/staff display information, ordered services, timestamps, and `can_cancel`.
 - **Salon discovery uses separate endpoints.** `GET /v1/salons/{salon_id}` returns only core salon fields and images. Services and staff must be fetched independently via `GET /v1/salons/{salon_id}/services` and `GET /v1/salons/{salon_id}/staff`. The `include_services` query parameter no longer exists on the list endpoints.

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Must NOT have a trailing slash.
     r2_public_url: str | None = None
 
+    # Externally reachable API origin used for absolute owner QR image URLs.
+    public_api_base_url: HttpUrl | None = None
+
     # Firebase Cloud Messaging (service account JSON string)
     firebase_credentials_json: str | None = None
 

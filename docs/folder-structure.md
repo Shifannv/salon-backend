@@ -66,6 +66,7 @@ salon-shared-api/
         db/
           session.py
           repositories/
+        r2/
         supabase/
         push/
 
@@ -75,6 +76,8 @@ salon-shared-api/
           router.py
           schemas/
           routes/
+            media.py
+            reports.py
 
     migrations/
       env.py

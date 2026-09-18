@@ -30,9 +30,10 @@ DB_POOL_SIZE=5
 DB_MAX_OVERFLOW=5
 DB_POOL_TIMEOUT_SECONDS=10
 
-# Cloudflare R2 — presigned upload URLs for salon images / staff photos
+PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
+
+# Cloudflare R2
 # Get from Cloudflare Dashboard > R2 > Manage R2 API Tokens.
-# Leave unset to disable the upload-URL endpoint; all other endpoints are unaffected.
 R2_ACCOUNT_ID=YOUR_CLOUDFLARE_ACCOUNT_ID
 R2_ACCESS_KEY_ID=YOUR_R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY=YOUR_R2_SECRET_ACCESS_KEY
@@ -49,6 +50,7 @@ DATABASE_URL=YOUR_PRODUCTION_DATABASE_URL
 FIREBASE_CREDENTIALS_JSON=YOUR_FIREBASE_SERVICE_ACCOUNT_JSON_SINGLE_LINE
 BACKEND_CORS_ORIGINS=["https://YOUR_CUSTOMER_WEB_ORIGIN","https://YOUR_OWNER_WEB_ORIGIN","https://salon-customer-qr-webpage.vercel.app","http://35.254.254.227"]
 WALKIN_BASE_URL=https://salon-customer-qr-webpage.vercel.app/s
+PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
 R2_ACCOUNT_ID=YOUR_CLOUDFLARE_ACCOUNT_ID
 R2_ACCESS_KEY_ID=YOUR_R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY=YOUR_R2_SECRET_ACCESS_KEY

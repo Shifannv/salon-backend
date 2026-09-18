@@ -313,7 +313,7 @@ class OwnerUseCases:
         The client should:
         1. Receive ``upload_url`` and ``public_url`` from this method.
         2. PUT the image binary directly to ``upload_url`` with the matching Content-Type header.
-        3. Call POST /owner/me/images with { "url": public_url } to record the image in the DB.
+        3. Call POST /v1/salons/me/images with { "url": public_url } to record the image in the DB.
 
         Args:
             actor: Authenticated owner/staff profile.
@@ -355,7 +355,7 @@ class OwnerUseCases:
         The client should:
         1. Receive ``upload_url`` and ``public_url`` from this method.
         2. PUT the image binary directly to ``upload_url`` with the matching Content-Type header.
-        3. Call PATCH /owner/me/staff/{staff_id} with { "photo_url": public_url } to record it.
+        3. Call PATCH /v1/salons/me/staff/{staff_id} with { "photo_url": public_url } to record it.
 
         Args:
             actor: Authenticated owner/staff profile.

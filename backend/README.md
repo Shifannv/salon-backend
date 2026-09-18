@@ -46,9 +46,8 @@ See [`docs/DOCKER_DEPLOYMENT.md`](docs/DOCKER_DEPLOYMENT.md).
 
 ## Environment Variables
 
-See **[`docs/API_KEYS_AND_INTEGRATION.md`](docs/API_KEYS_AND_INTEGRATION.md)** for the
-full list of required variables, where to get each key, and step-by-step instructions
-for connecting every frontend.
+See the canonical **[Frontend Integration Guide](../docs/frontend-integration.md)** for
+required variables, authentication, media uploads, QR rendering, and connection steps.
 
 Minimum required in `.env`:
 
@@ -68,7 +67,7 @@ BACKEND_CORS_ORIGINS=["http://localhost:19006","http://localhost:8081","http://l
 
 ```
 GET /health       → { "status": "ok" }
-GET /health/db    → { "status": "ok", "db": "reachable" }
+GET /health/db    → { "status": "ok", "database": "reachable" }
 ```
 
 ---
@@ -78,10 +77,12 @@ GET /health/db    → { "status": "ok", "db": "reachable" }
 | Prefix | Who uses it | Auth |
 |---|---|---|
 | `POST /v1/auth/refresh` · `GET /v1/auth/me` | All clients | Public / Bearer JWT |
+| `POST /v1/customer/profile/avatar` · `/v1/reports` | Customer app | Bearer JWT |
 | `GET /v1/salons` · `/{id}` · `/services` · `/staff` | Customer app | Public |
 | `GET /v1/availability` | Customer app, walk-in web | Public |
 | `GET/POST /v1/bookings` · `/cancel` · `/approve` · `/reject` | Customer & owner apps | Bearer JWT |
 | `GET/PATCH /v1/salons/me` · `/services` · `/staff` · `/blocks` | Owner/barber app | Bearer JWT (owner) |
+| `GET /v1/salons/me/qr` · `/images/upload-url` | Owner/barber app | Bearer JWT (owner) |
 | `GET /v1/walkin/{token}` · `/verify-phone` · `/bookings` | Walk-in QR web | Public / Phone OTP JWT |
 | `GET /v1/notifications` · `/devices` | All apps | Bearer JWT |
 | `POST /v1/admin/salons` · `/categories` · `/subcategories` | Admin only | Bearer JWT (super_admin) |
@@ -158,7 +159,7 @@ cd backend
 .venv/bin/python -m ruff check app  # lint
 ```
 
-36 tests — all passing.
+The full test suite passes at the latest documented verification.
 
 ---
 
@@ -166,7 +167,8 @@ cd backend
 
 | Document | Contents |
 |---|---|
-| [`docs/API_KEYS_AND_INTEGRATION.md`](docs/API_KEYS_AND_INTEGRATION.md) | All env vars, how to connect frontends |
+| [`../docs/frontend-integration.md`](../docs/frontend-integration.md) | Canonical frontend connection guide |
+| [`docs/salon-platform-api-reference.md`](docs/salon-platform-api-reference.md) | Detailed endpoint reference |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layer diagram and rules |
 | [`docs/AUTHORIZATION.md`](docs/AUTHORIZATION.md) | Role-based access, JWT flow |
 | [`docs/BOOKING_FLOW.md`](docs/BOOKING_FLOW.md) | Booking lifecycle, approval modes |

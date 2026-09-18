@@ -8,10 +8,10 @@ executor to remain async-safe inside the FastAPI event loop.
 
 Upload flow
 -----------
-1. Client calls POST /api/v1/owner/me/images/upload-url
+1. Client calls POST /v1/salons/me/images/upload-url
 2. Backend returns { upload_url, public_url, expires_in }
 3. Client PUTs the image binary directly to upload_url (no backend in the path)
-4. Client calls POST /api/v1/owner/me/images with { url: public_url }
+4. Client calls POST /v1/salons/me/images with { url: public_url }
 """
 
 from __future__ import annotations

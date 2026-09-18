@@ -12,6 +12,8 @@ an explicit authorization check in the application layer.
 |---|---|---|
 | Active authenticated user can read self | `GetMe` resolves JWT `sub` to `profiles.id` and rejects inactive profiles | `api/deps.py → get_current_actor` |
 | Customer app profile update | `update_profile` allows `customer` and `owner`; owners can edit their personal account from the customer app | `use_cases/platform.py` |
+| Customer avatar upload | `UploadAvatar` accepts active customers and owners and always writes the authenticated actor's profile | `use_cases/media.py` |
+| Customer salon report | `SubmitReport` accepts active customers and owners; reporter identity comes from the authenticated actor | `use_cases/reports.py` |
 | User can update self (`profiles_self_update`) | `EnsureOwnerAccess` promotes only the actor's own row, and only from `customer` | `use_cases/auth/owner_access.py` |
 | Super-admin creates salon owners | `require_role(Role.super_admin)` dependency | `routes/admin.py` |
 | Super-admin updates/deactivates salons | `require_role(Role.super_admin)` dependency | `routes/admin.py` |

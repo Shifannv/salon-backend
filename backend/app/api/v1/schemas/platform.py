@@ -599,15 +599,13 @@ class BlockedSlotResponse(BaseModel):
 
 
 
-# ── Image upload (Cloudflare R2) ──────────────────────────────────────────────
+# ── Image upload ───────────────────────────────────────────────────────────────
 
 
 class ImageUploadUrlRequest(BaseModel):
-    """Request body for generating a presigned R2 upload URL.
+    """Request body for generating a short-lived R2 upload URL.
 
-    The client uses this to get a short-lived PUT URL so it can upload
-    images directly to Cloudflare R2 without routing binary data through
-    the API server.
+    The client PUTs the image directly to Cloudflare R2 using the returned URL.
     """
 
     content_type: str = Field(
@@ -634,15 +632,15 @@ class ImageUploadUrlRequest(BaseModel):
 
 
 class ImageUploadUrlResponse(BaseModel):
-    """Response containing the presigned upload URL and the resulting public URL.
+    """Response containing the signed upload URL and resulting public URL.
 
     Upload flow:
-    1. POST /owner/me/images/upload-url  → receive upload_url + public_url
+    1. POST /v1/salons/me/images/upload-url  → receive upload_url + public_url
     2. PUT <upload_url> with the image binary and a 'Content-Type: <mime>' header
-    3. POST /owner/me/images { "url": "<public_url>", ... } to record in DB
+    3. POST /v1/salons/me/images { "url": "<public_url>", ... } to record in DB
     """
 
-    upload_url: str = Field(description="Presigned PUT URL. Client must PUT to this within expires_in seconds.")
+    upload_url: str = Field(description="Signed PUT URL. Client must PUT to this within expires_in seconds.")
     public_url: str = Field(description="Permanent public URL of the uploaded object. Store this in the DB.")
     expires_in: int = Field(description="Upload URL TTL in seconds.")
 

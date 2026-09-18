@@ -48,17 +48,22 @@ to a monorepo.
 
 ## Current Backend Status
 
-The active backend currently exposes Phase 1 foundation APIs:
+The active backend exposes the shared MVP API used by the customer, owner/barber, and
+walk-in clients:
 
-- `GET /health`
-- `GET /health/db`
-- `POST /v1/auth/refresh`
-- `GET /v1/auth/me`
-- Supabase Google OAuth JWT verification
+- Process and database health checks
+- Supabase JWT verification, session refresh, profile resolution, and owner access
+- Customer profile and avatar upload
+- Public salon discovery, service catalog, staff, and nearby search
+- Owner salon, R2 gallery upload, QR, service, staff, holiday, and schedule APIs
+- Database-owned availability and booking workflows
+- Appointment status, cancellation, payment, notifications, and device-token APIs
+- Walk-in QR resolution, phone OTP, QR images, and walk-in booking
+- Customer salon reports
 
-Google sign-in is initiated by frontend apps through Supabase Auth. The backend does
-not accept email-password login; it verifies the Supabase access token returned after
-Google OAuth.
+Google sign-in is initiated by frontend apps through Supabase Auth. The backend verifies
+the resulting access token. See [frontend-integration.md](./frontend-integration.md) for
+the current connection contract.
 
 ## Team
 

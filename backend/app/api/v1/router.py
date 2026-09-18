@@ -7,13 +7,17 @@ from app.api.v1.routes import (
     auth,
     bookings,
     customer,
+    media,
     notifications,
     owner,
     profiles,
+    reports,
     walkin,
 )
 
 api_v1_router = APIRouter(prefix="/v1")
+api_v1_router.include_router(media.router, tags=["media"])
+api_v1_router.include_router(reports.router, tags=["reports"])
 api_v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_v1_router.include_router(profiles.router, prefix="/profiles", tags=["profiles"])
 api_v1_router.include_router(admin.router, prefix="/admin", tags=["admin"])
