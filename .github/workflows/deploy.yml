@@ -1,7 +1,7 @@
 # ───────────────────────────────────────────────────────────────────────────────
 # CD — Build, Push & Deploy
 # ───────────────────────────────────────────────────────────────────────────────
-# Triggered when the CI workflow succeeds on main or preview.
+# Started manually from GitHub Actions. Pushing to GitHub does not deploy.
 # Steps:
 #   1. Build the Docker image from backend/Dockerfile
 #   2. Push to Google Artifact Registry
@@ -11,17 +11,14 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main, preview]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 # Only one deploy at a time.
 concurrency:
-  group: deploy-${{ github.event.workflow_run.head_branch }}
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -32,15 +29,10 @@ jobs:
   deploy:
     name: Build, Push & Deploy
     runs-on: ubuntu-latest
-    # Only run when CI succeeded (not on failure/cancellation).
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
     steps:
       # ── Checkout ──────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       # ── Authenticate to Google Cloud ──────────────────────────────────────
       - name: Authenticate to Google Cloud
@@ -58,7 +50,7 @@ jobs:
       - name: Set image tags
         id: tags
         run: |
-          SHORT_SHA="${{ github.event.workflow_run.head_sha }}"
+          SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA::7}"
           echo "sha_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "latest_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> "$GITHUB_OUTPUT"
@@ -114,4 +106,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Image:** \`${{ steps.tags.outputs.sha_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **VM:** \`${{ secrets.GCP_VM_HOST }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Commit:** \`${{ github.event.workflow_run.head_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"

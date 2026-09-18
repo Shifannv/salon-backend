@@ -17,6 +17,8 @@ folder structure, and developer task ownership.
 | [folder-structure.md](./folder-structure.md) | Backend-only repository structure |
 | [database-plan.md](./database-plan.md) | Supabase schema, relationships, and security notes |
 | [frontend-integration.md](./frontend-integration.md) | Canonical frontend setup, auth, R2 media, QR, reports, API flows, and connection checklist |
+| [customer-app-integration.md](./customer-app-integration.md) | Customer app screen-to-endpoint fetch and mutation guide |
+| [owner-app-integration.md](./owner-app-integration.md) | Salon owner app screen-to-endpoint fetch and mutation guide |
 
 ---
 

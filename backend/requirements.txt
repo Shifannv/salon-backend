@@ -21,3 +21,4 @@ segno>=1.6.1
 
 # Cloudflare R2 / S3-compatible object storage — presigned upload URL generation
 boto3>=1.35.0
+colorama
