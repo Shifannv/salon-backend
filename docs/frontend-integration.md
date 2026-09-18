@@ -173,6 +173,10 @@ optional.
 
 ## 6. Frontend API Map
 
+For a screen-by-screen fetch plan and mutation/refetch rules, give the frontend teams
+the dedicated [customer app guide](./customer-app-integration.md) and
+[salon owner app guide](./owner-app-integration.md).
+
 ### Customer app
 
 | Area | Endpoints |

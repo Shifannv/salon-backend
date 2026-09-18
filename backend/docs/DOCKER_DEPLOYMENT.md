@@ -76,6 +76,19 @@ If the VM has a public IP and firewall allows port `8000`, use:
 curl http://YOUR_VM_EXTERNAL_IP:8000/health
 ```
 
+### Manual GitHub Actions Deployment
+
+The `.github/workflows/deploy.yml` workflow is manual-only. A push or successful CI run
+does not deploy the backend. To deploy the version currently on GitHub:
+
+1. Open the repository's **Actions** tab.
+2. Select **Deploy**.
+3. Choose **Run workflow**, select the branch to deploy, and confirm.
+
+The workflow builds that branch's current commit, pushes the image to Google Artifact
+Registry, and restarts the GCP VM container. Push the intended commit and confirm CI
+before starting this workflow.
+
 ## GCP Cloud Run
 
 From the `backend/` folder:
