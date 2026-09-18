@@ -79,7 +79,7 @@ async def update_my_profile(
     summary="Get a signed upload URL for profile avatar",
     description=(
         "Returns a short-lived signed PUT URL and the resulting public URL for "
-        "uploading through the configured ImageKit or R2 provider.\n\n"
+        "uploading a profile avatar directly to Cloudflare R2.\n\n"
         "Available to all authenticated roles (customer, owner, staff).\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"

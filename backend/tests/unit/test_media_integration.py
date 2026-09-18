@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock, Mock
 
-import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -11,24 +10,11 @@ from app.api.deps import get_authenticated_session, get_current_actor, get_stora
 from app.api.v1.routes import media, owner, reports
 from app.application.use_cases.media import MAX_IMAGE_BYTES, UploadAvatar
 from app.application.use_cases.reports import SubmitReport
-from app.core.config import Settings
-from app.core.exceptions import (
-    ForbiddenError,
-    UnauthorizedError,
-    ValidationError,
-    register_exception_handlers,
-)
+from app.core.exceptions import ForbiddenError, ValidationError, register_exception_handlers
 from app.domain.entities.profile import Role
-from app.infrastructure.imagekit.storage import ImageKitStorageGateway
 from tests.conftest import make_owner, make_profile
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"sample"
-
-
-def imagekit_settings():
-    return Settings(_env_file=None, environment="test", storage_provider="imagekit",
-                    imagekit_private_key="test-private-key", imagekit_url_endpoint="https://ik.example.test/app",
-                    public_api_base_url="https://api.example.test")
 
 
 def client_for(router, prefix="/v1"):
@@ -38,36 +24,6 @@ def client_for(router, prefix="/v1"):
     app.dependency_overrides[get_current_actor] = lambda: make_owner()
     app.dependency_overrides[get_authenticated_session] = lambda: Mock()
     return TestClient(app)
-
-
-async def test_imagekit_ticket_tampering_and_expiration(monkeypatch):
-    gateway = ImageKitStorageGateway(imagekit_settings())
-    monkeypatch.setattr("app.infrastructure.imagekit.storage.time.time", lambda: 1000)
-    url = await gateway.get_upload_url("", "avatars/user/image.png", "image/png")
-    ticket = url.rsplit("/", 1)[1]
-    assert gateway.verify_ticket(ticket)["path"] == "avatars/user/image.png"
-    with pytest.raises(UnauthorizedError):
-        gateway.verify_ticket(ticket + "0")
-    monkeypatch.setattr("app.infrastructure.imagekit.storage.time.time", lambda: 1301)
-    with pytest.raises(UnauthorizedError):
-        gateway.verify_ticket(ticket)
-
-
-async def test_imagekit_upload_uses_server_credentials(monkeypatch):
-    post = AsyncMock(return_value=httpx.Response(200, json={"url": "https://ik.example.test/app/a/x.png"},
-                                                request=httpx.Request("POST", "https://upload.imagekit.io")))
-    fake = AsyncMock()
-    fake.__aenter__.return_value.post = post
-    monkeypatch.setattr("app.infrastructure.imagekit.storage.httpx.AsyncClient", lambda **kw: fake)
-    gateway = ImageKitStorageGateway(imagekit_settings())
-    assert await gateway.upload_bytes("", "a/x.png", PNG) == "https://ik.example.test/app/a/x.png"
-    assert post.call_args.kwargs["auth"] == ("test-private-key", "")
-    assert post.call_args.kwargs["data"]["useUniqueFileName"] == "false"
-    post.return_value = httpx.Response(401, text="provider secret detail",
-                                     request=httpx.Request("POST", "https://upload.imagekit.io"))
-    with pytest.raises(ValidationError, match="ImageKit upload failed") as error:
-        await gateway.upload_bytes("", "a/x.png", PNG)
-    assert "provider secret detail" not in str(error.value)
 
 
 async def test_avatar_upload_persists_only_actor_profile():
@@ -113,23 +69,6 @@ def test_avatar_multipart_contract(monkeypatch):
     response = client.post("/v1/customer/profile/avatar", files={"image": ("a.png", PNG, "image/png")})
     assert response.status_code == 200
     assert response.json() == {"avatar_url": "https://cdn.example.test/avatar.png"}
-
-
-async def test_imagekit_put_compatibility(monkeypatch):
-    config = imagekit_settings()
-    monkeypatch.setattr(media, "settings", config)
-    gateway = ImageKitStorageGateway(config)
-    ticket = (await gateway.get_upload_url("", "a/x.png", "image/png")).rsplit("/", 1)[1]
-    upload = AsyncMock()
-    monkeypatch.setattr(ImageKitStorageGateway, "upload_bytes", upload)
-    client = client_for(media.router)
-    assert client.put(f"/v1/media/uploads/{ticket}", content=PNG,
-                      headers={"Content-Type": "image/png"}).status_code == 204
-    upload.assert_awaited_once_with("", "a/x.png", PNG, "image/png")
-    upload.reset_mock()
-    assert client.put(f"/v1/media/uploads/{ticket}", content=PNG,
-                      headers={"Content-Type": "image/jpeg"}).status_code == 422
-    upload.assert_not_awaited()
 
 
 @pytest.mark.parametrize("fmt", ["url", "png", "svg"])

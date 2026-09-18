@@ -9,7 +9,7 @@
 | Backend/database | Supabase Postgres |
 | Authentication provider | Supabase Auth JWTs |
 | Migrations | Alembic with raw SQL baseline |
-| Media storage | ImageKit or Cloudflare R2, selected by environment |
+| Media storage | Cloudflare R2 |
 | Push notifications | Firebase / FCM |
 | Project management | Jira |
 | Source control | GitHub |
@@ -48,10 +48,10 @@ Responsibilities:
 
 ## Media Storage
 
-ImageKit and Cloudflare R2 implement the same backend storage gateway. Frontends request
-a signed upload URL, upload with `PUT`, and persist the returned public URL. Customer
-avatar uploads can also use the authenticated multipart endpoint. Provider secrets stay
-in the backend environment.
+Cloudflare R2 stores salon images, staff photos, customer avatars, and generated media.
+Frontends request a presigned upload URL, upload with `PUT`, and persist the returned
+public URL. Customer avatars can also use the authenticated multipart endpoint. R2
+credentials stay in the backend environment.
 
 ## Firebase / FCM
 

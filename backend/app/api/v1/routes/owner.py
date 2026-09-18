@@ -175,11 +175,11 @@ async def get_my_qr(
     summary="Get a signed upload URL for a salon image",
     description=(
         "Returns a short-lived signed PUT URL and the resulting public URL for "
-        "uploading a salon image through the configured ImageKit or R2 provider.\n\n"
+        "uploading a salon image directly to Cloudflare R2.\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
         "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
-        "3. Call `POST /owner/me/images` with `{ \"url\": \"<public_url>\" }` to record it in the DB."
+        "3. Call `POST /v1/salons/me/images` with `{ \"url\": \"<public_url>\" }` to record it in the DB."
     ),
 )
 async def get_image_upload_url(
@@ -505,11 +505,11 @@ async def list_staff_services(
     summary="Get a signed upload URL for a staff photo",
     description=(
         "Returns a short-lived signed PUT URL and the resulting public URL for "
-        "uploading a staff photo through the configured ImageKit or R2 provider.\n\n"
+        "uploading a staff photo directly to Cloudflare R2.\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
         "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
-        "3. Call `PATCH /owner/me/staff/{staff_id}` with `{ \"photo_url\": \"<public_url>\" }` to persist."
+        "3. Call `PATCH /v1/salons/me/staff/{staff_id}` with `{ \"photo_url\": \"<public_url>\" }` to persist."
     ),
 )
 async def get_staff_photo_upload_url(

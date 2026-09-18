@@ -37,7 +37,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
 
 Only the Supabase anonymous key belongs in a frontend. Database URLs, Supabase service
-role keys, ImageKit private keys, R2 credentials, and Firebase service-account JSON are
+role keys, R2 credentials, and Firebase service-account JSON are
 server secrets.
 
 ## 2. Backend Deployment Requirements
@@ -56,19 +56,9 @@ WALKIN_BASE_URL=https://salon-customer-qr-webpage.vercel.app/s
 PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
 ```
 
-Choose one media provider. ImageKit:
+Cloudflare R2 configuration:
 
 ```env
-STORAGE_PROVIDER=imagekit
-IMAGEKIT_PUBLIC_KEY=YOUR_PUBLIC_KEY
-IMAGEKIT_PRIVATE_KEY=YOUR_PRIVATE_KEY
-IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/YOUR_IMAGEKIT_ID
-```
-
-Cloudflare R2:
-
-```env
-STORAGE_PROVIDER=r2
 R2_ACCOUNT_ID=YOUR_ACCOUNT_ID
 R2_ACCESS_KEY_ID=YOUR_ACCESS_KEY
 R2_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
@@ -248,8 +238,8 @@ already persisted.
 
 ## 8. Owner Gallery and Staff Photo Uploads
 
-The same frontend flow works with ImageKit and R2. The provider choice is entirely a
-backend setting.
+Salon gallery images and staff photos upload directly to Cloudflare R2 through a
+short-lived presigned URL.
 
 1. Request an upload URL:
 
@@ -284,9 +274,7 @@ POST /v1/salons/me/images
 For staff photos, send `PATCH /v1/salons/me/staff/{staff_id}` with
 `{ "photo_url": "<public_url>" }`.
 
-Upload URLs expire after 300 seconds. For ImageKit the URL points to the signed backend
-upload route; for R2 it is an S3-compatible presigned URL. The frontend does not branch
-by provider.
+Upload URLs expire after 300 seconds and use R2's S3-compatible API.
 
 ## 9. Owner QR Flow
 
@@ -408,7 +396,7 @@ Do not display raw response bodies or database/provider details to users.
 - `BACKEND_CORS_ORIGINS` includes each deployed web origin exactly.
 - `PUBLIC_API_BASE_URL` is the externally reachable API origin.
 - `WALKIN_BASE_URL` includes the walk-in route prefix, normally `/s`.
-- Exactly one storage provider is selected and configured on the server.
+- Cloudflare R2 account, S3 access-key pair, bucket, and public URL are configured.
 - Multipart requests do not manually set a boundary.
 - Upload `PUT` requests preserve the requested MIME type.
 

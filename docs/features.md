@@ -70,7 +70,7 @@ truth for task status, assignee, priority, and acceptance criteria.
 
 ### Media Storage
 
-- Cloudflare R2 and ImageKit are supported through `STORAGE_PROVIDER`.
+- Cloudflare R2 provides image storage and presigned direct-upload URLs.
 - The customer avatar endpoint validates JPEG, PNG, and WebP files up to 5 MB.
 - Owner QR image generation does not depend on cloud storage.
 

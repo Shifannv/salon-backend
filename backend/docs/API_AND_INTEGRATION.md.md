@@ -198,7 +198,7 @@ Use `working_hours` as a JSON object keyed by day:
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/v1/salons/me/images` | Owner | List salon images |
-| `POST` | `/v1/salons/me/images/upload-url` | Owner | Get a signed ImageKit/R2 upload URL |
+| `POST` | `/v1/salons/me/images/upload-url` | Owner | Get a presigned Cloudflare R2 upload URL |
 | `POST` | `/v1/salons/me/images` | Owner | Add a salon image |
 | `PATCH` | `/v1/salons/me/images/{image_id}` | Owner | Update image metadata |
 | `DELETE` | `/v1/salons/me/images/{image_id}` | Owner | Soft-delete a salon image |

@@ -1,7 +1,6 @@
 """Environment-backed application configuration."""
 
 from functools import lru_cache
-from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, HttpUrl, model_validator
@@ -44,10 +43,7 @@ class Settings(BaseSettings):
     # Must NOT have a trailing slash.
     r2_public_url: str | None = None
 
-    storage_provider: Literal["r2", "imagekit"] = "r2"
-    imagekit_public_key: str | None = None
-    imagekit_private_key: str | None = None
-    imagekit_url_endpoint: HttpUrl | None = None
+    # Externally reachable API origin used for absolute owner QR image URLs.
     public_api_base_url: HttpUrl | None = None
 
     # Firebase Cloud Messaging (service account JSON string)

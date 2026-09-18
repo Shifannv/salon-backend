@@ -55,7 +55,7 @@ walk-in clients:
 - Supabase JWT verification, session refresh, profile resolution, and owner access
 - Customer profile and avatar upload
 - Public salon discovery, service catalog, staff, and nearby search
-- Owner salon, gallery, ImageKit/R2 upload, QR, service, staff, holiday, and schedule APIs
+- Owner salon, R2 gallery upload, QR, service, staff, holiday, and schedule APIs
 - Database-owned availability and booking workflows
 - Appointment status, cancellation, payment, notifications, and device-token APIs
 - Walk-in QR resolution, phone OTP, QR images, and walk-in booking

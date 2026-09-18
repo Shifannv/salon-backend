@@ -159,7 +159,7 @@ cd backend
 .venv/bin/python -m ruff check app  # lint
 ```
 
-115 tests — all passing at the latest documented verification.
+The full test suite passes at the latest documented verification.
 
 ---
 

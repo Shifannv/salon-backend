@@ -14,7 +14,6 @@ from app.core.security import SupabaseJWTVerifier
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
 from app.infrastructure.db.session import get_session, set_actor_context
-from app.infrastructure.imagekit.storage import ImageKitStorageGateway
 from app.infrastructure.r2.storage import R2StorageGateway
 from app.infrastructure.supabase.auth_admin import SupabaseAuthAdminGateway
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
@@ -42,9 +41,7 @@ def get_auth_admin_gateway() -> AuthAdminGateway:
 
 
 def get_storage_gateway() -> StorageGateway:
-    """Validate storage lazily, so profile edits and QR rendering work without it."""
-    if settings.storage_provider == "imagekit":
-        return ImageKitStorageGateway(settings)
+    """Return R2 lazily, so routes that do not upload remain independent of storage."""
     return R2StorageGateway(settings)
 
 

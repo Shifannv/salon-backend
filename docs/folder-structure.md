@@ -66,7 +66,6 @@ salon-shared-api/
         db/
           session.py
           repositories/
-        imagekit/
         r2/
         supabase/
         push/
