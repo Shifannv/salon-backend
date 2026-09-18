@@ -54,7 +54,11 @@ Deleting a salon image soft-deletes its database row and then attempts to remove
 
 ## QR codes
 
-Owner QR generation is separate from media storage. `GET /v1/salons/me/qr` returns a public PNG URL or an SVG response. The image encodes the absolute walk-in page configured by `WALKIN_BASE_URL`. `PUBLIC_API_BASE_URL` is recommended in production for the returned public QR image URL.
+Owner QR generation is separate from media storage. PostgreSQL generates one unique `qr_token` when the salon record is created. The application never replaces that token during profile or settings updates, so it remains the salon owner's permanent QR identity.
+
+`GET /v1/salons/me/qr` returns a public PNG URL or an SVG response. PNG and SVG files may be rendered on demand, but the same stored token and `WALKIN_BASE_URL` always produce the same QR payload. The QR opens `<WALKIN_BASE_URL>/<qr_token>` and the walk-in frontend uses that token to load the correct salon.
+
+Keep `WALKIN_BASE_URL` stable after printing QR codes. Changing it changes the URL encoded in newly rendered codes even though the salon token remains unchanged. `PUBLIC_API_BASE_URL` is recommended in production for the public QR image URL returned to the owner app.
 
 ## Troubleshooting
 

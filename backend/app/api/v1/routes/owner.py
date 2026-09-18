@@ -139,6 +139,12 @@ class QrCodeUrlResponse(BaseModel):
     response_model=QrCodeUrlResponse,
     status_code=status.HTTP_200_OK,
     summary="Get salon walk-in QR code URL or SVG",
+    description=(
+        "Returns the authenticated owner's salon QR. The QR identity comes from the "
+        "salon's existing database `qr_token`; this endpoint never creates or rotates "
+        "the token. Repeated requests by the same owner therefore return the same QR "
+        "identity."
+    ),
     responses={200: {"content": {"image/svg+xml": {}}}},
 )
 async def get_my_qr(
@@ -148,7 +154,7 @@ async def get_my_qr(
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> Response:
-    """Keep the JSON contract while serving fresh QR images without cloud storage."""
+    """Render the authenticated owner's persisted salon QR identity."""
     salon = await _use_cases(session).get_my_salon(actor)
     qr_token = str(salon["qr_token"])
     if fmt == "svg":

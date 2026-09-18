@@ -87,6 +87,29 @@ def test_owner_qr_does_not_require_storage(monkeypatch, fmt):
         assert response.json()["url"] == "https://api.example.test/v1/walkin/abc123/qr?format=png&scale=12"
 
 
+def test_owner_qr_repeated_clicks_keep_the_same_salon_identity(monkeypatch):
+    """The endpoint reads the owner's stored token and never generates a replacement."""
+
+    uc = AsyncMock()
+    uc.get_my_salon.return_value = {
+        "qr_token": "permanent-owner-salon-token",
+        "id": "salon-001",
+        "name": "Owner Salon",
+    }
+    monkeypatch.setattr(owner, "_use_cases", lambda session: uc)
+    monkeypatch.setattr(owner.settings, "public_api_base_url", "https://api.example.test")
+    client = client_for(owner.router, "/v1/salons")
+
+    first = client.get("/v1/salons/me/qr")
+    second = client.get("/v1/salons/me/qr")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert "permanent-owner-salon-token" in first.json()["url"]
+    assert uc.get_my_salon.await_count == 2
+
+
 async def test_report_authorization_and_actor_identity():
     repo = AsyncMock()
     actor = make_profile()

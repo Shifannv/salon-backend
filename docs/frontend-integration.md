@@ -278,6 +278,11 @@ Upload URLs expire after 300 seconds and use R2's S3-compatible API.
 
 ## 9. Owner QR Flow
 
+The backend creates the salon's unique `qr_token` once with the salon database row. It
+does not generate a new token when the owner app requests the QR. The PNG and SVG can be
+rendered repeatedly, but they encode the same permanent `<WALKIN_BASE_URL>/<qr_token>`
+identity. Keep `WALKIN_BASE_URL` stable after physical QR codes have been printed.
+
 ```http
 GET /v1/salons/me/qr
 Authorization: Bearer <token>
