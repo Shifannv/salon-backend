@@ -9,6 +9,7 @@
 | Backend/database | Supabase Postgres |
 | Authentication provider | Supabase Auth JWTs |
 | Migrations | Alembic with raw SQL baseline |
+| Media storage | ImageKit or Cloudflare R2, selected by environment |
 | Push notifications | Firebase / FCM |
 | Project management | Jira |
 | Source control | GitHub |
@@ -28,7 +29,7 @@ Responsibilities:
 
 ## Supabase
 
-Used for Postgres, Auth, Storage, and database-side booking integrity.
+Used for Postgres, Auth, and database-side booking integrity.
 
 Responsibilities:
 
@@ -44,6 +45,13 @@ Responsibilities:
 - Location-based queries
 - Database functions such as `create_booking` and `get_available_slots`
 - Triggers, audit columns, constraints, and RLS as a second line of defence
+
+## Media Storage
+
+ImageKit and Cloudflare R2 implement the same backend storage gateway. Frontends request
+a signed upload URL, upload with `PUT`, and persist the returned public URL. Customer
+avatar uploads can also use the authenticated multipart endpoint. Provider secrets stay
+in the backend environment.
 
 ## Firebase / FCM
 

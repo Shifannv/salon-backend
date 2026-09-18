@@ -172,10 +172,10 @@ async def get_my_qr(
     "/me/images/upload-url",
     response_model=ImageUploadUrlResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get presigned R2 upload URL for a salon image",
+    summary="Get a signed upload URL for a salon image",
     description=(
-        "Returns a short-lived presigned PUT URL and the resulting public URL for "
-        "uploading a salon image directly to Cloudflare R2.\n\n"
+        "Returns a short-lived signed PUT URL and the resulting public URL for "
+        "uploading a salon image through the configured ImageKit or R2 provider.\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
         "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
@@ -188,7 +188,7 @@ async def get_image_upload_url(
     session: AsyncSession = Depends(get_authenticated_session),
     storage_gateway: StorageGateway = Depends(get_storage_gateway),
 ) -> ImageUploadUrlResponse:
-    """Generate a presigned R2 PUT URL for a direct client image upload."""
+    """Generate a signed PUT URL for a direct client image upload."""
 
     result = await _use_cases(session, storage_gateway).get_image_upload_url(
         actor,
@@ -256,7 +256,7 @@ async def update_image(
     summary="Delete owner salon image",
     description=(
         "Soft-deletes the salon image (sets `is_active = false`) and best-effort "
-        "removes the corresponding object from Cloudflare R2. "
+        "removes the corresponding object from storage when the provider supports it. "
         "Returns 204 on success, 404 if the image is not found or already deleted."
     ),
 )
@@ -266,7 +266,7 @@ async def delete_image(
     session: AsyncSession = Depends(get_authenticated_session),
     storage_gateway: StorageGateway = Depends(get_storage_gateway),
 ) -> Response:
-    """Soft-delete a salon image and remove the corresponding R2 object."""
+    """Soft-delete a salon image and best-effort remove its stored object."""
 
     await _use_cases(session, storage_gateway).delete_image(
         actor,
@@ -502,10 +502,10 @@ async def list_staff_services(
     "/me/staff/{staff_id}/photo-upload-url",
     response_model=ImageUploadUrlResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get presigned R2 upload URL for a staff photo",
+    summary="Get a signed upload URL for a staff photo",
     description=(
-        "Returns a short-lived presigned PUT URL and the resulting public URL for "
-        "uploading a staff member's photo directly to Cloudflare R2.\n\n"
+        "Returns a short-lived signed PUT URL and the resulting public URL for "
+        "uploading a staff photo through the configured ImageKit or R2 provider.\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
         "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
@@ -519,7 +519,7 @@ async def get_staff_photo_upload_url(
     session: AsyncSession = Depends(get_authenticated_session),
     storage_gateway: StorageGateway = Depends(get_storage_gateway),
 ) -> ImageUploadUrlResponse:
-    """Generate a presigned R2 PUT URL for a direct staff photo upload."""
+    """Generate a signed PUT URL for a direct staff photo upload."""
 
     result = await _use_cases(session, storage_gateway).get_staff_photo_upload_url(
         actor,

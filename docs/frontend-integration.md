@@ -1,416 +1,419 @@
 # Frontend Integration Guide
 
-This guide explains how frontend apps connect to the Salon Shared API backend.
+This is the canonical connection guide for every frontend that consumes the Salon
+Platform FastAPI backend. Frontend source code stays in its own repository.
 
-Use this for:
+## 1. API URLs
 
-- Customer App: React Native with Expo
-- Barber/Owner App: React Native with Expo
-- Future admin or walk-in web apps
+| Environment | Base URL |
+| --- | --- |
+| Production | `https://apiv1.mudassirmhd.in` |
+| Same computer / iOS simulator | `http://localhost:8000` |
+| Android emulator | `http://10.0.2.2:8000` |
+| Physical phone | `http://YOUR_COMPUTER_LAN_IP:8000` |
 
-## Backend Base URL
+The backend must run with `--host 0.0.0.0` for a physical phone. Never hard-code a
+base URL in a screen or service.
 
-Frontend apps should not hard-code backend URLs inside screens.
+Expo configuration:
 
-Use an environment variable:
-
-```txt
-EXPO_PUBLIC_API_BASE_URL=http://YOUR_BACKEND_HOST:8000
-```
-
-Local development examples:
-
-```txt
-http://localhost:8000          iOS simulator
-http://10.0.2.2:8000           Android emulator
-http://192.168.1.20:8000       Real phone on same Wi-Fi as backend machine
-```
-
-After deployment:
-
-```txt
-https://api.yourdomain.com
-```
-
-## Start The Backend Locally
-
-From this backend repo:
-
-```bash
-cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Check that the backend is running:
-
-```txt
-GET http://localhost:8000/health
-GET http://localhost:8000/docs
-```
-
-## Configure Expo
-
-In the frontend repo, create or update `.env`:
-
-```txt
-EXPO_PUBLIC_API_BASE_URL=http://YOUR_MAC_IP:8000
+```env
+EXPO_PUBLIC_API_URL=https://apiv1.mudassirmhd.in
+EXPO_PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
 EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
 
-Restart Expo after changing `.env`:
+`EXPO_PUBLIC_API_URL` is the preferred name. `EXPO_PUBLIC_API_BASE_URL` remains a
+supported frontend alias. Restart Expo with `npx expo start --clear` after changing
+environment variables.
+
+Walk-in Next.js configuration:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+```
+
+Only the Supabase anonymous key belongs in a frontend. Database URLs, Supabase service
+role keys, ImageKit private keys, R2 credentials, and Firebase service-account JSON are
+server secrets.
+
+## 2. Backend Deployment Requirements
+
+Before connecting a frontend, the deployed backend must have:
+
+```env
+DATABASE_URL=postgresql+asyncpg://...
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+SUPABASE_JWKS_URL=https://YOUR_PROJECT_REF.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWT_AUDIENCE=authenticated
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+BACKEND_CORS_ORIGINS=["https://YOUR_WEB_APP","http://localhost:8081"]
+WALKIN_BASE_URL=https://salon-customer-qr-webpage.vercel.app/s
+PUBLIC_API_BASE_URL=https://apiv1.mudassirmhd.in
+```
+
+Choose one media provider. ImageKit:
+
+```env
+STORAGE_PROVIDER=imagekit
+IMAGEKIT_PUBLIC_KEY=YOUR_PUBLIC_KEY
+IMAGEKIT_PRIVATE_KEY=YOUR_PRIVATE_KEY
+IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/YOUR_IMAGEKIT_ID
+```
+
+Cloudflare R2:
+
+```env
+STORAGE_PROVIDER=r2
+R2_ACCOUNT_ID=YOUR_ACCOUNT_ID
+R2_ACCESS_KEY_ID=YOUR_ACCESS_KEY
+R2_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
+R2_BUCKET=salon-images
+R2_PUBLIC_URL=https://YOUR_PUBLIC_MEDIA_DOMAIN
+```
+
+Run the reviewed migrations before deploying the new API:
 
 ```bash
-npx expo start --clear
+cd backend
+alembic upgrade head
 ```
 
-## Currently Available APIs
+Migration `0010_salon_reports` creates the table required by `POST /v1/reports`.
 
-The following backend APIs are currently active:
+## 3. Health Checks
 
-```txt
-GET  /health
-GET  /health/db
-POST /v1/auth/refresh
-GET  /v1/auth/me
+`GET /health` returns:
 
-GET   /v1/customer/profile
-PATCH /v1/customer/profile
-
-GET /v1/salons
-GET /v1/salons/nearby
-GET /v1/salons/{salon_id}
-GET /v1/salons/{salon_id}/services
-
-GET    /v1/salons/me
-PATCH  /v1/salons/me
-POST   /v1/salons/me/complete-profile
-PATCH  /v1/salons/me/settings
-GET    /v1/salons/me/images
-POST   /v1/salons/me/images
-POST   /v1/salons/me/images/upload-url
-PATCH  /v1/salons/me/images/{image_id}
-DELETE /v1/salons/me/images/{image_id}
-GET    /v1/salons/me/qr
-GET    /v1/salons/me/holidays
-POST   /v1/salons/me/holidays
-GET    /v1/salons/me/services
-POST   /v1/salons/me/services
-PATCH  /v1/salons/me/services/{service_id}
-DELETE /v1/salons/me/services/{service_id}
-GET    /v1/salons/me/staff
-POST   /v1/salons/me/staff
-PATCH  /v1/salons/me/staff/{staff_id}
-DELETE /v1/salons/me/staff/{staff_id}
-POST   /v1/salons/me/staff/{staff_id}/services
-
-GET  /v1/availability
-POST /v1/bookings
-GET  /v1/bookings
-GET  /v1/bookings/{booking_id}
-POST /v1/bookings/{booking_id}/approve
-POST /v1/bookings/{booking_id}/reject
-POST /v1/bookings/{booking_id}/complete
-POST /v1/bookings/{booking_id}/cancel
-POST /v1/bookings/{booking_id}/payment
-
-GET    /v1/notifications
-POST   /v1/notifications/{notification_id}/read
-POST   /v1/devices
-DELETE /v1/devices/{token}
+```json
+{ "status": "ok" }
 ```
 
-The holiday delete endpoint is intentionally not available as a true delete until
-the schema supports soft delete for that table. Image deletion is fully supported.
+`GET /health/db` returns HTTP `200` when ready:
 
-## API Client Helper
+```json
+{ "status": "ok", "database": "reachable" }
+```
 
-Create a frontend helper such as `src/services/api/client.ts`:
+An unavailable database returns HTTP `503`:
+
+```json
+{ "error": { "code": "service_unavailable", "message": "Database is unavailable" } }
+```
+
+Use `/health` for liveness checks and `/health/db` when database readiness is required.
+
+## 4. Authentication
+
+Supabase Auth owns Google OAuth, phone OTP, session persistence, and refresh tokens.
+The frontend signs in through the Supabase SDK. The backend verifies the returned JWT
+and resolves the user role from `profiles`; the frontend must never send or trust its own
+role value.
+
+Send the Supabase access token on every protected API call:
+
+```http
+Authorization: Bearer <supabase_access_token>
+```
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/auth/refresh` | Refresh a Supabase session |
+| `GET` | `/v1/auth/me` | Get the authenticated profile and database role |
+| `POST` | `/v1/auth/owner-access` | Idempotently create/confirm owner access after owner-app sign-in |
+
+The owner app calls `/v1/auth/owner-access` once after successful Supabase sign-in and
+before requesting `/v1/salons/me`. A new customer profile becomes an owner; existing
+owner, staff, and super-admin roles remain unchanged.
+
+On a `401`, ask Supabase to refresh the session, retry the request once, and return to
+login if refresh fails.
+
+## 5. Shared API Client
+
+The client must handle JSON, multipart forms, raw upload bodies, and `204 No Content`.
+Do not manually set `Content-Type` for `FormData`; React Native supplies the multipart
+boundary.
 
 ```ts
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  process.env.EXPO_PUBLIC_API_BASE_URL;
+
+type ApiErrorBody = {
+  error?: { code?: string; message?: string };
+  detail?: unknown;
+};
 
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  if (!API_BASE_URL) {
-    throw new Error("Missing EXPO_PUBLIC_API_BASE_URL");
+  if (!API_BASE_URL) throw new Error("Missing backend API URL");
+
+  const { data } = await supabase.auth.getSession();
+  const isForm = options.body instanceof FormData;
+  const headers = new Headers(options.headers);
+
+  if (!isForm && options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (data.session?.access_token) {
+    headers.set("Authorization", `Bearer ${data.session.access_token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  if (response.status === 204) return undefined as T;
 
-  const data = await response.json().catch(() => null);
-
+  const body = (await response.json().catch(() => null)) as ApiErrorBody | T | null;
   if (!response.ok) {
-    throw new Error(data?.error?.message || "Request failed");
+    const error = body as ApiErrorBody | null;
+    throw new Error(error?.error?.message ?? `Request failed (${response.status})`);
   }
-
-  return data as T;
+  return body as T;
 }
 ```
 
-## Auth Types
+Public endpoints work without a token. Supplying a valid token to a public endpoint is
+optional.
 
-Create types such as `src/services/api/auth.ts`:
+## 6. Frontend API Map
+
+### Customer app
+
+| Area | Endpoints |
+| --- | --- |
+| Profile | `GET/PATCH /v1/customer/profile`, `POST /v1/customer/profile/avatar` |
+| Discovery | `GET /v1/salons`, `/nearby`, `/{salon_id}`, `/{salon_id}/services`, `/{salon_id}/staff` |
+| Catalog | `GET /v1/catalog/categories`, `/categories/{category_id}/subcategories` |
+| Booking | `GET /v1/availability`, `POST/GET /v1/bookings`, booking detail and cancel |
+| Reports | `POST /v1/reports` |
+| Notifications | `GET /v1/notifications`, `POST /v1/notifications/{id}/read` |
+| Push devices | `POST /v1/devices`, `DELETE /v1/devices/{token}` |
+
+### Owner/barber app
+
+| Area | Endpoints |
+| --- | --- |
+| Owner access | `POST /v1/auth/owner-access` |
+| Salon | `GET/PATCH /v1/salons/me`, complete-profile and settings |
+| QR | `GET /v1/salons/me/qr` |
+| Gallery | list, upload URL, create, update and soft-delete under `/v1/salons/me/images` |
+| Staff | list/create/update/deactivate, photo upload URL, service assignments and languages |
+| Services | list/create/update/deactivate under `/v1/salons/me/services` |
+| Schedule | holidays and blocked slots under `/v1/salons/me/holidays` and `/blocks` |
+| Appointments | list/detail, approve, reject, complete, owner cancel and payment routes |
+
+### Walk-in web
+
+| Method | Path | Auth |
+| --- | --- | --- |
+| `GET` | `/v1/walkin/{qr_token}` | Public |
+| `GET` | `/v1/walkin/{qr_token}/qr?format=png|svg` | Public |
+| `POST` | `/v1/walkin/{qr_token}/verify-phone` | Public |
+| `GET` | `/v1/availability` | Public |
+| `POST` | `/v1/walkin/{qr_token}/bookings` | OTP Supabase JWT |
+
+Swagger at `/docs` and OpenAPI at `/openapi.json` are the complete endpoint and schema
+references.
+
+## 7. Customer Avatar Upload
+
+The avatar endpoint accepts `multipart/form-data`, validates the file, uploads it through
+the configured provider, updates `profiles.avatar_url`, and returns the public URL.
+Accepted formats are JPEG, PNG, and WebP. The maximum size is 5 MB.
 
 ```ts
-import { apiRequest } from "./client";
+export async function uploadAvatar(uri: string, mime = "image/jpeg") {
+  const form = new FormData();
+  form.append("image", {
+    uri,
+    type: mime,
+    name: mime === "image/png" ? "avatar.png" : "avatar.jpg",
+  } as any);
 
-export type TokenResponse = {
-  access_token: string;
-  refresh_token?: string | null;
-  token_type: string;
-  expires_in?: number | null;
-};
-
-export type ProfileResponse = {
-  id: string;
-  role: "super_admin" | "owner" | "staff" | "customer";
-  full_name: string | null;
-  email: string | null;
-  phone: string | null;
-  phone_verified: boolean;
-  avatar_url: string | null;
-  is_active: boolean;
-};
-
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
-import { Platform } from "react-native";
-import { supabase } from "./supabase";
-
-WebBrowser.maybeCompleteAuthSession();
-
-export function getGoogleRedirectTo() {
-  if (Platform.OS === "web") {
-    return `${window.location.origin}/auth/callback`;
-  }
-
-  return AuthSession.makeRedirectUri({
-    scheme: "salonowner",
-    path: "auth/callback",
-  });
-}
-
-export async function signInWithGoogle() {
-  const redirectTo = getGoogleRedirectTo();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo,
-      skipBrowserRedirect: true,
-    },
-  });
-
-  if (error || !data?.url) {
-    throw new Error("Could not start Google sign-in");
-  }
-
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== "success") {
-    return null;
-  }
-
-  const query = result.url.split("?")[1];
-  const code = query ? new URLSearchParams(query).get("code") : null;
-  if (!code) {
-    throw new Error("Google sign-in did not complete");
-  }
-
-  const { data: sessionData, error: exchangeError } =
-    await supabase.auth.exchangeCodeForSession(code);
-
-  if (exchangeError || !sessionData.session) {
-    throw new Error("Could not complete Google sign-in");
-  }
-
-  return sessionData.session;
-}
-
-export function refreshSession(refreshToken: string) {
-  return apiRequest<TokenResponse>("/v1/auth/refresh", {
+  return apiRequest<{ avatar_url: string }>("/v1/customer/profile/avatar", {
     method: "POST",
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-}
-
-export function getMe(accessToken: string) {
-  return apiRequest<ProfileResponse>("/v1/auth/me", {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    body: form,
   });
 }
 ```
 
-Use Expo auth-session packages for mobile OAuth:
+Do not call `PATCH /v1/customer/profile` again after this succeeds; the avatar URL is
+already persisted.
 
-```bash
-npx expo install expo-web-browser expo-auth-session expo-linking
+## 8. Owner Gallery and Staff Photo Uploads
+
+The same frontend flow works with ImageKit and R2. The provider choice is entirely a
+backend setting.
+
+1. Request an upload URL:
+
+```http
+POST /v1/salons/me/images/upload-url
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "filename": "cover.jpg", "content_type": "image/jpeg" }
 ```
 
-Configure the app scheme in Expo, for example `scheme: "salonowner"`, and add the exact
-redirect URI generated by the app to Supabase Dashboard -> Authentication -> URL
-Configuration -> Redirect URLs:
+For staff photos use `POST /v1/salons/me/staff/{staff_id}/photo-upload-url`.
 
-```txt
-salonowner://auth/callback
-```
-
-## Store Tokens Securely
-
-For Expo apps, use Secure Store:
-
-```bash
-npx expo install expo-secure-store
-```
-
-Example:
+2. Upload the raw bytes to the returned `upload_url` with the exact same MIME type:
 
 ```ts
-import * as SecureStore from "expo-secure-store";
+await fetch(uploadUrl, {
+  method: "PUT",
+  headers: { "Content-Type": contentType },
+  body: imageBlob,
+});
+```
 
-export async function saveTokens(tokens: {
-  access_token: string;
-  refresh_token?: string | null;
-}) {
-  await SecureStore.setItemAsync("access_token", tokens.access_token);
+3. Persist the returned `public_url`:
 
-  if (tokens.refresh_token) {
-    await SecureStore.setItemAsync("refresh_token", tokens.refresh_token);
-  }
-}
+```http
+POST /v1/salons/me/images
 
-export async function getAccessToken() {
-  return SecureStore.getItemAsync("access_token");
-}
+{ "url": "<public_url>", "caption": "Front view", "is_main": true, "sort_order": 0 }
+```
 
-export async function getRefreshToken() {
-  return SecureStore.getItemAsync("refresh_token");
-}
+For staff photos, send `PATCH /v1/salons/me/staff/{staff_id}` with
+`{ "photo_url": "<public_url>" }`.
 
-export async function clearTokens() {
-  await SecureStore.deleteItemAsync("access_token");
-  await SecureStore.deleteItemAsync("refresh_token");
+Upload URLs expire after 300 seconds. For ImageKit the URL points to the signed backend
+upload route; for R2 it is an S3-compatible presigned URL. The frontend does not branch
+by provider.
+
+## 9. Owner QR Flow
+
+```http
+GET /v1/salons/me/qr
+Authorization: Bearer <token>
+```
+
+```json
+{
+  "url": "https://apiv1.mudassirmhd.in/v1/walkin/TOKEN/qr?format=png&scale=12",
+  "cached": false
 }
 ```
 
-## Login Flow
+Display `url` directly in React Native's `Image` component. It is public and does not
+need an Authorization header. The generated code opens `WALKIN_BASE_URL/{qr_token}`.
+For SVG, request `/v1/salons/me/qr?format=svg`; that response is an SVG document rather
+than JSON.
 
-Recommended frontend flow:
+## 10. Availability and Booking
 
-1. User taps "Continue with Google".
-2. Frontend calls Supabase `signInWithOAuth({ provider: "google", options: { redirectTo, skipBrowserRedirect: true } })`.
-3. Native Expo opens the returned provider URL with `WebBrowser.openAuthSessionAsync`.
-4. Supabase redirects back to the app at `salonowner://auth/callback`.
-5. Frontend exchanges the returned PKCE code with `supabase.auth.exchangeCodeForSession`.
-6. Supabase validates Google and returns a Supabase session.
-7. Frontend stores or reads `session.access_token` and `session.refresh_token`.
-8. Frontend calls `GET /v1/auth/me` with `Authorization: Bearer <access_token>`.
-9. Frontend routes the user based on `profile.role`.
+```http
+GET /v1/availability?staff_id=STAFF_UUID&date=2026-09-20&service_ids=SERVICE_UUID
+```
 
-Example:
+Repeat `service_ids` for multiple services. Use the returned `slot_start` when creating
+the booking. Never calculate availability in the frontend.
 
-```ts
-await signInWithGoogle();
+```http
+POST /v1/bookings
+Authorization: Bearer <token>
+Content-Type: application/json
 
-const { data } = await supabase.auth.getSession();
-const session = data.session;
-
-if (!session) {
-  throw new Error("Google sign-in did not return a Supabase session");
-}
-
-const profile = await getMe(session.access_token);
-
-if (profile.role === "customer") {
-  // Navigate to customer app home.
-}
-
-if (profile.role === "owner" || profile.role === "staff") {
-  // Navigate to barber/owner app home.
+{
+  "salon_id": "SALON_UUID",
+  "staff_id": "STAFF_UUID",
+  "service_ids": ["SERVICE_UUID"],
+  "start_datetime": "2026-09-20T09:00:00+05:30",
+  "customer_name": "Customer Name",
+  "customer_phone": "+919876543210",
+  "source": "app",
+  "notes": null
 }
 ```
 
-## Token Refresh Flow
+HTTP `409` with error code `slot_unavailable` means another request took the slot.
+Refresh availability and ask the customer to choose another slot.
 
-When an authenticated request fails with `401`:
+Customer cancellation uses `/v1/bookings/{booking_id}/cancel` with optional
+`reason_code` and `reason_text`. Owner cancellation uses
+`/v1/bookings/{booking_id}/cancel/barber` and requires an owner reason code.
 
-1. Read `refresh_token` from Secure Store.
-2. Call `POST /v1/auth/refresh`.
-3. Save the new tokens.
-4. Retry the original request once.
-5. If refresh also fails, clear tokens and send the user to login.
+## 11. Salon Reports
 
-## Important Supabase Requirement
+```http
+POST /v1/reports
+Authorization: Bearer <token>
+Content-Type: application/json
 
-The backend uses Supabase Auth.
-
-That means:
-
-- Google OAuth must be enabled in the Supabase project.
-- Expo apps sign in with Supabase `signInWithOAuth({ provider: "google" })` and use Expo auth-session to complete the browser round-trip in app.
-- `salonowner://auth/callback` must be listed in Supabase Redirect URLs for the owner app.
-- The Supabase Auth user id must have a matching row in the `profiles` table.
-- The frontend should not send or trust a role manually.
-- The backend resolves the role from `profiles`.
-
-## CORS Requirement
-
-The backend `.env` must allow the frontend origin.
-
-Backend example:
-
-```txt
-BACKEND_CORS_ORIGINS=["http://localhost:19006","http://localhost:3000"]
+{
+  "salon_id": "SALON_UUID",
+  "salon_name": "Optional compatibility value",
+  "reason": "Incorrect information",
+  "details": "The displayed address is outdated.",
+  "created_at": "2026-09-18T10:00:00Z"
+}
 ```
 
-For Expo on a real device, CORS is usually less visible than in browsers, but keep the
-allowed origins correct for web builds and admin portals.
+```json
+{ "id": "REPORT_UUID", "status": "received" }
+```
 
-## Common Problems
+`salon_name` and `created_at` are accepted for compatibility. The backend validates the
+salon, derives the reporter from the JWT, and owns the stored creation time.
 
-### Network request failed
+## 12. Notifications and Device Tokens
 
-Usually the phone cannot reach the backend.
+Register an Expo or FCM token after login and whenever it changes:
 
-Check:
+```http
+POST /v1/devices
 
-- Backend is running with `--host 0.0.0.0`.
-- Frontend uses the computer LAN IP, not `localhost`, on a real phone.
-- Phone and computer are on the same Wi-Fi.
-- Firewall allows port `8000`.
+{ "token": "ExponentPushToken[...]", "platform": "android", "device_name": "Pixel" }
+```
 
-### Login returns invalid credentials
+Deactivate it on logout with `DELETE /v1/devices/{url_encoded_token}`. Notification
+records remain available through `GET /v1/notifications` even if push delivery fails.
 
-Check:
+## 13. Errors and UI Behavior
 
-- User exists in Supabase Auth.
-- Password is correct.
-- Backend `SUPABASE_URL` and `SUPABASE_ANON_KEY` are correct.
+Application errors use:
 
-### `/v1/auth/me` returns unauthorized
+```json
+{ "error": { "code": "not_found", "message": "Resource not found" } }
+```
 
-Check:
+| Status | Frontend behavior |
+| --- | --- |
+| `400` / `422` | Show field or request validation feedback |
+| `401` | Refresh once, then return to login |
+| `403` | Hide the action or show an access message |
+| `404` | Show a resource-not-found state |
+| `409 slot_unavailable` | Refresh available slots |
+| `503 service_unavailable` | Show a temporary service message and allow retry |
 
-- `Authorization` header is exactly `Bearer <access_token>`.
-- Backend `SUPABASE_JWKS_URL` is correct.
-- The Supabase Auth user id exists in the `profiles` table.
-- The profile has `is_active = true`.
+Do not display raw response bodies or database/provider details to users.
 
-### Other screens have no data
+## 14. Connection Checklist
 
-Expected for now.
+- Backend `/health` returns `200`.
+- Backend `/health/db` returns `200` before testing data screens.
+- `alembic upgrade head` has run on the target database.
+- Frontend base URL has no trailing `/v1`; request paths already include `/v1`.
+- Supabase frontend and backend settings point to the same project.
+- Google OAuth callback URLs match the Expo app schemes.
+- Every protected request includes the current Supabase access token.
+- Owner app calls `/v1/auth/owner-access` after sign-in.
+- `BACKEND_CORS_ORIGINS` includes each deployed web origin exactly.
+- `PUBLIC_API_BASE_URL` is the externally reachable API origin.
+- `WALKIN_BASE_URL` includes the walk-in route prefix, normally `/s`.
+- Exactly one storage provider is selected and configured on the server.
+- Multipart requests do not manually set a boundary.
+- Upload `PUT` requests preserve the requested MIME type.
 
-Only health and auth APIs are complete in the active backend. Salon, service, booking,
-appointment, and notification APIs will be connected after their backend phases are
-implemented.
+## 15. Future Work
+
+Favorites sync, reviews and ratings, style-photo publishing, coupons, chat, loyalty
+points, and analytics are future features. Frontends should keep local behavior or hide
+those server-dependent actions until corresponding endpoints and migrations are added.

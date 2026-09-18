@@ -2,6 +2,9 @@
 
 A concise integration guide for the shared FastAPI backend.
 
+For frontend setup, authentication, uploads, QR rendering, reports, and deployment
+checklists, use the canonical [Frontend Integration Guide](../../docs/frontend-integration.md).
+
 > **API prefix:** `/v1`  
 > **Interactive API documentation:** `http://localhost:8000/docs`
 
@@ -76,7 +79,7 @@ salonowner://auth/callback
 | Pagination | `limit` and `offset` query parameters |
 | Error body | `{ "error": { "code": "...", "message": "..." } }` |
 
-Common application error codes: `unauthorized`, `forbidden`, `not_found`, `conflict`, `slot_unavailable`, `validation_error`, and `internal_error`. FastAPI validation failures can use the default Pydantic/FastAPI validation response.
+Common application error codes: `unauthorized`, `forbidden`, `not_found`, `conflict`, `slot_unavailable`, `validation_error`, `service_unavailable`, and `internal_error`. FastAPI validation failures can use the default Pydantic/FastAPI validation response.
 
 ---
 
@@ -90,6 +93,7 @@ Common application error codes: `unauthorized`, `forbidden`, `not_found`, `confl
 | `GET` | `/health/db` | No | Check database connectivity |
 | `POST` | `/v1/auth/refresh` | No | Exchange a refresh token for a new session |
 | `GET` | `/v1/auth/me` | Yes | Return the current user profile |
+| `POST` | `/v1/auth/owner-access` | Yes | Claim or confirm owner-app access after sign-in |
 
 **Refresh a session**
 
@@ -110,6 +114,8 @@ Returns `access_token`, `refresh_token`, `token_type`, and `expires_in`.
 | --- | --- | --- | --- |
 | `GET` | `/v1/customer/profile` | Customer | Get the current profile |
 | `PATCH` | `/v1/customer/profile` | Customer | Update profile fields |
+| `POST` | `/v1/customer/profile/avatar` | Customer / Owner | Upload and persist a validated avatar image |
+| `POST` | `/v1/reports` | Customer / Owner | Submit a report about a salon |
 
 ```json
 {
@@ -165,9 +171,11 @@ Use `working_hours` as a JSON object keyed by day:
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/v1/salons/me/images` | Owner | List salon images |
+| `POST` | `/v1/salons/me/images/upload-url` | Owner | Get a signed ImageKit/R2 upload URL |
 | `POST` | `/v1/salons/me/images` | Owner | Add a salon image |
 | `PATCH` | `/v1/salons/me/images/{image_id}` | Owner | Update image metadata |
-| `DELETE` | `/v1/salons/me/images/{image_id}` | Owner | Reserved; currently rejects deletion |
+| `DELETE` | `/v1/salons/me/images/{image_id}` | Owner | Soft-delete a salon image |
+| `GET` | `/v1/salons/me/qr` | Owner | Return the public QR image URL or SVG |
 | `GET` | `/v1/salons/me/holidays` | Owner | List holidays |
 | `POST` | `/v1/salons/me/holidays` | Owner | Add a holiday |
 | `DELETE` | `/v1/salons/me/holidays/{holiday_id}` | Owner | Reserved; currently rejects deletion |
@@ -205,6 +213,7 @@ Use `working_hours` as a JSON object keyed by day:
 | `POST` | `/v1/salons/me/staff` | Owner | Create a staff member |
 | `PATCH` | `/v1/salons/me/staff/{staff_id}` | Owner | Update staff details |
 | `DELETE` | `/v1/salons/me/staff/{staff_id}` | Owner | Delete staff |
+| `POST` | `/v1/salons/me/staff/{staff_id}/photo-upload-url` | Owner | Get a signed staff-photo upload URL |
 | `POST` | `/v1/salons/me/staff/{staff_id}/services` | Owner | Assign a service to staff |
 | `GET` | `/v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages` | Owner | List languages for a staff service |
 | `PUT` | `/v1/salons/me/staff/{staff_id}/services/{staff_service_id}/languages` | Owner | Replace languages for a staff service |
@@ -355,6 +364,7 @@ Payment recording is for salon owner/staff workflows. The customer app should no
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/v1/walkin/{qr_token}` | No | Resolve a salon QR token |
+| `GET` | `/v1/walkin/{qr_token}/qr` | No | Return the QR image as PNG or SVG |
 | `POST` | `/v1/walkin/{qr_token}/verify-phone` | No | Send or verify a phone OTP |
 | `POST` | `/v1/walkin/{qr_token}/bookings` | Yes | Create a booking from a verified QR flow |
 
@@ -454,7 +464,7 @@ All routes in this section require a `super_admin` Supabase access token.
 
 ### Owner setup flow
 
-1. Retrieve the owner salon with `GET /v1/salons/me`.
+1. Call `POST /v1/auth/owner-access`, then retrieve the salon with `GET /v1/salons/me`.
 2. Update salon details and working hours.
 3. Add images, services, and staff.
 4. Assign services and languages to staff.

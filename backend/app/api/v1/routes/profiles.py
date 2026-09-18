@@ -59,8 +59,7 @@ async def update_my_profile(
 ) -> ProfileResponse:
     """Update the authenticated user's profile (e.g. phone number or full name).
 
-    When ``avatar_url`` is changed and the previous avatar was stored in R2,
-    the old object is deleted from R2 best-effort before returning.
+    When ``avatar_url`` is changed, provider-owned cleanup is attempted where supported.
     """
 
     repo = PlatformRepository(session)
@@ -77,10 +76,10 @@ async def update_my_profile(
     "/me/avatar-upload-url",
     response_model=ImageUploadUrlResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get presigned R2 upload URL for profile avatar",
+    summary="Get a signed upload URL for profile avatar",
     description=(
-        "Returns a short-lived presigned PUT URL and the resulting public URL for "
-        "uploading a profile avatar directly to Cloudflare R2.\n\n"
+        "Returns a short-lived signed PUT URL and the resulting public URL for "
+        "uploading through the configured ImageKit or R2 provider.\n\n"
         "Available to all authenticated roles (customer, owner, staff).\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
@@ -94,7 +93,7 @@ async def get_avatar_upload_url(
     session: AsyncSession = Depends(get_authenticated_session),
     storage_gateway: StorageGateway = Depends(get_storage_gateway),
 ) -> ImageUploadUrlResponse:
-    """Generate a presigned R2 PUT URL for a direct profile avatar upload."""
+    """Generate a signed PUT URL for a direct profile avatar upload."""
 
     result = await CustomerUseCases(PlatformRepository(session), storage_gateway=storage_gateway).get_avatar_upload_url(
         actor,
