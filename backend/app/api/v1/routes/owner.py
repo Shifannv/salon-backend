@@ -1,7 +1,7 @@
 """Barber/owner app API routes."""
 
-from fastapi import APIRouter, Depends, Query, Response, status
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,8 +34,7 @@ from app.api.v1.schemas.platform import (
 from app.application.ports.storage_gateway import StorageGateway
 from app.application.use_cases.platform import OwnerUseCases
 from app.core.config import settings
-from app.core.exceptions import ValidationError
-from app.core.qr import make_qr_png, make_qr_svg
+from app.core.qr import make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
@@ -129,108 +128,41 @@ async def update_settings(
 
 
 class QrCodeUrlResponse(BaseModel):
-    """Response for the QR code URL endpoint."""
+    """Public image URL that can be displayed without an Authorization header."""
 
     url: str
-    """Permanent Cloudflare R2 public URL of the walk-in QR code PNG."""
-
     cached: bool = False
-    """True if the image was already stored and no generation took place."""
 
 
 @router.get(
     "/me/qr",
-    response_model=None,
+    response_model=QrCodeUrlResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get salon walk-in QR code URL",
-    description=(
-        "Returns the permanent URL of the salon's walk-in QR code PNG stored in Cloudflare R2. "
-        "The image is generated on the **first call only** and then cached permanently in the "
-        "database (`salons.qr_image_url`). Subsequent calls return the cached URL instantly "
-        "with no image generation. "
-        "The QR encodes: <WALKIN_BASE_URL>/<qr_token>. "
-        "Cloudflare R2 must be configured before the first request can persist the QR image."
-    ),
-    responses={
-        200: {
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "url": {"type": "string", "format": "uri"},
-                            "cached": {"type": "boolean"},
-                        },
-                        "required": ["url"],
-                    }
-                },
-                "image/svg+xml": {"schema": {"type": "string"}},
-            },
-            "description": "QR code URL as JSON, or SVG when format=svg.",
-        }
-    },
+    summary="Get salon walk-in QR code URL or SVG",
+    responses={200: {"content": {"image/svg+xml": {}}}},
 )
 async def get_my_qr(
-    fmt: str = Query(
-        default="url",
-        alias="format",
-        pattern="^(png|svg|url)$",
-        description="'url' returns cached CDN link, 'png' is a legacy alias, or 'svg' streams SVG.",
-    ),
-    scale: int = Query(
-        default=12,
-        ge=4,
-        le=30,
-        description="Module size used when generating. 12 = ~440 px wide PNG.",
-    ),
+    request: Request,
+    fmt: str = Query(default="url", alias="format", pattern="^(png|svg|url)$"),
+    scale: int = Query(default=12, ge=4, le=30),
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
-    storage_gateway: StorageGateway = Depends(get_storage_gateway),
-) -> StreamingResponse | JSONResponse:
-    """Return the owner's salon walk-in QR code.
-
-    Primary path (format=url, default): checks if the image is already uploaded to R2.
-    - If yes  → returns { url, cached: true } immediately.
-    - If no   → generates PNG via segno, uploads to R2, stores the URL, returns { url, cached: false }.
-
-    The QR token is stable (never rotated after creation), so the cached image is permanent.
-    """
-    repo = PlatformRepository(session)
+) -> Response:
+    """Keep the JSON contract while serving fresh QR images without cloud storage."""
     salon = await _use_cases(session).get_my_salon(actor)
-    qr_token: str = str(salon["qr_token"])
-    salon_id: str = str(salon["id"])
-    salon_name: str = str(salon.get("name", "salon")).replace(" ", "_").lower()
-
-    # SVG stream — always on-the-fly, no caching needed (resolution-independent, tiny)
+    qr_token = str(salon["qr_token"])
     if fmt == "svg":
-        svg_content = make_qr_svg(qr_token, settings.walkin_base_url, scale=scale)
-        return StreamingResponse(
-            iter([svg_content]),
+        return Response(
+            make_qr_svg(qr_token, settings.walkin_base_url, scale=scale),
             media_type="image/svg+xml",
-            headers={"Content-Disposition": f'attachment; filename="{salon_name}_qr.svg"'},
+            headers={"Content-Disposition": 'attachment; filename="salon_qr.svg"'},
         )
-
-    # PNG URL — check the write-once cache first
-    cached_url = await repo.get_qr_image_url(salon_id)
-    if cached_url:
-        return JSONResponse(content={"url": cached_url, "cached": True})
-
-    # Generate the PNG (only happens once per salon lifetime)
-    png_bytes = make_qr_png(qr_token, settings.walkin_base_url, scale=scale)
-
-    # Upload to R2 and persist the URL
-    try:
-        bucket = _bucket()
-        r2_path = f"qr/{salon_id}/walkin_qr.png"
-        public_url = await storage_gateway.upload_bytes(
-            bucket, r2_path, png_bytes, "image/png"
-        )
-        await repo.set_qr_image_url(salon_id, public_url)
-        return JSONResponse(content={"url": public_url, "cached": False})
-    except ValidationError:
-        raise
-    except Exception as exc:
-        raise ValidationError("Could not store salon QR image") from exc
+    if settings.public_api_base_url:
+        base = str(settings.public_api_base_url).rstrip("/")
+        url = f"{base}/v1/walkin/{qr_token}/qr"
+    else:
+        url = str(request.url_for("get_qr_image", qr_token=qr_token))
+    return JSONResponse({"url": f"{url}?format=png&scale={scale}", "cached": False})
 
 
 # ── Images ────────────────────────────────────────────────────────────────────

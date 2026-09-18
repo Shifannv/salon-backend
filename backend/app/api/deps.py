@@ -14,6 +14,7 @@ from app.core.security import SupabaseJWTVerifier
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
 from app.infrastructure.db.session import get_session, set_actor_context
+from app.infrastructure.imagekit.storage import ImageKitStorageGateway
 from app.infrastructure.r2.storage import R2StorageGateway
 from app.infrastructure.supabase.auth_admin import SupabaseAuthAdminGateway
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
@@ -41,20 +42,10 @@ def get_auth_admin_gateway() -> AuthAdminGateway:
 
 
 def get_storage_gateway() -> StorageGateway:
-    """Return the configured Cloudflare R2 storage gateway.
-
-    Validates that all required R2 environment variables are set at
-    dependency-injection time so callers get a clear error message
-    (e.g. "Cloudflare R2 is not fully configured. Missing: R2_ACCESS_KEY_ID")
-    instead of a cryptic failure deep inside an upload call.
-
-    Raises:
-        ValidationError → HTTP 422 if any R2 env var is absent.
-    """
-
-    gateway = R2StorageGateway(settings)
-    gateway._assert_configured()
-    return gateway
+    """Validate storage lazily, so profile edits and QR rendering work without it."""
+    if settings.storage_provider == "imagekit":
+        return ImageKitStorageGateway(settings)
+    return R2StorageGateway(settings)
 
 
 async def get_current_actor(

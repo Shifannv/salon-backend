@@ -18,6 +18,19 @@ class PlatformRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def create_salon_report(
+        self, actor_id: str, salon_id: str, reason: str, details: str,
+    ) -> dict[str, Any]:
+        result = await self.session.execute(text("""
+            insert into salon_reports (reporter_id, salon_id, reason, details)
+            values (:actor_id, :salon_id, :reason, :details)
+            returning id, status
+        """), {"actor_id": actor_id, "salon_id": salon_id,
+               "reason": reason, "details": details})
+        row = dict(result.mappings().one())
+        await self.session.commit()
+        return row
+
     def _prepare_jsonb_values(self, values: dict[str, Any]) -> dict[str, Any]:
         """Serialize JSONB fields for raw SQL text statements."""
 
