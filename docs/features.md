@@ -21,6 +21,8 @@ truth for task status, assignee, priority, and acceptance criteria.
 
 - `GET /v1/customer/profile`
 - `PATCH /v1/customer/profile`
+- `POST /v1/customer/profile/avatar`
+- `POST /v1/reports`
 - `GET /v1/salons`
 - `GET /v1/salons/nearby`
 - `GET /v1/salons/{salon_id}`
@@ -35,6 +37,9 @@ truth for task status, assignee, priority, and acceptance criteria.
 - `GET /v1/salons/me/images`
 - `POST /v1/salons/me/images`
 - `PATCH /v1/salons/me/images/{image_id}`
+- `DELETE /v1/salons/me/images/{image_id}` soft-deactivates through `is_active`
+- `POST /v1/salons/me/images/upload-url`
+- `GET /v1/salons/me/qr`
 - `GET /v1/salons/me/holidays`
 - `POST /v1/salons/me/holidays`
 - `GET /v1/salons/me/services`
@@ -63,10 +68,14 @@ truth for task status, assignee, priority, and acceptance criteria.
 - `POST /v1/devices`
 - `DELETE /v1/devices/{token}`
 
+### Media Storage
+
+- Cloudflare R2 and ImageKit are supported through `STORAGE_PROVIDER`.
+- The customer avatar endpoint validates JPEG, PNG, and WebP files up to 5 MB.
+- Owner QR image generation does not depend on cloud storage.
+
 ### Current Schema Limitations
 
-- `DELETE /v1/salons/me/images/{image_id}` is intentionally rejected because
-  `salon_images` has no `is_active` column for soft delete.
 - `DELETE /v1/salons/me/holidays/{holiday_id}` is intentionally rejected because
   `salon_holidays` has no `is_active` column for soft delete.
 
@@ -131,4 +140,4 @@ truth for task status, assignee, priority, and acceptance criteria.
 - Chat support
 - Loyalty points
 - Multi-language content
-- Analytics/reporting APIs
+- Analytics APIs

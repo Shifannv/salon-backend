@@ -41,6 +41,7 @@ The v3 schema includes these main areas:
 - `booking_services`: immutable booking line snapshots
 - `notifications`: in-app notification records
 - `device_tokens`: Firebase device tokens
+- `salon_reports`: customer-submitted salon reports, owned by the reporting profile
 
 ## Important Database Functions
 

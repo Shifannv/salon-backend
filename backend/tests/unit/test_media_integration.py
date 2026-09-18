@@ -79,12 +79,15 @@ async def test_avatar_upload_persists_only_actor_profile():
     assert storage.upload_bytes.call_args.args[1].startswith(f"avatars/{actor.id}/")
 
 
-@pytest.mark.parametrize("data,mime", [
-    (b"<script>", "image/png"),
-    (PNG, "text/html"),
-    (b"", "image/png"),
-    pytest.param(b"x" * (MAX_IMAGE_BYTES + 1), "image/png", id="oversized-image/png"),
-])
+@pytest.mark.parametrize(
+    "data,mime",
+    [
+        pytest.param(b"<script>", "image/png", id="signature-mismatch"),
+        pytest.param(PNG, "text/html", id="unsupported-content-type"),
+        pytest.param(b"", "image/png", id="empty-file"),
+        pytest.param(b"x" * (MAX_IMAGE_BYTES + 1), "image/png", id="too-large"),
+    ],
+)
 async def test_avatar_rejects_invalid_images_before_upload(data, mime):
     repo, storage = AsyncMock(), AsyncMock()
     with pytest.raises(ValidationError):

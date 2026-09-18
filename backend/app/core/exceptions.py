@@ -60,6 +60,13 @@ class ValidationError(AppError):
     code = "validation_error"
 
 
+class ServiceUnavailableError(AppError):
+    """Raised when a required infrastructure dependency cannot be reached."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "service_unavailable"
+
+
 def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str]:
     """Build CORS headers for the response, based on the request Origin.
 
