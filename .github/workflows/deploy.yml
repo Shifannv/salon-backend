@@ -1,7 +1,7 @@
 # ───────────────────────────────────────────────────────────────────────────────
 # CD — Build, Push & Deploy
 # ───────────────────────────────────────────────────────────────────────────────
-# Triggered when the CI workflow succeeds on main.
+# Triggered when the CI workflow succeeds on main or preview.
 # Steps:
 #   1. Build the Docker image from backend/Dockerfile
 #   2. Push to Google Artifact Registry
@@ -14,14 +14,14 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [main]
+    branches: [main, preview]
 
 permissions:
   contents: read
 
 # Only one deploy at a time.
 concurrency:
-  group: deploy-production
+  group: deploy-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 env:
@@ -39,6 +39,8 @@ jobs:
       # ── Checkout ──────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       # ── Authenticate to Google Cloud ──────────────────────────────────────
       - name: Authenticate to Google Cloud
@@ -56,7 +58,8 @@ jobs:
       - name: Set image tags
         id: tags
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
+          SHORT_SHA="${{ github.event.workflow_run.head_sha }}"
+          SHORT_SHA="${SHORT_SHA::7}"
           echo "sha_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "latest_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> "$GITHUB_OUTPUT"
 
@@ -111,4 +114,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Image:** \`${{ steps.tags.outputs.sha_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **VM:** \`${{ secrets.GCP_VM_HOST }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Commit:** \`${GITHUB_SHA::7}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.event.workflow_run.head_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
