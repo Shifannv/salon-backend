@@ -1,9 +1,11 @@
 """Unit tests for OwnerUseCases — Phase 3 features."""
 
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 import pytest
 
+from app.api.v1.schemas.platform import HolidayResponse
 from app.application.use_cases.platform import OwnerUseCases
 from app.core.exceptions import ForbiddenError, ValidationError
 from app.domain.entities.profile import Role
@@ -124,6 +126,24 @@ def test_staff_service_response_normalizes_uuid_ids_for_api_schema():
     assert isinstance(assignment["id"], str)
     assert isinstance(assignment["staff_id"], str)
     assert isinstance(assignment["service_id"], str)
+
+
+def test_holiday_response_converts_database_uuid_ids_to_strings():
+    holiday_id = uuid4()
+    salon_id = uuid4()
+
+    response = HolidayResponse(
+        id=holiday_id,
+        salon_id=salon_id,
+        holiday_date=date(2026, 1, 1),
+        title="New Year",
+        is_recurring=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    assert response.id == str(holiday_id)
+    assert response.salon_id == str(salon_id)
 
 
 # ---------------------------------------------------------------------------

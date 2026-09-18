@@ -230,6 +230,14 @@ class HolidayResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("id", "salon_id", mode="before")
+    @classmethod
+    def _coerce_uuid_to_str(cls, v: Any) -> Any:
+        """DB returns UUID objects; coerce to str for Pydantic."""
+        if v is not None and not isinstance(v, str):
+            return str(v)
+        return v
+
 
 class ServiceCreateRequest(BaseModel):
     """Create service request."""
