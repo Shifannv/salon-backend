@@ -49,7 +49,7 @@ Do not invent extra tasks in the docs without creating or updating Jira first.
 ## Code Ownership
 
 - Thameem owns backend work in `backend/app/`, `backend/migrations/`, `backend/tests/`, and `backend/docs/`.
-- Backend deployment/config ownership also includes `backend/Dockerfile`, `backend/docker-compose.yml`, `backend/.dockerignore`, `backend/.env.example`, `backend/.env.gcp.example`, `backend/scripts/`, `backend/requirements*.txt`, `backend/setup.py`, and `backend/setup_backend.py`.
+- Backend deployment/config ownership also includes `backend/Dockerfile`, `backend/docker-compose.yml`, `backend/.dockerignore`, `backend/.env.example`, `backend/.env.gcp.example`, `backend/scripts/`, `backend/requirements*.txt`, and `backend/pyproject.toml`.
 - Shifan owns frontend apps in their separate repositories.
 - Docs in `docs/` describe shared project decisions and should stay aligned with backend reality.
 
@@ -107,11 +107,10 @@ infrastructure -> domain/application ports
 
 ## Dependency And Setup Files
 
-- Keep `backend/pyproject.toml`, `backend/requirements.txt`, `backend/requirements-dev.txt`, and `backend/setup.py` aligned when changing Python dependencies.
-- `backend/setup_backend.py` is the local developer bootstrap runner. It may create `.env`, create `.venv`, install requirements, optionally run migrations, and run uvicorn.
-- `backend/setup.py` is for package/install compatibility. Do not put deployment secrets or environment-specific behavior in it.
+- Keep runtime dependencies in `backend/requirements.txt` and development-only tools in `backend/requirements-dev.txt`.
+- Keep pytest and Ruff configuration in `backend/pyproject.toml`.
 - Prefer `pip install -r requirements.txt` for production container builds.
-- Prefer `pip install -e ".[dev]"` or `python setup_backend.py` for local development.
+- Prefer `pip install -r requirements-dev.txt` for local development.
 
 ## Auth Rules
 
@@ -157,7 +156,7 @@ Before finishing backend changes, run from `backend/` when possible:
 If dependencies are missing, install with:
 
 ```bash
-./.venv/bin/pip install -e ".[dev]"
+./.venv/bin/pip install -r requirements-dev.txt
 ```
 
 For deployment-file changes, additionally check what is feasible locally:
