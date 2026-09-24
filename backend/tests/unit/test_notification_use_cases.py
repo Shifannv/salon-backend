@@ -33,6 +33,19 @@ async def test_mark_read_delegates():
 
 
 @pytest.mark.asyncio
+async def test_mark_all_read_returns_updated_count():
+    repo = make_mock_repo()
+    repo.mark_all_notifications_read.return_value = 3
+    uc = NotificationUseCases(repo)
+    actor = make_profile()
+
+    result = await uc.mark_all_read(actor)
+
+    assert result == 3
+    repo.mark_all_notifications_read.assert_awaited_once_with(actor.id)
+
+
+@pytest.mark.asyncio
 async def test_register_device_passes_actor_id():
     repo = make_mock_repo()
     repo.register_device.return_value = {"id": "dt-001", "token": "tok123", "platform": "ios"}

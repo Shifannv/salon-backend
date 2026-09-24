@@ -22,3 +22,8 @@ pending/confirmed -> cancelled
 ```
 
 Never compute slots or insert booking rows directly in Python.
+
+Owners and assigned staff can record an `estimated_end_datetime` for an active delayed
+booking. This does not change the reserved `end_datetime` or rewrite availability.
+When requested, later customers whose start time falls within the delay window receive
+a notification.

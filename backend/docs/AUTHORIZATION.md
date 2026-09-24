@@ -21,3 +21,7 @@ SET LOCAL request.jwt.claims = '{"sub": "<verified-user-uuid>"}';
 ```
 
 This allows database audit triggers to record the verified actor.
+
+Payment recording and booking-delay updates remain owner/staff operations. Customer
+payment confirmation requires a verified payment-provider flow and must not be granted
+by trusting a client request.

@@ -1,6 +1,6 @@
 """Walk-in QR API routes — public (unauthenticated) and customer-authenticated."""
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.api.v1.schemas.walkin import (
     WalkInVerifyPhoneRequest,
     WalkInVerifyPhoneResponse,
 )
+from app.application.use_cases.platform import BookingUseCases
 from app.application.use_cases.walkin import WalkInUseCases
 from app.core.config import settings
 from app.core.qr import make_qr_png, make_qr_svg
@@ -142,12 +143,17 @@ async def verify_phone(
 async def create_walkin_booking(
     qr_token: str,
     payload: BookingCreateRequest,
+    background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
     """Create a qr_walkin booking for the authenticated customer."""
 
-    row = await _use_cases(session).create_walkin_booking(
+    repository = PlatformRepository(session)
+    row = await WalkInUseCases(repository).create_walkin_booking(
         actor, qr_token, payload.model_dump()
+    )
+    background_tasks.add_task(
+        BookingUseCases(repository).notify_new_booking_owner, row
     )
     return BookingResponse(**row)

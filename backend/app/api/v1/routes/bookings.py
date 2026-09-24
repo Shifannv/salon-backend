@@ -1,6 +1,7 @@
 """Booking and availability API routes."""
 
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from app.api.v1.schemas.platform import (
     BookingCreateRequest,
     BookingResponse,
     CancelBookingRequest,
+    DelayBookingRequest,
     PaymentRequest,
     RejectBookingRequest,
 )
@@ -55,12 +57,15 @@ async def availability(
 )
 async def create_booking(
     payload: BookingCreateRequest,
+    background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
     """Create a booking through the database booking function."""
 
-    row = await _use_cases(session).create_booking(actor, payload.model_dump())
+    row = await _use_cases(session).create_booking(
+        actor, payload.model_dump(), background_tasks
+    )
     return BookingResponse(**row)
 
 
@@ -75,12 +80,27 @@ async def create_booking(
     ),
 )
 async def list_bookings(
+    booking_status: Literal["pending", "confirmed", "rejected", "completed", "cancelled"]
+    | None = Query(default=None, alias="status"),
+    source: Literal["app", "manual_walkin", "qr_walkin"] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[BookingResponse]:
     """List bookings visible to the actor."""
 
-    rows = await _use_cases(session).list_bookings(actor)
+    rows = await _use_cases(session).list_bookings(
+        actor,
+        booking_status=booking_status,
+        source=source,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        offset=offset,
+    )
     return [BookingResponse(**row) for row in rows]
 
 
@@ -155,6 +175,31 @@ async def complete_booking(
     """Complete a booking. Notifies the customer via push."""
 
     row = await _use_cases(session).complete(actor, booking_id, background_tasks)
+    return BookingResponse(**row)
+
+
+@router.post(
+    "/bookings/{booking_id}/delay",
+    response_model=BookingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Record a booking delay",
+)
+async def delay_booking(
+    booking_id: str,
+    payload: DelayBookingRequest,
+    background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> BookingResponse:
+    """Update the completion estimate and optionally notify affected customers."""
+
+    row = await _use_cases(session).delay(
+        actor,
+        booking_id,
+        payload.estimated_end_datetime,
+        payload.notify_affected_customers,
+        background_tasks,
+    )
     return BookingResponse(**row)
 
 

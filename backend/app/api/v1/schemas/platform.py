@@ -392,6 +392,7 @@ class BookingResponse(BaseModel):
     status: str
     start_datetime: datetime
     end_datetime: datetime
+    estimated_end_datetime: datetime | None = None
     total_duration_minutes: int
     total_price: Decimal
     payment_status: str
@@ -413,9 +414,30 @@ class BookingResponse(BaseModel):
 
     @model_validator(mode="after")
     def _set_can_cancel(self) -> "BookingResponse":
-        """Derive can_cancel from status so the frontend needs no extra logic."""
-        self.can_cancel = self.status in _CANCELLABLE_STATUSES
+        """Allow cancellation only for future, non-terminal bookings."""
+
+        now = datetime.now(tz=self.start_datetime.tzinfo)
+        self.can_cancel = (
+            self.status in _CANCELLABLE_STATUSES
+            and self.start_datetime > now
+        )
         return self
+
+
+class DelayBookingRequest(BaseModel):
+    """Owner/staff request to record a delayed completion estimate."""
+
+    estimated_end_datetime: datetime
+    notify_affected_customers: bool = True
+
+    @field_validator("estimated_end_datetime")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        """Reject ambiguous local timestamps."""
+
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("estimated_end_datetime must include a timezone offset")
+        return value
 
 
 class RejectBookingRequest(BaseModel):
@@ -525,6 +547,12 @@ class NotificationResponse(BaseModel):
         if v is not None and not isinstance(v, str):
             return str(v)
         return v
+
+
+class MarkAllNotificationsReadResponse(BaseModel):
+    """Number of unread notifications marked as read."""
+
+    updated_count: int = Field(ge=0)
 
 
 class DeviceRegisterRequest(BaseModel):

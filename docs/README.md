@@ -9,6 +9,8 @@ of truth for task status, priority, ownership, and acceptance criteria.
 - [Database plan](database-plan.md)
 - [Features](features.md)
 - [Frontend integration](frontend-integration.md)
+- [Customer app API contract](Customer-App-Backend-API-Document.md)
+- [Salon owner app API contract](Salon-Owner-App-Backend-API-Document.md)
 - [Git workflow](git-workflow.md)
 
 Backend-specific references:

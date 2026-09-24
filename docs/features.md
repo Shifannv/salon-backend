@@ -7,8 +7,10 @@ The backend currently supports:
 - Owner salon profiles, settings, images, QR codes, holidays, services, and staff
 - Database-backed availability and booking creation
 - Booking approval, rejection, completion, cancellation, and payment state
+- Booking delay estimates, role-scoped filtering, and optional pagination
 - Walk-in QR resolution, phone verification, and walk-in booking
-- Notifications, device tokens, and optional Firebase push delivery
+- Soft-deletable salon holidays and availability-aware closures
+- Notifications, bulk read, device tokens, and optional Firebase/Expo push delivery
 - Health checks, Alembic migrations, Docker deployment, tests, and linting
 
 Jira is the source of truth for planned work and acceptance criteria. This document is

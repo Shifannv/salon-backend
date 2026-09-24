@@ -1,7 +1,7 @@
 """Booking repository port."""
 
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Protocol
 
 
@@ -38,7 +38,16 @@ class BookingRepository(Protocol):
         """
 
     async def list_bookings(
-        self, actor_id: str, role: str
+        self,
+        actor_id: str,
+        role: str,
+        *,
+        booking_status: str | None = None,
+        source: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """Return role-scoped bookings.
 
@@ -46,6 +55,19 @@ class BookingRepository(Protocol):
         - owner/staff: personal customer bookings plus workspace bookings
         - super_admin: all bookings
         """
+
+    async def delay_booking(
+        self,
+        actor_id: str,
+        booking_id: str,
+        estimated_end_datetime: datetime,
+    ) -> dict[str, Any]:
+        """Update a visible active booking's estimated completion time."""
+
+    async def list_delay_affected_bookings(
+        self, booking_id: str, estimated_end_datetime: datetime
+    ) -> list[dict[str, Any]]:
+        """Return later bookings whose start falls inside the delay window."""
 
     async def get_booking(
         self, booking_id: str, actor_id: str | None
@@ -59,6 +81,7 @@ class BookingRepository(Protocol):
         status: str,
         *,
         rejection_reason: str | None = None,
+        cancellation_reason: str | None = None,
         customer_only: bool = False,
     ) -> dict[str, Any]:
         """Update booking status with actor-scoped authorization.

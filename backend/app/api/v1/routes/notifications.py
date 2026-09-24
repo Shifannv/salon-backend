@@ -7,6 +7,7 @@ from app.api.deps import get_authenticated_session, get_current_actor
 from app.api.v1.schemas.platform import (
     DeviceRegisterRequest,
     DeviceRegisterResponse,
+    MarkAllNotificationsReadResponse,
     NotificationResponse,
 )
 from app.application.use_cases.platform import NotificationUseCases
@@ -51,6 +52,22 @@ async def mark_notification_read(
 
     row = await _use_cases(session).mark_read(actor, notification_id)
     return NotificationResponse(**row)
+
+
+@router.post(
+    "/notifications/read-all",
+    response_model=MarkAllNotificationsReadResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Mark all notifications read",
+)
+async def mark_all_notifications_read(
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> MarkAllNotificationsReadResponse:
+    """Mark every unread notification owned by the actor."""
+
+    updated_count = await _use_cases(session).mark_all_read(actor)
+    return MarkAllNotificationsReadResponse(updated_count=updated_count)
 
 
 @router.post(

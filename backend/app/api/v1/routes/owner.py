@@ -321,20 +321,18 @@ async def create_holiday(
 
 @router.delete(
     "/me/holidays/{holiday_id}",
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
-    summary="Delete owner salon holiday (not implemented)",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete owner salon holiday",
 )
 async def delete_holiday(
     holiday_id: str,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
-) -> JSONResponse:
-    """Return 501 — holiday deletion is not yet supported in the current schema."""
+) -> Response:
+    """Soft-delete a holiday owned by the authenticated owner's salon."""
 
-    return JSONResponse(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        content={"error": {"code": "not_implemented", "message": "Holiday deletion is not yet implemented."}},
-    )
+    await _use_cases(session).delete_holiday(actor, holiday_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Services ──────────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -628,7 +628,7 @@ class PlatformRepository:
                 """
                 select id, salon_id, holiday_date, title, is_recurring, created_at, updated_at
                 from salon_holidays
-                where salon_id = :salon_id
+                where salon_id = :salon_id and is_active
                 order by holiday_date
                 """
             ),
@@ -657,6 +657,27 @@ class PlatformRepository:
         )
         await self.session.commit()
         return dict(result.mappings().one())
+
+    async def delete_holiday(self, actor_id: str, holiday_id: str) -> None:
+        """Soft-delete an owner salon holiday."""
+
+        salon = await self.get_owner_salon(actor_id)
+        result = await self.session.execute(
+            text(
+                """
+                update salon_holidays
+                set is_active = false
+                where id = :holiday_id
+                  and salon_id = :salon_id
+                  and is_active
+                returning id
+                """
+            ),
+            {"holiday_id": holiday_id, "salon_id": salon["id"]},
+        )
+        if result.scalar_one_or_none() is None:
+            raise NotFoundError("Holiday not found")
+        await self.session.commit()
 
     async def list_owner_services(self, actor_id: str) -> list[dict[str, Any]]:
         """List services for the owner salon, including category and subcategory names."""
@@ -1095,7 +1116,18 @@ class PlatformRepository:
             raise NotFoundError("Booking not found")
         return booking
 
-    async def list_bookings(self, actor_id: str, role: str) -> list[dict[str, Any]]:
+    async def list_bookings(
+        self,
+        actor_id: str,
+        role: str,
+        *,
+        booking_status: str | None = None,
+        source: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
         """List bookings visible to an actor, enriched with salon and staff display fields."""
 
         if role == "customer":
@@ -1108,6 +1140,27 @@ class PlatformRepository:
             """
         else:
             predicate = "true"
+
+        filters = [f"({predicate})"]
+        params: dict[str, Any] = {"actor_id": actor_id}
+        if booking_status is not None:
+            filters.append("b.status = cast(:booking_status as booking_status)")
+            params["booking_status"] = booking_status
+        if source is not None:
+            filters.append("b.source = cast(:source as booking_source)")
+            params["source"] = source
+        if date_from is not None:
+            filters.append("b.start_datetime >= cast(:date_from as date)")
+            params["date_from"] = date_from
+        if date_to is not None:
+            filters.append("b.start_datetime < cast(:date_to as date) + interval '1 day'")
+            params["date_to"] = date_to
+
+        pagination = ""
+        if limit is not None:
+            pagination = "limit :limit offset :offset"
+            params.update({"limit": limit, "offset": offset})
+
         result = await self.session.execute(
             text(
                 f"""
@@ -1115,12 +1168,13 @@ class PlatformRepository:
                   b.id, b.salon_id, b.staff_id, b.customer_id,
                   b.customer_name, b.customer_phone, b.phone_verified,
                   b.source, b.status,
-                  b.start_datetime, b.end_datetime,
+                  b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
                   b.payment_status, b.payment_method,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name  as salon_name,
+                  s.owner_id as salon_owner_id,
                   s.address as salon_address,
                   img.url as salon_image,
                   st.name as staff_name,
@@ -1144,12 +1198,13 @@ class PlatformRepository:
                   limit 1
                 ) img on true
                 left join booking_services bs on bs.booking_id = b.id
-                where {predicate}
-                group by b.id, s.name, s.address, img.url, st.name, st.photo_url
+                where {' and '.join(filters)}
+                group by b.id, s.name, s.owner_id, s.address, img.url, st.name, st.photo_url
                 order by b.start_datetime desc
+                {pagination}
                 """
             ),
-            {"actor_id": actor_id},
+            params,
         )
         rows = result.mappings().all()
         return [
@@ -1159,6 +1214,7 @@ class PlatformRepository:
                 "salon_id": str(row["salon_id"]),
                 "staff_id": str(row["staff_id"]),
                 "customer_id": str(row["customer_id"]) if row.get("customer_id") else None,
+                "salon_owner_id": str(row["salon_owner_id"]),
             }
             for row in rows
         ]
@@ -1173,12 +1229,13 @@ class PlatformRepository:
                   b.id, b.salon_id, b.staff_id, b.customer_id,
                   b.customer_name, b.customer_phone, b.phone_verified,
                   b.source, b.status,
-                  b.start_datetime, b.end_datetime,
+                  b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
                   b.payment_status, b.payment_method,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name   as salon_name,
+                  s.owner_id as salon_owner_id,
                   s.address as salon_address,
                   img.url  as salon_image,
                   st.name  as staff_name,
@@ -1209,7 +1266,7 @@ class PlatformRepository:
                     or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
                     or exists (select 1 from staff st2 where st2.id = b.staff_id and st2.profile_id = :actor_id)
                   )
-                group by b.id, s.name, s.address, img.url, st.name, st.photo_url
+                group by b.id, s.name, s.owner_id, s.address, img.url, st.name, st.photo_url
                 """
             ),
             {"booking_id": booking_id, "actor_id": actor_id},
@@ -1223,6 +1280,7 @@ class PlatformRepository:
             "salon_id": str(row["salon_id"]),
             "staff_id": str(row["staff_id"]),
             "customer_id": str(row["customer_id"]) if row.get("customer_id") else None,
+            "salon_owner_id": str(row["salon_owner_id"]),
         }
 
     async def update_booking_status(
@@ -1269,6 +1327,76 @@ class PlatformRepository:
         if booking is None:
             raise NotFoundError("Booking not found")
         return booking
+
+    async def delay_booking(
+        self,
+        actor_id: str,
+        booking_id: str,
+        estimated_end_datetime: datetime,
+    ) -> dict[str, Any]:
+        """Set an estimated completion time for an owner/staff-visible booking."""
+
+        result = await self.session.execute(
+            text(
+                """
+                update bookings
+                set estimated_end_datetime = :estimated_end_datetime
+                where id = :booking_id
+                  and status in ('pending', 'confirmed')
+                  and (
+                    exists (
+                      select 1 from salons s
+                      where s.id = bookings.salon_id and s.owner_id = :actor_id
+                    )
+                    or exists (
+                      select 1 from staff st
+                      where st.id = bookings.staff_id and st.profile_id = :actor_id
+                    )
+                  )
+                returning id
+                """
+            ),
+            {
+                "actor_id": actor_id,
+                "booking_id": booking_id,
+                "estimated_end_datetime": estimated_end_datetime,
+            },
+        )
+        if result.scalar_one_or_none() is None:
+            raise NotFoundError("Active booking not found")
+        await self.session.commit()
+        booking = await self.get_booking(booking_id, actor_id)
+        if booking is None:
+            raise NotFoundError("Booking not found")
+        return booking
+
+    async def list_delay_affected_bookings(
+        self, booking_id: str, estimated_end_datetime: datetime
+    ) -> list[dict[str, Any]]:
+        """Return later customer bookings that overlap a delayed completion estimate."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select affected.id, affected.customer_id, affected.start_datetime
+                from bookings current_booking
+                join bookings affected
+                  on affected.staff_id = current_booking.staff_id
+                 and affected.id <> current_booking.id
+                 and affected.status in ('pending', 'confirmed')
+                 and affected.start_datetime >= current_booking.end_datetime
+                 and affected.start_datetime < :estimated_end_datetime
+                where current_booking.id = :booking_id
+                  and affected.customer_id is not null
+                order by affected.start_datetime
+                """
+            ),
+            {
+                "booking_id": booking_id,
+                "estimated_end_datetime": estimated_end_datetime,
+            },
+        )
+        return [dict(row) for row in result.mappings().all()]
 
     async def record_payment(
         self, actor_id: str, booking_id: str, payment_method: str
@@ -1346,6 +1474,27 @@ class PlatformRepository:
             if r.get(col) is not None:
                 r[col] = str(r[col])
         return r
+
+    async def mark_all_notifications_read(self, actor_id: str) -> int:
+        """Mark every unread notification owned by an actor."""
+
+        result = await self.session.execute(
+            text(
+                """
+                with updated as (
+                  update notifications
+                  set read = true
+                  where user_id = :actor_id and not read
+                  returning 1
+                )
+                select count(*) from updated
+                """
+            ),
+            {"actor_id": actor_id},
+        )
+        updated_count = int(result.scalar_one())
+        await self.session.commit()
+        return updated_count
 
     # register_device with actor_id is defined in the section below (line ~1334)
 

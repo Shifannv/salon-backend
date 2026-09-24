@@ -1,12 +1,37 @@
 """Unit tests for BookingUseCases."""
 
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from app.api.v1.schemas.platform import BookingResponse
 from app.application.use_cases.platform import BookingUseCases
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.domain.entities.profile import Role
 from tests.conftest import make_booking, make_mock_repo, make_owner, make_profile
+
+
+def test_booking_response_can_cancel_only_before_start_time():
+    future = datetime.now(UTC) + timedelta(hours=1)
+    booking = make_booking()
+
+    future_response = BookingResponse(
+        **{
+            **booking,
+            "start_datetime": future,
+            "end_datetime": future + timedelta(minutes=30),
+        }
+    )
+    past_response = BookingResponse(
+        **{
+            **booking,
+            "start_datetime": future - timedelta(hours=2),
+            "end_datetime": future - timedelta(hours=1, minutes=30),
+        }
+    )
+
+    assert future_response.can_cancel is True
+    assert past_response.can_cancel is False
 
 # ---------------------------------------------------------------------------
 # Availability
@@ -21,7 +46,6 @@ async def test_availability_delegates_to_repo():
     ]
     uc = BookingUseCases(repo)
 
-    from datetime import date
     slots = await uc.availability("staff-001", date(2025, 6, 1), ["service-001"])
 
     repo.get_available_slots.assert_awaited_once_with(
@@ -148,6 +172,50 @@ async def test_get_booking_not_found():
         await uc.get_booking(actor, "nonexistent")
 
 
+@pytest.mark.asyncio
+async def test_list_bookings_passes_optional_filters():
+    repo = make_mock_repo()
+    repo.list_bookings.return_value = []
+    uc = BookingUseCases(repo)
+    actor = make_owner()
+
+    await uc.list_bookings(
+        actor,
+        booking_status="confirmed",
+        source="app",
+        date_from=date(2026, 9, 1),
+        date_to=date(2026, 9, 30),
+        limit=25,
+        offset=10,
+    )
+
+    repo.list_bookings.assert_awaited_once_with(
+        actor.id,
+        actor.role.value,
+        booking_status="confirmed",
+        source="app",
+        date_from=date(2026, 9, 1),
+        date_to=date(2026, 9, 30),
+        limit=25,
+        offset=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_bookings_rejects_reversed_date_range():
+    from app.core.exceptions import ValidationError
+
+    repo = make_mock_repo()
+    uc = BookingUseCases(repo)
+
+    with pytest.raises(ValidationError, match="date_from"):
+        await uc.list_bookings(
+            make_owner(),
+            date_from=date(2026, 10, 1),
+            date_to=date(2026, 9, 1),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Approve
 # ---------------------------------------------------------------------------
@@ -211,9 +279,15 @@ async def test_cancel_by_customer_uses_customer_only_flag():
     uc = BookingUseCases(repo)
     actor = make_profile(role=Role.customer)
 
-    await uc.cancel(actor, "booking-001")
+    await uc.cancel(
+        actor,
+        "booking-001",
+        reason_code="schedule_conflict",
+        reason_text="Work meeting",
+    )
     _, call_kwargs = repo.update_booking_status.call_args
     assert call_kwargs.get("customer_only") is True
+    assert call_kwargs.get("cancellation_reason") == "Schedule conflict — Work meeting"
 
 
 @pytest.mark.asyncio
@@ -227,6 +301,38 @@ async def test_cancel_by_owner_not_customer_only():
     await uc.cancel(actor, "booking-001")
     _, call_kwargs = repo.update_booking_status.call_args
     assert call_kwargs.get("customer_only") is False
+
+
+@pytest.mark.asyncio
+async def test_delay_booking_requires_owner_or_staff():
+    repo = make_mock_repo()
+    uc = BookingUseCases(repo)
+
+    with pytest.raises(ForbiddenError):
+        await uc.delay(
+            make_profile(role=Role.customer),
+            "booking-001",
+            datetime.now(UTC) + timedelta(hours=2),
+            True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_delay_booking_updates_estimate():
+    repo = make_mock_repo()
+    end = datetime.now(UTC) + timedelta(hours=1)
+    estimate = end + timedelta(minutes=30)
+    current = {**make_booking(), "end_datetime": end}
+    delayed = {**current, "estimated_end_datetime": estimate}
+    repo.get_booking.return_value = current
+    repo.delay_booking.return_value = delayed
+    uc = BookingUseCases(repo)
+    owner = make_owner()
+
+    result = await uc.delay(owner, "booking-001", estimate, False)
+
+    assert result["estimated_end_datetime"] == estimate
+    repo.delay_booking.assert_awaited_once_with(owner.id, "booking-001", estimate)
 
 
 # ---------------------------------------------------------------------------
