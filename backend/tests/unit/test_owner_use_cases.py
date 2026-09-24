@@ -7,7 +7,7 @@ import pytest
 
 from app.api.v1.schemas.platform import HolidayResponse
 from app.application.use_cases.platform import OwnerUseCases
-from app.core.exceptions import ForbiddenError, ValidationError
+from app.core.exceptions import ForbiddenError
 from app.domain.entities.profile import Role
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from tests.conftest import make_mock_repo, make_owner, make_profile
@@ -205,18 +205,19 @@ async def test_delete_image_raises_not_found_when_missing():
 
 
 # ---------------------------------------------------------------------------
-# Holidays — deletion not supported
+# Holidays
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_delete_holiday_raises_validation_error():
+async def test_delete_holiday_delegates_to_repository():
     repo = make_mock_repo()
     uc = OwnerUseCases(repo)
     owner = make_owner()
 
-    with pytest.raises(ValidationError, match="Holiday deletion is not yet implemented"):
-        await uc.delete_holiday(owner, "holiday-001")
+    await uc.delete_holiday(owner, "holiday-001")
+
+    repo.delete_holiday.assert_awaited_once_with(owner.id, "holiday-001")
 
 
 # ---------------------------------------------------------------------------

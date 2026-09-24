@@ -5,6 +5,8 @@ Alembic owns the complete schema history.
 - `001_supabase_schema.sql` is the raw SQL baseline.
 - `versions/0001_baseline.py` applies that baseline to an empty database.
 - Later revisions add schema required by the current application.
+- `versions/0011_holiday_soft_delete.py` adds safe holiday deactivation.
+- `versions/0012_booking_delay.py` stores operational delay estimates.
 
 For a new empty database, run only:
 

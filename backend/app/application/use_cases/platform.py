@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import BackgroundTasks
@@ -399,14 +399,11 @@ class OwnerUseCases:
         self._assert_owner_workspace(actor)
         return await self.repository.create_holiday(actor.id, values)
 
-    async def delete_holiday(self, _actor: Profile, _holiday_id: str) -> None:
-        """Not yet implemented — holidays have no deletion route in the schema.
+    async def delete_holiday(self, actor: Profile, holiday_id: str) -> None:
+        """Soft-delete a holiday owned by the actor's salon."""
 
-        Raises ``ValidationError`` so the HTTP layer returns 501 Not Implemented.
-        The route exists as a stub so the API surface is complete when supported.
-        """
-
-        raise ValidationError("Holiday deletion is not yet implemented.")
+        self._assert_owner_workspace(actor)
+        await self.repository.delete_holiday(actor.id, holiday_id)
 
     async def list_services(self, actor: Profile) -> list[dict[str, Any]]:
         """List owner services."""
@@ -542,19 +539,58 @@ class BookingUseCases:
 
         return await self.repository.get_available_slots(staff_id, booking_date, service_ids)
 
-    async def create_booking(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
+    async def create_booking(
+        self,
+        actor: Profile,
+        values: dict[str, Any],
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
         """Create booking through the database function."""
 
         if values.get("source") == "manual_walkin" and actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Manual walk-in bookings require salon workspace access")
         if values.get("source") == "app" and actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer app bookings require customer or owner access")
-        return await self.repository.create_booking({**values, "actor_id": actor.id})
+        booking = await self.repository.create_booking({**values, "actor_id": actor.id})
+        if background_tasks is not None and values.get("source") != "manual_walkin":
+            background_tasks.add_task(self.notify_new_booking_owner, booking)
+        return booking
 
-    async def list_bookings(self, actor: Profile) -> list[dict[str, Any]]:
+    async def notify_new_booking_owner(self, booking: dict[str, Any]) -> None:
+        """Notify a salon owner about an app or QR booking."""
+
+        await self._notify_salon_owner(
+            booking,
+            "New Booking",
+            f"{booking.get('customer_name', 'A customer')} created a booking.",
+            "new_booking",
+        )
+
+    async def list_bookings(
+        self,
+        actor: Profile,
+        *,
+        booking_status: str | None = None,
+        source: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
         """List role-scoped bookings."""
 
-        return await self.repository.list_bookings(actor.id, actor.role.value)
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise ValidationError("date_from must be on or before date_to")
+        return await self.repository.list_bookings(
+            actor.id,
+            actor.role.value,
+            booking_status=booking_status,
+            source=source,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+        )
 
     async def get_booking(self, actor: Profile, booking_id: str) -> dict[str, Any]:
         """Return a role-scoped booking."""
@@ -578,7 +614,7 @@ class BookingUseCases:
         if background_tasks is not None:
             background_tasks.add_task(
                 self._notify_customer, booking, "Booking Confirmed",
-                "Your appointment has been confirmed."
+                "Your appointment has been confirmed.", "booking_confirmed"
             )
         return booking
 
@@ -599,7 +635,7 @@ class BookingUseCases:
         if background_tasks is not None:
             background_tasks.add_task(
                 self._notify_customer, booking, "Booking Rejected",
-                f"Your appointment was declined: {rejection_reason}"
+                f"Your appointment was declined: {rejection_reason}", "booking_rejected"
             )
         return booking
 
@@ -617,7 +653,7 @@ class BookingUseCases:
         if background_tasks is not None:
             background_tasks.add_task(
                 self._notify_customer, booking, "Visit Complete",
-                "Thank you for your visit!"
+                "Thank you for your visit!", "booking_completed"
             )
         return booking
 
@@ -630,21 +666,65 @@ class BookingUseCases:
         reason_code: str | None = None,
         reason_text: str | None = None,
     ) -> dict[str, Any]:
-        """Cancel a booking as the customer.
+        """Cancel a visible booking and persist an optional audit-friendly reason."""
 
-        ``reason_code`` and ``reason_text`` are accepted for future analytics
-        but the customer-side cancel does not persist them to ``bookings`` —
-        customers can cancel without explaining why.  The frontend stores a
-        full ``CancellationRecord`` to Supabase directly if it needs to.
-        """
+        reason_labels = {
+            "schedule_conflict": "Schedule conflict",
+            "found_better": "Found a better option",
+            "personal_emergency": "Personal emergency",
+            "booked_by_mistake": "Booked by mistake",
+            "service_not_needed": "Service no longer needed",
+            "other": "Other reason",
+        }
+        label = reason_labels.get(
+            reason_code,
+            reason_code.replace("_", " ").capitalize() if reason_code else None,
+        )
+        cancellation_reason = (
+            f"{label} — {reason_text}" if label and reason_text else label or reason_text
+        )
 
         booking = await self.repository.update_booking_status(
             actor.id,
             booking_id,
             "cancelled",
+            cancellation_reason=cancellation_reason,
             customer_only=actor.role == Role.customer,
         )
-        # No push needed when the customer themselves cancels.
+        if actor.role == Role.customer and background_tasks is not None:
+            background_tasks.add_task(
+                self._notify_salon_owner,
+                booking,
+                "Booking Cancelled",
+                f"{booking.get('customer_name', 'A customer')} cancelled a booking.",
+                "booking_cancelled",
+            )
+        return booking
+
+    async def delay(
+        self,
+        actor: Profile,
+        booking_id: str,
+        estimated_end_datetime: datetime,
+        notify_affected_customers: bool,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
+        """Record a delayed completion estimate and optionally notify later customers."""
+
+        if not is_owner_or_staff(actor):
+            raise ForbiddenError("Salon workspace access required")
+        current = await self.get_booking(actor, booking_id)
+        if estimated_end_datetime <= current["end_datetime"]:
+            raise ValidationError("estimated_end_datetime must be later than end_datetime")
+        booking = await self.repository.delay_booking(
+            actor.id, booking_id, estimated_end_datetime
+        )
+        if notify_affected_customers and background_tasks is not None:
+            background_tasks.add_task(
+                self._notify_delay_affected_customers,
+                booking_id,
+                estimated_end_datetime,
+            )
         return booking
 
     async def barber_cancel(
@@ -698,6 +778,7 @@ class BookingUseCases:
                 booking,
                 "Booking Cancelled",
                 f"Your appointment was cancelled by the salon: {cancellation_reason}",
+                "booking_cancelled",
             )
         return booking
 
@@ -711,38 +792,77 @@ class BookingUseCases:
         return await self.repository.record_payment(actor.id, booking_id, payment_method)
 
     async def _notify_customer(
-        self, booking: dict[str, Any], title: str, body: str
+        self,
+        booking: dict[str, Any],
+        title: str,
+        body: str,
+        notification_type: str,
     ) -> None:
-        """Create a notification row and fan-out push to the customer's devices.
-
-        Runs as a background task so it never blocks the HTTP response.
-        The FCMGateway is a no-op if Firebase is not configured.
-        """
+        """Create and deliver a notification to the booking customer."""
 
         customer_id = booking.get("customer_id")
-        if not customer_id:
-            # Manual walk-in with no account — no one to notify.
-            return
+        if customer_id:
+            await self._notify_user(
+                str(customer_id), str(booking["id"]), notification_type, title, body
+            )
+
+    async def _notify_salon_owner(
+        self,
+        booking: dict[str, Any],
+        title: str,
+        body: str,
+        notification_type: str,
+    ) -> None:
+        """Create and deliver a booking notification to the salon owner."""
+
+        owner_id = booking.get("salon_owner_id")
+        if owner_id:
+            await self._notify_user(
+                str(owner_id), str(booking["id"]), notification_type, title, body
+            )
+
+    async def _notify_delay_affected_customers(
+        self, booking_id: str, estimated_end_datetime: datetime
+    ) -> None:
+        """Notify later customers whose appointments overlap the delay window."""
+
+        affected = await self.repository.list_delay_affected_bookings(
+            booking_id, estimated_end_datetime
+        )
+        for booking in affected:
+            await self._notify_user(
+                str(booking["customer_id"]),
+                str(booking["id"]),
+                "booking_delayed",
+                "Appointment Delay",
+                "Your appointment may start later than scheduled. Please check the latest details.",
+            )
+
+    async def _notify_user(
+        self,
+        user_id: str,
+        booking_id: str,
+        notification_type: str,
+        title: str,
+        body: str,
+    ) -> None:
+        """Persist and fan out one notification without failing the booking workflow."""
 
         try:
             notification = await self.repository.create_notification(
-                user_id=str(customer_id),
-                booking_id=str(booking["id"]),
-                notification_type="booking_status",
+                user_id=user_id,
+                booking_id=booking_id,
+                notification_type=notification_type,
                 title=title,
                 body=body,
             )
-            # Lazy import: firebase-admin is optional — only needed when FCM is configured.
             from app.core.config import settings
             from app.infrastructure.push.fcm_gateway import FCMGateway
 
             fcm = FCMGateway(settings, self.repository.session)
-            await fcm.fan_out(str(notification["id"]), str(customer_id))
+            await fcm.fan_out(str(notification["id"]), user_id)
         except Exception:
-            # Push delivery failures must never affect the booking workflow.
-            _log.warning(
-                "Failed to send push notification for booking %s", booking.get("id")
-            )
+            _log.warning("Failed to send notification for booking %s", booking_id)
 
 
 class NotificationUseCases:
@@ -760,6 +880,11 @@ class NotificationUseCases:
         """Mark notification as read."""
 
         return await self.repository.mark_notification_read(actor.id, notification_id)
+
+    async def mark_all_read(self, actor: Profile) -> int:
+        """Mark all unread notifications owned by the actor."""
+
+        return await self.repository.mark_all_notifications_read(actor.id)
 
     async def register_device(
         self,

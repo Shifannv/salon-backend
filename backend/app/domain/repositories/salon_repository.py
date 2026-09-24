@@ -40,6 +40,9 @@ class SalonRepository(Protocol):
     ) -> dict[str, Any]:
         """Insert a salon_holidays row for the actor's salon."""
 
+    async def delete_holiday(self, actor_id: str, holiday_id: str) -> None:
+        """Soft-delete a holiday owned by the actor's salon."""
+
     async def list_salons(
         self,
         *,

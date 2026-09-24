@@ -14,6 +14,9 @@ class NotificationRepository(Protocol):
     ) -> dict[str, Any]:
         """Mark a notification read. Raises NotFoundError if not owned by actor."""
 
+    async def mark_all_notifications_read(self, actor_id: str) -> int:
+        """Mark every unread notification owned by the actor and return the count."""
+
     async def create_notification(
         self,
         user_id: str,
