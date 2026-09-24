@@ -1,5 +1,4 @@
-# Runtime dependencies for the shared FastAPI backend.
-# Keep this aligned with [project].dependencies in pyproject.toml.
+# Runtime dependencies
 fastapi>=0.112.0
 starlette>=0.46.0,<0.52.0
 uvicorn[standard]>=0.30.5
@@ -15,10 +14,5 @@ firebase-admin>=6.5.0
 pydantic-settings>=2.4.0
 email-validator>=2.2.0
 structlog>=24.4.0
-
-# QR code generation (pure Python, no Pillow needed)
 segno>=1.6.1
-
-# Cloudflare R2 / S3-compatible object storage — presigned upload URL generation
 boto3>=1.35.0
-colorama

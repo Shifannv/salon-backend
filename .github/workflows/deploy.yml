@@ -1,13 +1,3 @@
-# ───────────────────────────────────────────────────────────────────────────────
-# CD — Build, Push & Deploy
-# ───────────────────────────────────────────────────────────────────────────────
-# Started manually from GitHub Actions. Pushing to GitHub does not deploy.
-# Steps:
-#   1. Build the Docker image from backend/Dockerfile
-#   2. Push to Google Artifact Registry
-#   3. SSH into the GCP VM and pull + restart
-# ───────────────────────────────────────────────────────────────────────────────
-
 name: Deploy
 
 on:
@@ -16,7 +6,6 @@ on:
 permissions:
   contents: read
 
-# Only one deploy at a time.
 concurrency:
   group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
@@ -27,48 +16,41 @@ env:
 
 jobs:
   deploy:
-    name: Build, Push & Deploy
     runs-on: ubuntu-latest
     steps:
-      # ── Checkout ──────────────────────────────────────────────────────────
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ── Authenticate to Google Cloud ──────────────────────────────────────
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for Artifact Registry
+      - name: Configure Docker
         run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
-      # ── Build & Push ──────────────────────────────────────────────────────
       - name: Set image tags
         id: tags
+        shell: bash
         run: |
-          SHORT_SHA="${{ github.sha }}"
-          SHORT_SHA="${SHORT_SHA::7}"
-          echo "sha_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "latest_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> "$GITHUB_OUTPUT"
+          short_sha="${GITHUB_SHA::7}"
+          echo "sha_tag=${REGISTRY}/${IMAGE_NAME}:${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${REGISTRY}/${IMAGE_NAME}:latest" >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker image
+      - name: Build image
         working-directory: backend
         run: |
           docker build \
-            -t ${{ steps.tags.outputs.sha_tag }} \
-            -t ${{ steps.tags.outputs.latest_tag }} \
+            -t "${{ steps.tags.outputs.sha_tag }}" \
+            -t "${{ steps.tags.outputs.latest_tag }}" \
             .
 
-      - name: Push Docker image
+      - name: Push image
         run: |
-          docker push ${{ steps.tags.outputs.sha_tag }}
-          docker push ${{ steps.tags.outputs.latest_tag }}
+          docker push "${{ steps.tags.outputs.sha_tag }}"
+          docker push "${{ steps.tags.outputs.latest_tag }}"
 
-      # ── Deploy to GCP VM ──────────────────────────────────────────────────
       - name: Deploy to GCP VM
         uses: appleboy/ssh-action@v1
         with:
@@ -77,33 +59,23 @@ jobs:
           key: ${{ secrets.GCP_VM_SSH_KEY }}
           script: |
             set -euo pipefail
-
-            # Authenticate Docker on the VM to pull from Artifact Registry
             gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
-
-            # Pull the new image
-            docker pull ${{ steps.tags.outputs.latest_tag }}
-
-            # Navigate to the backend dir and restart
             cd ~/salon-backend/backend
-
-            # Update the image reference in docker-compose
             export SALON_API_IMAGE="${{ steps.tags.outputs.latest_tag }}"
-
-            docker compose pull
-            docker compose up -d
+            docker compose pull api
+            docker compose up -d --no-build --remove-orphans api
             docker compose ps
+            for attempt in 1 2 3 4 5 6; do
+              if curl --fail --silent --max-time 5 http://127.0.0.1:8000/health; then
+                exit 0
+              fi
+              sleep 5
+            done
+            docker compose logs --tail=100 api
+            exit 1
 
-            # Quick health check
-            echo "Waiting for health check..."
-            sleep 10
-            curl --fail --silent --max-time 5 http://127.0.0.1:8000/health || echo "⚠ Health check did not pass yet — check logs."
-
-      # ── Summary ───────────────────────────────────────────────────────────
       - name: Deployment summary
         run: |
-          echo "### ✅ Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Image:** \`${{ steps.tags.outputs.sha_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **VM:** \`${{ secrets.GCP_VM_HOST }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Deployment successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${{ steps.tags.outputs.sha_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
