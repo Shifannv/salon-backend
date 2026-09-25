@@ -122,6 +122,15 @@ def make_mock_repo() -> MagicMock:
         "delay_booking",
         "list_delay_affected_bookings",
         "record_payment",
+        "cancel_customer_booking",
+        "create_booking_action_request",
+        "list_booking_action_requests",
+        "respond_booking_action_request",
+        "get_notification_outbox_event",
+        "mark_notification_outbox_processed",
+        "mark_notification_outbox_retry",
+        "preview_closure",
+        "apply_closure",
         "list_notifications",
         "mark_notification_read",
         "mark_all_notifications_read",
@@ -149,5 +158,7 @@ def make_mock_repo() -> MagicMock:
         "get_salon_by_qr",
     ]:
         setattr(repo, attr, AsyncMock())
+
+    repo.preview_closure.return_value = []
 
     return repo

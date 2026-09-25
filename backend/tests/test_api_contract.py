@@ -11,6 +11,12 @@ def test_openapi_contains_new_cross_app_endpoints() -> None:
     assert "/v1/bookings/{booking_id}/delay" in paths
     assert "/v1/notifications/read-all" in paths
     assert paths["/v1/salons/me/holidays/{holiday_id}"]["delete"]["responses"].get("204")
+    assert "/v1/booking-action-requests" in paths
+    assert "/v1/booking-action-requests/{request_id}/respond" in paths
+    assert "/v1/bookings/{booking_id}/payment-confirmation-requests" in paths
+    assert "/v1/bookings/{booking_id}/cancellation-requests" in paths
+    assert "/v1/salons/me/closures/preview" in paths
+    assert "/v1/salons/me/closures" in paths
 
 
 def test_request_validation_uses_shared_error_envelope() -> None:

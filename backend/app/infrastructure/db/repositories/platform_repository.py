@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -640,6 +640,17 @@ class PlatformRepository:
         """Create an owner salon holiday."""
 
         salon = await self.get_owner_salon(actor_id)
+        await self.session.execute(
+            text("select pg_advisory_xact_lock(hashtextextended(:salon_id, 0))"),
+            {"salon_id": str(salon["id"])},
+        )
+        affected = await self._closure_affected_bookings(
+            str(salon["id"]),
+            {"kind": "holiday", "holiday_date": values["holiday_date"]},
+            lock=True,
+        )
+        if affected:
+            raise ConflictError("Holiday affects active bookings; preview the closure")
         result = await self.session.execute(
             text(
                 """
@@ -1101,6 +1112,20 @@ class PlatformRepository:
                 {**values, "service_ids_json": service_ids_json},
             )
             booking_id = result.scalar_one()
+            if values.get("payment_preference") is not None:
+                await self.session.execute(
+                    text(
+                        """
+                        update bookings
+                        set payment_preference = :payment_preference
+                        where id = :booking_id
+                        """
+                    ),
+                    {
+                        "booking_id": booking_id,
+                        "payment_preference": values["payment_preference"],
+                    },
+                )
             await self.session.commit()
         except Exception as exc:
             await self.session.rollback()
@@ -1136,7 +1161,11 @@ class PlatformRepository:
             predicate = """
               b.customer_id = :actor_id
               or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
-              or exists (select 1 from staff st2 where st2.id = b.staff_id and st2.profile_id = :actor_id)
+              or exists (
+                select 1 from staff st2
+                where st2.salon_id = b.salon_id
+                  and st2.profile_id = :actor_id and st2.is_active
+              )
             """
         else:
             predicate = "true"
@@ -1170,7 +1199,7 @@ class PlatformRepository:
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
-                  b.payment_status, b.payment_method,
+                  b.payment_status, b.payment_method, b.payment_preference,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name  as salon_name,
@@ -1179,6 +1208,38 @@ class PlatformRepository:
                   img.url as salon_image,
                   st.name as staff_name,
                   st.photo_url as staff_photo_url,
+                  (
+                    select ar.status from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'payment_confirmation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_payment_request_status,
+                  (
+                    select ar.decision from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'payment_confirmation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_payment_request_decision,
+                  (
+                    select coalesce(ar.decision_reason, ar.reason)
+                    from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'payment_confirmation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_payment_request_reason,
+                  (
+                    select ar.status from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'cancellation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_cancellation_request_status,
+                  (
+                    select ar.decision from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'cancellation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_cancellation_request_decision,
+                  (
+                    select coalesce(ar.decision_reason, ar.reason)
+                    from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'cancellation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_cancellation_request_reason,
                   coalesce(
                     json_agg(json_build_object(
                       'service_id',       bs.service_id,
@@ -1231,7 +1292,7 @@ class PlatformRepository:
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
-                  b.payment_status, b.payment_method,
+                  b.payment_status, b.payment_method, b.payment_preference,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name   as salon_name,
@@ -1240,6 +1301,38 @@ class PlatformRepository:
                   img.url  as salon_image,
                   st.name  as staff_name,
                   st.photo_url as staff_photo_url,
+                  (
+                    select ar.status from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'payment_confirmation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_payment_request_status,
+                  (
+                    select ar.decision from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'payment_confirmation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_payment_request_decision,
+                  (
+                    select coalesce(ar.decision_reason, ar.reason)
+                    from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'payment_confirmation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_payment_request_reason,
+                  (
+                    select ar.status from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'cancellation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_cancellation_request_status,
+                  (
+                    select ar.decision from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'cancellation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_cancellation_request_decision,
+                  (
+                    select coalesce(ar.decision_reason, ar.reason)
+                    from booking_action_requests ar
+                    where ar.booking_id = b.id and ar.kind = 'cancellation'
+                    order by ar.created_at desc limit 1
+                  ) as latest_cancellation_request_reason,
                   coalesce(
                     json_agg(json_build_object(
                       'service_id',       bs.service_id,
@@ -1264,7 +1357,11 @@ class PlatformRepository:
                     cast(:actor_id as uuid) is null
                     or b.customer_id = :actor_id
                     or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
-                    or exists (select 1 from staff st2 where st2.id = b.staff_id and st2.profile_id = :actor_id)
+                    or exists (
+                      select 1 from staff st2
+                      where st2.salon_id = b.salon_id
+                        and st2.profile_id = :actor_id and st2.is_active
+                    )
                   )
                 group by b.id, s.name, s.owner_id, s.address, img.url, st.name, st.photo_url
                 """
@@ -1293,22 +1390,41 @@ class PlatformRepository:
         cancellation_reason: str | None = None,
         customer_only: bool = False,
     ) -> dict[str, Any]:
-        """Update booking status if visible to the actor."""
+        """Apply an authorized, valid booking transition under a row lock."""
 
         owner_predicate = """
           exists (select 1 from salons s where s.id = bookings.salon_id and s.owner_id = :actor_id)
-          or exists (select 1 from staff st where st.id = bookings.staff_id and st.profile_id = :actor_id)
+          or exists (select 1 from staff st where st.id = bookings.staff_id and st.profile_id = :actor_id and st.is_active)
         """
         predicate = "customer_id = :actor_id" if customer_only else owner_predicate
-        result = await self.session.execute(
+        current_result = await self.session.execute(
             text(
                 f"""
+                select id, status, customer_id, customer_name from bookings
+                where id = :booking_id and ({predicate})
+                for update
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        current = current_result.mappings().one_or_none()
+        if current is None:
+            raise NotFoundError("Booking not found")
+        allowed = {
+            "pending": {"confirmed", "rejected", "cancelled"},
+            "confirmed": {"completed", "cancelled"},
+        }
+        if status not in allowed.get(current["status"], set()):
+            raise ConflictError("Booking state changed; refresh before deciding")
+
+        await self.session.execute(
+            text(
+                """
                 update bookings
                 set status = cast(:status as booking_status),
                     rejection_reason = coalesce(:rejection_reason, rejection_reason),
                     cancellation_reason = coalesce(:cancellation_reason, cancellation_reason)
-                where id = :booking_id and ({predicate})
-                returning id
+                where id = :booking_id
                 """
             ),
             {
@@ -1319,13 +1435,128 @@ class PlatformRepository:
                 "cancellation_reason": cancellation_reason,
             },
         )
-        row = result.mappings().one_or_none()
-        if row is None:
-            raise NotFoundError("Booking not found")
-        await self.session.commit()
+        if status in {"rejected", "cancelled", "completed"}:
+            invalidated_kinds = (
+                ["cancellation"]
+                if status == "completed"
+                else ["cancellation", "payment_confirmation"]
+            )
+            await self.session.execute(
+                text(
+                    """
+                    update booking_action_requests
+                    set status = 'resolved',
+                        decision = 'invalidated',
+                        decision_reason = :reason,
+                        resolved_by = :actor_id,
+                        resolved_at = now()
+                    where booking_id = :booking_id
+                      and status = 'pending'
+                      and kind in (
+                        select value
+                        from jsonb_array_elements_text(cast(:kinds_json as jsonb)) value
+                      )
+                    """
+                ),
+                {
+                    "actor_id": actor_id,
+                    "booking_id": booking_id,
+                    "kinds_json": json.dumps(invalidated_kinds),
+                    "reason": f"Booking changed to {status}",
+                },
+            )
+        outbox_ids: list[str] = []
+        if status == "cancelled" and current["customer_id"]:
+            outbox_ids.append(
+                await self._insert_notification_outbox(
+                    user_id=str(current["customer_id"]),
+                    booking_id=booking_id,
+                    notification_type="booking_cancelled",
+                    title="Booking cancelled by salon",
+                    body=(
+                        "The salon cancelled your appointment: "
+                        f"{cancellation_reason or 'Please contact the salon for details.'}"
+                    ),
+                )
+            )
         booking = await self.get_booking(booking_id, actor_id)
         if booking is None:
             raise NotFoundError("Booking not found")
+        booking["_outbox_ids"] = outbox_ids
+        await self.session.commit()
+        return booking
+
+    async def cancel_customer_booking(
+        self,
+        actor_id: str,
+        booking_id: str,
+        cancellation_reason: str | None,
+        cutoff_minutes: int,
+    ) -> dict[str, Any]:
+        """Cancel an owned booking before the server cancellation cutoff."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select b.id, b.status, b.start_datetime, b.customer_name,
+                       s.owner_id,
+                       now() as database_now
+                from bookings b
+                join salons s on s.id = b.salon_id
+                where b.id = :booking_id and b.customer_id = :actor_id
+                for update of b
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Booking not found")
+        if row["status"] not in {"pending", "confirmed"}:
+            raise ConflictError("Booking can no longer be cancelled")
+        cutoff = row["start_datetime"] - timedelta(minutes=cutoff_minutes)
+        if row["database_now"] >= cutoff:
+            raise ConflictError(
+                "Immediate cancellation cutoff has passed; submit a cancellation request"
+            )
+
+        await self.session.execute(
+            text(
+                """
+                update bookings
+                set status = 'cancelled', cancellation_reason = :cancellation_reason
+                where id = :booking_id
+                """
+            ),
+            {
+                "booking_id": booking_id,
+                "cancellation_reason": cancellation_reason,
+            },
+        )
+        await self.session.execute(
+            text(
+                """
+                update booking_action_requests
+                set status = 'resolved', decision = 'invalidated',
+                    decision_reason = 'Booking cancelled directly by customer',
+                    resolved_by = :actor_id, resolved_at = now()
+                where booking_id = :booking_id and status = 'pending'
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        outbox_id = await self._insert_notification_outbox(
+            user_id=str(row["owner_id"]),
+            booking_id=booking_id,
+            notification_type="booking_cancelled",
+            title="Booking cancelled",
+            body=f"{row['customer_name']} cancelled their appointment.",
+        )
+        booking = await self.get_booking(booking_id, actor_id)
+        if booking is None:
+            raise NotFoundError("Booking not found")
+        booking["_outbox_ids"] = [outbox_id]
+        await self.session.commit()
         return booking
 
     async def delay_booking(
@@ -1351,6 +1582,7 @@ class PlatformRepository:
                     or exists (
                       select 1 from staff st
                       where st.id = bookings.staff_id and st.profile_id = :actor_id
+                        and st.is_active
                     )
                   )
                 returning id
@@ -1401,32 +1633,802 @@ class PlatformRepository:
     async def record_payment(
         self, actor_id: str, booking_id: str, payment_method: str
     ) -> dict[str, Any]:
-        """Record owner-side booking payment."""
+        """Record an eligible owner-side payment exactly once."""
 
         result = await self.session.execute(
+            text(
+                """
+                select b.id, b.status, b.payment_status, b.customer_id
+                from bookings b
+                where b.id = :booking_id
+                  and (
+                    exists (select 1 from salons s where s.id = b.salon_id and s.owner_id = :actor_id)
+                    or exists (select 1 from staff st where st.id = b.staff_id and st.profile_id = :actor_id and st.is_active)
+                  )
+                for update of b
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Booking not found")
+        if row["status"] not in {"confirmed", "completed"}:
+            raise ConflictError("Only confirmed or completed bookings can be paid")
+        if row["payment_status"] == "paid":
+            raise ConflictError("Payment has already been recorded")
+
+        await self.session.execute(
             text(
                 """
                 update bookings
                 set payment_status = 'paid',
                     payment_method = cast(:payment_method as payment_method)
                 where id = :booking_id
-                  and (
-                    exists (select 1 from salons s where s.id = bookings.salon_id and s.owner_id = :actor_id)
-                    or exists (select 1 from staff st where st.id = bookings.staff_id and st.profile_id = :actor_id)
-                  )
-                returning id
                 """
             ),
-            {"actor_id": actor_id, "booking_id": booking_id, "payment_method": payment_method},
+            {"booking_id": booking_id, "payment_method": payment_method},
         )
-        row = result.mappings().one_or_none()
-        if row is None:
-            raise NotFoundError("Booking not found")
-        await self.session.commit()
+        await self.session.execute(
+            text(
+                """
+                update booking_action_requests
+                set status = 'resolved', decision = 'received',
+                    decision_reason = 'Payment recorded directly by salon',
+                    resolved_by = :actor_id, resolved_at = now()
+                where booking_id = :booking_id
+                  and kind = 'payment_confirmation'
+                  and status = 'pending'
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        outbox_ids: list[str] = []
+        if row["customer_id"]:
+            outbox_ids.append(
+                await self._insert_notification_outbox(
+                    user_id=str(row["customer_id"]),
+                    booking_id=booking_id,
+                    notification_type="payment_received",
+                    title="Payment received",
+                    body="The salon recorded your payment and receipt.",
+                )
+            )
         booking = await self.get_booking(booking_id, actor_id)
         if booking is None:
             raise NotFoundError("Booking not found")
+        booking["_outbox_ids"] = outbox_ids
+        await self.session.commit()
         return booking
+
+    async def _insert_notification_outbox(
+        self,
+        *,
+        user_id: str,
+        booking_id: str,
+        notification_type: str,
+        title: str,
+        body: str,
+    ) -> str:
+        """Persist a notification and retryable push event in this transaction."""
+
+        result = await self.session.execute(
+            text(
+                """
+                with created_notification as (
+                  insert into notifications (user_id, booking_id, type, title, body)
+                  values (:user_id, :booking_id, :notification_type, :title, :body)
+                  returning id, user_id
+                )
+                insert into notification_outbox (notification_id, user_id)
+                select id, user_id from created_notification
+                returning id
+                """
+            ),
+            {
+                "user_id": user_id,
+                "booking_id": booking_id,
+                "notification_type": notification_type,
+                "title": title,
+                "body": body,
+            },
+        )
+        return str(result.scalar_one())
+
+    async def enqueue_notification(
+        self,
+        *,
+        user_id: str,
+        booking_id: str,
+        notification_type: str,
+        title: str,
+        body: str,
+    ) -> str:
+        """Persist a notification/outbox pair outside another state transaction."""
+
+        outbox_id = await self._insert_notification_outbox(
+            user_id=user_id,
+            booking_id=booking_id,
+            notification_type=notification_type,
+            title=title,
+            body=body,
+        )
+        await self.session.commit()
+        return outbox_id
+
+    async def _get_booking_action_request_row(
+        self, request_id: str
+    ) -> dict[str, Any] | None:
+        result = await self.session.execute(
+            text(
+                """
+                select
+                  ar.id, ar.booking_id, ar.kind, ar.status, ar.reason,
+                  ar.decision, ar.decision_reason, ar.resolved_at, ar.created_at,
+                  b.customer_name, b.start_datetime, b.total_price,
+                  coalesce(
+                    array(
+                      select bs.service_name
+                      from booking_services bs
+                      where bs.booking_id = b.id
+                      order by bs.service_name
+                    ), array[]::text[]
+                  ) as service_names
+                from booking_action_requests ar
+                join bookings b on b.id = ar.booking_id
+                where ar.id = :request_id
+                """
+            ),
+            {"request_id": request_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            return None
+        item = dict(row)
+        item["id"] = str(item["id"])
+        item["booking_id"] = str(item["booking_id"])
+        return item
+
+    async def create_booking_action_request(
+        self,
+        actor_id: str,
+        booking_id: str,
+        kind: str,
+        reason: str | None,
+        *,
+        cancellation_cutoff_minutes: int,
+        allow_late_cancellation_requests: bool,
+    ) -> dict[str, Any]:
+        """Create an eligible customer request under a booking row lock."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select b.id, b.status, b.payment_status, b.payment_preference,
+                       b.start_datetime, b.end_datetime, b.customer_name,
+                       s.owner_id, now() as database_now
+                from bookings b
+                join salons s on s.id = b.salon_id
+                where b.id = :booking_id and b.customer_id = :actor_id
+                for update of b
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        booking = result.mappings().one_or_none()
+        if booking is None:
+            raise NotFoundError("Booking not found")
+
+        if kind == "payment_confirmation":
+            if booking["status"] not in {"confirmed", "completed"}:
+                raise ConflictError(
+                    "Payment confirmation is allowed only for confirmed or completed bookings"
+                )
+            if booking["payment_status"] != "unpaid":
+                raise ConflictError("Payment has already been recorded")
+            if booking["payment_preference"] != "pay_at_salon":
+                raise ConflictError("Booking is not configured for Pay at Salon")
+            if booking["database_now"] < booking["start_datetime"]:
+                raise ConflictError(
+                    "Payment can be confirmed only after the salon visit starts"
+                )
+            title = "Customer reports payment"
+            body = f"{booking['customer_name']} says they paid at the salon."
+            notification_type = "payment_confirmation_requested"
+        elif kind == "cancellation":
+            if not allow_late_cancellation_requests:
+                raise ConflictError("Late cancellation requests are disabled")
+            if booking["status"] not in {"pending", "confirmed"}:
+                raise ConflictError("Booking can no longer be cancelled")
+            if booking["database_now"] >= booking["end_datetime"]:
+                raise ConflictError("The appointment has already ended")
+            cutoff = booking["start_datetime"] - timedelta(
+                minutes=cancellation_cutoff_minutes
+            )
+            if booking["database_now"] < cutoff:
+                raise ConflictError(
+                    "Use immediate cancellation before the cancellation cutoff"
+                )
+            title = "Cancellation approval requested"
+            body = f"{booking['customer_name']} requested a late cancellation."
+            notification_type = "cancellation_requested"
+        else:
+            raise ValidationError("Unsupported booking action request kind")
+
+        pending = await self.session.execute(
+            text(
+                """
+                select id from booking_action_requests
+                where booking_id = :booking_id and kind = :kind and status = 'pending'
+                """
+            ),
+            {"booking_id": booking_id, "kind": kind},
+        )
+        if pending.scalar_one_or_none() is not None:
+            raise ConflictError("A pending request already exists for this booking")
+
+        created = await self.session.execute(
+            text(
+                """
+                insert into booking_action_requests (
+                  booking_id, kind, reason, requested_by, created_by, updated_by
+                ) values (
+                  :booking_id, :kind, :reason, :actor_id, :actor_id, :actor_id
+                )
+                returning id
+                """
+            ),
+            {
+                "booking_id": booking_id,
+                "kind": kind,
+                "reason": (reason or "").strip() or None,
+                "actor_id": actor_id,
+            },
+        )
+        request_id = str(created.scalar_one())
+        outbox_id = await self._insert_notification_outbox(
+            user_id=str(booking["owner_id"]),
+            booking_id=booking_id,
+            notification_type=notification_type,
+            title=title,
+            body=body,
+        )
+        item = await self._get_booking_action_request_row(request_id)
+        if item is None:
+            raise NotFoundError("Booking action request not found")
+        item["_outbox_ids"] = [outbox_id]
+        await self.session.commit()
+        return item
+
+    async def list_booking_action_requests(
+        self, actor_id: str, request_status: str | None
+    ) -> list[dict[str, Any]]:
+        """List action requests visible to an owner or salon staff member."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select
+                  ar.id, ar.booking_id, ar.kind, ar.status, ar.reason,
+                  ar.decision, ar.decision_reason, ar.resolved_at, ar.created_at,
+                  b.customer_name, b.start_datetime, b.total_price,
+                  coalesce(
+                    array(
+                      select bs.service_name from booking_services bs
+                      where bs.booking_id = b.id order by bs.service_name
+                    ), array[]::text[]
+                  ) as service_names
+                from booking_action_requests ar
+                join bookings b on b.id = ar.booking_id
+                join salons s on s.id = b.salon_id
+                where (:request_status is null or ar.status = :request_status)
+                  and (
+                    s.owner_id = :actor_id
+                    or exists (
+                      select 1 from staff access_staff
+                      where access_staff.salon_id = b.salon_id
+                        and access_staff.profile_id = :actor_id
+                        and access_staff.is_active
+                    )
+                  )
+                order by ar.created_at
+                """
+            ),
+            {"actor_id": actor_id, "request_status": request_status},
+        )
+        items = []
+        for row in result.mappings().all():
+            item = dict(row)
+            item["id"] = str(item["id"])
+            item["booking_id"] = str(item["booking_id"])
+            items.append(item)
+        return items
+
+    async def respond_booking_action_request(
+        self,
+        actor_id: str,
+        request_id: str,
+        decision: str,
+        reason: str | None,
+    ) -> dict[str, Any]:
+        """Resolve one request and transition its booking atomically."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select ar.id, ar.kind, ar.status as request_status, ar.reason,
+                       b.id as booking_id, b.status as booking_status,
+                       b.payment_status, b.customer_id, b.end_datetime,
+                       now() as database_now
+                from booking_action_requests ar
+                join bookings b on b.id = ar.booking_id
+                join salons s on s.id = b.salon_id
+                where ar.id = :request_id
+                  and (
+                    s.owner_id = :actor_id
+                    or exists (
+                      select 1 from staff access_staff
+                      where access_staff.salon_id = b.salon_id
+                        and access_staff.profile_id = :actor_id
+                        and access_staff.is_active
+                    )
+                  )
+                for update of b
+                """
+            ),
+            {"actor_id": actor_id, "request_id": request_id},
+        )
+        current = result.mappings().one_or_none()
+        if current is None:
+            raise NotFoundError("Booking action request not found")
+        if current["request_status"] != "pending":
+            raise ConflictError("This request has already been resolved")
+        request_lock = await self.session.execute(
+            text(
+                """
+                select status from booking_action_requests
+                where id = :request_id
+                for update
+                """
+            ),
+            {"request_id": request_id},
+        )
+        locked_request = request_lock.mappings().one_or_none()
+        if locked_request is None or locked_request["status"] != "pending":
+            raise ConflictError("This request has already been resolved")
+
+        normalized_reason = (reason or "").strip() or None
+        if current["kind"] == "payment_confirmation":
+            if decision not in {"received", "not_received"}:
+                raise ValidationError("Payment requests accept received or not_received")
+            if current["booking_status"] not in {"confirmed", "completed"}:
+                raise ConflictError("Booking is no longer eligible for payment")
+            if current["payment_status"] != "unpaid":
+                raise ConflictError("Payment has already been recorded")
+            if decision == "received":
+                await self.session.execute(
+                    text(
+                        """
+                        update bookings
+                        set payment_status = 'paid', payment_method = 'cash'
+                        where id = :booking_id and payment_status = 'unpaid'
+                        """
+                    ),
+                    {"booking_id": current["booking_id"]},
+                )
+                title = "Payment received"
+                body = "The salon confirmed your cash payment. Your receipt is recorded."
+                notification_type = "payment_received"
+            else:
+                title = "Payment not received"
+                body = normalized_reason or (
+                    "The salon could not confirm your payment. You can try again after checking with them."
+                )
+                notification_type = "payment_not_received"
+        else:
+            if decision not in {"approve", "decline"}:
+                raise ValidationError("Cancellation requests accept approve or decline")
+            if current["booking_status"] not in {"pending", "confirmed"}:
+                raise ConflictError("Booking is no longer eligible for cancellation")
+            if current["database_now"] >= current["end_datetime"]:
+                raise ConflictError("The appointment has already ended")
+            if decision == "decline" and normalized_reason is None:
+                raise ValidationError("A reason is required when declining cancellation")
+            if decision == "approve":
+                cancellation_reason = current["reason"] or (
+                    "Late cancellation approved by salon"
+                )
+                await self.session.execute(
+                    text(
+                        """
+                        update bookings
+                        set status = 'cancelled', cancellation_reason = :reason
+                        where id = :booking_id
+                          and status in ('pending', 'confirmed')
+                        """
+                    ),
+                    {
+                        "booking_id": current["booking_id"],
+                        "reason": cancellation_reason,
+                    },
+                )
+                await self.session.execute(
+                    text(
+                        """
+                        update booking_action_requests
+                        set status = 'resolved', decision = 'invalidated',
+                            decision_reason = 'Booking cancellation was approved',
+                            resolved_by = :actor_id, resolved_at = now()
+                        where booking_id = :booking_id
+                          and id <> :request_id
+                          and status = 'pending'
+                        """
+                    ),
+                    {
+                        "actor_id": actor_id,
+                        "booking_id": current["booking_id"],
+                        "request_id": request_id,
+                    },
+                )
+                title = "Cancellation approved"
+                body = "The salon approved your cancellation and released the appointment."
+                notification_type = "cancellation_approved"
+            else:
+                title = "Cancellation declined"
+                body = normalized_reason
+                notification_type = "cancellation_declined"
+
+        # Persist the decision message that the customer receives, even when
+        # the owner did not provide an optional explanation.
+        decision_reason = normalized_reason or body
+        await self.session.execute(
+            text(
+                """
+                update booking_action_requests
+                set status = 'resolved', decision = :decision,
+                    decision_reason = :reason, resolved_by = :actor_id,
+                    resolved_at = now()
+                where id = :request_id and status = 'pending'
+                """
+            ),
+            {
+                "request_id": request_id,
+                "decision": decision,
+                "reason": decision_reason,
+                "actor_id": actor_id,
+            },
+        )
+        outbox_id = await self._insert_notification_outbox(
+            user_id=str(current["customer_id"]),
+            booking_id=str(current["booking_id"]),
+            notification_type=notification_type,
+            title=title,
+            body=body,
+        )
+        item = await self._get_booking_action_request_row(request_id)
+        if item is None:
+            raise NotFoundError("Booking action request not found")
+        booking = await self.get_booking(str(current["booking_id"]), actor_id)
+        item["booking"] = booking
+        item["_outbox_ids"] = [outbox_id]
+        await self.session.commit()
+        return item
+
+    async def get_notification_outbox_event(
+        self, outbox_id: str
+    ) -> dict[str, Any] | None:
+        """Claim a due outbox event for one background delivery attempt."""
+
+        result = await self.session.execute(
+            text(
+                """
+                update notification_outbox
+                set attempts = attempts + 1,
+                    next_attempt_at = now() + interval '5 minutes'
+                where id = :outbox_id
+                  and status = 'pending'
+                  and next_attempt_at <= now()
+                returning id, notification_id, user_id
+                """
+            ),
+            {"outbox_id": outbox_id},
+        )
+        row = result.mappings().one_or_none()
+        await self.session.commit()
+        if row is None:
+            return None
+        return {key: str(value) for key, value in dict(row).items()}
+
+    async def list_due_notification_outbox_ids(self, limit: int = 50) -> list[str]:
+        """Find persisted push events due for an attempt or retry."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select id from notification_outbox
+                where status = 'pending' and next_attempt_at <= now()
+                order by next_attempt_at, created_at
+                limit :limit
+                """
+            ),
+            {"limit": limit},
+        )
+        return [str(row[0]) for row in result.all()]
+
+    async def notification_has_failed_delivery(self, notification_id: str) -> bool:
+        """Detect provider failures for still-active device tokens."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select exists (
+                  select 1 from notification_deliveries delivery
+                  join device_tokens device on device.id = delivery.device_token_id
+                  where delivery.notification_id = :notification_id
+                    and not delivery.delivered
+                    and device.is_active
+                )
+                """
+            ),
+            {"notification_id": notification_id},
+        )
+        return bool(result.scalar_one())
+
+    async def mark_notification_outbox_processed(self, outbox_id: str) -> None:
+        """Mark an outbox event processed after push fan-out returns."""
+
+        await self.session.execute(
+            text(
+                """
+                update notification_outbox
+                set status = 'processed', processed_at = now(), last_error = null
+                where id = :outbox_id
+                """
+            ),
+            {"outbox_id": outbox_id},
+        )
+        await self.session.commit()
+
+    async def mark_notification_outbox_retry(
+        self, outbox_id: str, error: str
+    ) -> None:
+        """Persist a safe failure message and leave the event retryable."""
+
+        await self.session.execute(
+            text(
+                """
+                update notification_outbox
+                set last_error = :error,
+                    next_attempt_at = now() + interval '5 minutes'
+                where id = :outbox_id and status = 'pending'
+                """
+            ),
+            {"outbox_id": outbox_id, "error": error[:1000]},
+        )
+        await self.session.commit()
+
+    async def _closure_affected_bookings(
+        self,
+        salon_id: str,
+        values: dict[str, Any],
+        *,
+        lock: bool,
+    ) -> list[dict[str, Any]]:
+        if values["kind"] == "holiday":
+            predicate = """
+                tstzrange(b.start_datetime, b.end_datetime, '[)')
+                  && tstzrange(
+                    (cast(:holiday_date as date) + time '00:00') at time zone s.timezone,
+                    (cast(:holiday_date as date) + interval '1 day') at time zone s.timezone,
+                    '[)'
+                  )
+            """
+            params = {
+                "salon_id": salon_id,
+                "holiday_date": values["holiday_date"],
+            }
+        else:
+            predicate = """
+                tstzrange(b.start_datetime, b.end_datetime, '[)')
+                  && tstzrange(:start_datetime, :end_datetime, '[)')
+                and (:staff_id is null or b.staff_id = cast(:staff_id as uuid))
+            """
+            params = {
+                "salon_id": salon_id,
+                "start_datetime": values["start_datetime"],
+                "end_datetime": values["end_datetime"],
+                "staff_id": values.get("staff_id"),
+            }
+        lock_sql = "for update of b" if lock else ""
+        result = await self.session.execute(
+            text(
+                f"""
+                select b.id as booking_id, b.customer_id, b.customer_name,
+                       b.staff_id, b.start_datetime, b.end_datetime, b.status,
+                       coalesce(
+                         array(
+                           select bs.service_name from booking_services bs
+                           where bs.booking_id = b.id order by bs.service_name
+                         ), array[]::text[]
+                       ) as service_names
+                from bookings b
+                join salons s on s.id = b.salon_id
+                where b.salon_id = :salon_id
+                  and b.status in ('pending', 'confirmed')
+                  and {predicate}
+                order by b.start_datetime, b.id
+                {lock_sql}
+                """
+            ),
+            params,
+        )
+        rows = []
+        for row in result.mappings().all():
+            item = dict(row)
+            for key in ("booking_id", "customer_id", "staff_id"):
+                if item.get(key) is not None:
+                    item[key] = str(item[key])
+            rows.append(item)
+        return rows
+
+    async def preview_closure(
+        self, actor_id: str, values: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Preview exactly the active bookings overlapped by a closure."""
+
+        salon = await self.get_owner_salon(actor_id)
+        if values.get("staff_id"):
+            staff = await self.session.execute(
+                text(
+                    "select id from staff where id = :staff_id and salon_id = :salon_id"
+                ),
+                {"staff_id": values["staff_id"], "salon_id": salon["id"]},
+            )
+            if staff.scalar_one_or_none() is None:
+                raise NotFoundError("Staff member not found in this salon")
+        return await self._closure_affected_bookings(
+            str(salon["id"]), values, lock=False
+        )
+
+    async def apply_closure(
+        self, actor_id: str, values: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Apply a closure and cancel its exact confirmed impact set."""
+
+        salon = await self.get_owner_salon(actor_id)
+        salon_id = str(salon["id"])
+        if values.get("staff_id"):
+            staff = await self.session.execute(
+                text(
+                    "select id from staff where id = :staff_id and salon_id = :salon_id"
+                ),
+                {"staff_id": values["staff_id"], "salon_id": salon_id},
+            )
+            if staff.scalar_one_or_none() is None:
+                raise NotFoundError("Staff member not found in this salon")
+
+        # Booking inserts acquire the same lock in t_bookings_closure_guard.
+        # This closes the preview/apply race without weakening create_booking.
+        await self.session.execute(
+            text(
+                "select pg_advisory_xact_lock(hashtextextended(:salon_id, 0))"
+            ),
+            {"salon_id": salon_id},
+        )
+        affected = await self._closure_affected_bookings(
+            salon_id, values, lock=True
+        )
+        actual_ids = {item["booking_id"] for item in affected}
+        supplied_ids = values.get("affected_booking_ids", [])
+        expected_ids = set(supplied_ids)
+        if len(supplied_ids) != len(expected_ids) or actual_ids != expected_ids:
+            raise ConflictError(
+                "Affected bookings changed after preview; refresh and confirm again"
+            )
+
+        if values["kind"] == "holiday":
+            created = await self.session.execute(
+                text(
+                    """
+                    insert into salon_holidays (
+                      salon_id, holiday_date, title, reason, is_recurring
+                    ) values (
+                      :salon_id, :holiday_date, :title, :reason, false
+                    )
+                    on conflict (salon_id, holiday_date) where is_active do nothing
+                    returning id
+                    """
+                ),
+                {
+                    "salon_id": salon_id,
+                    "holiday_date": values["holiday_date"],
+                    "title": values.get("title") or values["reason"],
+                    "reason": values["reason"],
+                },
+            )
+        else:
+            created = await self.session.execute(
+                text(
+                    """
+                    insert into blocked_slots (
+                      staff_id, salon_id, start_datetime, end_datetime,
+                      block_type, reason, is_full_day, is_recurring
+                    ) values (
+                      :staff_id, :salon_id, :start_datetime, :end_datetime,
+                      'leave', :reason, false, false
+                    )
+                    returning id
+                    """
+                ),
+                {
+                    "staff_id": values.get("staff_id"),
+                    "salon_id": salon_id,
+                    "start_datetime": values["start_datetime"],
+                    "end_datetime": values["end_datetime"],
+                    "reason": values["reason"],
+                },
+            )
+        created_id = created.scalar_one_or_none()
+        if created_id is None:
+            raise ConflictError("An active holiday already exists for this date")
+        closure_id = str(created_id)
+
+        outbox_ids: list[str] = []
+        if actual_ids:
+            ids_json = json.dumps(sorted(actual_ids))
+            await self.session.execute(
+                text(
+                    """
+                    update bookings
+                    set status = 'cancelled', cancellation_reason = :reason
+                    where id in (
+                      select value::uuid
+                      from jsonb_array_elements_text(cast(:ids_json as jsonb)) value
+                    )
+                    """
+                ),
+                {"ids_json": ids_json, "reason": values["reason"]},
+            )
+            await self.session.execute(
+                text(
+                    """
+                    update booking_action_requests
+                    set status = 'resolved', decision = 'invalidated',
+                        decision_reason = 'Booking cancelled by salon closure',
+                        resolved_by = :actor_id, resolved_at = now()
+                    where booking_id in (
+                      select value::uuid
+                      from jsonb_array_elements_text(cast(:ids_json as jsonb)) value
+                    ) and status = 'pending'
+                    """
+                ),
+                {"ids_json": ids_json, "actor_id": actor_id},
+            )
+            for booking in affected:
+                booking["status"] = "cancelled"
+                if booking["customer_id"]:
+                    outbox_ids.append(
+                        await self._insert_notification_outbox(
+                            user_id=booking["customer_id"],
+                            booking_id=booking["booking_id"],
+                            notification_type="booking_cancelled_closure",
+                            title="Appointment cancelled by salon",
+                            body=(
+                                f"The salon closed this time because: {values['reason']}. "
+                                "Please book another available appointment."
+                            ),
+                        )
+                    )
+
+        await self.session.commit()
+        return {
+            "closure_kind": values["kind"],
+            "closure_id": closure_id,
+            "reason": values["reason"],
+            "affected_count": len(affected),
+            "affected_bookings": affected,
+            "_outbox_ids": outbox_ids,
+        }
 
     async def list_notifications(self, actor_id: str) -> list[dict[str, Any]]:
         """List actor notifications."""
@@ -1957,6 +2959,10 @@ class PlatformRepository:
     ) -> dict[str, Any]:
         """Create a blocked slot (staff-scoped or salon-wide)."""
 
+        if values.get("block_type") == "leave" and not (
+            values.get("reason") or ""
+        ).strip():
+            raise ValidationError("A reason is required for salon leave")
         salon = await self.get_owner_salon(actor_id)
         # If staff_id provided, verify it belongs to this salon
         if values.get("staff_id"):
@@ -1968,6 +2974,23 @@ class PlatformRepository:
             )
             if check.one_or_none() is None:
                 raise NotFoundError("Staff member not found in this salon")
+
+        await self.session.execute(
+            text("select pg_advisory_xact_lock(hashtextextended(:salon_id, 0))"),
+            {"salon_id": str(salon["id"])},
+        )
+        affected = await self._closure_affected_bookings(
+            str(salon["id"]),
+            {
+                "kind": "leave",
+                "staff_id": values.get("staff_id"),
+                "start_datetime": values["start_datetime"],
+                "end_datetime": values["end_datetime"],
+            },
+            lock=True,
+        )
+        if affected:
+            raise ConflictError("Blocked time affects active bookings; preview the closure")
 
         result = await self.session.execute(
             text(

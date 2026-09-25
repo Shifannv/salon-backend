@@ -69,6 +69,8 @@ Supabase Auth operation.
 | DELETE | `/v1/salons/me/holidays/{holiday_id}` | Soft-delete holiday |
 | GET/POST | `/v1/salons/me/blocks` | List/create blocked slots |
 | DELETE | `/v1/salons/me/blocks/{block_id}` | Delete ephemeral blocked slot |
+| POST | `/v1/salons/me/closures/preview` | Preview affected active bookings |
+| POST | `/v1/salons/me/closures` | Confirm closure and notify exact impact set |
 
 Holiday deletion requires migration `0011_holiday_soft_delete`. Deleted holidays no
 longer close availability or block booking creation.
@@ -87,6 +89,8 @@ longer close availability or block booking creation.
 | POST | `/v1/bookings/{booking_id}/delay` | Record delayed estimate |
 | POST | `/v1/bookings/{booking_id}/cancel/barber` | Cancel with owner reason |
 | POST | `/v1/bookings/{booking_id}/payment` | Mark payment recorded |
+| GET | `/v1/booking-action-requests` | List pending/resolved customer requests |
+| POST | `/v1/booking-action-requests/{request_id}/respond` | Resolve a request |
 
 `GET /v1/bookings` accepts optional `status`, `source`, `date_from`, `date_to`,
 `limit`, and `offset` parameters. Existing clients can omit all parameters and continue
@@ -105,6 +109,12 @@ The estimate must be later than the booking's original `end_datetime`. The respo
 includes `estimated_end_datetime`. When notification is enabled, customers with later
 active bookings for the same staff whose start falls inside the delay window receive a
 `booking_delayed` notification. This requires migration `0012_booking_delay`.
+
+Pay at Salon claims and late cancellations require migration
+`0013_booking_action_requests`. Payment decisions are `received`/`not_received`;
+cancellation decisions are `approve`/`decline`, and decline requires a reason. A stale
+second decision returns `409`. Closure application requires the exact IDs returned by
+the latest preview and also returns `409` if the overlap set changed.
 
 ### Notifications, devices, and catalog
 

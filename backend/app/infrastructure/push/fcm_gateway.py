@@ -61,7 +61,7 @@ class FCMGateway(PushGateway):
             logger.warning("Notification %s not found; skipping push fan-out", notification_id)
             return
 
-        tokens = await self._get_active_tokens(user_id)
+        tokens = await self._get_active_tokens(user_id, notification_id)
         if not tokens:
             return
 
@@ -84,12 +84,26 @@ class FCMGateway(PushGateway):
         row = result.mappings().one_or_none()
         return dict(row) if row else None
 
-    async def _get_active_tokens(self, user_id: str) -> list[tuple[str, str | None]]:
-        """Return active (token, platform) pairs via the DB function."""
+    async def _get_active_tokens(
+        self, user_id: str, notification_id: str
+    ) -> list[tuple[str, str | None]]:
+        """Return active tokens without resending already delivered events."""
 
         result = await self.session.execute(
-            text("select token, platform from get_active_tokens(:user_id)"),
-            {"user_id": user_id},
+            text(
+                """
+                select active.token, active.platform
+                from get_active_tokens(:user_id) active
+                where not exists (
+                  select 1 from notification_deliveries delivery
+                  join device_tokens device on device.id = delivery.device_token_id
+                  where delivery.notification_id = :notification_id
+                    and device.token = active.token
+                    and delivery.delivered
+                )
+                """
+            ),
+            {"user_id": user_id, "notification_id": notification_id},
         )
         return [(row.token, row.platform) for row in result]
 

@@ -91,6 +91,15 @@ class BookingRepository(Protocol):
         Raises NotFoundError if not visible.
         """
 
+    async def cancel_customer_booking(
+        self,
+        actor_id: str,
+        booking_id: str,
+        cancellation_reason: str | None,
+        cutoff_minutes: int,
+    ) -> dict[str, Any]:
+        """Immediately cancel an owned booking only before the policy cutoff."""
+
     async def record_payment(
         self, actor_id: str, booking_id: str, payment_method: str
     ) -> dict[str, Any]:

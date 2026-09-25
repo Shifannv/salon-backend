@@ -1,6 +1,7 @@
 # Customer App Backend API Contract
 
-This document describes the backend contract currently supported by the customer app.
+This document describes the backend contract for customer-app integration. The
+customer app must be updated to use the booking action request fields and endpoints.
 The running FastAPI OpenAPI document at `/openapi.json` is the field-level source of
 truth.
 
@@ -65,6 +66,8 @@ Protected customer endpoints:
 | GET | `/v1/bookings` | List the customer's bookings |
 | GET | `/v1/bookings/{booking_id}` | Booking details |
 | POST | `/v1/bookings/{booking_id}/cancel` | Cancel an owned future booking |
+| POST | `/v1/bookings/{booking_id}/cancellation-requests` | Request late cancellation |
+| POST | `/v1/bookings/{booking_id}/payment-confirmation-requests` | Claim Pay at Salon payment |
 | GET | `/v1/notifications` | List notifications |
 | POST | `/v1/notifications/{notification_id}/read` | Mark one notification read |
 | POST | `/v1/notifications/read-all` | Mark all notifications read |
@@ -158,12 +161,22 @@ POST /v1/notifications/read-all
 { "updated_count": 5 }
 ```
 
-## Payment boundary
+## Booking action requests
 
 `POST /v1/bookings/{booking_id}/payment` is owner/staff-only because it records a
-booking as paid. The customer app must not call it. A customer online-payment flow
-requires a payment provider, server-created payment intent, and verified webhook before
-the backend can safely mark a booking paid.
+booking as paid. The customer app must not call it.
+
+Set `payment_preference: "pay_at_salon"` when creating a cash-at-visit booking. It stays
+`payment_status: "unpaid"`. Once the visit begins and `can_confirm_payment` is true, the
+customer may call `POST /v1/bookings/{id}/payment-confirmation-requests`. Booking
+list/detail responses expose the latest request status, decision, and reason. Only an
+owner `received` decision changes the booking to paid; `not_received` leaves it unpaid.
+
+`can_cancel` enables direct cancellation before the server cutoff.
+`can_request_cancellation` enables
+`POST /v1/bookings/{id}/cancellation-requests` after the cutoff. The booking and slot
+remain active until the salon approves. Online payment still requires a payment provider,
+server-created payment intent, and verified webhook.
 
 ## Push and realtime behavior
 

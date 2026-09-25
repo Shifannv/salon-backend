@@ -18,6 +18,10 @@ Required production settings are `DATABASE_URL`, `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, and `BACKEND_CORS_ORIGINS`. R2 and Firebase settings are
 required only when those integrations are enabled.
 
+`CUSTOMER_CANCELLATION_CUTOFF_MINUTES` defaults to `120`.
+`ALLOW_LATE_CANCELLATION_REQUESTS` controls whether customers may request a salon
+exception after that cutoff.
+
 ## Verification
 
 ```bash
@@ -31,6 +35,8 @@ curl http://127.0.0.1:8000/health/db
 ## Operational rules
 
 - Apply reviewed migrations explicitly before deploying code that requires them.
+- Keep the Compose `notification-worker` running so missed or failed push attempts
+  are retried. Notifications remain readable in the API even when push is delayed.
 - Do not run migrations in the container startup command.
 - Restrict production CORS origins.
 - Keep service-role, database, R2, and Firebase credentials outside Git and logs.

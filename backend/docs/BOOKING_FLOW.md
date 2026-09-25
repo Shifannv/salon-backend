@@ -27,3 +27,19 @@ Owners and assigned staff can record an `estimated_end_datetime` for an active d
 booking. This does not change the reserved `end_datetime` or rewrite availability.
 When requested, later customers whose start time falls within the delay window receive
 a notification.
+
+## Action requests
+
+`payment_preference=pay_at_salon` leaves the booking unpaid. After the visit begins, the
+customer may create one pending payment-confirmation request. `received` records cash
+payment once; `not_received` leaves the booking unpaid and allows a later claim.
+
+Before `CUSTOMER_CANCELLATION_CUTOFF_MINUTES`, customer cancellation is immediate.
+Inside the cutoff window, cancellation remains pending until the salon approves it.
+Requests and booking changes are resolved under row locks; stale or duplicate decisions
+return a conflict.
+
+Owners preview holiday/leave impact through `/v1/salons/me/closures/preview`, then apply
+the exact set through `/v1/salons/me/closures`. Applying creates the closure, cancels only
+the overlapping active bookings, and persists a notification for each customer in one
+transaction.

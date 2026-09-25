@@ -8,7 +8,8 @@ from typing import Any
 from fastapi import BackgroundTasks
 
 from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
-from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
+from app.core.config import settings
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.authorization import is_owner_or_staff
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -397,6 +398,14 @@ class OwnerUseCases:
         """Create a salon holiday."""
 
         self._assert_owner_workspace(actor)
+        affected = await self.repository.preview_closure(
+            actor.id,
+            {"kind": "holiday", "holiday_date": values["holiday_date"]},
+        )
+        if affected:
+            raise ConflictError(
+                "Holiday affects active bookings; preview and confirm the closure first"
+            )
         return await self.repository.create_holiday(actor.id, values)
 
     async def delete_holiday(self, actor: Profile, holiday_id: str) -> None:
@@ -513,6 +522,19 @@ class OwnerUseCases:
         """Create a staff-scoped or salon-wide blocked slot."""
 
         self._assert_owner_workspace(actor)
+        affected = await self.repository.preview_closure(
+            actor.id,
+            {
+                "kind": "leave",
+                "staff_id": values.get("staff_id"),
+                "start_datetime": values["start_datetime"],
+                "end_datetime": values["end_datetime"],
+            },
+        )
+        if affected:
+            raise ConflictError(
+                "Blocked time affects active bookings; preview and confirm the closure first"
+            )
         return await self.repository.create_blocked_slot(actor.id, values)
 
     async def delete_blocked_slot(self, actor: Profile, slot_id: str) -> None:
@@ -684,21 +706,15 @@ class BookingUseCases:
             f"{label} — {reason_text}" if label and reason_text else label or reason_text
         )
 
-        booking = await self.repository.update_booking_status(
+        if actor.role not in {Role.customer, Role.owner}:
+            raise ForbiddenError("Customer booking access required")
+        booking = await self.repository.cancel_customer_booking(
             actor.id,
             booking_id,
-            "cancelled",
-            cancellation_reason=cancellation_reason,
-            customer_only=actor.role == Role.customer,
+            cancellation_reason,
+            settings.customer_cancellation_cutoff_minutes,
         )
-        if actor.role == Role.customer and background_tasks is not None:
-            background_tasks.add_task(
-                self._notify_salon_owner,
-                booking,
-                "Booking Cancelled",
-                f"{booking.get('customer_name', 'A customer')} cancelled a booking.",
-                "booking_cancelled",
-            )
+        self._schedule_booking_outbox(booking, background_tasks)
         return booking
 
     async def delay(
@@ -772,24 +788,41 @@ class BookingUseCases:
             "cancelled",
             cancellation_reason=cancellation_reason,
         )
-        if background_tasks is not None:
-            background_tasks.add_task(
-                self._notify_customer,
-                booking,
-                "Booking Cancelled",
-                f"Your appointment was cancelled by the salon: {cancellation_reason}",
-                "booking_cancelled",
-            )
+        self._schedule_booking_outbox(booking, background_tasks)
         return booking
 
     async def record_payment(
-        self, actor: Profile, booking_id: str, payment_method: str
+        self,
+        actor: Profile,
+        booking_id: str,
+        payment_method: str,
+        background_tasks: BackgroundTasks | None = None,
     ) -> dict[str, Any]:
         """Record booking payment."""
 
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
-        return await self.repository.record_payment(actor.id, booking_id, payment_method)
+        booking = await self.repository.record_payment(
+            actor.id, booking_id, payment_method
+        )
+        self._schedule_booking_outbox(booking, background_tasks)
+        return booking
+
+    def _schedule_booking_outbox(
+        self,
+        booking: dict[str, Any],
+        background_tasks: BackgroundTasks | None,
+    ) -> None:
+        """Attempt notifications persisted with a booking transition."""
+
+        if background_tasks is None:
+            return
+        from app.infrastructure.push.outbox_worker import (
+            deliver_notification_outbox_event,
+        )
+
+        for outbox_id in booking.get("_outbox_ids", []):
+            background_tasks.add_task(deliver_notification_outbox_event, outbox_id)
 
     async def _notify_customer(
         self,
@@ -849,18 +882,17 @@ class BookingUseCases:
         """Persist and fan out one notification without failing the booking workflow."""
 
         try:
-            notification = await self.repository.create_notification(
+            from app.infrastructure.push.outbox_worker import (
+                enqueue_and_deliver_notification,
+            )
+
+            await enqueue_and_deliver_notification(
                 user_id=user_id,
                 booking_id=booking_id,
                 notification_type=notification_type,
                 title=title,
                 body=body,
             )
-            from app.core.config import settings
-            from app.infrastructure.push.fcm_gateway import FCMGateway
-
-            fcm = FCMGateway(settings, self.repository.session)
-            await fcm.fan_out(str(notification["id"]), user_id)
         except Exception:
             _log.warning("Failed to send notification for booking %s", booking_id)
 

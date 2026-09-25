@@ -8,8 +8,9 @@ The schema starts with `backend/migrations/001_supabase_schema.sql`. Alembic rev
 changes. Existing migration history must not be deleted or rewritten after deployment.
 
 Current app-contract additions include soft deletion for salon holidays
-(`0011_holiday_soft_delete`) and booking completion estimates
-(`0012_booking_delay`).
+(`0011_holiday_soft_delete`), booking completion estimates
+(`0012_booking_delay`), and transactional booking action requests
+(`0013_booking_action_requests`).
 
 Rules:
 

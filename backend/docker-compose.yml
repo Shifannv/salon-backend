@@ -29,3 +29,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  notification-worker:
+    image: ${SALON_API_IMAGE:-salon-platform-api:latest}
+    env_file:
+      - ${COMPOSE_ENV_FILE:-.env}
+    command: ["python", "-m", "app.infrastructure.push.outbox_worker"]
+    init: true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
