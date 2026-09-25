@@ -22,6 +22,11 @@ SET LOCAL request.jwt.claims = '{"sub": "<verified-user-uuid>"}';
 
 This allows database audit triggers to record the verified actor.
 
-Payment recording and booking-delay updates remain owner/staff operations. Customer
-payment confirmation requires a verified payment-provider flow and must not be granted
-by trusting a client request.
+Payment recording and booking-delay updates remain owner/staff operations. A customer
+may report that they paid at the salon, but this creates a pending request and never
+marks money received. Only an authorized salon owner/staff decision records cash paid.
+Online payment still requires a verified provider webhook.
+
+Customer cancellation is immediate only before the configured cutoff. After the cutoff,
+the customer can request cancellation while the booking remains active; only the owning
+salon may approve or decline it. Closure preview/application is owner-only.

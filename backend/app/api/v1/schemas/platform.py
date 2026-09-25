@@ -1,10 +1,12 @@
 """Frontend-facing API schemas."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.core.config import settings
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -363,6 +365,7 @@ class BookingCreateRequest(BaseModel):
     customer_phone: str | None = None
     source: Literal["app", "manual_walkin", "qr_walkin"] = "app"
     notes: str | None = None
+    payment_preference: Literal["pay_at_salon"] | None = None
 
 
 class BookingLineResponse(BaseModel):
@@ -397,6 +400,7 @@ class BookingResponse(BaseModel):
     total_price: Decimal
     payment_status: str
     payment_method: str | None = None
+    payment_preference: str | None = None
     rejection_reason: str | None = None
     cancellation_reason: str | None = None
     notes: str | None = None
@@ -410,16 +414,38 @@ class BookingResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     # ── Computed UI helper ────────────────────────────────────────────────
-    can_cancel: bool = False  # set by model_validator below
+    latest_payment_request_status: str | None = None
+    latest_payment_request_decision: str | None = None
+    latest_payment_request_reason: str | None = None
+    latest_cancellation_request_status: str | None = None
+    latest_cancellation_request_decision: str | None = None
+    latest_cancellation_request_reason: str | None = None
+    can_cancel: bool = False
+    can_request_cancellation: bool = False
+    can_confirm_payment: bool = False
 
     @model_validator(mode="after")
     def _set_can_cancel(self) -> "BookingResponse":
-        """Allow cancellation only for future, non-terminal bookings."""
+        """Derive customer actions from the configured server policy."""
 
         now = datetime.now(tz=self.start_datetime.tzinfo)
-        self.can_cancel = (
-            self.status in _CANCELLABLE_STATUSES
-            and self.start_datetime > now
+        active = self.status in _CANCELLABLE_STATUSES
+        cutoff = self.start_datetime - timedelta(
+            minutes=settings.customer_cancellation_cutoff_minutes
+        )
+        self.can_cancel = active and now < cutoff
+        self.can_request_cancellation = (
+            settings.allow_late_cancellation_requests
+            and active
+            and cutoff <= now < self.end_datetime
+            and self.latest_cancellation_request_status != "pending"
+        )
+        self.can_confirm_payment = (
+            self.status in {"confirmed", "completed"}
+            and self.payment_status == "unpaid"
+            and self.payment_preference == "pay_at_salon"
+            and now >= self.start_datetime
+            and self.latest_payment_request_status != "pending"
         )
         return self
 

@@ -275,10 +275,13 @@ async def barber_cancel_booking(
 async def record_payment(
     booking_id: str,
     payload: PaymentRequest,
+    background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
     """Record booking payment."""
 
-    row = await _use_cases(session).record_payment(actor, booking_id, payload.payment_method)
+    row = await _use_cases(session).record_payment(
+        actor, booking_id, payload.payment_method, background_tasks
+    )
     return BookingResponse(**row)

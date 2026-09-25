@@ -7,6 +7,8 @@ Alembic owns the complete schema history.
 - Later revisions add schema required by the current application.
 - `versions/0011_holiday_soft_delete.py` adds safe holiday deactivation.
 - `versions/0012_booking_delay.py` stores operational delay estimates.
+- `versions/0013_booking_action_requests.py` adds action requests, Pay at Salon
+  preference, retryable notification outbox records, and closure race protection.
 
 For a new empty database, run only:
 

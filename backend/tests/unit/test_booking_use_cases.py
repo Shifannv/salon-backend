@@ -6,13 +6,16 @@ import pytest
 
 from app.api.v1.schemas.platform import BookingResponse
 from app.application.use_cases.platform import BookingUseCases
+from app.core.config import settings
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.domain.entities.profile import Role
 from tests.conftest import make_booking, make_mock_repo, make_owner, make_profile
 
 
 def test_booking_response_can_cancel_only_before_start_time():
-    future = datetime.now(UTC) + timedelta(hours=1)
+    future = datetime.now(UTC) + timedelta(
+        minutes=settings.customer_cancellation_cutoff_minutes + 60
+    )
     booking = make_booking()
 
     future_response = BookingResponse(
@@ -32,6 +35,42 @@ def test_booking_response_can_cancel_only_before_start_time():
 
     assert future_response.can_cancel is True
     assert past_response.can_cancel is False
+
+
+def test_booking_response_exposes_late_cancellation_and_cash_claim_eligibility(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(settings, "customer_cancellation_cutoff_minutes", 120)
+    monkeypatch.setattr(settings, "allow_late_cancellation_requests", True)
+    now = datetime.now(UTC)
+    booking = make_booking(status="confirmed")
+    response = BookingResponse(
+        **{
+            **booking,
+            "start_datetime": now + timedelta(minutes=30),
+            "end_datetime": now + timedelta(hours=1),
+            "payment_preference": "pay_at_salon",
+        }
+    )
+    assert response.can_cancel is False
+    assert response.can_request_cancellation is True
+    assert response.can_confirm_payment is False
+
+    after_start = BookingResponse(
+        **{
+            **booking,
+            "start_datetime": now - timedelta(minutes=5),
+            "end_datetime": now + timedelta(minutes=25),
+            "payment_preference": "pay_at_salon",
+        }
+    )
+    assert after_start.can_confirm_payment is True
+    assert after_start.can_request_cancellation is True
+
+    pending_claim = after_start.model_copy(
+        update={"latest_payment_request_status": "pending"}
+    )
+    assert BookingResponse(**pending_claim.model_dump()).can_confirm_payment is False
 
 # ---------------------------------------------------------------------------
 # Availability
@@ -275,7 +314,7 @@ async def test_reject_as_owner_sends_reason():
 async def test_cancel_by_customer_uses_customer_only_flag():
     repo = make_mock_repo()
     cancelled = make_booking(status="cancelled")
-    repo.update_booking_status.return_value = cancelled
+    repo.cancel_customer_booking.return_value = cancelled
     uc = BookingUseCases(repo)
     actor = make_profile(role=Role.customer)
 
@@ -285,22 +324,29 @@ async def test_cancel_by_customer_uses_customer_only_flag():
         reason_code="schedule_conflict",
         reason_text="Work meeting",
     )
-    _, call_kwargs = repo.update_booking_status.call_args
-    assert call_kwargs.get("customer_only") is True
-    assert call_kwargs.get("cancellation_reason") == "Schedule conflict — Work meeting"
+    repo.cancel_customer_booking.assert_awaited_once_with(
+        actor.id,
+        "booking-001",
+        "Schedule conflict — Work meeting",
+        settings.customer_cancellation_cutoff_minutes,
+    )
 
 
 @pytest.mark.asyncio
 async def test_cancel_by_owner_not_customer_only():
     repo = make_mock_repo()
     cancelled = make_booking(status="cancelled")
-    repo.update_booking_status.return_value = cancelled
+    repo.cancel_customer_booking.return_value = cancelled
     uc = BookingUseCases(repo)
     actor = make_owner()
 
     await uc.cancel(actor, "booking-001")
-    _, call_kwargs = repo.update_booking_status.call_args
-    assert call_kwargs.get("customer_only") is False
+    repo.cancel_customer_booking.assert_awaited_once_with(
+        actor.id,
+        "booking-001",
+        None,
+        settings.customer_cancellation_cutoff_minutes,
+    )
 
 
 @pytest.mark.asyncio

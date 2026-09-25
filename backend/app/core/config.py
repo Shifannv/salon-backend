@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # QR codes encode: <walkin_base_url>/<qr_token>
     walkin_base_url: str = "http://localhost:3000"
 
+    # Customer cancellation policy. Before this cutoff a customer cancellation
+    # is immediate; inside the cutoff window it requires salon approval.
+    customer_cancellation_cutoff_minutes: int = Field(default=120, ge=0, le=10080)
+    allow_late_cancellation_requests: bool = True
+
     # Database connection pool
     db_pool_size: int = 5
     db_max_overflow: int = 5
