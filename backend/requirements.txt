@@ -5,6 +5,9 @@ uvicorn[standard]>=0.30.5
 python-multipart>=0.0.9
 
 sqlalchemy>=2.0.32
+# SQLAlchemy's async bridge imports greenlet at runtime. Keep it explicit so
+# clean CI and container installs do not depend on optional/transitive extras.
+greenlet>=3.0.3
 asyncpg>=0.29.0
 alembic>=1.13.2
 
