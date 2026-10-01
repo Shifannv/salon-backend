@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import (
     get_auth_admin_gateway,
     get_authenticated_session,
+    get_cache,
     get_current_actor,
     require_role,
 )
@@ -23,6 +24,7 @@ from app.api.v1.schemas.admin import (
     SubcategoryUpdateRequest,
 )
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
+from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.admin import AdminUseCases, CatalogAdminUseCases
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -159,10 +161,12 @@ async def create_category(
     payload: CategoryCreateRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> CategoryResponse:
     """Create a new service category."""
 
     row = await _catalog_use_cases(session).create_category(actor, payload.model_dump())
+    await cache.delete("catalog:categories:active")
     return CategoryResponse(**row)
 
 
@@ -177,12 +181,15 @@ async def update_category(
     payload: CategoryUpdateRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> CategoryResponse:
     """Update a service category."""
 
     row = await _catalog_use_cases(session).update_category(
         actor, category_id, payload.model_dump(exclude_unset=True)
     )
+    await cache.delete("catalog:categories:active")
+    await cache.delete(f"catalog:subcategories:active:{category_id}")
     return CategoryResponse(**row)
 
 
@@ -196,10 +203,13 @@ async def deactivate_category(
     category_id: str,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> CategoryResponse:
     """Soft-delete a service category."""
 
     row = await _catalog_use_cases(session).deactivate_category(actor, category_id)
+    await cache.delete("catalog:categories:active")
+    await cache.delete(f"catalog:subcategories:active:{category_id}")
     return CategoryResponse(**row)
 
 
@@ -233,10 +243,12 @@ async def create_subcategory(
     payload: SubcategoryCreateRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> SubcategoryResponse:
     """Create a new service subcategory."""
 
     row = await _catalog_use_cases(session).create_subcategory(actor, payload.model_dump())
+    await cache.delete_prefix("catalog:subcategories:")
     return SubcategoryResponse(**row)
 
 
@@ -251,12 +263,14 @@ async def update_subcategory(
     payload: SubcategoryUpdateRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> SubcategoryResponse:
     """Update a service subcategory."""
 
     row = await _catalog_use_cases(session).update_subcategory(
         actor, subcategory_id, payload.model_dump(exclude_unset=True)
     )
+    await cache.delete_prefix("catalog:subcategories:")
     return SubcategoryResponse(**row)
 
 
@@ -270,10 +284,12 @@ async def deactivate_subcategory(
     subcategory_id: str,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> SubcategoryResponse:
     """Soft-delete a service subcategory."""
 
     row = await _catalog_use_cases(session).deactivate_subcategory(actor, subcategory_id)
+    await cache.delete_prefix("catalog:subcategories:")
     return SubcategoryResponse(**row)
 
 

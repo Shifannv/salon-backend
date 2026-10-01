@@ -3,10 +3,10 @@
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_current_actor
+from app.api.deps import get_authenticated_session, get_cache, get_current_actor
 from app.api.v1.schemas.platform import (
     AvailabilityResponse,
     BarberCancelBookingRequest,
@@ -17,6 +17,7 @@ from app.api.v1.schemas.platform import (
     PaymentRequest,
     RejectBookingRequest,
 )
+from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.platform import BookingUseCases
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -60,12 +61,24 @@ async def create_booking(
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> BookingResponse:
     """Create a booking through the database booking function."""
+
+    if idempotency_key:
+        cache_key = f"idempotency:booking:{actor.id}:{idempotency_key}"
+        cached = await cache.get_idempotency(cache_key)
+        if cached:
+            return BookingResponse(**cached)
 
     row = await _use_cases(session).create_booking(
         actor, payload.model_dump(), background_tasks
     )
+
+    if idempotency_key:
+        await cache.set_idempotency(cache_key, row)
+
     return BookingResponse(**row)
 
 

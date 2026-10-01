@@ -7,11 +7,13 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
+from app.application.ports.cache_gateway import CacheGateway
 from app.application.ports.storage_gateway import StorageGateway
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import SupabaseJWTVerifier
 from app.domain.entities.profile import Profile, Role
+from app.infrastructure.cache.redis import get_redis_cache
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
 from app.infrastructure.db.session import get_session, set_actor_context
 from app.infrastructure.r2.storage import R2StorageGateway
@@ -43,6 +45,11 @@ def get_auth_admin_gateway() -> AuthAdminGateway:
 def get_storage_gateway() -> StorageGateway:
     """Return R2 lazily, so routes that do not upload remain independent of storage."""
     return R2StorageGateway(settings)
+
+
+def get_cache() -> CacheGateway:
+    """Return the configured cache gateway."""
+    return get_redis_cache()
 
 
 async def get_current_actor(

@@ -67,6 +67,13 @@ class ServiceUnavailableError(AppError):
     code = "service_unavailable"
 
 
+class TooManyRequestsError(AppError):
+    """Raised when rate limits are exceeded."""
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "too_many_requests"
+
+
 def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str]:
     """Build CORS headers for the response, based on the request Origin.
 

@@ -8,6 +8,7 @@
 | Migrations | Alembic with a raw SQL baseline |
 | Media | Cloudflare R2 |
 | Push notifications | Firebase Cloud Messaging |
+| Cache & Idempotency | Redis 7, redis-py async |
 | Tests and lint | pytest, pytest-asyncio, Ruff |
 | Runtime | Docker, Docker Compose, GCP VM; optional Cloud Run |
 

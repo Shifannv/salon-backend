@@ -30,6 +30,7 @@ python -m ruff check app tests migrations
 alembic current
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/health/db
+curl http://127.0.0.1:8000/health/redis
 ```
 
 ## Operational rules

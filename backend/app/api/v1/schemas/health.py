@@ -14,3 +14,10 @@ class DatabaseHealthResponse(BaseModel):
 
     status: str
     database: str
+
+
+class RedisHealthResponse(BaseModel):
+    """Redis health-check response."""
+
+    status: str
+    redis: str

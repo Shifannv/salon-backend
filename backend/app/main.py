@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     from sqlalchemy import text
 
+    from app.infrastructure.cache.redis import close_redis_cache, init_redis_cache
     from app.infrastructure.db.session import AsyncSessionLocal, engine
 
     try:
@@ -38,8 +39,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         _log.exception("Database warm-up failed")
 
+    try:
+        await init_redis_cache(settings.redis_url)
+    except Exception:
+        _log.exception("Redis cache initialization failed")
+
     yield  # Application runs here
 
+    await close_redis_cache()
     await engine.dispose()
 
 
