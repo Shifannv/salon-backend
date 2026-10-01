@@ -21,3 +21,13 @@ perform data access. Typed application errors are mapped to HTTP responses centr
 Booking creation and availability remain in Postgres because concurrent allocation
 requires database-level consistency. Python must not insert directly into `bookings` or
 `booking_services`, and must not calculate available slots.
+
+## Caching and Idempotency
+
+Redis is integrated through `app/application/ports/cache_gateway.py` and implemented
+by `app/infrastructure/cache/redis.py`:
+
+- Caches read-heavy public endpoints (categories, subcategories, salon services, and staff).
+- Deduplicates booking submissions via the `Idempotency-Key` HTTP header.
+- Throttles sensitive endpoints (e.g. walk-in OTP verification) using atomic Redis counters.
+- Gracefully degrades to a no-op if `REDIS_URL` is omitted or Redis is unreachable.

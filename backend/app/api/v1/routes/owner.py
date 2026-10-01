@@ -5,7 +5,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_current_actor, get_storage_gateway
+from app.api.deps import (
+    get_authenticated_session,
+    get_cache,
+    get_current_actor,
+    get_storage_gateway,
+)
 from app.api.v1.schemas.platform import (
     BlockedSlotCreateRequest,
     BlockedSlotResponse,
@@ -31,6 +36,7 @@ from app.api.v1.schemas.platform import (
     StaffServiceResponse,
     StaffUpdateRequest,
 )
+from app.application.ports.cache_gateway import CacheGateway
 from app.application.ports.storage_gateway import StorageGateway
 from app.application.use_cases.platform import OwnerUseCases
 from app.core.config import settings
@@ -82,10 +88,13 @@ async def update_my_salon(
     payload: OwnerSalonUpdateRequest,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> OwnerSalonResponse:
     """Update owner-editable salon profile fields."""
 
     salon = await _use_cases(session).update_my_salon(actor, payload.model_dump(exclude_unset=True))
+    if "id" in salon:
+        await cache.delete(f"salon:{salon['id']}:detail")
     return OwnerSalonResponse(**salon)
 
 
@@ -359,10 +368,13 @@ async def create_service(
     payload: ServiceCreateRequest,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> ServiceResponse:
     """Create owner salon service."""
 
     row = await _use_cases(session).create_service(actor, payload.model_dump())
+    if "salon_id" in row:
+        await cache.delete(f"salon:{row['salon_id']}:services")
     return ServiceResponse(**row)
 
 
@@ -377,10 +389,13 @@ async def update_service(
     payload: ServiceUpdateRequest,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> ServiceResponse:
     """Update owner salon service."""
 
     row = await _use_cases(session).update_service(actor, service_id, payload.model_dump(exclude_unset=True))
+    if "salon_id" in row:
+        await cache.delete(f"salon:{row['salon_id']}:services")
     return ServiceResponse(**row)
 
 
@@ -394,10 +409,13 @@ async def deactivate_service(
     service_id: str,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> ServiceResponse:
     """Soft-delete owner salon service."""
 
     row = await _use_cases(session).deactivate_service(actor, service_id)
+    if "salon_id" in row:
+        await cache.delete(f"salon:{row['salon_id']}:services")
     return ServiceResponse(**row)
 
 
@@ -425,10 +443,13 @@ async def create_staff(
     payload: StaffCreateRequest,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> StaffResponse:
     """Create owner salon staff."""
 
     row = await _use_cases(session).create_staff(actor, payload.model_dump())
+    if "salon_id" in row:
+        await cache.delete(f"salon:{row['salon_id']}:staff")
     return StaffResponse(**row)
 
 
@@ -443,10 +464,13 @@ async def update_staff(
     payload: StaffUpdateRequest,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> StaffResponse:
     """Update owner salon staff."""
 
     row = await _use_cases(session).update_staff(actor, staff_id, payload.model_dump(exclude_unset=True))
+    if "salon_id" in row:
+        await cache.delete(f"salon:{row['salon_id']}:staff")
     return StaffResponse(**row)
 
 
@@ -460,10 +484,13 @@ async def deactivate_staff(
     staff_id: str,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> StaffResponse:
     """Soft-delete owner salon staff."""
 
     row = await _use_cases(session).deactivate_staff(actor, staff_id)
+    if "salon_id" in row:
+        await cache.delete(f"salon:{row['salon_id']}:staff")
     return StaffResponse(**row)
 
 

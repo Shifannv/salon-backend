@@ -9,8 +9,11 @@ services:
     environment:
       ENVIRONMENT: "${ENVIRONMENT:-production}"
       PORT: "${PORT:-8000}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
+    depends_on:
+      - redis
     init: true
     restart: unless-stopped
     healthcheck:
@@ -41,3 +44,24 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
