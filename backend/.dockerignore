@@ -18,3 +18,10 @@ docs/
 tests/
 README.md
 requirements-dev.txt
+scripts/
+test-results.xml
+*.pem
+*.p8
+*firebase-adminsdk*.json
+firebase-key.json
+service-account*.json

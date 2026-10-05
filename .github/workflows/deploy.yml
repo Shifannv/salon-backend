@@ -2,12 +2,19 @@ name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: Apply reviewed Alembic migrations before updating services
+        type: boolean
+        default: false
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  # All refs target the same VM; never let two releases update it concurrently.
+  group: deploy-gcp-vm
   cancel-in-progress: false
 
 env:
@@ -15,8 +22,13 @@ env:
   REGISTRY: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/salon-backend
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -28,54 +40,88 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker
-        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+        env:
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
       - name: Set image tags
         id: tags
         shell: bash
         run: |
-          short_sha="${GITHUB_SHA::7}"
-          echo "sha_tag=${REGISTRY}/${IMAGE_NAME}:${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "latest_tag=${REGISTRY}/${IMAGE_NAME}:latest" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build image
         working-directory: backend
+        env:
+          RELEASE_TAG: ${{ steps.tags.outputs.sha_tag }}
         run: |
-          docker build \
-            -t "${{ steps.tags.outputs.sha_tag }}" \
-            -t "${{ steps.tags.outputs.latest_tag }}" \
-            .
+          docker build --pull -t "$RELEASE_TAG" .
+          bash scripts/check-container.sh "$RELEASE_TAG"
 
       - name: Push image
+        id: image
+        env:
+          RELEASE_TAG: ${{ steps.tags.outputs.sha_tag }}
         run: |
-          docker push "${{ steps.tags.outputs.sha_tag }}"
-          docker push "${{ steps.tags.outputs.latest_tag }}"
+          docker push "$RELEASE_TAG"
+          image_ref="$(docker image inspect --format '{{index .RepoDigests 0}}' "$RELEASE_TAG")"
+          test -n "$image_ref"
+          echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy to GCP VM
-        uses: appleboy/ssh-action@v1
+      - name: Sync release Compose file and deploy script
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
+          source: backend/docker-compose.yml,backend/scripts/gcp-vm-deploy.sh
+          target: ./salon-backend
+          overwrite: true
+
+      - name: Apply reviewed migrations (explicit opt-in)
+        if: inputs.apply_migrations
+        uses: appleboy/ssh-action@v1
+        env:
+          SALON_API_IMAGE: ${{ steps.image.outputs.ref }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+        with:
+          host: ${{ secrets.GCP_VM_HOST }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_VM_SSH_KEY }}
+          envs: SALON_API_IMAGE,GCP_REGION
+          command_timeout: 10m
           script: |
             set -euo pipefail
-            gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
             cd ~/salon-backend/backend
-            export SALON_API_IMAGE="${{ steps.tags.outputs.latest_tag }}"
-            docker compose pull api
-            docker compose up -d --no-build --remove-orphans api
-            docker compose ps
-            for attempt in 1 2 3 4 5 6; do
-              if curl --fail --silent --max-time 5 http://127.0.0.1:8000/health; then
-                exit 0
-              fi
-              sleep 5
-            done
-            docker compose logs --tail=100 api
-            exit 1
+            docker compose --env-file .env config --quiet
+            docker compose --env-file .env pull api
+            docker compose --env-file .env run --rm --no-deps -T api alembic upgrade head
+
+      - name: Deploy to GCP VM
+        uses: appleboy/ssh-action@v1
+        env:
+          SALON_API_IMAGE: ${{ steps.image.outputs.ref }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+        with:
+          host: ${{ secrets.GCP_VM_HOST }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_VM_SSH_KEY }}
+          envs: SALON_API_IMAGE,GCP_REGION
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+            cd ~/salon-backend/backend
+            bash scripts/gcp-vm-deploy.sh --pull
 
       - name: Deployment summary
+        env:
+          RELEASE_IMAGE: ${{ steps.image.outputs.ref }}
+          APPLY_MIGRATIONS: ${{ inputs.apply_migrations }}
         run: |
           echo "### Deployment successful" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Image: \`${{ steps.tags.outputs.sha_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Commit: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${RELEASE_IMAGE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Updated API, notification worker, and Redis." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Apply reviewed migrations selected: ${APPLY_MIGRATIONS}." >> "$GITHUB_STEP_SUMMARY"
