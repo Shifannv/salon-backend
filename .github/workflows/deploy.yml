@@ -1,6 +1,8 @@
 name: Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       apply_migrations:
@@ -79,7 +81,7 @@ jobs:
           overwrite: true
 
       - name: Apply reviewed migrations (explicit opt-in)
-        if: inputs.apply_migrations
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations
         uses: appleboy/ssh-action@v1
         env:
           SALON_API_IMAGE: ${{ steps.image.outputs.ref }}
@@ -118,7 +120,7 @@ jobs:
       - name: Deployment summary
         env:
           RELEASE_IMAGE: ${{ steps.image.outputs.ref }}
-          APPLY_MIGRATIONS: ${{ inputs.apply_migrations }}
+          APPLY_MIGRATIONS: ${{ inputs.apply_migrations || false }}
         run: |
           echo "### Deployment successful" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: \`${RELEASE_IMAGE}\`" >> "$GITHUB_STEP_SUMMARY"
