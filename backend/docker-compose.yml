@@ -6,14 +6,15 @@ services:
     image: ${SALON_API_IMAGE:-salon-platform-api:latest}
     env_file:
       - ${COMPOSE_ENV_FILE:-.env}
-    environment:
+    environment: &app-environment
       ENVIRONMENT: "${ENVIRONMENT:-production}"
       PORT: "${PORT:-8000}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     init: true
     restart: unless-stopped
     healthcheck:
@@ -37,8 +38,13 @@ services:
     env_file:
       - ${COMPOSE_ENV_FILE:-.env}
     command: ["python", "-m", "app.infrastructure.push.outbox_worker"]
+    environment: *app-environment
+    # The image's HTTP health check belongs to the API, not this polling process.
+    healthcheck:
+      disable: true
     init: true
     restart: unless-stopped
+    stop_grace_period: 30s
     logging:
       driver: json-file
       options:
@@ -47,8 +53,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    # Reachable only by services on the Compose network.
     volumes:
       - redis-data:/data
     command: ["redis-server", "--appendonly", "yes"]
