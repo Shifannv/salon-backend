@@ -45,7 +45,7 @@ docker compose run --rm api alembic upgrade head
 bash scripts/gcp-vm-deploy.sh
 ```
 
-The manual GitHub Actions deployment builds from `backend/`, pushes to Artifact
+The GitHub Actions deployment builds from `backend/`, pushes to Artifact
 Registry, and updates the VM. Runtime secrets belong in `backend/.env` on the VM or in
 the hosting platform, never in the image.
 
@@ -56,7 +56,9 @@ pytest, shell syntax, Compose configuration, and the Docker image. The image smo
 check verifies `/health` with `PORT=8080`, non-root execution, worker imports, and
 packaged Alembic revisions without contacting production services.
 
-Run the **Deploy** workflow manually on the reviewed ref. It calls CI first, then
+The **Deploy** workflow runs automatically on every push to `main`, including merged
+pull requests. Pushes to other branches do not trigger deployment. Manual dispatch
+remains available on a reviewed ref. Each deployment calls CI first, then
 builds and smoke-tests the release image before publishing it with the full commit SHA.
 Both API and worker are deployed by the published digest, not a mutable `latest` tag.
 Deployments across branches are serialized because they target the same VM.
@@ -81,6 +83,8 @@ The VM needs `gcloud`, registry read access, Docker Compose, and a configured
 use an amd64 VM. Bootstrap Docker once with `gcp-vm-install-docker.sh`, then log in
 again after Docker group membership changes.
 
+Automatic deployments do not run migrations. Apply required reviewed migrations
+before merging code that depends on them into `main`.
 When a release needs schema changes, review its Alembic revisions and explicitly
 select **Apply reviewed Alembic migrations** when dispatching Deploy. This option is
 off by default. It runs a separate migration step using the exact release image
