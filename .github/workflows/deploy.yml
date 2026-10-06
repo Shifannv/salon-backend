@@ -4,12 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      apply_migrations:
-        description: Apply reviewed Alembic migrations before updating services
-        type: boolean
-        default: false
-        required: true
 
 permissions:
   contents: read
@@ -80,8 +74,7 @@ jobs:
           target: ./salon-backend
           overwrite: true
 
-      - name: Apply reviewed migrations (explicit opt-in)
-        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations
+      - name: Apply reviewed migrations before updating services
         uses: appleboy/ssh-action@v1
         env:
           SALON_API_IMAGE: ${{ steps.image.outputs.ref }}
@@ -120,10 +113,9 @@ jobs:
       - name: Deployment summary
         env:
           RELEASE_IMAGE: ${{ steps.image.outputs.ref }}
-          APPLY_MIGRATIONS: ${{ inputs.apply_migrations || false }}
         run: |
           echo "### Deployment successful" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: \`${RELEASE_IMAGE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Updated API, notification worker, and Redis." >> "$GITHUB_STEP_SUMMARY"
-          echo "- Apply reviewed migrations selected: ${APPLY_MIGRATIONS}." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Applied reviewed Alembic migrations before updating services." >> "$GITHUB_STEP_SUMMARY"
