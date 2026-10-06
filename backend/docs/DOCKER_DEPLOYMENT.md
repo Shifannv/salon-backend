@@ -72,13 +72,26 @@ Required GitHub Actions secrets:
 | Secret | Purpose |
 | --- | --- |
 | `GCP_PROJECT_ID` | Project containing Artifact Registry |
-| `GCP_REGION` | Artifact Registry region |
+| `GCP_REGION` | Artifact Registry repository location, e.g. `us-central1` or `us`; never a VM zone such as `us-central1-a` |
 | `GCP_SA_KEY` | Google service-account JSON for the runner; needs registry write access |
 | `GCP_VM_HOST` | SSH hostname or IP address |
 | `GCP_VM_USER` | VM login user with Docker access |
 | `GCP_VM_SSH_KEY` | Private SSH key for that user |
 
 Create the Artifact Registry Docker repository named `salon-backend` before deploying.
+The workflow verifies this repository before building an image. If `GCP_REGION` does
+not resolve it, the workflow searches the configured project and uses the location of
+the single matching repository. Discovery needs permission to list repositories across
+locations. Missing, ambiguous, inaccessible, or nonstandard Docker repositories stop
+deployment with an explanation. Both the runner and VM authenticate to the verified
+registry hostname.
+
+To find the location, open Google Cloud Console, select the deployment project, then
+open **Artifact Registry > Repositories** and check the **Location** for `salon-backend`.
+Copy it to GitHub **Settings > Secrets and variables > Actions > GCP_REGION**.
+An HTML 404 during `blobs/uploads/` can indicate an invalid registry hostname; check
+the repository location rather than using the VM zone.
+
 The VM needs `gcloud`, registry read access, Docker Compose, and a configured
 `~/salon-backend/backend/.env`. The workflow currently builds Linux amd64 images, so
 use an amd64 VM. Bootstrap Docker once with `gcp-vm-install-docker.sh`, then log in

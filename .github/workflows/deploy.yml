@@ -15,7 +15,6 @@ concurrency:
 
 env:
   IMAGE_NAME: salon-platform-api
-  REGISTRY: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/salon-backend
 
 jobs:
   checks:
@@ -35,16 +34,17 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      - name: Resolve and validate Artifact Registry repository
+        id: tags
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+        run: python3 backend/scripts/resolve_artifact_registry.py
+
       - name: Configure Docker
         env:
-          GCP_REGION: ${{ secrets.GCP_REGION }}
-        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
-
-      - name: Set image tags
-        id: tags
-        shell: bash
-        run: |
-          echo "sha_tag=${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          REGISTRY_HOST: ${{ steps.tags.outputs.registry_host }}
+        run: gcloud auth configure-docker "$REGISTRY_HOST" --quiet
 
       - name: Build image
         working-directory: backend
@@ -78,16 +78,16 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           SALON_API_IMAGE: ${{ steps.image.outputs.ref }}
-          GCP_REGION: ${{ secrets.GCP_REGION }}
+          REGISTRY_HOST: ${{ steps.tags.outputs.registry_host }}
         with:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          envs: SALON_API_IMAGE,GCP_REGION
+          envs: SALON_API_IMAGE,REGISTRY_HOST
           command_timeout: 10m
           script: |
             set -euo pipefail
-            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+            gcloud auth configure-docker "$REGISTRY_HOST" --quiet
             cd ~/salon-backend/backend
             docker compose --env-file .env config --quiet
             docker compose --env-file .env pull api
@@ -97,16 +97,16 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           SALON_API_IMAGE: ${{ steps.image.outputs.ref }}
-          GCP_REGION: ${{ secrets.GCP_REGION }}
+          REGISTRY_HOST: ${{ steps.tags.outputs.registry_host }}
         with:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          envs: SALON_API_IMAGE,GCP_REGION
+          envs: SALON_API_IMAGE,REGISTRY_HOST
           command_timeout: 10m
           script: |
             set -euo pipefail
-            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+            gcloud auth configure-docker "$REGISTRY_HOST" --quiet
             cd ~/salon-backend/backend
             bash scripts/gcp-vm-deploy.sh --pull
 
