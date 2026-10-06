@@ -51,7 +51,8 @@ the hosting platform, never in the image.
 
 ## GitHub Actions
 
-CI runs on pushes and pull requests targeting `main` or `preview`. It checks Ruff,
+CI runs on pushes to `main`, `preview`, and `hafiz`, and on pull requests targeting
+`main` or `preview`. It checks Ruff,
 pytest, shell syntax, Compose configuration, and the Docker image. The image smoke
 check verifies `/health` with `PORT=8080`, non-root execution, worker imports, and
 packaged Alembic revisions without contacting production services.
@@ -83,14 +84,12 @@ The VM needs `gcloud`, registry read access, Docker Compose, and a configured
 use an amd64 VM. Bootstrap Docker once with `gcp-vm-install-docker.sh`, then log in
 again after Docker group membership changes.
 
-Automatic deployments do not run migrations. Apply required reviewed migrations
-before merging code that depends on them into `main`.
-When a release needs schema changes, review its Alembic revisions and explicitly
-select **Apply reviewed Alembic migrations** when dispatching Deploy. This option is
-off by default. It runs a separate migration step using the exact release image
-before updating services; a migration failure stops deployment. Neither container
-startup nor the VM deploy script runs migrations. Changes must remain compatible
-with the old services while migrations run.
+Review Alembic revisions before merging them into `main`. Every deployment runs a
+separate migration step using the exact release image before updating services; a
+migration failure stops deployment. Neither container startup nor the VM deploy script
+runs migrations. Changes must remain compatible with the old services while migrations
+run. Revision `0014_repair_cancel_reason` repairs the nullable column
+missing from some databases already recorded at revision `0013`.
 
 Alternatively, apply migrations explicitly on the VM using a reviewed published image:
 

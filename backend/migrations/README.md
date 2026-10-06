@@ -9,6 +9,9 @@ Alembic owns the complete schema history.
 - `versions/0012_booking_delay.py` stores operational delay estimates.
 - `versions/0013_booking_action_requests.py` adds action requests, Pay at Salon
   preference, retryable notification outbox records, and closure race protection.
+- `versions/0014_repair_cancel_reason.py` restores the nullable booking
+  cancellation reason column on databases whose recorded revision reached `0013`
+  without the column. Its downgrade leaves the column owned by revision `0009`.
 
 For a new empty database, run only:
 
