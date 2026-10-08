@@ -1,5 +1,8 @@
 """Super-admin API routes."""
 
+from typing import Literal
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +15,7 @@ from app.api.deps import (
 from app.api.v1.schemas.admin import (
     AdminCreateSalonRequest,
     AdminDeactivateSalonResponse,
+    AdminRejectSalonRequest,
     AdminSalonResponse,
     AdminUpdateSalonRequest,
     CategoryCreateRequest,
@@ -76,6 +80,7 @@ async def create_salon(
 )
 async def list_salons(
     search: str | None = None,
+    approval_status: Literal["pending", "approved", "rejected"] | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     actor: Profile = Depends(require_role(Role.super_admin)),
@@ -85,9 +90,45 @@ async def list_salons(
     """List all salons with owner info — paginated."""
 
     rows = await _admin_use_cases(session, auth_admin).list_salons(
-        actor, search=search, limit=limit, offset=offset
+        actor, search=search, limit=limit, offset=offset, approval_status=approval_status
     )
     return [AdminSalonResponse(**row) for row in rows]
+
+
+@router.get("/salons/{salon_id}", response_model=AdminSalonResponse, status_code=200)
+async def get_salon(
+    salon_id: UUID,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+) -> AdminSalonResponse:
+    salon = await _admin_use_cases(session, auth_admin).get_salon(actor, str(salon_id))
+    return AdminSalonResponse(**salon)
+
+
+@router.post("/salons/{salon_id}/approve", response_model=AdminSalonResponse, status_code=200)
+async def approve_salon(
+    salon_id: UUID,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+) -> AdminSalonResponse:
+    salon = await _admin_use_cases(session, auth_admin).approve_salon(actor, str(salon_id))
+    return AdminSalonResponse(**salon)
+
+
+@router.post("/salons/{salon_id}/reject", response_model=AdminSalonResponse, status_code=200)
+async def reject_salon(
+    salon_id: UUID,
+    payload: AdminRejectSalonRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+) -> AdminSalonResponse:
+    salon = await _admin_use_cases(session, auth_admin).reject_salon(
+        actor, str(salon_id), payload.rejection_reason
+    )
+    return AdminSalonResponse(**salon)
 
 
 @router.patch(

@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import BackgroundTasks
 
 from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
+from app.application.use_cases.workspace import assert_approved_workspace
 from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile, Role
@@ -233,6 +234,14 @@ class OwnerUseCases:
         self._assert_owner_workspace(actor)
         return await self.repository.update_owner_salon(actor.id, values)
 
+    async def get_business_salon(self, actor: Profile) -> dict[str, Any]:
+        """Return the approved salon for operational tools such as walk-in QR."""
+        await assert_approved_workspace(self.repository, actor)
+        salon = await self.repository.get_workspace_salon(actor.id)
+        if salon is None:
+            raise NotFoundError("Salon workspace not found")
+        return salon
+
     async def complete_profile(self, actor: Profile, values: dict[str, Any] | None = None) -> dict[str, Any]:
         """Create/update the actor's salon profile and mark it complete."""
 
@@ -391,12 +400,14 @@ class OwnerUseCases:
     async def list_holidays(self, actor: Profile) -> list[dict[str, Any]]:
         """List salon holidays."""
 
+        await assert_approved_workspace(self.repository, actor)
         self._assert_owner_workspace(actor)
         return await self.repository.list_holidays(actor.id)
 
     async def create_holiday(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
         """Create a salon holiday."""
 
+        await assert_approved_workspace(self.repository, actor)
         self._assert_owner_workspace(actor)
         affected = await self.repository.preview_closure(
             actor.id,
@@ -411,6 +422,7 @@ class OwnerUseCases:
     async def delete_holiday(self, actor: Profile, holiday_id: str) -> None:
         """Soft-delete a holiday owned by the actor's salon."""
 
+        await assert_approved_workspace(self.repository, actor)
         self._assert_owner_workspace(actor)
         await self.repository.delete_holiday(actor.id, holiday_id)
 
@@ -513,6 +525,7 @@ class OwnerUseCases:
     async def list_blocked_slots(self, actor: Profile) -> list[dict[str, Any]]:
         """List blocked slots for the owner's salon."""
 
+        await assert_approved_workspace(self.repository, actor)
         self._assert_owner_workspace(actor)
         return await self.repository.list_blocked_slots(actor.id)
 
@@ -521,6 +534,7 @@ class OwnerUseCases:
     ) -> dict[str, Any]:
         """Create a staff-scoped or salon-wide blocked slot."""
 
+        await assert_approved_workspace(self.repository, actor)
         self._assert_owner_workspace(actor)
         affected = await self.repository.preview_closure(
             actor.id,
@@ -544,6 +558,7 @@ class OwnerUseCases:
         hard delete — the schema intentionally treats them as ephemeral entries.
         """
 
+        await assert_approved_workspace(self.repository, actor)
         self._assert_owner_workspace(actor)
         await self.repository.delete_blocked_slot(actor.id, slot_id)
 
@@ -569,10 +584,13 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Create booking through the database function."""
 
+        if values.get("source") == "manual_walkin":
+            await assert_approved_workspace(self.repository, actor)
         if values.get("source") == "manual_walkin" and actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Manual walk-in bookings require salon workspace access")
         if values.get("source") == "app" and actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer app bookings require customer or owner access")
+        await self.repository.get_public_salon(str(values["salon_id"]))
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
         if background_tasks is not None and values.get("source") != "manual_walkin":
             background_tasks.add_task(self.notify_new_booking_owner, booking)
@@ -601,6 +619,8 @@ class BookingUseCases:
     ) -> list[dict[str, Any]]:
         """List role-scoped bookings."""
 
+        if actor.role in {Role.owner, Role.staff}:
+            await assert_approved_workspace(self.repository, actor)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ValidationError("date_from must be on or before date_to")
         return await self.repository.list_bookings(
@@ -620,6 +640,10 @@ class BookingUseCases:
         booking = await self.repository.get_booking(booking_id, actor.id)
         if booking is None:
             raise NotFoundError("Booking not found")
+        if actor.role == Role.staff or (
+            actor.role == Role.owner and booking.get("customer_id") != actor.id
+        ):
+            await assert_approved_workspace(self.repository, actor)
         return booking
 
     async def approve(
@@ -630,6 +654,7 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Approve a booking and notify the customer."""
 
+        await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
         booking = await self.repository.update_booking_status(actor.id, booking_id, "confirmed")
@@ -649,6 +674,7 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Reject a booking and notify the customer."""
 
+        await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
         booking = await self.repository.update_booking_status(
@@ -669,6 +695,7 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Complete a booking."""
 
+        await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
         booking = await self.repository.update_booking_status(actor.id, booking_id, "completed")
@@ -727,6 +754,7 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Record a delayed completion estimate and optionally notify later customers."""
 
+        await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
         current = await self.get_booking(actor, booking_id)
@@ -767,6 +795,7 @@ class BookingUseCases:
             reason_text: Optional free-text context appended to the reason.
         """
 
+        await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
 
@@ -800,6 +829,7 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Record booking payment."""
 
+        await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
         booking = await self.repository.record_payment(

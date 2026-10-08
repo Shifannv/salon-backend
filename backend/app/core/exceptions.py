@@ -33,6 +33,12 @@ class ForbiddenError(AppError):
     code = "forbidden"
 
 
+class SalonApprovalRequiredError(ForbiddenError):
+    """Raised when onboarding has not received super admin approval."""
+
+    code = "awaiting_admin_approval"
+
+
 class UnauthorizedError(AppError):
     """Raised when authentication is missing or invalid."""
 

@@ -3,7 +3,8 @@
 from typing import Any
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
-from app.core.exceptions import ForbiddenError, ValidationError
+from app.application.ports.salon_approval_repository import SalonApprovalRepository
+from app.core.exceptions import ConflictError, ForbiddenError, ValidationError
 from app.domain.entities.profile import Profile
 from app.domain.services.authorization import is_super_admin
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -18,6 +19,7 @@ class AdminUseCases:
         auth_admin: AuthAdminGateway,
     ) -> None:
         self.repository = repository
+        self.approval_repository: SalonApprovalRepository = repository
         self.auth_admin = auth_admin
 
     def _assert_admin(self, actor: Profile) -> None:
@@ -63,10 +65,22 @@ class AdminUseCases:
         search: str | None,
         limit: int,
         offset: int,
+        approval_status: str | None = None,
     ) -> list[dict[str, Any]]:
         """List all salons (including inactive) for the admin view."""
         self._assert_admin(actor)
-        return await self.repository.admin_list_salons(search, limit, offset)
+        if approval_status is None:
+            return await self.repository.admin_list_salons(search, limit, offset)
+        return await self.repository.admin_list_salons(search, limit, offset, approval_status)
+
+    async def get_salon(self, actor: Profile, salon_id: str) -> dict[str, Any]:
+        self._assert_admin(actor)
+        return await self.approval_repository.admin_get_salon(salon_id)
+
+    async def _assert_reviewable(self, salon_id: str) -> None:
+        salon = await self.approval_repository.admin_get_salon(salon_id)
+        if not salon["is_active"] or not salon["profile_completed"]:
+            raise ConflictError("Only active salons with completed onboarding can be reviewed")
 
     async def update_salon(
         self, actor: Profile, salon_id: str, values: dict[str, Any]
@@ -84,6 +98,34 @@ class AdminUseCases:
         owner_id = str(result["owner_id"])
         await self.auth_admin.ban_user(owner_id)
         return result
+
+    async def approve_salon(
+        self, actor: Profile, salon_id: str
+    ) -> dict[str, Any]:
+        """Approve a pending salon — owner's workspace becomes fully accessible.
+
+        Only salons that have completed onboarding (``profile_completed = true``)
+        can be approved.  Approving an already-approved salon is idempotent.
+        """
+        self._assert_admin(actor)
+        await self._assert_reviewable(salon_id)
+        return await self.approval_repository.admin_set_salon_approval(salon_id, "approved", actor.id, None)
+
+    async def reject_salon(
+        self, actor: Profile, salon_id: str, rejection_reason: str
+    ) -> dict[str, Any]:
+        """Reject a pending (or previously approved) salon with a reason.
+
+        The owner sees the reason on their pending-approval screen and may fix
+        issues and re-submit.  Rejection does NOT ban the owner account.
+        """
+        self._assert_admin(actor)
+        if not rejection_reason.strip():
+            raise ValidationError("rejection_reason must not be blank")
+        await self._assert_reviewable(salon_id)
+        return await self.approval_repository.admin_set_salon_approval(
+            salon_id, "rejected", actor.id, rejection_reason.strip()
+        )
 
 
 class CatalogAdminUseCases:

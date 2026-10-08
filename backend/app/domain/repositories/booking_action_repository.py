@@ -6,6 +6,9 @@ from typing import Any, Protocol
 class BookingActionRepository(Protocol):
     """Atomic persistence operations for customer/owner booking decisions."""
 
+    async def get_workspace_salon(self, actor_id: str) -> dict[str, Any] | None:
+        """Read the salon assigned to an owner or staff member."""
+
     async def create_booking_action_request(
         self,
         actor_id: str,

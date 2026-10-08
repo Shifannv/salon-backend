@@ -126,7 +126,7 @@ async def test_create_booking_customer_app_allows_owner_as_customer():
     uc = BookingUseCases(repo)
     actor = make_owner()
 
-    payload = {"source": "app", "staff_id": "s1", "service_ids": ["sv1"]}
+    payload = {"salon_id": "salon-001", "source": "app", "staff_id": "s1", "service_ids": ["sv1"]}
     booking = await uc.create_booking(actor, payload)
 
     assert booking["status"] == "pending"
@@ -144,6 +144,7 @@ async def test_create_booking_customer_app_allows_multiple_separate_bookings():
     actor = make_profile(role=Role.customer)
 
     first_payload = {
+        "salon_id": "salon-001",
         "source": "app",
         "staff_id": "s1",
         "service_ids": ["sv1"],
@@ -179,7 +180,7 @@ async def test_create_booking_app_source_rejects_staff():
     uc = BookingUseCases(repo)
     actor = make_profile(role=Role.staff)
 
-    payload = {"source": "app", "staff_id": "s1", "service_ids": ["sv1"]}
+    payload = {"salon_id": "salon-001", "source": "app", "staff_id": "s1", "service_ids": ["sv1"]}
     with pytest.raises(ForbiddenError):
         await uc.create_booking(actor, payload)
 

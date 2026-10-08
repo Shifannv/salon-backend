@@ -1,8 +1,9 @@
 """Admin API request/response schemas."""
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # ── Admin salon schemas ───────────────────────────────────────────────────────
 
@@ -23,6 +24,10 @@ class AdminSalonResponse(BaseModel):
     owner_id: str
     owner_email: str | None = None
     owner_name: str | None = None
+    owner_phone: str | None = None
+    owner_avatar_url: str | None = None
+    owner_phone_verified: bool | None = None
+    owner_is_active: bool | None = None
     name: str
     description: str | None = None
     category: str | None = None
@@ -32,8 +37,30 @@ class AdminSalonResponse(BaseModel):
     approval_mode: str
     profile_completed: bool
     is_active: bool
+    # --- admin approval gate (added by migration 0015) ---
+    approval_status: Literal["pending", "approved", "rejected"]
+    approved_at: datetime | None = None
+    approved_by: str | None = None
+    rejection_reason: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", "owner_id", "approved_by", mode="before")
+    @classmethod
+    def stringify_ids(cls, value: object) -> str | None:
+        return str(value) if value is not None else None
+
+
+class AdminApproveSalonRequest(BaseModel):
+    """Body for approving a salon (no required fields)."""
+
+    # Reserved for future fields (e.g. an approval note).
+
+
+class AdminRejectSalonRequest(BaseModel):
+    """Body for rejecting a salon."""
+
+    rejection_reason: str = Field(min_length=1, description="Reason shown to the owner")
 
 
 class AdminUpdateSalonRequest(BaseModel):

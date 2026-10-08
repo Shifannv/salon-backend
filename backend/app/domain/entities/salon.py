@@ -63,3 +63,7 @@ class Salon:
     updated_at: datetime
     images: list[SalonImage] = field(default_factory=list)
     holidays: list[SalonHoliday] = field(default_factory=list)
+    approval_status: str = "pending"
+    approved_at: datetime | None = None
+    approved_by: str | None = None
+    rejection_reason: str | None = None

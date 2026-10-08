@@ -163,6 +163,10 @@ class OwnerSalonResponse(BaseModel):
     slot_interval_minutes: int
     qr_token: str
     profile_completed: bool
+    approval_status: Literal["pending", "approved", "rejected"]
+    approved_at: datetime | None = None
+    approved_by: str | None = None
+    rejection_reason: str | None = None
     is_active: bool
     images: list[SalonImageResponse] = Field(default_factory=list)
     created_at: datetime
@@ -185,7 +189,7 @@ class OwnerSalonUpdateRequest(BaseModel):
 
 
 class OwnerSalonCompleteProfileRequest(OwnerSalonUpdateRequest):
-    """Final onboarding payload used to create/update and publish an owner salon."""
+    """Final onboarding payload used to submit an owner salon for admin review."""
 
 
 class OwnerSalonSettingsRequest(BaseModel):
@@ -705,4 +709,3 @@ class ImageUploadUrlResponse(BaseModel):
     upload_url: str = Field(description="Signed PUT URL. Client must PUT to this within expires_in seconds.")
     public_url: str = Field(description="Permanent public URL of the uploaded object. Store this in the DB.")
     expires_in: int = Field(description="Upload URL TTL in seconds.")
-

@@ -9,6 +9,10 @@ Alembic owns the complete schema history.
 - `versions/0012_booking_delay.py` stores operational delay estimates.
 - `versions/0013_booking_action_requests.py` adds action requests, Pay at Salon
   preference, retryable notification outbox records, and closure race protection.
+- `versions/0014_repair_cancel_reason.py` repairs drifted booking schemas; the original
+  revision was restored from `origin/main` history to match the configured database.
+- `versions/0015_salon_admin_approval.py` adds salon review state and approval gates.
+  See [approval verification and deployment](../docs/SALON_APPROVAL.md) before applying.
 
 For a new empty database, run only:
 
