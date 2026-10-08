@@ -214,9 +214,11 @@ class OwnerUseCases:
         self,
         repository: PlatformRepository,
         storage_gateway: StorageGateway | None = None,
+        service_media_base: str | None = None,
     ) -> None:
         self.repository = repository
         self.storage_gateway = storage_gateway
+        self.service_media_base = service_media_base
 
     def _assert_owner_workspace(self, actor: Profile) -> None:
         if not is_owner_or_staff(actor):
@@ -436,6 +438,7 @@ class OwnerUseCases:
         """Create owner service."""
 
         self._assert_owner_workspace(actor)
+        await self._validate_service_photo(actor, values)
         return await self.repository.create_owner_service(actor.id, values)
 
     async def update_service(
@@ -444,7 +447,19 @@ class OwnerUseCases:
         """Update owner service."""
 
         self._assert_owner_workspace(actor)
+        await self._validate_service_photo(actor, values)
         return await self.repository.update_owner_service(actor.id, service_id, values)
+
+    async def _validate_service_photo(self, actor: Profile, values: dict[str, Any]) -> None:
+        """Use the configured media base and the existing salon upload namespace."""
+
+        photo_url = values.get("photo_url")
+        if photo_url is None or not self.service_media_base:
+            return
+        salon = await self.repository.get_owner_salon(actor.id)
+        prefix = f"{self.service_media_base.rstrip('/')}/salon-images/{salon['id']}/"
+        if not photo_url.startswith(prefix):
+            raise ValidationError("Service photo must use this salon's hosted media")
 
     async def deactivate_service(self, actor: Profile, service_id: str) -> dict[str, Any]:
         """Soft-delete owner service."""
