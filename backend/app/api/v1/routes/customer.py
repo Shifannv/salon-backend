@@ -5,7 +5,7 @@ from dataclasses import asdict
 from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_current_actor
+from app.api.deps import get_authenticated_session, get_cache, get_current_actor
 from app.api.v1.schemas.admin import CategoryResponse, SubcategoryResponse
 from app.api.v1.schemas.platform import (
     ProfileResponse,
@@ -15,6 +15,7 @@ from app.api.v1.schemas.platform import (
     SalonSummaryResponse,
     ServiceResponse,
 )
+from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.platform import CustomerUseCases
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -158,10 +159,17 @@ async def nearby_salons(
 async def get_salon(
     salon_id: str,
     session: AsyncSession = Depends(get_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> SalonDetailResponse:
     """Return active completed salon details — public, no auth required."""
 
+    cache_key = f"salon:{salon_id}:detail"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return SalonDetailResponse(**cached)
+
     salon = await _use_cases(session).get_salon(salon_id)
+    await cache.set(cache_key, salon, ttl=180)
     return SalonDetailResponse(**salon)
 
 
@@ -174,10 +182,17 @@ async def get_salon(
 async def list_salon_services(
     salon_id: str,
     session: AsyncSession = Depends(get_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> list[ServiceResponse]:
     """Return active customer-visible services for a salon — public, no auth required."""
 
+    cache_key = f"salon:{salon_id}:services"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return [ServiceResponse(**row) for row in cached]
+
     rows = await _use_cases(session).list_salon_services(salon_id)
+    await cache.set(cache_key, rows, ttl=180)
     return [ServiceResponse(**row) for row in rows]
 
 
@@ -190,10 +205,17 @@ async def list_salon_services(
 async def list_salon_staff(
     salon_id: str,
     session: AsyncSession = Depends(get_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> list[PublicStaffResponse]:
     """Return active staff members for a customer-visible salon — public, no auth required."""
 
+    cache_key = f"salon:{salon_id}:staff"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return [PublicStaffResponse(**row) for row in cached]
+
     rows = await _use_cases(session).list_salon_staff(salon_id)
+    await cache.set(cache_key, rows, ttl=180)
     return [PublicStaffResponse(**row) for row in rows]
 
 
@@ -213,12 +235,20 @@ async def list_salon_staff(
 )
 async def list_public_categories(
     session: AsyncSession = Depends(get_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> list[CategoryResponse]:
     """Return active service categories — no authentication required."""
 
+    cache_key = "catalog:categories:active"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return [CategoryResponse(**item) for item in cached]
+
     repo = PlatformRepository(session)
     rows = await repo.list_categories(include_inactive=False)
-    return [CategoryResponse(**{**row, "id": str(row["id"])}) for row in rows]
+    results = [{**row, "id": str(row["id"])} for row in rows]
+    await cache.set(cache_key, results, ttl=300)
+    return [CategoryResponse(**row) for row in results]
 
 
 @catalog_router.get(
@@ -235,12 +265,20 @@ async def list_public_categories(
 async def list_public_subcategories(
     category_id: str = Path(description="The service category UUID"),
     session: AsyncSession = Depends(get_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> list[SubcategoryResponse]:
     """Return active subcategories for a category — no authentication required."""
 
+    cache_key = f"catalog:subcategories:active:{category_id}"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return [SubcategoryResponse(**item) for item in cached]
+
     repo = PlatformRepository(session)
     rows = await repo.list_subcategories(category_id, include_inactive=False)
-    return [
-        SubcategoryResponse(**{**row, "id": str(row["id"]), "category_id": str(row["category_id"])})
+    results = [
+        {**row, "id": str(row["id"]), "category_id": str(row["category_id"])}
         for row in rows
     ]
+    await cache.set(cache_key, results, ttl=300)
+    return [SubcategoryResponse(**row) for row in results]

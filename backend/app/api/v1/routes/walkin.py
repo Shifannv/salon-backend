@@ -1,10 +1,10 @@
 """Walk-in QR API routes — public (unauthenticated) and customer-authenticated."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_current_actor, get_session
+from app.api.deps import get_authenticated_session, get_cache, get_current_actor, get_session
 from app.api.v1.schemas.platform import (
     BookingCreateRequest,
     BookingResponse,
@@ -14,9 +14,11 @@ from app.api.v1.schemas.walkin import (
     WalkInVerifyPhoneRequest,
     WalkInVerifyPhoneResponse,
 )
+from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.platform import BookingUseCases
 from app.application.use_cases.walkin import WalkInUseCases
 from app.core.config import settings
+from app.core.exceptions import TooManyRequestsError
 from app.core.qr import make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -40,10 +42,17 @@ def _use_cases(session: AsyncSession) -> WalkInUseCases:
 async def resolve_qr(
     qr_token: str,
     session: AsyncSession = Depends(get_session),  # no actor context needed
+    cache: CacheGateway = Depends(get_cache),
 ) -> WalkInSalonResponse:
     """Return the salon page for an unauthenticated QR scan."""
 
+    cache_key = f"walkin:qr:{qr_token}"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return WalkInSalonResponse(**cached)
+
     salon = await _use_cases(session).resolve_qr_token(qr_token)
+    await cache.set(cache_key, salon, ttl=180)
     return WalkInSalonResponse(**salon)
 
 
@@ -117,8 +126,14 @@ async def get_qr_image(
 async def verify_phone(
     qr_token: str,
     payload: WalkInVerifyPhoneRequest,
+    cache: CacheGateway = Depends(get_cache),
 ) -> WalkInVerifyPhoneResponse:
     """Send or verify a phone OTP via Supabase Auth."""
+
+    if not payload.otp:
+        allowed, _ = await cache.check_rate_limit(f"rate:otp:{payload.phone}", limit=5, window_seconds=60)
+        if not allowed:
+            raise TooManyRequestsError("Too many OTP requests. Please wait a minute before trying again.")
 
     gateway = SupabaseAuthGateway(settings)
     if payload.otp:
@@ -146,8 +161,16 @@ async def create_walkin_booking(
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> BookingResponse:
     """Create a qr_walkin booking for the authenticated customer."""
+
+    if idempotency_key:
+        cache_key = f"idempotency:booking:{actor.id}:{idempotency_key}"
+        cached = await cache.get_idempotency(cache_key)
+        if cached:
+            return BookingResponse(**cached)
 
     repository = PlatformRepository(session)
     row = await WalkInUseCases(repository).create_walkin_booking(
@@ -156,4 +179,8 @@ async def create_walkin_booking(
     background_tasks.add_task(
         BookingUseCases(repository).notify_new_booking_owner, row
     )
+
+    if idempotency_key:
+        await cache.set_idempotency(cache_key, row)
+
     return BookingResponse(**row)

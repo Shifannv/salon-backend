@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # Firebase Cloud Messaging (service account JSON string)
     firebase_credentials_json: str | None = None
 
+    # Redis (cache, idempotency keys, rate limiting)
+    redis_url: str | None = None
+
     # CORS
     backend_cors_origins: list[str] = Field(default_factory=list)
 
