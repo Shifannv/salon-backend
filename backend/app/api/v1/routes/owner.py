@@ -51,7 +51,10 @@ def _use_cases(
     session: AsyncSession,
     storage_gateway: StorageGateway | None = None,
 ) -> OwnerUseCases:
-    return OwnerUseCases(PlatformRepository(session), storage_gateway=storage_gateway)
+    return OwnerUseCases(
+        PlatformRepository(session), storage_gateway=storage_gateway,
+        service_media_base=settings.r2_public_url,
+    )
 
 
 def _bucket() -> str:
@@ -375,6 +378,8 @@ async def create_service(
     row = await _use_cases(session).create_service(actor, payload.model_dump())
     if "salon_id" in row:
         await cache.delete(f"salon:{row['salon_id']}:services")
+        await cache.delete(f"salon:{row['salon_id']}:detail")
+        await cache.delete_prefix("walkin:qr:")
     return ServiceResponse(**row)
 
 
@@ -396,6 +401,8 @@ async def update_service(
     row = await _use_cases(session).update_service(actor, service_id, payload.model_dump(exclude_unset=True))
     if "salon_id" in row:
         await cache.delete(f"salon:{row['salon_id']}:services")
+        await cache.delete(f"salon:{row['salon_id']}:detail")
+        await cache.delete_prefix("walkin:qr:")
     return ServiceResponse(**row)
 
 
@@ -416,6 +423,8 @@ async def deactivate_service(
     row = await _use_cases(session).deactivate_service(actor, service_id)
     if "salon_id" in row:
         await cache.delete(f"salon:{row['salon_id']}:services")
+        await cache.delete(f"salon:{row['salon_id']}:detail")
+        await cache.delete_prefix("walkin:qr:")
     return ServiceResponse(**row)
 
 

@@ -27,6 +27,7 @@ class WalkInServiceSummary(BaseModel):
     is_active: bool
     category_name: str | None = None
     subcategory_name: str | None = None
+    photo_url: str | None = None
 
 
 class WalkInSalonResponse(BaseModel):

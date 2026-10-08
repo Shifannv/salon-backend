@@ -278,7 +278,8 @@ class PlatformRepository:
                 """
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
                        sv.duration_minutes, sv.price, sv.is_active,
-                       sc.name as category_name, ss.name as subcategory_name
+                       coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 join service_subcategories ss on ss.id = sv.subcategory_id
                 join service_categories sc on sc.id = ss.category_id
@@ -322,7 +323,8 @@ class PlatformRepository:
                 """
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
                        sv.duration_minutes, sv.price, sv.is_active,
-                       sc.name as category_name, ss.name as subcategory_name
+                       coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 join service_subcategories ss on ss.id = sv.subcategory_id
                 join service_categories sc on sc.id = ss.category_id
@@ -744,7 +746,8 @@ class PlatformRepository:
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
                        sv.duration_minutes, sv.price, sv.is_active,
                        sv.created_at, sv.updated_at,
-                       sc.name as category_name, ss.name as subcategory_name
+                       coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 left join service_subcategories ss on ss.id = sv.subcategory_id
                 left join service_categories sc on sc.id = ss.category_id
@@ -760,12 +763,19 @@ class PlatformRepository:
         """Create a salon service and return it with category/subcategory names."""
 
         salon = await self.get_owner_salon(actor_id)
+        values = self._service_write_values(values)
+        for field in ("description", "category_name", "subcategory_name", "photo_url"):
+            values.setdefault(field, None)
         subcategory_id = values.get("subcategory_id") or await self._default_service_subcategory_id()
         result = await self.session.execute(
             text(
                 """
-                insert into services (salon_id, subcategory_id, name, description, duration_minutes, price, is_active)
-                values (:salon_id, :subcategory_id, :name, :description, :duration_minutes, :price, :is_active)
+                insert into services (salon_id, subcategory_id, name, description,
+                                      duration_minutes, price, is_active,
+                                      category_name, subcategory_name, photo_url)
+                values (:salon_id, :subcategory_id, :name, :description,
+                        :duration_minutes, :price, :is_active,
+                        :category_name, :subcategory_name, :photo_url)
                 returning id
                 """
             ),
@@ -802,7 +812,8 @@ class PlatformRepository:
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
                        sv.duration_minutes, sv.price, sv.is_active,
                        sv.created_at, sv.updated_at,
-                       sc.name as category_name, ss.name as subcategory_name
+                       coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 left join service_subcategories ss on ss.id = sv.subcategory_id
                 left join service_categories sc on sc.id = ss.category_id
@@ -843,13 +854,26 @@ class PlatformRepository:
         )
         return str(subcategory.scalar_one())
 
+    @staticmethod
+    def _service_write_values(values: dict[str, Any]) -> dict[str, Any]:
+        writable = {
+            "subcategory_id", "name", "description", "duration_minutes", "price",
+            "is_active", "category_name", "subcategory_name", "photo_url",
+        }
+        if values.keys() - writable:
+            raise ValidationError("Unsupported service fields")
+        return {key: value for key, value in values.items() if key in writable}
+
     async def update_owner_service(
         self, actor_id: str, service_id: str, values: dict[str, Any]
     ) -> dict[str, Any]:
         """Update a salon service and return it with category/subcategory names."""
 
         salon = await self.get_owner_salon(actor_id)
-        allowed = {key: value for key, value in values.items() if value is not None}
+        allowed = self._service_write_values(values)
+        if any(value is None for key, value in allowed.items()
+               if key not in {"description", "category_name", "subcategory_name", "photo_url"}):
+            raise ValidationError("Required service fields cannot be null")
         if not allowed:
             raise ValidationError("No service fields provided")
         assignments = ", ".join(f"{key} = :{key}" for key in allowed)

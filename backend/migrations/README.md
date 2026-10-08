@@ -13,6 +13,8 @@ Alembic owns the complete schema history.
   revision was restored from `origin/main` history to match the configured database.
 - `versions/0015_salon_admin_approval.py` adds salon review state and approval gates.
   See [approval verification and deployment](../docs/SALON_APPROVAL.md) before applying.
+- `versions/0016_service_presentation.py` adds nullable salon-specific service names
+  and photos. See the [release handover](../docs/SERVICE_PRESENTATION.md) before applying.
 
 For a new empty database, run only:
 

@@ -52,3 +52,4 @@ class Service:
     updated_at: datetime
     category_name: str | None = None
     subcategory_name: str | None = None
+    photo_url: str | None = None

@@ -2,9 +2,19 @@
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+from urllib.parse import unquote, urlsplit
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    StringConstraints,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 
 from app.core.config import settings
 
@@ -116,6 +126,7 @@ class ServiceResponse(BaseModel):
     is_active: bool
     category_name: str | None = None
     subcategory_name: str | None = None
+    photo_url: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -245,7 +256,45 @@ class HolidayResponse(BaseModel):
         return v
 
 
-class ServiceCreateRequest(BaseModel):
+ServiceDisplayName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)
+]
+
+
+class ServicePresentationRequest(BaseModel):
+    """Persisted salon-specific presentation; explicit null clears a value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category_name: ServiceDisplayName | None = None
+    subcategory_name: ServiceDisplayName | None = None
+    photo_url: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("photo_url")
+    @classmethod
+    def validate_photo_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            TypeAdapter(HttpUrl).validate_python(value)
+            parsed = urlsplit(value)
+            valid = (
+                parsed.scheme == "https" and parsed.hostname
+                and "." in parsed.hostname and parsed.hostname != "localhost"
+                and not parsed.username and not parsed.password
+                and not any(c.isspace() or ord(c) < 32 for c in value)
+                and "\\" not in value and parsed.port in (None, 443)
+                and not any(part in {".", ".."} for part in unquote(parsed.path).split("/"))
+                and "\\" not in unquote(parsed.path)
+            )
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValueError("photo_url must be a hosted HTTPS URL")
+        return value
+
+
+class ServiceCreateRequest(ServicePresentationRequest):
     """Create service request."""
 
     subcategory_id: str | None = None
@@ -256,8 +305,8 @@ class ServiceCreateRequest(BaseModel):
     is_active: bool = True
 
 
-class ServiceUpdateRequest(BaseModel):
-    """Update service request."""
+class ServiceUpdateRequest(ServicePresentationRequest):
+    """Update service request; omitted fields retain their stored values."""
 
     subcategory_id: str | None = None
     name: str | None = None
@@ -265,6 +314,13 @@ class ServiceUpdateRequest(BaseModel):
     duration_minutes: int | None = Field(default=None, gt=0)
     price: Decimal | None = Field(default=None, ge=0)
     is_active: bool | None = None
+
+    @field_validator("subcategory_id", "name", "duration_minutes", "price", "is_active")
+    @classmethod
+    def reject_explicit_null(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("This service field cannot be null")
+        return value
 
 
 class StaffCreateRequest(BaseModel):
