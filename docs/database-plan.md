@@ -10,7 +10,9 @@ changes. Existing migration history must not be deleted or rewritten after deplo
 Current app-contract additions include soft deletion for salon holidays
 (`0011_holiday_soft_delete`), booking completion estimates
 (`0012_booking_delay`), and transactional booking action requests
-(`0013_booking_action_requests`).
+(`0013_booking_action_requests`), and salon super admin approval
+(`0015_salon_admin_approval`). See the [approval guide](../backend/docs/SALON_APPROVAL.md)
+for schema verification and deployment steps.
 
 Rules:
 

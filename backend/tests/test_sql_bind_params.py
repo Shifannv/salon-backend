@@ -49,7 +49,7 @@ def _sql_string_literals() -> list[str]:
     file is written as `text(\"\"\"...\"\"\")`.
     """
 
-    source = REPOSITORY_PATH.read_text()
+    source = REPOSITORY_PATH.read_text(encoding="utf-8")
     return re.findall(r'"""(.*?)"""', source, re.DOTALL)
 
 

@@ -189,7 +189,7 @@ class PlatformRepository:
                   and st.is_active
                   and st.salon_id = sv.salon_id
               )
-            where s.is_active and s.profile_completed
+            where s.is_active and s.profile_completed and s.approval_status = 'approved'
               and (cast(:search as text) is null or s.name ilike cast(:search as text))
               and (cast(:city as text) is null or s.city = cast(:city as text))
               {ids_filter}
@@ -236,7 +236,7 @@ class PlatformRepository:
                        working_hours, approval_mode, slot_interval_minutes, profile_completed,
                        is_active
                 from salons
-                where id = :salon_id and is_active and profile_completed
+                where id = :salon_id and is_active and profile_completed and approval_status = 'approved'
                 """
             ),
             {"salon_id": salon_id},
@@ -251,6 +251,8 @@ class PlatformRepository:
 
     async def list_public_staff(self, salon_id: str) -> list[dict[str, Any]]:
         """List active staff for a public salon (customer-facing, trimmed fields)."""
+
+        await self.get_public_salon(salon_id)
 
         result = await self.session.execute(
             text(
@@ -269,6 +271,8 @@ class PlatformRepository:
     async def list_public_services(self, salon_id: str) -> list[dict[str, Any]]:
         """List public active services for a salon."""
 
+        await self.get_public_salon(salon_id)
+
         result = await self.session.execute(
             text(
                 """
@@ -279,6 +283,9 @@ class PlatformRepository:
                 join service_subcategories ss on ss.id = sv.subcategory_id
                 join service_categories sc on sc.id = ss.category_id
                 where sv.salon_id = :salon_id
+                  and exists (select 1 from salons sl where sl.id = sv.salon_id
+                              and sl.is_active and sl.profile_completed
+                              and sl.approval_status = 'approved')
                   and sv.is_active and ss.is_active and sc.is_active
                   and exists (
                     select 1
@@ -323,6 +330,9 @@ class PlatformRepository:
                     select value::uuid
                     from jsonb_array_elements_text(cast(:salon_ids_json as jsonb)) value
                 )
+                  and exists (select 1 from salons sl where sl.id = sv.salon_id
+                              and sl.is_active and sl.profile_completed
+                              and sl.approval_status = 'approved')
                   and sv.is_active and ss.is_active and sc.is_active
                   and exists (
                     select 1
@@ -404,6 +414,23 @@ class PlatformRepository:
         await self.session.commit()
         return str(row["url"])
 
+    async def get_workspace_salon(self, actor_id: str) -> dict[str, Any] | None:
+        """Read workspace state without auto-provisioning a salon."""
+        result = await self.session.execute(
+            text("""
+                select s.id, s.name, s.qr_token, s.is_active, s.profile_completed, s.approval_status
+                from salons s
+                where s.owner_id = :actor_id
+                   or exists (select 1 from staff st where st.salon_id = s.id
+                              and st.profile_id = :actor_id and st.is_active)
+                order by s.is_active desc, s.created_at asc
+                limit 1
+            """),
+            {"actor_id": actor_id},
+        )
+        row = result.mappings().one_or_none()
+        return dict(row) if row is not None else None
+
     async def get_owner_salon(self, actor_id: str) -> dict[str, Any]:
         """Return the salon owned by an actor, auto-provisioning a blank one on first login.
 
@@ -431,6 +458,8 @@ class PlatformRepository:
         salon = dict(row)
         salon["id"] = str(salon["id"])
         salon["owner_id"] = str(salon["owner_id"])
+        if salon.get("approved_by") is not None:
+            salon["approved_by"] = str(salon["approved_by"])
         salon["images"] = await self.list_salon_images(salon["id"])
         return salon
 
@@ -442,7 +471,8 @@ class PlatformRepository:
                 """
                 select id, owner_id, name, description, category, address, city, lat, lng,
                        timezone, working_hours, approval_mode, slot_interval_minutes,
-                       qr_token, profile_completed, is_active, created_at, updated_at
+                       qr_token, profile_completed, approval_status, approved_at, approved_by,
+                          rejection_reason, is_active, created_at, updated_at
                 from salons
                 where owner_id = :actor_id and is_active
                 order by created_at asc
@@ -472,7 +502,8 @@ class PlatformRepository:
                 values (:actor_id, '', true, false)
                 returning id, owner_id, name, description, category, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes,
-                          qr_token, profile_completed, is_active, created_at, updated_at
+                          qr_token, profile_completed, approval_status, approved_at, approved_by,
+                          rejection_reason, is_active, created_at, updated_at
                 """
             ),
             {"actor_id": actor_id},
@@ -503,7 +534,8 @@ class PlatformRepository:
                 where id = :salon_id and owner_id = :actor_id and is_active
                 returning id, owner_id, name, description, category, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes,
-                          qr_token, profile_completed, is_active, created_at, updated_at
+                          qr_token, profile_completed, approval_status, approved_at, approved_by,
+                          rejection_reason, is_active, created_at, updated_at
                 """
             ),
             {**allowed, "salon_id": salon["id"], "actor_id": actor_id},
@@ -517,13 +549,19 @@ class PlatformRepository:
     async def complete_owner_salon(
         self, actor_id: str, values: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Create/update the owner's salon from onboarding data and publish it."""
+        """Submit onboarding for review; a rejected salon may be resubmitted."""
 
         allowed = self._prepare_jsonb_values(dict(values or {}))
         payload = {**allowed, "profile_completed": True}
 
         await self._lock_owner_salon(actor_id)
         salon = await self._get_owner_salon_row(actor_id)
+        if salon is not None:
+            locked = await self.session.execute(
+                text("select approval_status from salons where id = :id for update"),
+                {"id": salon["id"]},
+            )
+            salon = {**salon, "approval_status": locked.scalar_one()}
         if salon is None:
             if not payload.get("name"):
                 raise ValidationError("Salon name is required to complete setup")
@@ -538,13 +576,18 @@ class PlatformRepository:
                     values ({placeholders})
                     returning id, owner_id, name, description, category, address, city, lat, lng,
                               timezone, working_hours, approval_mode, slot_interval_minutes,
-                              qr_token, profile_completed, is_active, created_at, updated_at
+                              qr_token, profile_completed, approval_status, approved_at, approved_by,
+                          rejection_reason, is_active, created_at, updated_at
                     """
                 ),
                 params,
             )
             await self.session.commit()
             return await self._owner_salon_with_images(result.mappings().one())
+
+        if salon["approval_status"] == "rejected":
+            payload.update(approval_status="pending", approved_at=None, approved_by=None,
+                           rejection_reason=None)
 
         assignments = ", ".join(self._sql_assignment(key) for key in payload)
         result = await self.session.execute(
@@ -555,7 +598,8 @@ class PlatformRepository:
                 where id = :salon_id and owner_id = :actor_id and is_active
                 returning id, owner_id, name, description, category, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes,
-                          qr_token, profile_completed, is_active, created_at, updated_at
+                          qr_token, profile_completed, approval_status, approved_at, approved_by,
+                          rejection_reason, is_active, created_at, updated_at
                 """
             ),
             {**payload, "salon_id": salon["id"], "actor_id": actor_id},
@@ -2534,6 +2578,7 @@ class PlatformRepository:
         search: str | None,
         limit: int,
         offset: int,
+        approval_status: str | None = None,
     ) -> list[dict[str, Any]]:
         """List all salons (admin view, including inactive)."""
 
@@ -2542,11 +2587,16 @@ class PlatformRepository:
                 """
                 select s.id, s.owner_id, s.name, s.description, s.category,
                        s.address, s.city, s.timezone, s.approval_mode,
-                       s.profile_completed, s.is_active, s.created_at, s.updated_at,
-                       p.email as owner_email, p.full_name as owner_name
+                       s.profile_completed, s.approval_status, s.approved_at, s.approved_by,
+                       s.rejection_reason, s.is_active, s.created_at, s.updated_at,
+                       p.email as owner_email, p.full_name as owner_name,
+                       p.phone as owner_phone, p.avatar_url as owner_avatar_url,
+                       p.phone_verified as owner_phone_verified, p.is_active as owner_is_active
                 from salons s
                 join profiles p on p.id = s.owner_id
-                where (:search is null or s.name ilike :search or p.email ilike :search)
+                where (cast(:search as text) is null or s.name ilike :search or p.email ilike :search)
+                  and (cast(:approval_status as text) is null
+                       or s.approval_status = cast(:approval_status as salon_approval_status))
                 order by s.created_at desc
                 limit :limit offset :offset
                 """
@@ -2555,6 +2605,7 @@ class PlatformRepository:
                 "search": f"%{search}%" if search else None,
                 "limit": limit,
                 "offset": offset,
+                "approval_status": approval_status,
             },
         )
         return [dict(row) for row in result.mappings().all()]
@@ -2565,7 +2616,9 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select s.*, p.email as owner_email, p.full_name as owner_name
+                select s.*, p.email as owner_email, p.full_name as owner_name,
+                       p.phone as owner_phone, p.avatar_url as owner_avatar_url,
+                       p.phone_verified as owner_phone_verified, p.is_active as owner_is_active
                 from salons s
                 join profiles p on p.id = s.owner_id
                 where s.id = :salon_id
@@ -2594,7 +2647,7 @@ class PlatformRepository:
                 returning id, owner_id, name, description, category, address, city,
                           lat, lng, timezone, working_hours, approval_mode,
                           slot_interval_minutes, qr_token, profile_completed,
-                          is_active, created_at, updated_at
+                          approval_status, approved_at, approved_by, rejection_reason, is_active, created_at, updated_at
                 """
             ),
             {"owner_id": owner_user_id, "name": salon_name, "timezone": timezone},
@@ -2619,7 +2672,7 @@ class PlatformRepository:
                 returning id, owner_id, name, description, category, address, city,
                           lat, lng, timezone, working_hours, approval_mode,
                           slot_interval_minutes, qr_token, profile_completed,
-                          is_active, created_at, updated_at
+                          approval_status, approved_at, approved_by, rejection_reason, is_active, created_at, updated_at
                 """
             ),
             {**allowed, "salon_id": salon_id},
@@ -2629,6 +2682,30 @@ class PlatformRepository:
             raise NotFoundError("Salon not found")
         await self.session.commit()
         return dict(row)
+
+    async def admin_set_salon_approval(
+        self, salon_id: str, approval_status: str, actor_id: str, reason: str | None
+    ) -> dict[str, Any]:
+        """Write the decision atomically; preserve the first approval timestamp on retries."""
+        result = await self.session.execute(
+            text("""
+                update salons
+                set approval_status = cast(:approval_status as salon_approval_status),
+                    approved_at = case when :approval_status = 'approved'
+                        then coalesce(approved_at, now()) else null end,
+                    approved_by = case when :approval_status = 'approved'
+                        then coalesce(approved_by, cast(:actor_id as uuid)) else null end,
+                    rejection_reason = :reason
+                where id = :salon_id and is_active and profile_completed
+                returning id
+            """),
+            {"salon_id": salon_id, "approval_status": approval_status,
+             "actor_id": actor_id, "reason": reason},
+        )
+        if result.scalar_one_or_none() is None:
+            raise ConflictError("Salon is no longer eligible for review")
+        await self.session.commit()
+        return await self.admin_get_salon(salon_id)
 
     async def admin_deactivate_salon(self, salon_id: str) -> dict[str, Any]:
         """Soft-delete a salon and return its owner_id for Supabase ban."""

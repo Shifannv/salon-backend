@@ -5,6 +5,7 @@ The backend currently supports:
 - Supabase JWT verification, refresh, current-profile lookup, and owner access
 - Customer profiles, avatars, salon discovery, nearby search, and reports
 - Owner salon profiles, settings, images, QR codes, holidays, services, and staff
+- Super admin salon review, rejection/resubmission, and approval gates for daily business
 - Database-backed availability and booking creation
 - Booking approval, rejection, completion, cutoff-based cancellation, and payment state
 - Customer payment-confirmation/cancellation requests with owner decisions and audit history

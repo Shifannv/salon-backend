@@ -91,6 +91,8 @@ def make_mock_repo() -> MagicMock:
         "get_public_salon",
         "list_public_services",
         "get_owner_salon",
+        "get_workspace_salon",
+        "admin_set_salon_approval",
         "update_owner_salon",
         "complete_owner_salon",
         "list_salon_images",
@@ -159,6 +161,8 @@ def make_mock_repo() -> MagicMock:
     ]:
         setattr(repo, attr, AsyncMock())
 
+    repo.get_workspace_salon.return_value = {"id": "salon-001", "is_active": True,
+        "profile_completed": True, "approval_status": "approved"}
     repo.preview_closure.return_value = []
 
     return repo

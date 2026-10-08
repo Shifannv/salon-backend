@@ -164,7 +164,7 @@ async def get_my_qr(
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> Response:
     """Render the authenticated owner's persisted salon QR identity."""
-    salon = await _use_cases(session).get_my_salon(actor)
+    salon = await _use_cases(session).get_business_salon(actor)
     qr_token = str(salon["qr_token"])
     if fmt == "svg":
         return Response(

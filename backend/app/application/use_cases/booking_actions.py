@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import BackgroundTasks
 
+from app.application.use_cases.workspace import assert_approved_workspace
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError
 from app.domain.entities.profile import Profile, Role
@@ -50,6 +51,7 @@ class BookingActionRequestUseCases:
 
         if actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Salon workspace access required")
+        await assert_approved_workspace(self.repository, actor)
         return await self.repository.list_booking_action_requests(
             actor.id, request_status
         )
@@ -66,6 +68,7 @@ class BookingActionRequestUseCases:
 
         if actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Salon workspace access required")
+        await assert_approved_workspace(self.repository, actor)
         item = await self.repository.respond_booking_action_request(
             actor.id, request_id, decision, reason
         )
@@ -100,6 +103,7 @@ class ClosureUseCases:
 
         if actor.role != Role.owner:
             raise ForbiddenError("Salon owner access required")
+        await assert_approved_workspace(self.repository, actor)
         rows = await self.repository.preview_closure(actor.id, values)
         return {"affected_count": len(rows), "affected_bookings": rows}
 
@@ -113,6 +117,7 @@ class ClosureUseCases:
 
         if actor.role != Role.owner:
             raise ForbiddenError("Salon owner access required")
+        await assert_approved_workspace(self.repository, actor)
         result = await self.repository.apply_closure(actor.id, values)
         if background_tasks is not None:
             from app.infrastructure.push.outbox_worker import (
