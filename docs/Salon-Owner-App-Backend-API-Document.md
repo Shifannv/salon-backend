@@ -22,8 +22,18 @@ The normal startup sequence is:
 2. Call `POST /v1/auth/owner-access` idempotently.
 3. Call `GET /v1/auth/me`.
 4. Call `GET /v1/salons/me`.
-5. If no salon exists, complete onboarding through
+5. If `profile_completed` is false, complete onboarding through
    `POST /v1/salons/me/complete-profile`.
+6. Read `approval_status` from the returned salon. Show the waiting screen for
+   `pending`; show `rejection_reason` and allow corrections/resubmission for
+   `rejected`. Enter daily business only when the salon is active, completed, and
+   `approved`. Poll `GET /v1/salons/me` to refresh this state.
+
+Completing onboarding returns 200 and saves the profile; it does not approve the
+salon. Unapproved daily-business API calls return 403 with
+`error.code = awaiting_admin_approval`. Setup editing remains available. See the
+[salon approval contract](../backend/docs/SALON_APPROVAL.md) for the super admin
+review endpoints and migration deployment steps.
 
 The backend also exposes `POST /v1/auth/refresh`, although the Supabase client may
 refresh directly. Profile changes use `/v1/profiles/me`; account email changes remain a
@@ -42,7 +52,7 @@ Supabase Auth operation.
 | POST | `/v1/profiles/me/avatar-upload-url` | Presigned avatar upload |
 | GET | `/v1/salons/me` | Owner salon |
 | PATCH | `/v1/salons/me` | Update salon profile |
-| POST | `/v1/salons/me/complete-profile` | Complete onboarding/go live |
+| POST | `/v1/salons/me/complete-profile` | Submit onboarding for super admin review |
 | PATCH | `/v1/salons/me/settings` | Approval mode and working hours |
 | GET | `/v1/salons/me/qr` | QR image URL or SVG |
 
