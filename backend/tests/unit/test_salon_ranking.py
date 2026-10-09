@@ -189,3 +189,46 @@ def test_no_subscription_fields_in_public_response(ranked):
     row = response.json()[0]
     for field in ("ranking_weight", "subscription_status", "plan_code", "plan_tier"):
         assert field not in row
+
+
+def test_discovery_visibility_and_search_only(ranked):
+    client, session = ranked
+    listed = add_salon(session, 1, "Salon Listed")
+    search_only = add_salon(session, 2, "Salon Search")
+    hidden = add_salon(session, 3, "Salon Hidden", priority=999)
+    session.db.execute("update salons set discovery_visibility='search_only' where id=?", (search_only,))
+    session.db.execute("update salons set discovery_visibility='hidden' where id=?", (hidden,))
+    assert ids(client.get("/v1/salons?surface=home")) == [listed]
+    assert ids(client.get("/v1/salons?search=Salon")) == [listed, search_only]
+    assert ids(client.get("/v1/salons?surface=all")) == [listed, search_only]
+    assert ids(client.get("/v1/salons/nearby")) == [listed, search_only]
+    assert client.get(f"/v1/salons/{hidden}").status_code == 200
+
+
+def test_manual_home_placement_overrides_subscription_and_paginates(ranked):
+    client, session = ranked
+    normal = add_salon(session, 1, "Normal")
+    top = add_salon(session, 2, "Top")
+    below = add_salon(session, 3, "Below", priority=999)
+    session.db.execute("update salons set home_placement='top' where id=?", (top,))
+    session.db.execute("update salons set home_placement='below' where id=?", (below,))
+    _subscribe(session, below, weight=999)
+    assert ids(client.get("/v1/salons?surface=home")) == [top, normal, below]
+    assert ids(client.get("/v1/salons?surface=home&limit=1&offset=1")) == [normal]
+    assert ids(client.get("/v1/salons?surface=search"))[0] == below
+
+
+def test_random_placement_is_stable_with_seed_and_page_boundaries(ranked):
+    client, session = ranked
+    for n in range(1, 9):
+        add_salon(session, n, f"Salon {n}")
+    session.db.execute("update salons set home_placement='random'")
+    first = ids(client.get("/v1/salons?surface=home&shuffle_seed=a"))
+    assert ids(client.get("/v1/salons?surface=home&shuffle_seed=a")) == first
+    second = ids(client.get("/v1/salons?surface=home&shuffle_seed=b"))
+    assert first != second
+    assert set(first) == set(second)
+    pages = []
+    for offset in (0, 3, 6):
+        pages.extend(ids(client.get(f"/v1/salons?surface=home&shuffle_seed=a&limit=3&offset={offset}")))
+    assert pages == first

@@ -4,6 +4,12 @@ Clients send Supabase access tokens as bearer tokens. The backend verifies each 
 against Supabase JWKS, uses the verified `sub` to load `profiles.id`, and reads the role
 from the database. JWT role claims are not trusted.
 
+Super-admin operations additionally require a verified `aal2` claim when
+`ADMIN_REQUIRE_MFA=true`. Enroll admins in Supabase TOTP before enabling it on an
+existing deployment. A first-factor admin can still read `/v1/auth/me`, but admin
+operations return `403 mfa_required` until MFA is complete. Frontend route guards do
+not replace these checks. Email/password changes remain Supabase Auth operations.
+
 Authorization belongs in application use cases:
 
 - customers access their own profile, bookings, notifications, and reports;
@@ -20,6 +26,12 @@ and favorite ID queries share the same database predicate; no separate featured 
 recommended API exists. Public services, staff, and service summaries apply the same
 gate. QR reads and availability use the approval-aware Postgres functions installed by
 the existing `0015_salon_admin_approval` revision.
+
+Discovery lists also honor `discovery_visibility` from `0019_discovery_placement`:
+`hidden` excludes all discovery listings; `search_only` excludes the home surface.
+Approved direct details and QR booking remain accessible when hidden from discovery.
+Home placement is separate from approval and subscription state. Only super admins
+can change placement or visibility, including Data API writes guarded in Postgres.
 
 Detail, services, staff, and QR cache hits revalidate current publication in Postgres
 before returning any cached payload. Cache keys and mutation invalidation are never

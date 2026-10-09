@@ -17,6 +17,7 @@ from app.api.v1.schemas.admin import (
     AdminCreateSalonRequest,
     AdminDeactivateSalonResponse,
     AdminRejectSalonRequest,
+    AdminSalonOnboardingResponse,
     AdminSalonResponse,
     AdminUpdateSalonRequest,
     CategoryCreateRequest,
@@ -100,7 +101,7 @@ async def list_salons(
 @router.get("/salons/{salon_id}", response_model=AdminSalonResponse, status_code=200)
 async def get_salon(
     salon_id: UUID,
-    actor: Profile = Depends(get_current_actor),
+    actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
 ) -> AdminSalonResponse:
@@ -108,10 +109,25 @@ async def get_salon(
     return AdminSalonResponse(**salon)
 
 
+@router.get(
+    "/salons/{salon_id}/onboarding",
+    response_model=AdminSalonOnboardingResponse,
+    status_code=200,
+)
+async def get_salon_onboarding(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+) -> AdminSalonOnboardingResponse:
+    salon = await _admin_use_cases(session, auth_admin).get_onboarding(actor, str(salon_id))
+    return AdminSalonOnboardingResponse(**salon)
+
+
 @router.post("/salons/{salon_id}/approve", response_model=AdminSalonResponse, status_code=200)
 async def approve_salon(
     salon_id: UUID,
-    actor: Profile = Depends(get_current_actor),
+    actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
 ) -> AdminSalonResponse:
@@ -123,7 +139,7 @@ async def approve_salon(
 async def reject_salon(
     salon_id: UUID,
     payload: AdminRejectSalonRequest,
-    actor: Profile = Depends(get_current_actor),
+    actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
 ) -> AdminSalonResponse:

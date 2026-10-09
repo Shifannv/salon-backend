@@ -39,6 +39,12 @@ class SalonApprovalRequiredError(ForbiddenError):
     code = "awaiting_admin_approval"
 
 
+class AdminMFARequiredError(ForbiddenError):
+    """An admin operation needs a verified second authentication factor."""
+
+    code = "mfa_required"
+
+
 class UnauthorizedError(AppError):
     """Raised when authentication is missing or invalid."""
 

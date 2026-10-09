@@ -77,6 +77,11 @@ class AdminUseCases:
         self._assert_admin(actor)
         return await self.approval_repository.admin_get_salon(salon_id)
 
+    async def get_onboarding(self, actor: Profile, salon_id: str) -> dict[str, Any]:
+        """Authorize the complete submission before reading private owner data."""
+        self._assert_admin(actor)
+        return await self.repository.admin_get_onboarding(salon_id)
+
     async def _assert_reviewable(self, salon_id: str) -> None:
         salon = await self.approval_repository.admin_get_salon(salon_id)
         if not salon["is_active"] or not salon["profile_completed"]:

@@ -16,6 +16,11 @@ Alembic owns the complete schema history.
 - `versions/0016_service_presentation.py` adds nullable salon-specific service names
   and photos. See the [release handover](../docs/SERVICE_PRESENTATION.md) before applying.
 
+- `versions/0017_salon_display_priority.py` adds numeric admin ranking control.
+- `versions/0018_subscription_foundation.py` adds manual subscription management.
+- `versions/0019_discovery_placement.py` adds discovery visibility/home placement and
+  a super-admin database write guard. See the [website contract](../docs/WEBSITE_SUPERADMIN_PROMPT.md).
+
 For a new empty database, run only:
 
 ```bash

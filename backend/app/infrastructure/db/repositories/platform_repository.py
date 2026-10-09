@@ -119,6 +119,8 @@ class PlatformRepository:
         offset: int,
         ids: list[str] | None = None,
         category: str | None = None,
+        surface: str | None = None,
+        shuffle_seed: str = "default",
     ) -> list[dict[str, Any]]:
         """List public approved, active, completed salons.
 
@@ -141,6 +143,8 @@ class PlatformRepository:
             if not normalized_ids:
                 return []
         params = {
+            "surface": surface or ("search" if search or ids or category else "home"),
+            "shuffle_seed": shuffle_seed,
             "search": f"%{search}%" if search else None,
             "city": city,
             "lat": lat,
@@ -199,6 +203,8 @@ class PlatformRepository:
                       ss.current_period_end, ss.grace_period_end)
             ) promo on true
             where s.is_active and s.profile_completed and s.approval_status = 'approved'
+              and s.discovery_visibility <> 'hidden'
+              and (:surface <> 'home' or s.discovery_visibility = 'listed')
               and (cast(:search as text) is null or s.name ilike cast(:search as text))
               and (cast(:city as text) is null or s.city = cast(:city as text))
               {ids_filter}
@@ -217,7 +223,13 @@ class PlatformRepository:
                   and sc2.name ilike cast(:category_pattern as text)
               )
             )
-            order by coalesce(promo.weight, 0) desc, s.display_priority desc,
+            order by case when :surface = 'home' then
+                       case s.home_placement when 'top' then 0 when 'normal' then 1
+                         when 'random' then 2 when 'below' then 3 end
+                       else 1 end,
+                     case when :surface = 'home' and s.home_placement = 'random'
+                       then md5(cast(s.id as text) || :shuffle_seed) else '' end,
+                     coalesce(promo.weight, 0) desc, s.display_priority desc,
                      distance_km asc nulls last, s.name asc, s.id asc
             limit cast(:limit as int) offset cast(:offset as int)
             """
@@ -2634,8 +2646,13 @@ class PlatformRepository:
                 """
                 select s.id, s.owner_id, s.name, s.description, s.category,
                        s.address, s.city, s.qr_token, s.timezone, s.approval_mode,
-                       s.profile_completed, s.is_active, s.created_at, s.updated_at,
-                       p.email as owner_email, p.full_name as owner_name
+                       s.lat, s.lng, s.working_hours, s.slot_interval_minutes,
+                       s.profile_completed, s.approval_status, s.approved_at, s.approved_by,
+                       s.rejection_reason, s.display_priority, s.discovery_visibility,
+                       s.home_placement, s.is_active, s.created_at, s.updated_at, s.updated_by,
+                       p.email as owner_email, p.full_name as owner_name,
+                       p.phone as owner_phone, p.avatar_url as owner_avatar_url,
+                       p.phone_verified as owner_phone_verified, p.is_active as owner_is_active
                 from salons s
                 join profiles p on p.id = s.owner_id
                 where (cast(:search as text) is null or s.name ilike :search or p.email ilike :search)
@@ -2674,6 +2691,28 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Salon not found")
         return dict(row)
+
+    async def admin_get_onboarding(self, salon_id: str) -> dict[str, Any]:
+        """Read private onboarding data without applying public approval filters."""
+        salon = await self.admin_get_salon(salon_id)
+        salon["images"] = await self.list_salon_images(salon_id)
+        services = await self.session.execute(
+            text("""
+                select sv.*, coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.subcategory_name, ss.name) as subcategory_name
+                from services sv
+                left join service_subcategories ss on ss.id = sv.subcategory_id
+                left join service_categories sc on sc.id = ss.category_id
+                where sv.salon_id = :salon_id order by sv.name, sv.id
+            """), {"salon_id": salon_id},
+        )
+        salon["services"] = [self._service_response(row) for row in services.mappings().all()]
+        staff = await self.session.execute(
+            text("select * from staff where salon_id = :salon_id order by name, id"),
+            {"salon_id": salon_id},
+        )
+        salon["staff"] = [self._staff_response(row) for row in staff.mappings().all()]
+        return salon
 
     async def admin_create_salon(
         self,
@@ -3235,7 +3274,7 @@ class PlatformRepository:
         extra = await self.session.execute(
             text(
                 """
-                select s.address, img.url as image_url
+                select s.address, s.working_hours, img.url as image_url
                 from salons s
                 left join lateral (
                   select url
@@ -3253,6 +3292,7 @@ class PlatformRepository:
         if extra_row:
             salon["address"] = extra_row["address"]
             salon["image_url"] = extra_row["image_url"]
+            salon["working_hours"] = extra_row["working_hours"]
 
         salon["id"] = str(salon["id"])
         salon["services"] = await self.list_public_services(salon["id"])
@@ -3265,10 +3305,15 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, name, photo_url, specialization
-                from staff
-                where salon_id = :salon_id and is_active
-                order by name
+                select st.id, st.name, st.photo_url, st.specialization,
+                       array(select cast(ss.service_id as text)
+                             from staff_services ss join services sv on sv.id = ss.service_id
+                             where ss.staff_id = st.id and ss.is_active and sv.is_active
+                               and sv.salon_id = st.salon_id
+                             order by ss.service_id) as service_ids
+                from staff st
+                where st.salon_id = :salon_id and st.is_active
+                order by st.name
                 """
             ),
             {"salon_id": salon_id},

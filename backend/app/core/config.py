@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     # Supabase Auth Admin (service-role key — never expose to clients)
     supabase_service_role_key: str | None = None
+    # Enable after enrolling the existing super-admin account in Supabase TOTP MFA.
+    admin_require_mfa: bool = False
 
     # Cloudflare R2 object storage (S3-compatible)
     # Used to generate presigned PUT URLs for direct client uploads.

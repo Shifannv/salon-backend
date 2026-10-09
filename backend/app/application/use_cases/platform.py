@@ -132,6 +132,8 @@ class CustomerUseCases:
         offset: int,
         ids: list[str] | None = None,
         category: str | None = None,
+        surface: str | None = None,
+        shuffle_seed: str = "default",
     ) -> list[dict[str, Any]]:
         """List customer-visible salons.
 
@@ -149,6 +151,8 @@ class CustomerUseCases:
             offset=offset,
             ids=ids,
             category=category,
+            surface=surface,
+            shuffle_seed=shuffle_seed,
         )
 
     async def assert_public_salon(self, salon_id: str) -> None:

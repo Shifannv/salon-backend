@@ -12,6 +12,7 @@ class WalkInStaffSummary(BaseModel):
     name: str
     photo_url: str | None = None
     specialization: str | None = None
+    service_ids: list[str] = Field(default_factory=list)
 
 
 class WalkInServiceSummary(BaseModel):
@@ -50,6 +51,7 @@ class WalkInSalonResponse(BaseModel):
     qr_token: str | None = None
     timezone: str
     approval_mode: str
+    working_hours: dict = Field(default_factory=dict)
     services: list[WalkInServiceSummary] = Field(default_factory=list)
     staff: list[WalkInStaffSummary] = Field(default_factory=list)
 

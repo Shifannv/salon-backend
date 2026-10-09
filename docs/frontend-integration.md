@@ -30,5 +30,12 @@ for PATCH semantics, media rules, and the customer parser/rendering changes.
 On a booking conflict, refresh availability before asking the user to choose another
 slot.
 
+Discovery uses `GET /v1/salons?surface=home` for the home feed and `surface=search`
+for search screens. Keep `shuffle_seed` stable across a paginated view. Visibility
+and placement are enforced before pagination; do not reorder client-side.
+QR websites resolve their route token through `/v1/walkin/{token}?fresh=true`
+and use returned salon/staff/services rather than the signed-in owner's salon.
+See the [website implementation prompt](../backend/docs/WEBSITE_SUPERADMIN_PROMPT.md).
+
 Never place the Supabase service-role key, database URL, R2 secret, or Firebase service
 account in a frontend environment.
