@@ -37,3 +37,34 @@ async def test_get_salon_by_qr_not_found():
 
     with pytest.raises(NotFoundError):
         await uc.resolve_qr_token("invalid-token")
+
+
+@pytest.mark.asyncio
+async def test_booking_context_rejects_owner_before_database_lookup():
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import ForbiddenError
+    from tests.conftest import make_owner
+
+    repo = make_mock_repo()
+    repo.validate_qr_token = AsyncMock()
+    with pytest.raises(ForbiddenError):
+        await WalkInUseCases(repo).validate_booking_context(make_owner(), "qr-a", {})
+    repo.validate_qr_token.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_booking_context_rejects_cross_salon_and_keeps_qr_source():
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import ValidationError
+    from tests.conftest import make_profile
+
+    repo = make_mock_repo()
+    repo.validate_qr_token = AsyncMock(return_value="salon-a")
+    uc = WalkInUseCases(repo)
+    with pytest.raises(ValidationError):
+        await uc.create_walkin_booking(make_profile(), "qr-a", {"salon_id": "salon-b"})
+    repo.create_booking.assert_not_awaited()
+    await uc.create_walkin_booking(make_profile(), "qr-a", {"salon_id": "salon-a", "source": "app"})
+    assert repo.create_booking.call_args.args[0]["source"] == "qr_walkin"

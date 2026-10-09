@@ -1,10 +1,10 @@
 # Git workflow
 
-Use one branch and one pull request per Jira task. Include the Jira key in the branch
-name, for example:
+Use a focused branch and pull request for each coherent change. Use descriptive branch
+names, for example:
 
 ```text
-thameem/SACS-48-backend-location
+thameem/superadmin-website-contract
 ```
 
 Before opening a pull request, run from `backend/`:

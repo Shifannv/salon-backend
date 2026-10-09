@@ -31,9 +31,9 @@ For backend architecture details, also read:
 
 ## Source of Truth
 
-Jira is the source of truth for task status, assignee, priority, and acceptance criteria.
-
-Do not invent extra tasks in the docs without creating or updating Jira first.
+Project documentation and verified repository behavior describe the project direction
+and current implementation status. Keep implemented features, limitations, and future
+ideas clearly distinguished. No external task tracker is required.
 
 ## Tech Stack
 
@@ -129,17 +129,17 @@ This lets database audit triggers stamp the correct actor.
 
 ## Workflow
 
-Use one branch per Jira task:
+Use one focused branch and pull request per coherent change:
 
 ```txt
-one Jira task = one branch = one pull request
+one coherent change = one branch = one pull request
 ```
 
-Use branch names that include the Jira key:
+Use descriptive branch names:
 
 ```txt
-thameem/SACS-14-backend-foundation
-thameem/SACS-48-backend-location
+thameem/backend-foundation
+thameem/superadmin-website-contract
 ```
 
 Do not commit directly to stable `main` unless explicitly requested by the project owner.

@@ -1,7 +1,7 @@
 # Project documentation
 
-Keep documentation short and aligned with the running backend. Jira remains the source
-of truth for task status, priority, ownership, and acceptance criteria.
+Keep documentation short and aligned with verified backend behavior. These documents
+describe the overall project, current features, and remaining integration boundaries.
 
 - [Project overview](project-overview.md)
 - [Technology stack](tech-stack.md)
@@ -12,6 +12,7 @@ of truth for task status, priority, ownership, and acceptance criteria.
 - [Customer app API contract](Customer-App-Backend-API-Document.md)
 - [Salon owner app API contract](Salon-Owner-App-Backend-API-Document.md)
 - [Git workflow](git-workflow.md)
+- [Website and super-admin implementation prompt](../backend/docs/WEBSITE_SUPERADMIN_PROMPT.md)
 
 Backend-specific references:
 

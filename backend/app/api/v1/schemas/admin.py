@@ -1,9 +1,11 @@
 """Admin API request/response schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt, field_validator
+
+from app.api.v1.schemas.platform import SalonImageResponse, ServiceResponse, StaffResponse
 
 # ── Admin salon schemas ───────────────────────────────────────────────────────
 
@@ -33,6 +35,10 @@ class AdminSalonResponse(BaseModel):
     category: str | None = None
     address: str | None = None
     city: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    working_hours: dict[str, Any] = Field(default_factory=dict)
+    slot_interval_minutes: int | None = None
     qr_token: str | None = None
     timezone: str
     approval_mode: str
@@ -45,6 +51,8 @@ class AdminSalonResponse(BaseModel):
     rejection_reason: str | None = None
     # --- super-admin discovery ranking (migration 0017); higher ranks first ---
     display_priority: int = 0
+    discovery_visibility: Literal["listed", "search_only", "hidden"] = "listed"
+    home_placement: Literal["top", "normal", "below", "random"] = "normal"
     created_at: datetime
     updated_at: datetime
     updated_by: str | None = None
@@ -61,6 +69,14 @@ class AdminApproveSalonRequest(BaseModel):
     # Reserved for future fields (e.g. an approval note).
 
 
+class AdminSalonOnboardingResponse(AdminSalonResponse):
+    """Full salon submission, accessible only to super admins."""
+
+    images: list[SalonImageResponse] = Field(default_factory=list)
+    services: list[ServiceResponse] = Field(default_factory=list)
+    staff: list[StaffResponse] = Field(default_factory=list)
+
+
 class AdminRejectSalonRequest(BaseModel):
     """Body for rejecting a salon."""
 
@@ -70,9 +86,13 @@ class AdminRejectSalonRequest(BaseModel):
 class AdminUpdateSalonRequest(BaseModel):
     """Admin-editable salon fields."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(default=None, min_length=1)
     timezone: str | None = None
     display_priority: StrictInt | None = Field(default=None, ge=0, le=100000)
+    discovery_visibility: Literal["listed", "search_only", "hidden"] | None = None
+    home_placement: Literal["top", "normal", "below", "random"] | None = None
 
 
 class AdminDeactivateSalonResponse(BaseModel):
