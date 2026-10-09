@@ -144,3 +144,48 @@ async def test_use_case_passes_priority_for_super_admin_only():
     for role in (Role.owner, Role.customer):
         with pytest.raises(ForbiddenError):
             await use_cases.update_salon(_actor(role), "s1", {"display_priority": 9})
+
+
+# ── Subscription promotion ranking ──────────────────────────────────────────
+
+
+def _subscribe(session, salon_id, *, weight=10, status="active"):
+    plan_id = f"plan-{weight}"
+    session.db.execute(
+        "insert or ignore into subscription_plans (id, code, name, tier, ranking_weight, is_active) "
+        "values (?, ?, ?, 0, ?, 1)",
+        (plan_id, plan_id, f"Plan {weight}", weight),
+    )
+    session.db.execute(
+        "insert into salon_subscriptions (id, salon_id, plan_id, status, "
+        "current_period_start, current_period_end) "
+        "values (?, ?, ?, ?, '2020-01-01', '2099-01-01')",
+        (f"sub-{salon_id}", salon_id, plan_id, status),
+    )
+
+
+def test_subscription_weight_ranks_above_display_priority(ranked):
+    client, session = ranked
+    high_priority = add_salon(session, 1, "HighPri", priority=100)
+    subscribed = add_salon(session, 2, "Subscribed", priority=0)
+    _subscribe(session, subscribed, weight=50)
+    assert ids(client.get("/v1/salons")) == [subscribed, high_priority]
+
+
+def test_inactive_subscription_does_not_boost(ranked):
+    client, session = ranked
+    base = add_salon(session, 1, "Base", priority=5)
+    sub_salon = add_salon(session, 2, "SubSalon", priority=0)
+    _subscribe(session, sub_salon, weight=100, status="expired")
+    assert ids(client.get("/v1/salons")) == [base, sub_salon]
+
+
+def test_no_subscription_fields_in_public_response(ranked):
+    client, session = ranked
+    s = add_salon(session, 1, "S1")
+    _subscribe(session, s, weight=50)
+    response = client.get("/v1/salons")
+    assert response.status_code == 200
+    row = response.json()[0]
+    for field in ("ranking_weight", "subscription_status", "plan_code", "plan_tier"):
+        assert field not in row

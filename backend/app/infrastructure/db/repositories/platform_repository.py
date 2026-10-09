@@ -189,11 +189,20 @@ class PlatformRepository:
                   and st.is_active
                   and st.salon_id = sv.salon_id
               )
+            left join lateral (
+              select coalesce(max(sp.ranking_weight), 0) as weight
+              from salon_subscriptions ss
+              join subscription_plans sp on sp.id = ss.plan_id
+              where ss.salon_id = s.id
+                and is_subscription_promotion_active(
+                      ss.status, ss.current_period_start,
+                      ss.current_period_end, ss.grace_period_end)
+            ) promo on true
             where s.is_active and s.profile_completed and s.approval_status = 'approved'
               and (cast(:search as text) is null or s.name ilike cast(:search as text))
               and (cast(:city as text) is null or s.city = cast(:city as text))
               {ids_filter}
-            group by s.id, img.url
+            group by s.id, img.url, promo.weight
             having (
               cast(:category_pattern as text) is null
               or exists (
@@ -208,7 +217,8 @@ class PlatformRepository:
                   and sc2.name ilike cast(:category_pattern as text)
               )
             )
-            order by s.display_priority desc, distance_km asc nulls last, s.name asc, s.id asc
+            order by coalesce(promo.weight, 0) desc, s.display_priority desc,
+                     distance_km asc nulls last, s.name asc, s.id asc
             limit cast(:limit as int) offset cast(:offset as int)
             """
         )
