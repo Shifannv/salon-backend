@@ -129,14 +129,14 @@ async def nearby_salons(
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> list[SalonSummaryResponse]:
-    """List active completed salons ordered by distance — public, no auth required.
+    """List visible salons by display priority, then distance — public, no auth required.
 
     Services are NOT embedded. Call GET /salons/{salon_id}/services for service data.
     Use `category` to filter by service category (e.g. ?category=Hair+Cutting).
     """
 
-    resolved_lat = lat or latitude
-    resolved_lng = lng or longitude
+    resolved_lat = lat if lat is not None else latitude
+    resolved_lng = lng if lng is not None else longitude
     rows = await _use_cases(session).list_salons(
         search=search,
         city=city,
@@ -166,6 +166,7 @@ async def get_salon(
     cache_key = f"salon:{salon_id}:detail"
     cached = await cache.get(cache_key)
     if cached is not None:
+        await _use_cases(session).assert_public_salon(salon_id)
         return SalonDetailResponse(**cached)
 
     salon = await _use_cases(session).get_salon(salon_id)
@@ -189,6 +190,7 @@ async def list_salon_services(
     cache_key = f"salon:{salon_id}:services"
     cached = await cache.get(cache_key)
     if cached is not None:
+        await _use_cases(session).assert_public_salon(salon_id)
         return [ServiceResponse(**row) for row in cached]
 
     rows = await _use_cases(session).list_salon_services(salon_id)
@@ -212,6 +214,7 @@ async def list_salon_staff(
     cache_key = f"salon:{salon_id}:staff"
     cached = await cache.get(cache_key)
     if cached is not None:
+        await _use_cases(session).assert_public_salon(salon_id)
         return [PublicStaffResponse(**row) for row in cached]
 
     rows = await _use_cases(session).list_salon_staff(salon_id)

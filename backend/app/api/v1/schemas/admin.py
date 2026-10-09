@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, StrictInt, field_validator
 
 # ── Admin salon schemas ───────────────────────────────────────────────────────
 
@@ -42,10 +42,13 @@ class AdminSalonResponse(BaseModel):
     approved_at: datetime | None = None
     approved_by: str | None = None
     rejection_reason: str | None = None
+    # --- super-admin discovery ranking (migration 0017); higher ranks first ---
+    display_priority: int = 0
     created_at: datetime
     updated_at: datetime
+    updated_by: str | None = None
 
-    @field_validator("id", "owner_id", "approved_by", mode="before")
+    @field_validator("id", "owner_id", "approved_by", "updated_by", mode="before")
     @classmethod
     def stringify_ids(cls, value: object) -> str | None:
         return str(value) if value is not None else None
@@ -68,6 +71,7 @@ class AdminUpdateSalonRequest(BaseModel):
 
     name: str | None = Field(default=None, min_length=1)
     timezone: str | None = None
+    display_priority: StrictInt | None = Field(default=None, ge=0, le=100000)
 
 
 class AdminDeactivateSalonResponse(BaseModel):

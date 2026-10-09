@@ -126,9 +126,10 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
         # Replay schema history while excluding the shared Realtime publication.
         revisions = sorted((MIGRATIONS / "versions").glob("*.py"))
         approval = next(p for p in revisions if p.stem == "0015_salon_admin_approval")
+        priority = next(p for p in revisions if p.stem == "0017_salon_display_priority")
         for path in revisions:
             # The current v3 baseline already contains 0005's experience column.
-            if path.stem.startswith(("0001_", "0005_", "0006_", "0015_")):
+            if path.stem.startswith(("0001_", "0005_", "0006_", "0015_", "0017_")):
                 continue
             for sql in migration_sql(path, "upgrade"):
                 await conn.execute(isolate(sql, schema))
@@ -144,6 +145,9 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
         for sql in migration_sql(approval, "upgrade"):
             await execute_revision(conn, sql, schema)
         assert await conn.fetchval("select approval_status::text from salons where id=$1", legacy) == "approved"
+        for sql in migration_sql(priority, "upgrade"):
+            await execute_revision(conn, sql, schema)
+        assert await conn.fetchval("select display_priority from salons where id=$1", legacy) == 0
 
         salon = await conn.fetchval(
             "insert into salons(owner_id,name,profile_completed,working_hours) "
@@ -187,6 +191,7 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
         await actor(owner)
         await denied("update salons set approval_status='approved' where id=$1", salon)
         await denied("update salons set approved_by=$2 where id=$1", salon, owner)
+        await denied("update salons set display_priority=5 where id=$1", salon)
         assert not await conn.fetch("select * from get_salon_by_qr($1)", qr)
         assert not await conn.fetch("select * from get_available_slots($1,current_date+1,30)", staff)
 
@@ -210,6 +215,12 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
             await conn.execute("reset role")
 
         await actor(admin)
+        updated = await repo.admin_update_salon(str(salon), {"display_priority": 40})
+        assert AdminSalonResponse(**updated).display_priority == 40
+        assert updated["updated_by"] == admin
+        with pytest.raises(asyncpg.CheckViolationError):
+            async with conn.transaction():
+                await conn.execute("update salons set display_priority=-1 where id=$1", salon)
         approved = await repo.admin_set_salon_approval(str(salon), "approved", str(admin), None)
         assert AdminSalonResponse(**approved).approved_by == str(admin)
         repeated = await repo.admin_set_salon_approval(str(salon), "approved", str(admin), None)
@@ -249,6 +260,15 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
         )
         for sql in migration_sql(approval, "upgrade"):
             await execute_revision(conn, sql, schema)
+        for sql in migration_sql(priority, "downgrade"):
+            await execute_revision(conn, sql, schema)
+        assert not await conn.fetchval(
+            "select exists(select 1 from information_schema.columns "
+            "where table_schema=$1 and table_name='salons' and column_name='display_priority')", schema
+        )
+        for sql in migration_sql(priority, "upgrade"):
+            await execute_revision(conn, sql, schema)
+        assert await conn.fetchval("select display_priority from salons where id=$1", legacy) == 0
     finally:
         await transaction.rollback()
         await conn.close()

@@ -19,6 +19,10 @@ class WalkInUseCases:
         self.repository = repository
         self.auth_admin = auth_admin
 
+    async def assert_public_qr_token(self, qr_token: str) -> None:
+        """Revalidate publication through Postgres before serving cached QR data."""
+        await self.repository.validate_qr_token(qr_token)
+
     async def resolve_qr_token(self, qr_token: str) -> dict[str, Any]:
         """Return salon + services + staff for an unauthenticated scan.
 

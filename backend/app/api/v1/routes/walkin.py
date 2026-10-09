@@ -49,6 +49,7 @@ async def resolve_qr(
     cache_key = f"walkin:qr:{qr_token}"
     cached = await cache.get(cache_key)
     if cached is not None:
+        await _use_cases(session).assert_public_qr_token(qr_token)
         return WalkInSalonResponse(**cached)
 
     salon = await _use_cases(session).resolve_qr_token(qr_token)

@@ -151,6 +151,10 @@ class CustomerUseCases:
             category=category,
         )
 
+    async def assert_public_salon(self, salon_id: str) -> None:
+        """Require current database visibility before returning cached public data."""
+        await self.repository.assert_public_salon(salon_id)
+
     async def get_salon(self, salon_id: str) -> dict[str, Any]:
         """Return customer-visible salon details."""
 
