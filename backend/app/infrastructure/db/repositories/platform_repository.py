@@ -120,7 +120,7 @@ class PlatformRepository:
         ids: list[str] | None = None,
         category: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List public active completed salons.
+        """List public approved, active, completed salons.
 
         Services are NOT bundled. Callers that need service data should use
         the dedicated GET /salons/{salon_id}/services endpoint.
@@ -208,7 +208,7 @@ class PlatformRepository:
                   and sc2.name ilike cast(:category_pattern as text)
               )
             )
-            order by distance_km nulls last, s.name
+            order by s.display_priority desc, distance_km asc nulls last, s.name asc, s.id asc
             limit cast(:limit as int) offset cast(:offset as int)
             """
         )
@@ -220,6 +220,19 @@ class PlatformRepository:
         )
         rows = result.mappings().all()
         return [{**dict(row), "id": str(row["id"])} for row in rows]
+
+    async def assert_public_salon(self, salon_id: str) -> None:
+        """Check current publication state; never authorize from a cached payload."""
+        result = await self.session.execute(
+            text("""
+                select id from salons
+                where id = :salon_id and is_active and profile_completed
+                  and approval_status = 'approved'
+            """),
+            {"salon_id": salon_id},
+        )
+        if result.mappings().one_or_none() is None:
+            raise NotFoundError("Salon not found")
 
     async def get_public_salon(self, salon_id: str) -> dict[str, Any]:
         """Read public salon details (core fields + images only).
@@ -2612,7 +2625,8 @@ class PlatformRepository:
                 select s.id, s.owner_id, s.name, s.description, s.category,
                        s.address, s.city, s.timezone, s.approval_mode,
                        s.profile_completed, s.approval_status, s.approved_at, s.approved_by,
-                       s.rejection_reason, s.is_active, s.created_at, s.updated_at,
+                       s.rejection_reason, s.display_priority, s.is_active, s.created_at,
+                       s.updated_at, s.updated_by,
                        p.email as owner_email, p.full_name as owner_name,
                        p.phone as owner_phone, p.avatar_url as owner_avatar_url,
                        p.phone_verified as owner_phone_verified, p.is_active as owner_is_active
@@ -2693,19 +2707,15 @@ class PlatformRepository:
                 f"""
                 update salons set {assignments}
                 where id = :salon_id
-                returning id, owner_id, name, description, category, address, city,
-                          lat, lng, timezone, working_hours, approval_mode,
-                          slot_interval_minutes, qr_token, profile_completed,
-                          approval_status, approved_at, approved_by, rejection_reason, is_active, created_at, updated_at
+                returning id
                 """
             ),
             {**allowed, "salon_id": salon_id},
         )
-        row = result.mappings().one_or_none()
-        if row is None:
+        if result.scalar_one_or_none() is None:
             raise NotFoundError("Salon not found")
         await self.session.commit()
-        return dict(row)
+        return await self.admin_get_salon(salon_id)
 
     async def admin_set_salon_approval(
         self, salon_id: str, approval_status: str, actor_id: str, reason: str | None
@@ -3194,7 +3204,7 @@ class PlatformRepository:
     async def get_salon_by_qr(self, qr_token: str) -> dict[str, Any]:
         """Return salon info via the get_salon_by_qr database function.
 
-        The DB function validates the QR token (active + profile_completed).
+        The DB function validates approval, activity, and profile completion.
         We then fetch the full salon row to include address and image_url,
         which are needed by the walk-in slot-first UI mini-header.
         """

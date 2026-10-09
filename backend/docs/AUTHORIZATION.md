@@ -14,6 +14,18 @@ Authorization belongs in application use cases:
 Repository queries must still scope reads and writes by actor or owned resource, but
 repositories do not decide policy. RLS stays enabled as defense in depth.
 
+Public salon discovery and details require `approval_status = 'approved'`,
+`is_active = true`, and `profile_completed = true`. List/search, category, nearby/map,
+and favorite ID queries share the same database predicate; no separate featured or
+recommended API exists. Public services, staff, and service summaries apply the same
+gate. QR reads and availability use the approval-aware Postgres functions installed by
+the existing `0015_salon_admin_approval` revision.
+
+Detail, services, staff, and QR cache hits revalidate current publication in Postgres
+before returning any cached payload. Cache keys and mutation invalidation are never
+authorization: old entries or late cache fills after revocation still return the
+existing public not-found response. This requires no additional migration or endpoint.
+
 Authenticated transactions set:
 
 ```sql
