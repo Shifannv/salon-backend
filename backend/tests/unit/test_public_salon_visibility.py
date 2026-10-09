@@ -72,6 +72,14 @@ class SQLiteSession:
             create table service_subcategories (
                 id text, category_id text, name text, sort_order int, is_active bool
             );
+            create table subscription_plans (
+                id text primary key, code text, name text, tier int, ranking_weight int,
+                is_active bool
+            );
+            create table salon_subscriptions (
+                id text primary key, salon_id text, plan_id text, status text,
+                current_period_start text, current_period_end text, grace_period_end text
+            );
         """)
         self.db.execute("insert into service_categories values ('category','Hair',0,1)")
         self.db.execute("insert into service_subcategories values ('subcategory','category','Cut',0,1)")
@@ -101,13 +109,36 @@ class SQLiteSession:
         compiled = statement.params(**(values or {})).compile(
             dialect=dialect(), compile_kwargs={"render_postcompile": True},
         )
+        raw = str(compiled)
+        # Replace Postgres LATERAL joins with SQLite-compatible equivalents.
         sql = re.sub(
             r"left join lateral \(.*?\) img on true",
-            "left join salon_images img on img.salon_id = s.id", str(compiled), flags=re.DOTALL,
+            "left join salon_images img on img.salon_id = s.id", raw, flags=re.DOTALL,
+        )
+        # Replace the subscription promotion LATERAL with a simple left join.
+        sql = re.sub(
+            r"left join lateral \(.*?is_subscription_promotion_active.*?\) promo on true",
+            "left join (select ss2.salon_id, max(sp2.ranking_weight) as weight "
+            "from salon_subscriptions ss2 join subscription_plans sp2 on sp2.id = ss2.plan_id "
+            "where ss2.status in ('active','trialing') group by ss2.salon_id"
+            ") promo on promo.salon_id = s.id",
+            sql, flags=re.DOTALL,
         )
         sql = sql.replace(" ilike ", " like ")
+        # render_postcompile expands expanding bindparams (`:ids` → `:ids_1,
+        # :ids_2, …`) and rewrites the SQL to use positional `?` markers.
+        # On some SQLAlchemy versions the expansion is incomplete and the
+        # compiled.params dict still holds the original list value keyed by the
+        # un-suffixed name.  Flatten those so SQLite receives one `?` per item.
+        positional: list = []
+        for name in compiled.positiontup:
+            val = compiled.params[name]
+            if isinstance(val, (list, tuple)):
+                positional.extend(val)
+            else:
+                positional.append(val)
         records = []
-        for row in self.db.execute(sql, [compiled.params[name] for name in compiled.positiontup]):
+        for row in self.db.execute(sql, positional):
             record = dict(row)
             if "working_hours" in record:
                 record["working_hours"] = json.loads(record["working_hours"])

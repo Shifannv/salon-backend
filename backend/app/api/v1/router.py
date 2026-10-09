@@ -13,6 +13,7 @@ from app.api.v1.routes import (
     owner,
     profiles,
     reports,
+    subscriptions,
     walkin,
 )
 
@@ -30,3 +31,4 @@ api_v1_router.include_router(bookings.router, tags=["bookings"])
 api_v1_router.include_router(booking_actions.router, tags=["booking actions"])
 api_v1_router.include_router(notifications.router, tags=["notifications"])
 api_v1_router.include_router(walkin.router, prefix="/walkin", tags=["walkin"])
+api_v1_router.include_router(subscriptions.router, prefix="/admin", tags=["subscriptions"])

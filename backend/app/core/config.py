@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     customer_cancellation_cutoff_minutes: int = Field(default=120, ge=0, le=10080)
     allow_late_cancellation_requests: bool = True
 
+    # Subscription provider ('none' = no external payment calls, no webhook routes).
+    # Future values: 'stripe', 'razorpay', etc.
+    subscription_provider: str = "none"
+
     # Database connection pool
     db_pool_size: int = 5
     db_max_overflow: int = 5

@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_call:
   push:
-    branches: [main, preview, hafiz]
+    branches: [main, preview, hafiz, shifan]
   pull_request:
     branches: [main, preview]
 
