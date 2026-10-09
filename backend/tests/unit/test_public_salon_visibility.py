@@ -106,10 +106,11 @@ class SQLiteSession:
             self.db.execute("insert into staff_services values (?,?,1)", (salon_id, salon_id))
 
     async def execute(self, statement, values=None):
-        compiled = statement.params(**(values or {})).compile(
-            dialect=dialect(), compile_kwargs={"render_postcompile": True},
-        )
-        raw = str(compiled)
+        # ``compiled.params`` cannot be read after ``render_postcompile=True``
+        # on SQLAlchemy 2.0. Use the compiler's expanded state instead.
+        compiled = statement.compile(dialect=dialect())
+        expanded = compiled.construct_expanded_state(values or {})
+        raw = expanded.statement
         # Replace Postgres LATERAL joins with SQLite-compatible equivalents.
         sql = re.sub(
             r"left join lateral \(.*?\) img on true",
@@ -127,16 +128,8 @@ class SQLiteSession:
         sql = sql.replace(" ilike ", " like ")
         # render_postcompile expands expanding bindparams (`:ids` → `:ids_1,
         # :ids_2, …`) and rewrites the SQL to use positional `?` markers.
-        # On some SQLAlchemy versions the expansion is incomplete and the
-        # compiled.params dict still holds the original list value keyed by the
-        # un-suffixed name.  Flatten those so SQLite receives one `?` per item.
-        positional: list = []
-        for name in compiled.positiontup:
-            val = compiled.params[name]
-            if isinstance(val, (list, tuple)):
-                positional.extend(val)
-            else:
-                positional.append(val)
+        # The expanded state keeps the rendered parameter names in position order.
+        positional = [expanded.parameters[name] for name in expanded.positiontup]
         records = []
         for row in self.db.execute(sql, positional):
             record = dict(row)
