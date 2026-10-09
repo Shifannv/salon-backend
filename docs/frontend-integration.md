@@ -23,6 +23,10 @@ Useful entry points:
 - `/v1/walkin/*` for the QR flow
 
 Clients should handle `401`, `403`, `404`, `409`, and validation errors explicitly.
+Service responses include nullable `photo_url` and salon-specific category names;
+group service cards by the returned names and use the default service image when
+the photo is null. See the [service presentation handover](../backend/docs/SERVICE_PRESENTATION.md)
+for PATCH semantics, media rules, and the customer parser/rendering changes.
 On a booking conflict, refresh availability before asking the user to choose another
 slot.
 
