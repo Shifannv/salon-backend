@@ -155,7 +155,7 @@ class PlatformRepository:
             f"""
             select
               s.id, s.name, s.description, s.category, s.address, s.city,
-              s.lat, s.lng, s.timezone, s.working_hours, s.approval_mode, s.profile_completed,
+              s.qr_token, s.lat, s.lng, s.timezone, s.approval_mode, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
               case
                 when cast(:lat as double precision) is not null
@@ -255,7 +255,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, name, description, category, address, city, lat, lng, timezone,
+                select id, name, description, category, address, city, qr_token, lat, lng, timezone,
                        working_hours, approval_mode, slot_interval_minutes, profile_completed,
                        is_active
                 from salons
@@ -2633,13 +2633,9 @@ class PlatformRepository:
             text(
                 """
                 select s.id, s.owner_id, s.name, s.description, s.category,
-                       s.address, s.city, s.timezone, s.approval_mode,
-                       s.profile_completed, s.approval_status, s.approved_at, s.approved_by,
-                       s.rejection_reason, s.display_priority, s.is_active, s.created_at,
-                       s.updated_at, s.updated_by,
-                       p.email as owner_email, p.full_name as owner_name,
-                       p.phone as owner_phone, p.avatar_url as owner_avatar_url,
-                       p.phone_verified as owner_phone_verified, p.is_active as owner_is_active
+                       s.address, s.city, s.qr_token, s.timezone, s.approval_mode,
+                       s.profile_completed, s.is_active, s.created_at, s.updated_at,
+                       p.email as owner_email, p.full_name as owner_name
                 from salons s
                 join profiles p on p.id = s.owner_id
                 where (cast(:search as text) is null or s.name ilike :search or p.email ilike :search)
@@ -3233,6 +3229,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Salon not found or not accepting walk-ins")
         salon = dict(row)
+        salon["qr_token"] = qr_token
 
         # Step 2: fetch extra display fields from the salons table/image table
         extra = await self.session.execute(

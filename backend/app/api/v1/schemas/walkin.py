@@ -47,6 +47,7 @@ class WalkInSalonResponse(BaseModel):
     city: str | None = None
     address: str | None = None      # for the mini-header location line
     image_url: str | None = None    # for the optional hero thumbnail
+    qr_token: str | None = None
     timezone: str
     approval_mode: str
     services: list[WalkInServiceSummary] = Field(default_factory=list)

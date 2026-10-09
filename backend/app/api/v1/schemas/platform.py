@@ -88,6 +88,7 @@ class SalonSummaryResponse(BaseModel):
     category: str | None = None
     address: str | None = None
     city: str | None = None
+    qr_token: str | None = None
     lat: float | None = None
     lng: float | None = None
     timezone: str
@@ -146,6 +147,7 @@ class SalonDetailResponse(BaseModel):
     category: str | None = None
     address: str | None = None
     city: str | None = None
+    qr_token: str | None = None
     lat: float | None = None
     lng: float | None = None
     timezone: str

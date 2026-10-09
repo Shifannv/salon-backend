@@ -33,6 +33,7 @@ class AdminSalonResponse(BaseModel):
     category: str | None = None
     address: str | None = None
     city: str | None = None
+    qr_token: str | None = None
     timezone: str
     approval_mode: str
     profile_completed: bool
