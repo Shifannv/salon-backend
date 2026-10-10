@@ -206,9 +206,13 @@ def test_walkin_verify_phone_rate_limiting() -> None:
     mock_gateway.send_phone_otp.return_value = None
 
     app.dependency_overrides[get_cache] = lambda: cache
+    app.dependency_overrides[get_session] = lambda: AsyncMock()
 
     try:
-        with patch("app.api.v1.routes.walkin.SupabaseAuthGateway", return_value=mock_gateway):
+        with (
+            patch("app.api.v1.routes.walkin.SupabaseAuthGateway", return_value=mock_gateway),
+            patch("app.api.v1.routes.walkin._use_cases", return_value=AsyncMock(unsafe=True)),
+        ):
             # Limit is 5 OTP requests per minute
             for _ in range(5):
                 resp = client.post(
@@ -228,3 +232,4 @@ def test_walkin_verify_phone_rate_limiting() -> None:
             assert "Too many OTP requests" in data["error"]["message"]
     finally:
         app.dependency_overrides.pop(get_cache, None)
+        app.dependency_overrides.pop(get_session, None)

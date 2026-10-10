@@ -15,5 +15,10 @@ The backend currently supports:
 - Notifications, bulk read, device tokens, and optional Firebase/Expo push delivery
 - Health checks, Alembic migrations, Docker deployment, tests, and linting
 
-Jira is the source of truth for planned work and acceptance criteria. This document is
-only a high-level capability summary.
+This document summarizes implemented capabilities. Deployment status must be verified
+against the running release; source changes alone do not mean a feature is live.
+
+Current website integration additions include full super-admin onboarding review,
+discovery visibility and home placement controls, optional enforced admin MFA, and
+QR-scoped booking retries. See the website implementation prompt for exact contracts.
+Paid subscription checkout/webhooks remain unimplemented; existing activation is manual/test.

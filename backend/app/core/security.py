@@ -25,6 +25,10 @@ class SupabaseJWTVerifier:
 
     async def verify_subject(self, token: str) -> str:
         """Return the verified Supabase user id from a bearer token."""
+        return (await self.verify_claims(token))["sub"]
+
+    async def verify_claims(self, token: str) -> dict[str, Any]:
+        """Return claims only after signature, issuer, audience and expiry verification."""
 
         if not self.settings.supabase_jwks_url:
             raise UnauthorizedError("Supabase JWKS URL is not configured")
@@ -52,7 +56,7 @@ class SupabaseJWTVerifier:
         subject = claims.get("sub")
         if not isinstance(subject, str) or not subject:
             raise UnauthorizedError("Invalid authentication credentials")
-        return subject
+        return claims
 
     async def _get_key(self, kid: str) -> dict[str, Any]:
         """Return the JWK matching kid, refreshing the cache if stale."""

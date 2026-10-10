@@ -6,6 +6,7 @@ SQLite's case-insensitive LIKE for compatibility.
 Postgres functions remain covered by the opt-in approval migration tests.
 """
 
+import hashlib
 import json
 import math
 import re
@@ -44,6 +45,7 @@ class SQLiteSession:
         self.db.row_factory = sqlite3.Row
         self.db.create_function("least", 2, min)
         self.db.create_function("greatest", 2, max)
+        self.db.create_function("md5", 1, lambda value: hashlib.md5(value.encode()).hexdigest())
         for name in ("acos", "cos", "sin", "radians"):
             self.db.create_function(name, 1, getattr(math, name))
         self.db.executescript("""
@@ -52,7 +54,9 @@ class SQLiteSession:
                 address text, city text, lat real, lng real, timezone text,
                 working_hours text, approval_mode text, slot_interval_minutes int,
                 approval_status text, is_active bool, profile_completed bool,
-                display_priority int not null default 0
+                display_priority int not null default 0, qr_token text,
+                discovery_visibility text not null default 'listed',
+                home_placement text not null default 'normal'
             );
             create table salon_images (
                 id text, salon_id text, url text, caption text, is_main bool,
@@ -219,6 +223,7 @@ def test_cached_walkin_requires_current_database_qr_validation(public_api, monke
     client, session, cache = public_api
     repo = AsyncMock()
     monkeypatch.setattr("app.api.v1.routes.walkin.PlatformRepository", lambda _: repo)
+    repo.validate_qr_token.return_value = session.ids[0]
     cache._store["walkin:qr:token"] = {
         "id": session.ids[0], "name": "Salon", "timezone": "UTC", "approval_mode": "automatic",
     }

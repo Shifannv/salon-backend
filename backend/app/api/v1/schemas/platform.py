@@ -1,8 +1,10 @@
+from app.api.v1.schemas.media_urls import HostedMediaRequest
+
 """Frontend-facing API schemas."""
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, ClassVar, Literal
 from urllib.parse import unquote, urlsplit
 
 from pydantic import (
@@ -19,13 +21,20 @@ from pydantic import (
 from app.core.config import settings
 
 
-class ProfileUpdateRequest(BaseModel):
+class ProfileUpdateRequest(HostedMediaRequest):
     """Shared profile update request (PATCH /profiles/me).
 
     Used by owners, staff, and customers — not customer-only despite the name.
     Fields are all optional; only explicitly sent fields are written.
     Sending ``null`` for a nullable field (e.g. ``phone``) clears it.
     """
+
+    # These identifiers resolve to bundled assets in the customer and owner apps.
+    # They are bounded metadata, never uploaded binaries or inline image payloads.
+    avatar_references: ClassVar[frozenset[str]] = frozenset(
+        {f"__char__char-{index}" for index in range(1, 16)}
+        | {"avatar:curly", "avatar:beard", "avatar:geek"}
+    )
 
     full_name: str | None = Field(default=None, min_length=1)
     phone: str | None = None
@@ -212,7 +221,7 @@ class OwnerSalonSettingsRequest(BaseModel):
     working_hours: dict[str, Any] | None = None
 
 
-class SalonImageCreateRequest(BaseModel):
+class SalonImageCreateRequest(HostedMediaRequest):
     """Create salon image request."""
 
     url: str
@@ -221,7 +230,7 @@ class SalonImageCreateRequest(BaseModel):
     sort_order: int = 0
 
 
-class SalonImageUpdateRequest(BaseModel):
+class SalonImageUpdateRequest(HostedMediaRequest):
     """Update salon image request."""
 
     url: str | None = None
@@ -325,7 +334,7 @@ class ServiceUpdateRequest(ServicePresentationRequest):
         return value
 
 
-class StaffCreateRequest(BaseModel):
+class StaffCreateRequest(HostedMediaRequest):
     """Create staff request."""
 
     profile_id: str | None = None
@@ -336,7 +345,7 @@ class StaffCreateRequest(BaseModel):
     working_hours: dict[str, Any] | None = None
 
 
-class StaffUpdateRequest(BaseModel):
+class StaffUpdateRequest(HostedMediaRequest):
     """Update staff request."""
 
     profile_id: str | None = None

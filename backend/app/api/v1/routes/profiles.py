@@ -79,7 +79,7 @@ async def update_my_profile(
     summary="Get a signed upload URL for profile avatar",
     description=(
         "Returns a short-lived signed PUT URL and the resulting public URL for "
-        "uploading a profile avatar directly to Cloudflare R2.\n\n"
+        "uploading a profile avatar through the backend image validation gateway.\n\n"
         "Available to all authenticated roles (customer, owner, staff).\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
@@ -93,7 +93,7 @@ async def get_avatar_upload_url(
     session: AsyncSession = Depends(get_authenticated_session),
     storage_gateway: StorageGateway = Depends(get_storage_gateway),
 ) -> ImageUploadUrlResponse:
-    """Generate a signed PUT URL for a direct profile avatar upload."""
+    """Generate a signed PUT URL for a validated profile avatar upload."""
 
     result = await CustomerUseCases(PlatformRepository(session), storage_gateway=storage_gateway).get_avatar_upload_url(
         actor,

@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from app.application.ports.auth_admin_gateway import AuthAdminGateway
 from app.application.ports.cache_gateway import CacheGateway
 from app.application.ports.storage_gateway import StorageGateway
 from app.core.config import settings
-from app.core.exceptions import ForbiddenError, UnauthorizedError
+from app.core.exceptions import AdminMFARequiredError, ForbiddenError, UnauthorizedError
 from app.core.security import SupabaseJWTVerifier
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.cache.redis import get_redis_cache
@@ -53,6 +53,7 @@ def get_cache() -> CacheGateway:
 
 
 async def get_current_actor(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> Profile:
@@ -63,7 +64,9 @@ async def get_current_actor(
     Actor context is set once in get_authenticated_session; not here.
     """
 
-    actor_id = await _jwt_verifier.verify_subject(credentials.credentials)
+    claims = await _jwt_verifier.verify_claims(credentials.credentials)
+    request.state.verified_auth_claims = claims
+    actor_id = claims["sub"]
     profile = await SQLProfileRepository(session).get_by_id(actor_id)
     if not profile or not profile.is_active:
         raise UnauthorizedError("User not found")
@@ -88,9 +91,13 @@ async def get_authenticated_session(
 def require_role(*roles: Role):
     """Create a dependency requiring one of the given roles."""
 
-    async def dependency(actor: Profile = Depends(get_current_actor)) -> Profile:
+    async def dependency(request: Request, actor: Profile = Depends(get_current_actor)) -> Profile:
         if actor.role not in roles:
             raise ForbiddenError("Insufficient permissions")
+        if actor.role == Role.super_admin and settings.admin_require_mfa:
+            claims = getattr(request.state, "verified_auth_claims", {})
+            if claims.get("aal") != "aal2":
+                raise AdminMFARequiredError("Multi-factor authentication required for admin access")
         return actor
 
     return dependency

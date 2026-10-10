@@ -18,16 +18,12 @@ from app.infrastructure.db.repositories.platform_repository import PlatformRepos
 _log = logging.getLogger(__name__)
 
 
-def _derive_extension(filename: str) -> str:
-    """Derive a safe file extension from the client-supplied filename.
-
-    Falls back to 'jpeg' when the extension is absent or unrecognised.
-    """
-    if "." in filename:
-        raw_ext = filename.rsplit(".", 1)[-1].lower()
-        if raw_ext in {"jpg", "jpeg", "png", "webp", "heic", "heif"}:
-            return "jpeg" if raw_ext == "jpg" else raw_ext
-    return "jpeg"
+def _upload_extension(filename: str, content_type: str) -> str:
+    allowed = {"image/jpeg": {"jpg", "jpeg"}, "image/png": {"png"}, "image/webp": {"webp"}}
+    extension = filename.rsplit(".", 1)[-1].lower()
+    if content_type not in allowed or extension not in allowed[content_type]:
+        raise ValidationError("Image filename and content type must agree; use JPEG, PNG or WebP")
+    return "jpeg" if extension == "jpg" else extension
 
 
 def _extract_r2_object_key(public_url: str, r2_public_base: str) -> str | None:
@@ -107,9 +103,10 @@ class CustomerUseCases:
             and bucket is not None
             and r2_public_base is not None
         )
+        updated = await self.repository.update_profile(actor.id, values)
         if should_cleanup:
             old_key = _extract_r2_object_key(str(old_avatar_url), str(r2_public_base))
-            if old_key:
+            if old_key and old_key.startswith(f"avatars/{actor.id}/"):
                 try:
                     await self.storage_gateway.delete_object(bucket, old_key)  # type: ignore[union-attr]
                 except Exception:
@@ -119,7 +116,7 @@ class CustomerUseCases:
                         old_key,
                     )
 
-        return await self.repository.update_profile(actor.id, values)
+        return updated
 
     async def list_salons(
         self,
@@ -132,6 +129,8 @@ class CustomerUseCases:
         offset: int,
         ids: list[str] | None = None,
         category: str | None = None,
+        surface: str | None = None,
+        shuffle_seed: str = "default",
     ) -> list[dict[str, Any]]:
         """List customer-visible salons.
 
@@ -149,6 +148,8 @@ class CustomerUseCases:
             offset=offset,
             ids=ids,
             category=category,
+            surface=surface,
+            shuffle_seed=shuffle_seed,
         )
 
     async def assert_public_salon(self, salon_id: str) -> None:
@@ -201,10 +202,11 @@ class CustomerUseCases:
         """
         assert self.storage_gateway is not None, "storage_gateway is required for avatar upload"
 
-        ext = _derive_extension(filename)
-        # Use a fixed canonical key so re-uploads overwrite the previous object
-        # in R2 rather than accumulating orphaned blobs.
-        object_key = f"avatars/{actor.id}/avatar.{ext}"
+        if not actor.is_active:
+            raise ForbiddenError("Active account required")
+        ext = _upload_extension(filename, content_type)
+        # Use a new key so a failed/replayed upload cannot replace a published photo.
+        object_key = f"avatars/{actor.id}/{uuid.uuid4().hex}.{ext}"
 
         upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
         public_url = self.storage_gateway.get_public_url(bucket, object_key)
@@ -351,7 +353,7 @@ class OwnerUseCases:
         salon = await self.get_my_salon(actor)
         salon_id = str(salon["id"])
 
-        ext = _derive_extension(filename)
+        ext = _upload_extension(filename, content_type)
         object_key = f"salon-images/{salon_id}/{uuid.uuid4()}.{ext}"
 
         upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
@@ -394,10 +396,12 @@ class OwnerUseCases:
         salon = await self.get_my_salon(actor)
         salon_id = str(salon["id"])
 
-        ext = _derive_extension(filename)
-        # Use a fixed canonical key so re-uploads overwrite the previous object
-        # in R2 rather than accumulating orphaned blobs.
-        object_key = f"staff-photos/{salon_id}/{staff_id}/photo.{ext}"
+        ext = _upload_extension(filename, content_type)
+        # Use a new key so a failed/replayed upload cannot replace a published photo.
+        staff = await self.repository.list_owner_staff(actor.id)
+        if not any(str(member["id"]) == staff_id for member in staff):
+            raise NotFoundError("Staff member not found in this salon")
+        object_key = f"staff-photos/{salon_id}/{staff_id}/{uuid.uuid4().hex}.{ext}"
 
         upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
         public_url = self.storage_gateway.get_public_url(bucket, object_key)

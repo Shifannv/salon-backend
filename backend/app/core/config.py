@@ -28,9 +28,11 @@ class Settings(BaseSettings):
 
     # Supabase Auth Admin (service-role key — never expose to clients)
     supabase_service_role_key: str | None = None
+    # Enable after enrolling the existing super-admin account in Supabase TOTP MFA.
+    admin_require_mfa: bool = False
 
     # Cloudflare R2 object storage (S3-compatible)
-    # Used to generate presigned PUT URLs for direct client uploads.
+    # Used by the validated backend image upload gateway.
     # R2 is opt-in — leave unset to fall back to an unconfigured storage gateway.
     r2_account_id: str | None = None
     r2_access_key_id: str | None = None
@@ -45,6 +47,14 @@ class Settings(BaseSettings):
 
     # Externally reachable API origin used for absolute owner QR image URLs.
     public_api_base_url: HttpUrl | None = None
+
+    # Processed storage policy; originals are bounded separately by the HTTP contract.
+    image_max_pixels: int = Field(default=40_000_000, ge=1, le=40_000_000)
+    image_avatar_dimension: int = Field(default=512, ge=1, le=4096)
+    image_staff_dimension: int = Field(default=1024, ge=1, le=4096)
+    image_gallery_dimension: int = Field(default=1600, ge=1, le=4096)
+    image_avatar_max_bytes: int = Field(default=512000, ge=1, le=5242880)
+    image_photo_max_bytes: int = Field(default=1048576, ge=1, le=5242880)
 
     # Firebase Cloud Messaging (service account JSON string)
     firebase_credentials_json: str | None = None

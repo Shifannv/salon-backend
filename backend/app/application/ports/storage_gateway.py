@@ -9,8 +9,6 @@ _ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
         "image/jpeg",
         "image/png",
         "image/webp",
-        "image/heic",
-        "image/heif",
     }
 )
 """Image MIME types accepted for presigned upload URLs.
@@ -88,3 +86,11 @@ class StorageGateway(ABC):
         Returns:
             The permanent public URL of the uploaded object.
         """
+
+    def validate_upload_token(self, token: str, content_type: str) -> None:
+        """Verify a backend upload capability before reading its body."""
+        raise NotImplementedError("Upload gateway unavailable")
+
+    async def accept_upload(self, token: str, data: bytes, content_type: str) -> None:
+        """Validate and process a signed upload before publishing it."""
+        raise NotImplementedError("Upload gateway unavailable")

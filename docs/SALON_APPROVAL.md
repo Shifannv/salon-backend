@@ -2,20 +2,23 @@
 ## Discovery ranking (migration `0017_salon_display_priority`)
 
 Super admins control public ordering with `salons.display_priority`
-(integer, `0..100000`, default `0`, higher ranks first). This is **manual
-control only**: it is not derived from subscriptions, and the repository has no
-subscription or billing source today. If one is added, a separate tier-to-priority
-rule must first verify subscription status, tier, active period, cancellation or
-expiry, tie-breaking, and billing privacy.
+(integer, `0..100000`, default `0`, higher ranks first). Migration `0018` also
+adds subscription promotion weights for eligible, manually activated subscriptions.
+Paid checkout and verified payment webhooks remain absent.
 
 - Admin: `PATCH /v1/admin/salons/{salon_id}` accepts `display_priority` (strict
   integer, `0..100000`). The response (and admin list/detail) returns
   `display_priority` and `updated_by`; `updated_at`/`updated_by` are stamped by
   the existing audit trigger. Owners cannot set it: the admin route requires
   `super_admin` and a database trigger rejects non-admin changes.
-- Public: visibility (`approved`, active, profile completed) is applied first,
-  then `display_priority DESC, distance_km ASC NULLS LAST, name ASC, id ASC`
-  before pagination, for `/v1/salons` (home, search, category, favorites) and
-  `/v1/salons/nearby`. The value is not returned to customers; the list order is
-  the contract. Discovery lists are not cached; if they ever are, invalidate them
-  when `display_priority` changes.
+- Public: approval, activity, completion and discovery visibility apply before
+  pagination. Eligible subscription weight precedes numeric priority, distance,
+  name and ID. The home surface additionally groups top, normal, random and below;
+  the random group uses a stable shuffle seed. Search/nearby do not use home placement.
+  The values are not returned to customers; list order is the contract.
+
+Migration `0019_discovery_placement` adds `discovery_visibility` (listed, search_only,
+hidden) and `home_placement` (top, normal, below, random), both super-admin-only.
+Discovery hiding leaves approved direct details/QR accessible; it does not suspend
+the owner. See the [approval workflow](../backend/docs/SALON_APPROVAL.md) and
+[website prompt](../backend/docs/WEBSITE_SUPERADMIN_PROMPT.md) for current contracts.

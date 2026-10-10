@@ -1,6 +1,7 @@
 """Customer app API routes."""
 
 from dataclasses import asdict
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +67,8 @@ async def update_profile(
     summary="List customer-visible salons",
 )
 async def list_salons(
+    surface: Literal["home", "search", "all"] | None = None,
+    shuffle_seed: str = Query(default="default", min_length=1, max_length=80),
     search: str | None = None,
     city: str | None = None,
     lat: float | None = None,
@@ -96,6 +99,8 @@ async def list_salons(
         lng=lng,
         ids=ids,
         category=category,
+        surface=surface,
+        shuffle_seed=shuffle_seed,
         limit=limit,
         offset=offset,
     )
@@ -144,6 +149,7 @@ async def nearby_salons(
         lng=resolved_lng,
         ids=ids,
         category=category,
+        surface="all",
         limit=limit,
         offset=offset,
     )

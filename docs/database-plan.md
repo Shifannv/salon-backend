@@ -14,6 +14,12 @@ Current app-contract additions include soft deletion for salon holidays
 (`0015_salon_admin_approval`). See the [approval guide](../backend/docs/SALON_APPROVAL.md)
 for schema verification and deployment steps.
 
+Later revisions add service presentation (`0016_service_presentation`), admin display
+priority (`0017_salon_display_priority`), manual subscription foundation
+(`0018_subscription_foundation`), and discovery visibility/home placement
+(`0019_discovery_placement`). Code using these fields requires the reviewed migrations
+before deployment; the unchanged v3 baseline remains the starting point.
+
 Rules:
 
 - Apply schema changes only through reviewed Alembic revisions.

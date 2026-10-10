@@ -47,6 +47,21 @@ async def test_admin_deactivate_salon_requires_super_admin():
         await uc.deactivate_salon(owner, "salon-001")
 
 
+@pytest.mark.asyncio
+async def test_onboarding_requires_admin_before_reading_private_data():
+    from unittest.mock import AsyncMock
+
+    repo = make_mock_repo()
+    repo.admin_get_onboarding = AsyncMock(return_value={"images": [], "services": [], "staff": []})
+    uc = AdminUseCases(repo, object())
+    with pytest.raises(ForbiddenError):
+        await uc.get_onboarding(make_profile(role=Role.owner), "salon-001")
+    repo.admin_get_onboarding.assert_not_awaited()
+    result = await uc.get_onboarding(make_super_admin(), "salon-001")
+    assert result["services"] == []
+    repo.admin_get_onboarding.assert_awaited_once_with("salon-001")
+
+
 # ---------------------------------------------------------------------------
 # CatalogAdminUseCases — categories
 # ---------------------------------------------------------------------------

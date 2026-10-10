@@ -10,7 +10,9 @@ Migration `0018_subscription_foundation` creates the database tables.
 - All subscriptions remain inactive unless explicitly created by a super admin.
 - The API and all apps continue functioning normally.
 
-This is **manual super-admin control only** — not automatic subscription ranking.
+Activation is manual super-admin control. Once an eligible subscription exists, its
+plan weight participates automatically in discovery ordering. Paid checkout and
+payment-verified activation are not implemented.
 
 ## Tables created
 
@@ -45,6 +47,12 @@ Suspension: any non-terminal → `suspended`
 Invalid or missing dates → never eligible.
 
 ## Public discovery ordering
+
+Migration `0019_discovery_placement` adds visibility and home placement. For the home
+surface, exclude hidden/search-only salons and order top, normal, random, then below.
+The random group uses a stable `shuffle_seed`; other groups retain the ordering below.
+Search and nearby exclude hidden salons and retain the ordering below, without home
+placement. Hidden discovery does not revoke an approved salon's QR or direct detail.
 
 After visibility filter (`approved`, `active`, `profile_completed`):
 
