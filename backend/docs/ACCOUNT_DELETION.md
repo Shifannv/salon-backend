@@ -21,7 +21,9 @@ against PostgreSQL (see Verification).
    queues erasure. The JWT stops working immediately (`profiles.is_active = false`).
 4. `GET /v1/account/deletion/{request_id}` with header `X-Status-Token` - progress. The JWT is
    dead after step 3, so this uses the token returned in step 3 (a header, so it stays out of
-   access logs).
+   access logs). The token is an HMAC derived from the secret and the request id; it does not
+   expire and remains usable as long as the deletion request row exists (retained indefinitely).
+   A wrong token or unknown request id both return 404 with no differentiation.
 
 Challenge guarantees: bound to user + purpose + channel + contact hash; HMAC-only storage
 (no plaintext OTP or tokens); 10 min expiry; 5 attempts total (resends do not reset them);
@@ -38,6 +40,57 @@ across the owner's salons). For owners also while a subscription is active **and
 `SUBSCRIPTION_PROVIDER != none`. Resolve through the existing booking flows, then retry.
 Checked at challenge start and again inside the confirm transaction.
 
+The 409 error body carries a machine-readable `details` map so clients can show specific
+guidance without parsing the message string:
+
+```json
+{
+  "error": {
+    "code": "deletion_blocked",
+    "message": "Resolve open bookings and pending requests before deleting your account",
+    "details": { "open_bookings": 2, "pending_requests": 1 }
+  }
+}
+```
+
+Possible detail keys: `open_bookings`, `pending_requests`, `active_subscriptions`.
+Only non-zero counts are included.
+
+A booking with status `pending` (awaiting salon approval) is treated as a blocker. The
+customer must cancel or wait for the booking to complete before they can delete their
+account.
+
+## Account lock and session revocation
+
+At confirm time the following happen **atomically** in a single transaction:
+
+- `profiles.is_active = false`
+- `device_tokens` and `notifications` for the user are deleted
+- An `account_deletion_requests` row is created (the 202 carries its id and status token)
+
+**Immediate API lock**: `get_current_actor` checks `is_active` on every authenticated
+request. As soon as the transaction commits the user's JWT returns 401 on every backend
+endpoint, including `GET /v1/auth/me`. This is immediate, not eventual.
+
+**Supabase session revocation**: The Supabase Auth session/refresh-token is only revoked
+in the worker's first step (ban + eventual delete). Between confirm and the worker claiming
+the job the user could theoretically refresh their Supabase token through Supabase's own
+auth endpoints. All backend routes are blocked by the profile check, so this window
+carries no practical risk for this API. If the app calls `signOut` locally the session
+is also terminated on the client side.
+
+**Re-registration**: After the Supabase Auth identity is hard-deleted by the worker, a
+new sign-up with the same email or phone creates a brand-new identity (new UUID, new
+profile, no link to prior history). The anonymized booking records do not re-associate.
+No re-registration block is enforced; this is the expected product behaviour.
+
+**Confirm idempotency**: If the network swallows the 202 and the client retries, the
+account is already locked so `get_current_actor` returns 401 before the route handler
+runs. The app treats that 401 as confirmation that deletion was accepted and the response
+was lost. If, in the rare case of a concurrent second request racing inside the lock
+window, the repository returns the existing request row and the same status token is
+recomputed deterministically — no second deletion is ever queued.
+
 ## Erasure (worker `account-deletion-worker`)
 
 Durable outbox in `account_deletion_requests`; claimed with `FOR UPDATE SKIP LOCKED`,
@@ -46,6 +99,10 @@ recorded in `step_state`. Order: ban auth user (and the owner's staff logins) ->
 erasure -> R2 delete -> cache clear -> delete Supabase Auth user -> verify (profile row and
 auth user absent) -> `completed`. Failures leave `failed` + retry; the account is never
 reactivated and completion is never claimed early.
+
+**Completion notification**: Sending a confirmation email or SMS to the user on completion
+is **not yet implemented**. The status endpoint and the app's local sign-out flow are the
+only feedback mechanisms today. This is tracked as a future improvement.
 
 ## Data-deletion matrix
 

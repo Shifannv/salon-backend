@@ -14,8 +14,9 @@ class AppError(Exception):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     code = "internal_error"
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, details: dict | None = None) -> None:
         self.message = message
+        self.details = details
         super().__init__(message)
 
 
@@ -181,9 +182,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
         # AppError is a named type → routed to ExceptionMiddleware (inside CORSMiddleware).
         # CORSMiddleware adds Access-Control-Allow-Origin automatically.
+        body: dict = {"code": exc.code, "message": exc.message}
+        if exc.details is not None:
+            body["details"] = exc.details
         return JSONResponse(
             status_code=exc.status_code,
-            content={"error": {"code": exc.code, "message": exc.message}},
+            content={"error": body},
         )
 
     @app.exception_handler(SQLAlchemyError)

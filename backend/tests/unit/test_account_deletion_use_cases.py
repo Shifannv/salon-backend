@@ -126,6 +126,15 @@ class FakeRepo:
 
     async def confirm_deletion(self, user_id, challenge_id, confirmation_hash):
         row = self.rows.get(challenge_id)
+        # Idempotency: challenge already consumed for this user with a matching hash.
+        if (row and row["user_id"] == user_id and row["status"] == "consumed"
+                and digests_match(row["confirmation_hash"], confirmation_hash)):
+            existing = next(
+                (r for r in self.requests.values() if r["status"] != "completed"),
+                None,
+            )
+            if existing is not None:
+                return existing
         if (not row or row["user_id"] != user_id or row["status"] != "verified"
                 or not digests_match(row["confirmation_hash"], confirmation_hash)):
             raise InvalidVerificationCodeError("The confirmation is invalid or expired")
@@ -222,6 +231,38 @@ async def test_open_work_blocks_before_any_code_is_sent(blocker):
 
 
 @pytest.mark.asyncio
+async def test_deletion_blocked_error_carries_structured_counts():
+    uc, repo, _ = build()
+    repo.blockers["open_bookings"] = 3
+    repo.blockers["pending_requests"] = 1
+    with pytest.raises(DeletionBlockedError) as exc_info:
+        await uc.start_challenge(make_owner(), "email", None)
+    details = exc_info.value.details
+    assert details is not None
+    assert details["open_bookings"] == 3
+    assert details["pending_requests"] == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_idempotency_returns_existing_request_when_account_already_locked():
+    """Concurrent second confirm (profile already inactive, challenge consumed) returns same request."""
+    uc, repo, _ = build()
+    actor = make_profile()
+    challenge_id, token = await verified_flow(uc, actor)
+    first = await uc.confirm(actor, challenge_id, token)
+
+    # Simulate the state the SQL repo puts things in after a successful first confirm:
+    # challenge is consumed, and repo has the request.  A concurrent second call
+    # with the same inputs should get the same result back, not an error.
+    row = repo.rows[challenge_id]
+    assert row["status"] == "consumed"
+    second = await uc.confirm(actor, challenge_id, token)
+    assert second["request_id"] == first["request_id"]
+    assert second["status_token"] == first["status_token"]
+    assert len(repo.confirmed) == 1  # erasure queued only once
+
+
+@pytest.mark.asyncio
 async def test_active_subscription_blocks_only_with_a_real_provider():
     uc, repo, _ = build()
     repo.blockers["active_subscriptions"] = 1
@@ -274,7 +315,7 @@ async def test_happy_path_requires_verification_then_explicit_confirmation():
 
 
 @pytest.mark.asyncio
-async def test_confirm_rejects_wrong_token_unverified_challenge_and_replay():
+async def test_confirm_rejects_wrong_token_and_unverified_challenge():
     uc, repo, _ = build()
     actor = make_profile()
     challenge_id, token = await verified_flow(uc, actor)
@@ -284,9 +325,19 @@ async def test_confirm_rejects_wrong_token_unverified_challenge_and_replay():
     with pytest.raises(InvalidVerificationCodeError):  # sent, never verified
         await uc.confirm(make_profile(id="user-002"), started["challenge_id"], token)
     await uc.confirm(actor, challenge_id, token)
-    with pytest.raises(InvalidVerificationCodeError):  # single use
-        await uc.confirm(actor, challenge_id, token)
     assert len(repo.confirmed) == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_replay_with_consumed_token_returns_same_request_not_error():
+    """Replaying the same challenge + token after success returns the existing request."""
+    uc, repo, _ = build()
+    actor = make_profile()
+    challenge_id, token = await verified_flow(uc, actor)
+    first = await uc.confirm(actor, challenge_id, token)
+    second = await uc.confirm(actor, challenge_id, token)  # idempotent, must not raise
+    assert second["request_id"] == first["request_id"]
+    assert len(repo.confirmed) == 1  # erasure queued exactly once
 
 
 @pytest.mark.asyncio

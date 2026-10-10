@@ -288,11 +288,15 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             media_urls.extend(str(r[0]) for r in urls.all() if r[0])
 
         blockers = await self.count_blockers(user_id, role)
-        if blockers["open_bookings"] or blockers["pending_requests"]:
+        blocker_details: dict[str, int] = {}
+        if blockers["open_bookings"]:
+            blocker_details["open_bookings"] = blockers["open_bookings"]
+        if blockers["pending_requests"]:
+            blocker_details["pending_requests"] = blockers["pending_requests"]
+        if blocker_details:
             raise DeletionBlockedError(
-                "Resolve open bookings and pending requests before deleting your account "
-                f"({blockers['open_bookings']} open bookings, "
-                f"{blockers['pending_requests']} pending requests)"
+                "Resolve open bookings and pending requests before deleting your account",
+                details=blocker_details,
             )
 
         await s.execute(text("update profiles set is_active = false where id = :uid"),

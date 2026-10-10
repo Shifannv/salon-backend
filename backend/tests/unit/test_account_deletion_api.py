@@ -154,6 +154,42 @@ def test_user_routes_require_a_bearer_token():
         app.dependency_overrides.update(overrides)
 
 
+def test_deactivated_account_jwt_returns_401_on_deletion_endpoints():
+    """An inactive profile (account already locked) must be rejected by the auth layer."""
+    from app.core.exceptions import UnauthorizedError
+
+    def _raise_unauthorized():
+        raise UnauthorizedError("User not found")
+
+    overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_current_actor] = _raise_unauthorized
+    app.dependency_overrides[get_session] = lambda: None
+    app.dependency_overrides[get_authenticated_session] = lambda: None
+    try:
+        http = TestClient(app)
+        assert http.post("/v1/account/deletion/challenges", json={"channel": "email"}).status_code == 401
+        assert http.post(
+            "/v1/account/deletion",
+            json={"challenge_id": str(uuid4()), "confirmation_token": "t" * 43, "confirm": "DELETE"},
+        ).status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(overrides)
+
+
+def test_deletion_blocked_409_body_contains_structured_counts(client):
+    http, uc, _ = client
+    uc.start_challenge.side_effect = DeletionBlockedError(
+        "Resolve open bookings",
+        details={"open_bookings": 2, "pending_requests": 0},
+    )
+    response = http.post("/v1/account/deletion/challenges", json={"channel": "email"})
+    assert response.status_code == 409
+    body = response.json()["error"]
+    assert body["code"] == "deletion_blocked"
+    assert body["details"]["open_bookings"] == 2
+
+
 def test_admin_ledger_is_super_admin_only_and_has_no_personal_fields(client):
     http, uc, actor = client
     uc.list_requests.return_value = [{
