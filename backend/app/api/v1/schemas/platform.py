@@ -4,7 +4,7 @@ from app.api.v1.schemas.media_urls import HostedMediaRequest
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, ClassVar, Literal
 from urllib.parse import unquote, urlsplit
 
 from pydantic import (
@@ -28,6 +28,13 @@ class ProfileUpdateRequest(HostedMediaRequest):
     Fields are all optional; only explicitly sent fields are written.
     Sending ``null`` for a nullable field (e.g. ``phone``) clears it.
     """
+
+    # These identifiers resolve to bundled assets in the customer and owner apps.
+    # They are bounded metadata, never uploaded binaries or inline image payloads.
+    avatar_references: ClassVar[frozenset[str]] = frozenset(
+        {f"__char__char-{index}" for index in range(1, 16)}
+        | {"avatar:curly", "avatar:beard", "avatar:geek"}
+    )
 
     full_name: str | None = Field(default=None, min_length=1)
     phone: str | None = None
