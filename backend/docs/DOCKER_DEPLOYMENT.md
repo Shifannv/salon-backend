@@ -31,6 +31,13 @@ delivery. Check worker logs and notification delivery records when diagnosing pu
 Redis is accessible only inside the Compose network at `redis:6379`, not on a VM port.
 The API waits for Redis health before starting. API and worker share runtime settings.
 
+Compose also runs `media-cleanup` from the API image. Explicitly review/apply migration
+`0020_media_reference_guards` first; cleanup refuses to delete without its seven guards.
+It retires only new, proven,
+unreferenced media after a 24-hour minimum age, checking database references before
+every delete and retrying failures on subsequent hourly sweeps. Keep this service running
+with the API. See [media operations](IMAGE_MEDIA.md) for permissions and retention rules.
+
 The migration command is an explicit deploy step, not part of API or worker startup.
 Review it before running it against a populated database.
 

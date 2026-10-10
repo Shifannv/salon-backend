@@ -24,9 +24,14 @@ import json
 import logging
 import threading
 import time
+from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from functools import partial
+from io import BytesIO
 from typing import Any
+
+from PIL import Image
 
 from app.application.ports.image_processor import ImagePolicy
 from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
@@ -115,6 +120,79 @@ class R2StorageGateway(StorageGateway):
         secret = self.settings.r2_secret_access_key or ""
         return hmac.new(secret.encode(), ("image-upload-v1:" + payload).encode(), hashlib.sha256).hexdigest()
 
+    def _processed_metadata(self, path: str, data: bytes, mime: str) -> dict[str, str]:
+        self._policy(path, mime)
+        with Image.open(BytesIO(data)) as image:
+            dimension, pixels = max(image.size), image.width * image.height
+        payload = json.dumps({"bucket": self.settings.r2_bucket, "path": path, "mime": mime, "size": len(data),
+                              "sha256": hashlib.sha256(data).hexdigest(),
+                              "dimension": dimension, "pixels": pixels}, sort_keys=True)
+        return {"processed-image-v1": payload, "processed-signature": self._sign(payload)}
+
+    def _verify_processed_head(self, path: str, head: dict) -> dict:
+        try:
+            metadata = head["Metadata"]
+            payload = metadata["processed-image-v1"]
+            if not hmac.compare_digest(self._sign(payload), metadata["processed-signature"]):
+                raise ValueError()
+            proof = json.loads(payload)
+            policy = self._policy(path, proof["mime"])
+            if (proof["bucket"] != self.settings.r2_bucket or proof["path"] != path or proof["mime"] != head["ContentType"]
+                    or proof["size"] != head["ContentLength"]
+                    or not 0 < proof["size"] <= policy.max_bytes
+                    or not 0 < proof["dimension"] <= policy.max_dimension
+                    or not 0 < proof["pixels"] <= self.settings.image_max_pixels):
+                raise ValueError()
+            return proof
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ValidationError("Photo has not passed the current image processing policy") from exc
+
+    async def inspect_processed_object(self, path: str) -> dict:
+        self._assert_configured()
+        try:
+            head = await asyncio.get_running_loop().run_in_executor(
+                _executor, partial(self._head_sync, path),
+            )
+            return self._verify_processed_head(path, head)
+        except Exception as exc:
+            raise ValidationError("Photo is missing or has not passed image validation") from exc
+
+    def _head_sync(self, path: str) -> dict:
+        return self._get_client().head_object(Bucket=self.settings.r2_bucket, Key=path)
+
+    def _list_sync(self, params: dict) -> dict:
+        return self._get_client().list_objects_v2(**params)
+
+    async def validate_media_reference(self, url: str, namespace: str, *, policy: ImagePolicy | None = None) -> None:
+        self._assert_configured()
+        prefix = f"{str(self.settings.r2_public_url).rstrip('/')}/{namespace}"
+        if not url.startswith(prefix):
+            raise ValidationError("Photo must use this account's validated hosted media")
+        path = url[len(str(self.settings.r2_public_url).rstrip('/')) + 1:]
+        if any(char in path for char in ("%", "\\", "?", "#")) or any(not part for part in path.split("/")):
+            raise ValidationError("Invalid image object URL")
+        proof = await self.inspect_processed_object(path)
+        if policy and (proof["dimension"] > policy.max_dimension or proof["size"] > policy.max_bytes):
+            raise ValidationError("Photo exceeds this media category's dimensions or size limit")
+
+    async def cleanup_candidates(self) -> AsyncIterator[str]:
+        """List aged keys; the worker must verify signed metadata before deletion."""
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.settings.media_cleanup_grace_seconds)
+        loop = asyncio.get_running_loop()
+        for prefix in ("avatars/", "salon-images/", "staff-photos/"):
+            continuation = None
+            while True:
+                params = {"Bucket": self.settings.r2_bucket, "Prefix": prefix, "MaxKeys": 1000}
+                if continuation:
+                    params["ContinuationToken"] = continuation
+                page = await loop.run_in_executor(_executor, partial(self._list_sync, params))
+                for item in page.get("Contents", []):
+                    if item["LastModified"] < cutoff:
+                        yield item["Key"]
+                if not page.get("IsTruncated"):
+                    break
+                continuation = page["NextContinuationToken"]
+
     def _claims(self, token: str, content_type: str) -> dict:
         self._assert_configured()
         try:
@@ -162,12 +240,20 @@ class R2StorageGateway(StorageGateway):
                 partial(self._create_image_sync, claims["bucket"], claims["path"], processed, content_type),
             )
         except Exception as exc:
-            # A replay must never delete an already published object.
+            # A lost PUT response can safely retry the same content and capability.
+            # Different bytes must never overwrite or delete the first upload.
+            try:
+                proof = await self.inspect_processed_object(claims["path"])
+                if proof["sha256"] == hashlib.sha256(processed).hexdigest():
+                    return
+            except ValidationError:
+                pass
             raise ValidationError("Image upload failed or this URL has already been used; request a new URL") from exc
 
     def _create_image_sync(self, bucket: str, path: str, data: bytes, content_type: str) -> None:
         self._get_client().put_object(
             Bucket=bucket, Key=path, Body=data, ContentType=content_type, IfNoneMatch="*",
+            Metadata=self._processed_metadata(path, data, content_type),
         )
 
     def _delete_sync(self, bucket: str, path: str) -> None:
@@ -178,7 +264,11 @@ class R2StorageGateway(StorageGateway):
     def _upload_sync(self, bucket: str, path: str, data: bytes, content_type: str) -> None:
         """Upload raw bytes synchronously (runs in thread pool)."""
         client = self._get_client()
-        client.put_object(Bucket=bucket, Key=path, Body=data, ContentType=content_type)
+        # Only the avatar use case calls this with already-processed bytes.
+        # Other server-generated objects are not enrolled in automated image cleanup.
+        metadata = self._processed_metadata(path, data, content_type) if path.startswith("avatars/") else {}
+        client.put_object(Bucket=bucket, Key=path, Body=data, ContentType=content_type,
+                          Metadata=metadata, IfNoneMatch="*")
 
     # ── StorageGateway interface ───────────────────────────────────────────────
 
@@ -196,7 +286,7 @@ class R2StorageGateway(StorageGateway):
             content_type: MIME type of the upload (must match what the client sends).
 
         Returns:
-            A presigned PUT URL valid for _UPLOAD_TTL_SECONDS seconds.
+            A signed backend PUT URL valid for _UPLOAD_TTL_SECONDS seconds.
         """
         self._assert_configured()
 

@@ -1,6 +1,5 @@
 """Authenticated avatars: process before storage; clean up failed publication."""
 
-import logging
 from typing import Protocol
 from uuid import uuid4
 
@@ -11,11 +10,12 @@ from app.domain.entities.profile import Profile, Role
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 _EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
-logger = logging.getLogger(__name__)
 
 
 class AvatarRepository(Protocol):
     async def update_profile(self, profile_id: str, values: dict) -> dict: ...
+
+    async def lock_media_url(self, url: str) -> None: ...
 
 
 class UploadAvatar:
@@ -33,13 +33,9 @@ class UploadAvatar:
             raise ValidationError("Avatar must be JPEG, PNG or WebP")
         processed = await self.processor.process_async(data, content_type, self.policy)
         path = f"avatars/{actor.id}/{uuid4().hex}.{_EXTENSIONS[content_type]}"
-        try:
-            url = await self.storage.upload_bytes(bucket, path, processed, content_type)
-            await self.repository.update_profile(actor.id, {"avatar_url": url})
-        except Exception:
-            try:
-                await self.storage.delete_object(bucket, path)
-            except Exception:
-                logger.warning("Avatar cleanup failed")
-            raise
+        url = await self.storage.upload_bytes(bucket, path, processed, content_type)
+        await self.repository.lock_media_url(url)
+        await self.repository.update_profile(actor.id, {"avatar_url": url})
+        # Cleanup runs after committed reference checks. A failed/ambiguous commit
+        # must never trigger deletion of an object that might now be referenced.
         return url

@@ -24,7 +24,7 @@ fi
 compose=(docker compose --env-file "$COMPOSE_ENV_FILE")
 "${compose[@]}" config --quiet
 if [[ "$mode" == "--pull" ]]; then
-  "${compose[@]}" pull api notification-worker redis
+  "${compose[@]}" pull api notification-worker media-cleanup redis
 else
   "${compose[@]}" build --pull api
   "${compose[@]}" pull redis

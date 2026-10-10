@@ -7,7 +7,9 @@ from typing import Any
 
 from fastapi import BackgroundTasks
 
+from app.application.ports.image_processor import ImagePolicy
 from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
+from app.application.use_cases.media_publication import validate_media_reference
 from app.application.use_cases.workspace import assert_approved_workspace
 from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
@@ -75,48 +77,32 @@ class CustomerUseCases:
     ) -> dict[str, Any]:
         """Update the customer profile owned by the actor.
 
-        When ``avatar_url`` is being replaced and both ``bucket`` and
-        ``r2_public_base`` are provided (and a storage gateway is wired in),
-        the previous R2 object is deleted best-effort before returning.  The
-        deletion never raises — a warning is logged on failure so the profile
-        update is never blocked.
+        New hosted avatars require owned processing proof. Previous managed objects
+        are retired by the worker after committed reference checks. Legacy URLs
+        may remain unchanged and are never swept.
 
         Args:
             actor: Authenticated profile (customer or owner).
             values: Fields to update (``exclude_unset`` dict from Pydantic).
-            bucket: R2 bucket name; required to trigger old-avatar cleanup.
-            r2_public_base: Configured R2_PUBLIC_URL; used to extract the
-                object key from the stored public URL.
+            bucket: Retained for call compatibility; cleanup uses worker settings.
+            r2_public_base: Retained for call compatibility.
         """
 
         if actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer or owner access required")
 
-        # --- Best-effort cleanup of the previous avatar from R2 ---
-        new_avatar_url = values.get("avatar_url")
-        old_avatar_url = actor.avatar_url
-        should_cleanup = (
-            new_avatar_url is not None           # caller is changing the avatar
-            and new_avatar_url != old_avatar_url  # it is actually a different URL
-            and old_avatar_url                    # there is an existing avatar to remove
-            and self.storage_gateway is not None
-            and bucket is not None
-            and r2_public_base is not None
-        )
-        updated = await self.repository.update_profile(actor.id, values)
-        if should_cleanup:
-            old_key = _extract_r2_object_key(str(old_avatar_url), str(r2_public_base))
-            if old_key and old_key.startswith(f"avatars/{actor.id}/"):
-                try:
-                    await self.storage_gateway.delete_object(bucket, old_key)  # type: ignore[union-attr]
-                except Exception:
-                    _log.warning(
-                        "Failed to delete old avatar from R2 (key=%s). "
-                        "Profile update will still proceed.",
-                        old_key,
-                    )
-
-        return updated
+        avatar = values.get("avatar_url")
+        bundled = {f"__char__char-{index}" for index in range(1, 16)} | {"avatar:curly", "avatar:beard", "avatar:geek"}
+        if avatar and avatar not in bundled:
+            # The auth snapshot can be stale after a concurrent replacement.
+            # Lock first and compare with the current committed reference.
+            await self.repository.lock_media_url(avatar)
+            current = await self.repository.get_profile(actor.id)
+            if current is None:
+                raise NotFoundError("Profile not found")
+            if avatar != current.get("avatar_url"):
+                await validate_media_reference(self.repository, self.storage_gateway, avatar, f"avatars/{actor.id}/")
+        return await self.repository.update_profile(actor.id, values)
 
     async def list_salons(
         self,
@@ -178,7 +164,7 @@ class CustomerUseCases:
         filename: str,
         bucket: str,
     ) -> dict[str, Any]:
-        """Generate a presigned R2 upload URL for a user profile avatar.
+        """Generate a signed backend upload URL for a user profile avatar.
 
         Available to all authenticated roles (customer, owner, staff).
         The client should:
@@ -266,6 +252,7 @@ class OwnerUseCases:
         """Create a salon image."""
 
         self._assert_owner_workspace(actor)
+        await self._validate_salon_media(actor, values.get("url"))
         return await self.repository.create_salon_image(actor.id, values)
 
     async def update_image(
@@ -274,7 +261,20 @@ class OwnerUseCases:
         """Update a salon image."""
 
         self._assert_owner_workspace(actor)
+        if values.get("url"):
+            await self.repository.lock_media_url(values["url"])
+            images = await self.list_images(actor)
+            current = next((image for image in images if str(image["id"]) == image_id), None)
+            if current is None:
+                raise NotFoundError("Image not found")
+            if values["url"] != current["url"]:
+                await self._validate_salon_media(actor, values["url"])
         return await self.repository.update_salon_image(actor.id, image_id, values)
+
+    async def _validate_salon_media(self, actor: Profile, url: str | None, policy: ImagePolicy | None = None) -> None:
+        if url is not None:
+            salon = await self.get_my_salon(actor)
+            await validate_media_reference(self.repository, self.storage_gateway, url, f"salon-images/{salon['id']}/", policy)
 
     async def delete_image(
         self,
@@ -283,13 +283,12 @@ class OwnerUseCases:
         bucket: str,
         r2_public_base: str,
     ) -> None:
-        """Soft-delete a salon image and best-effort remove the R2 object.
+        """Soft-delete a salon image; defer binary retirement to the worker.
 
         Steps:
         1. Soft-delete the DB row (set is_active = false) and retrieve its URL.
-        2. Extract the R2 object key from the URL.
-        3. Delete the object from R2 (best-effort — a failure is logged but does
-           not roll back the DB soft-delete so the image stays hidden from users).
+        2. The worker checks other references before removing managed objects.
+        3. Failed cleanup is retried by subsequent sweeps.
 
         Args:
             actor: Authenticated owner/staff profile.
@@ -306,18 +305,7 @@ class OwnerUseCases:
         if deleted_url is None:
             raise NotFoundError("Image not found or already deleted")
 
-        # Best-effort R2 cleanup — never block the response on storage errors.
-        if self.storage_gateway and r2_public_base:
-            key = _extract_r2_object_key(deleted_url, r2_public_base)
-            if key:
-                try:
-                    await self.storage_gateway.delete_object(bucket, key)
-                except Exception:
-                    _log.warning(
-                        "Failed to delete salon image from R2 (key=%s). "
-                        "The DB row has already been soft-deleted.",
-                        key,
-                    )
+        # The scheduled worker checks all references before retiring the object.
 
     async def get_image_upload_url(
         self,
@@ -326,7 +314,7 @@ class OwnerUseCases:
         filename: str,
         bucket: str,
     ) -> dict[str, Any]:
-        """Generate a presigned R2 upload URL for a salon gallery image.
+        """Generate a signed backend upload URL for a salon gallery image.
 
         The client should:
         1. Receive ``upload_url`` and ``public_url`` from this method.
@@ -368,7 +356,7 @@ class OwnerUseCases:
         filename: str,
         bucket: str,
     ) -> dict[str, Any]:
-        """Generate a presigned R2 upload URL for a staff member's photo.
+        """Generate a signed backend upload URL for a staff member's photo.
 
         The client should:
         1. Receive ``upload_url`` and ``public_url`` from this method.
@@ -455,19 +443,21 @@ class OwnerUseCases:
         """Update owner service."""
 
         self._assert_owner_workspace(actor)
-        await self._validate_service_photo(actor, values)
+        if values.get("photo_url"):
+            await self.repository.lock_media_url(values["photo_url"])
+            services = await self.repository.list_owner_services(actor.id)
+            current = next((service for service in services if str(service["id"]) == service_id), None)
+            if current is None or values["photo_url"] != current.get("photo_url"):
+                await self._validate_service_photo(actor, values)
         return await self.repository.update_owner_service(actor.id, service_id, values)
 
     async def _validate_service_photo(self, actor: Profile, values: dict[str, Any]) -> None:
         """Use the configured media base and the existing salon upload namespace."""
 
         photo_url = values.get("photo_url")
-        if photo_url is None or not self.service_media_base:
+        if photo_url is None:
             return
-        salon = await self.repository.get_owner_salon(actor.id)
-        prefix = f"{self.service_media_base.rstrip('/')}/salon-images/{salon['id']}/"
-        if not photo_url.startswith(prefix):
-            raise ValidationError("Service photo must use this salon's hosted media")
+        await self._validate_salon_media(actor, photo_url)
 
     async def deactivate_service(self, actor: Profile, service_id: str) -> dict[str, Any]:
         """Soft-delete owner service."""
@@ -485,6 +475,11 @@ class OwnerUseCases:
         """Create owner staff."""
 
         self._assert_owner_workspace(actor)
+        # There is no staff-specific upload grant until the member exists.
+        # A supplied create photo may use this salon's validated gallery namespace.
+        await self._validate_salon_media(
+            actor, values.get("photo_url"), ImagePolicy(settings.image_staff_dimension, settings.image_photo_max_bytes),
+        )
         return await self.repository.create_owner_staff(actor.id, values)
 
     async def update_staff(
@@ -493,6 +488,18 @@ class OwnerUseCases:
         """Update owner staff."""
 
         self._assert_owner_workspace(actor)
+        if values.get("photo_url"):
+            await self.repository.lock_media_url(values["photo_url"])
+            members = await self.repository.list_owner_staff(actor.id)
+            current = next((member for member in members if str(member["id"]) == staff_id), None)
+            if current is None:
+                raise NotFoundError("Staff member not found")
+            if values["photo_url"] != current.get("photo_url"):
+                salon = await self.get_my_salon(actor)
+                await validate_media_reference(
+                    self.repository, self.storage_gateway, values["photo_url"],
+                    f"staff-photos/{salon['id']}/{staff_id}/",
+                )
         return await self.repository.update_owner_staff(actor.id, staff_id, values)
 
     async def deactivate_staff(self, actor: Profile, staff_id: str) -> dict[str, Any]:

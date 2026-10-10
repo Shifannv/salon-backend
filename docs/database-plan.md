@@ -20,6 +20,13 @@ priority (`0017_salon_display_priority`), manual subscription foundation
 (`0019_discovery_placement`). Code using these fields requires the reviewed migrations
 before deployment; the unchanged v3 baseline remains the starting point.
 
+Revision `0020_media_reference_guards` is prepared for review and explicit deployment.
+It coordinates media-reference writes with cleanup using transaction advisory locks
+and requires Supabase client roles to assign new hosted image URLs through the backend.
+It does not rewrite stored URLs. The cleanup worker refuses to delete objects until
+all seven reference guards are installed. See the backend image integration report
+for verification limits; this revision has not been applied as part of that work.
+
 Rules:
 
 - Apply schema changes only through reviewed Alembic revisions.

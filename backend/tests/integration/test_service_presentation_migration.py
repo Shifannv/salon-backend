@@ -17,12 +17,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.api.deps import get_authenticated_session, get_cache, get_current_actor, get_session
+from app.api.v1.routes import owner
 from app.core.config import settings
 from app.core.exceptions import ValidationError
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.main import app
 from tests.conftest import make_owner
 from tests.unit.test_cache_integration import InMemoryCache
+from tests.unit.test_image_processing import gateway, photo_data
 
 TEST_DB = os.environ.get("SERVICE_PRESENTATION_TEST_DB")
 pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL")
@@ -43,6 +45,12 @@ async def test_migration_and_service_api_round_trip():
         migration.upgrade()
     cache = InMemoryCache()
     actor = make_owner()
+    storage = gateway()
+    storage.settings.r2_public_url = "https://media.example.com"
+    storage._client.head_object.side_effect = lambda **kwargs: {
+        "Metadata": storage._processed_metadata(kwargs["Key"], photo_data, "image/jpeg"),
+        "ContentType": "image/jpeg", "ContentLength": len(photo_data),
+    }
     original_overrides = app.dependency_overrides.copy()
     try:
         async with engine.connect() as conn:
@@ -83,6 +91,7 @@ async def test_migration_and_service_api_round_trip():
                     get_current_actor: lambda: actor, get_cache: lambda: cache,
                 })
                 with (
+                    patch.object(owner, "get_storage_gateway", return_value=storage),
                     patch.object(PlatformRepository, "get_owner_salon", owned_salon),
                     patch.object(PlatformRepository, "get_public_salon", AsyncMock()),
                     patch.object(PlatformRepository, "get_salon_by_qr", qr_salon),

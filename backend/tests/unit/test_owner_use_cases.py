@@ -152,8 +152,8 @@ def test_holiday_response_converts_database_uuid_ids_to_strings():
 
 
 @pytest.mark.asyncio
-async def test_delete_image_soft_deletes_and_calls_r2():
-    """delete_image soft-deletes the DB row and removes the R2 object."""
+async def test_delete_image_soft_deletes_and_defers_shared_object_cleanup():
+    """The worker checks other references before deleting a gallery object."""
     from unittest.mock import AsyncMock
 
     repo = make_mock_repo()
@@ -176,9 +176,7 @@ async def test_delete_image_soft_deletes_and_calls_r2():
     )
 
     repo.delete_salon_image.assert_awaited_once_with(owner.id, "image-001")
-    storage.delete_object.assert_awaited_once_with(
-        "salon-images", "salon-images/salon-001/abc.jpeg"
-    )
+    storage.delete_object.assert_not_awaited()
 
 
 @pytest.mark.asyncio

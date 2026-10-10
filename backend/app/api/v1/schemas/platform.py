@@ -736,9 +736,9 @@ class BlockedSlotResponse(BaseModel):
 
 
 class ImageUploadUrlRequest(BaseModel):
-    """Request body for generating a short-lived R2 upload URL.
+    """Request body for generating a short-lived backend upload capability.
 
-    The client PUTs the image directly to Cloudflare R2 using the returned URL.
+    The client PUTs image bytes to the backend validation gateway using the returned URL.
     """
 
     content_type: str = Field(

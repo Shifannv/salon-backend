@@ -52,7 +52,7 @@ def _use_cases(
     storage_gateway: StorageGateway | None = None,
 ) -> OwnerUseCases:
     return OwnerUseCases(
-        PlatformRepository(session), storage_gateway=storage_gateway,
+        PlatformRepository(session), storage_gateway=storage_gateway or get_storage_gateway(),
         service_media_base=settings.r2_public_url,
     )
 

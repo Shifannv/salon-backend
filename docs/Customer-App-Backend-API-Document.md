@@ -84,8 +84,10 @@ POST /v1/customer/profile/avatar
 Content-Type: multipart/form-data
 ```
 
-The form field is `image`. JPEG, PNG, and WebP files up to 5 MB are accepted. The
-backend validates the file signature, uploads to Cloudflare R2, updates
+The form field is `image`. JPEG, PNG, and WebP files up to 5242880 bytes (5 MiB) are accepted. The
+backend validates decoding and MIME agreement, corrects EXIF orientation, strips metadata,
+resizes without upscaling to at most 512 px and encodes to at most 512000 bytes by default.
+It preserves PNG/WebP transparency, uploads only the processed bytes to Cloudflare R2, updates
 `profiles.avatar_url`, and returns:
 
 ```json
@@ -93,6 +95,15 @@ backend validates the file signature, uploads to Cloudflare R2, updates
 ```
 
 The frontend does not need a second profile PATCH after this call.
+
+Both gallery and camera selections use the shared processing utility before upload.
+Malformed, animated, unsupported or oversized inputs return 422 (`validation_error`);
+HEIC/HEIF must first be converted on the device. The backend rejects images over
+40 million pixels or 16384 px per edge. Failure never falls back to the original file.
+Replaced managed avatars are retired only after committed database reference checks
+by the cleanup worker; older unmarked production media is preserved. New hosted avatar
+URLs supplied to profile PATCH must belong to the actor and have trusted processing
+proof. Existing unchanged URLs and bundled avatar identifiers remain supported.
 
 ### Salon report
 

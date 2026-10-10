@@ -86,6 +86,7 @@ def make_mock_repo() -> MagicMock:
     # Make all async methods return awaitable mocks
     for attr in [
         "update_profile",
+        "lock_media_url",
         "get_profile",
         "list_salons",
         "get_public_salon",
