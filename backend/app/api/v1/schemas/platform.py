@@ -1,3 +1,5 @@
+from app.api.v1.schemas.media_urls import HostedMediaRequest
+
 """Frontend-facing API schemas."""
 
 from datetime import date, datetime, timedelta
@@ -19,7 +21,7 @@ from pydantic import (
 from app.core.config import settings
 
 
-class ProfileUpdateRequest(BaseModel):
+class ProfileUpdateRequest(HostedMediaRequest):
     """Shared profile update request (PATCH /profiles/me).
 
     Used by owners, staff, and customers — not customer-only despite the name.
@@ -212,7 +214,7 @@ class OwnerSalonSettingsRequest(BaseModel):
     working_hours: dict[str, Any] | None = None
 
 
-class SalonImageCreateRequest(BaseModel):
+class SalonImageCreateRequest(HostedMediaRequest):
     """Create salon image request."""
 
     url: str
@@ -221,7 +223,7 @@ class SalonImageCreateRequest(BaseModel):
     sort_order: int = 0
 
 
-class SalonImageUpdateRequest(BaseModel):
+class SalonImageUpdateRequest(HostedMediaRequest):
     """Update salon image request."""
 
     url: str | None = None
@@ -325,7 +327,7 @@ class ServiceUpdateRequest(ServicePresentationRequest):
         return value
 
 
-class StaffCreateRequest(BaseModel):
+class StaffCreateRequest(HostedMediaRequest):
     """Create staff request."""
 
     profile_id: str | None = None
@@ -336,7 +338,7 @@ class StaffCreateRequest(BaseModel):
     working_hours: dict[str, Any] | None = None
 
 
-class StaffUpdateRequest(BaseModel):
+class StaffUpdateRequest(HostedMediaRequest):
     """Update staff request."""
 
     profile_id: str | None = None

@@ -1,3 +1,5 @@
+from app.api.v1.schemas.media_urls import HostedMediaRequest
+
 """Admin API request/response schemas."""
 
 from datetime import datetime
@@ -104,7 +106,7 @@ class AdminDeactivateSalonResponse(BaseModel):
 
 # ── Catalog schemas ───────────────────────────────────────────────────────────
 
-class CategoryCreateRequest(BaseModel):
+class CategoryCreateRequest(HostedMediaRequest):
     """Create service category request."""
 
     name: str = Field(min_length=1)
@@ -114,7 +116,7 @@ class CategoryCreateRequest(BaseModel):
     sort_order: int = 0
 
 
-class CategoryUpdateRequest(BaseModel):
+class CategoryUpdateRequest(HostedMediaRequest):
     """Update service category request."""
 
     name: str | None = Field(default=None, min_length=1)
@@ -139,7 +141,7 @@ class CategoryResponse(BaseModel):
     updated_at: datetime
 
 
-class SubcategoryCreateRequest(BaseModel):
+class SubcategoryCreateRequest(HostedMediaRequest):
     """Create service subcategory request."""
 
     category_id: str
@@ -150,7 +152,7 @@ class SubcategoryCreateRequest(BaseModel):
     sort_order: int = 0
 
 
-class SubcategoryUpdateRequest(BaseModel):
+class SubcategoryUpdateRequest(HostedMediaRequest):
     """Update service subcategory request."""
 
     name: str | None = Field(default=None, min_length=1)
