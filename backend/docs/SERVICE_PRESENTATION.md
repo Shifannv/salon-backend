@@ -100,9 +100,8 @@ docker compose ps
 curl --fail http://127.0.0.1:8000/health
 ```
 
-Review the image digest and migration first. This repository's main-branch release
-workflow also runs migrations explicitly before deploying the image. Do not run
-both paths independently without coordinating the release. Downgrading drops
+Review the image digest and migration first. Apply migrations explicitly before
+running the manual VM deployment script. Downgrading drops
 presentation data; do not use downgrade as an unreviewed production rollback.
 
 After release, inspect live OpenAPI for all three request properties, then save
