@@ -41,3 +41,14 @@ def test_profile_update_allows_repeated_digits_inside_valid_mobile() -> None:
 def test_profile_update_rejects_fake_or_invalid_mobile(phone: str) -> None:
     with pytest.raises(ValidationError):
         ProfileUpdateRequest(phone=phone)
+
+
+@pytest.mark.parametrize("reference", ["__char__char-1", "__char__char-15", "avatar:curly", "avatar:beard", "avatar:geek"])
+def test_profile_update_preserves_bundled_avatar_references(reference):
+    assert ProfileUpdateRequest(avatar_url=reference).avatar_url == reference
+
+
+@pytest.mark.parametrize("reference", ["__char__char-16", "avatar:unknown", "data:image/png;base64,AAAA"])
+def test_profile_update_rejects_unknown_or_inline_avatar_references(reference):
+    with pytest.raises(ValidationError):
+        ProfileUpdateRequest(avatar_url=reference)
