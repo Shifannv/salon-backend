@@ -9,7 +9,13 @@ from uuid import UUID
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError, SlotUnavailableError, ValidationError
+from app.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    SalonNotAcceptingBookingsError,
+    SlotUnavailableError,
+    ValidationError,
+)
 
 
 class PlatformRepository:
@@ -197,7 +203,7 @@ class PlatformRepository:
             f"""
             select
               s.id, s.name, s.description, s.category, s.address, s.city,
-              s.qr_token, s.lat, s.lng, s.timezone, s.approval_mode, s.profile_completed,
+              s.qr_token, s.lat, s.lng, s.timezone, s.approval_mode, s.accepting_bookings, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
               case
                 when cast(:lat as double precision) is not null
@@ -306,7 +312,7 @@ class PlatformRepository:
             text(
                 """
                 select id, name, description, category, address, city, qr_token, lat, lng, timezone,
-                       working_hours, approval_mode, slot_interval_minutes, profile_completed,
+                       working_hours, approval_mode, slot_interval_minutes, accepting_bookings, profile_completed,
                        is_active
                 from salons
                 where id = :salon_id and is_active and profile_completed and approval_status = 'approved'
@@ -545,7 +551,7 @@ class PlatformRepository:
             text(
                 """
                 select id, owner_id, name, description, category, address, city, lat, lng,
-                       timezone, working_hours, approval_mode, slot_interval_minutes,
+                       timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                        qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
                 from salons
@@ -576,7 +582,7 @@ class PlatformRepository:
                 insert into salons (owner_id, name, is_active, profile_completed)
                 values (:actor_id, '', true, false)
                 returning id, owner_id, name, description, category, address, city, lat, lng,
-                          timezone, working_hours, approval_mode, slot_interval_minutes,
+                          timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
                 """
@@ -608,7 +614,7 @@ class PlatformRepository:
                 set {assignments}
                 where id = :salon_id and owner_id = :actor_id and is_active
                 returning id, owner_id, name, description, category, address, city, lat, lng,
-                          timezone, working_hours, approval_mode, slot_interval_minutes,
+                          timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
                 """
@@ -650,7 +656,7 @@ class PlatformRepository:
                     insert into salons ({columns})
                     values ({placeholders})
                     returning id, owner_id, name, description, category, address, city, lat, lng,
-                              timezone, working_hours, approval_mode, slot_interval_minutes,
+                              timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                               qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
                     """
@@ -672,7 +678,7 @@ class PlatformRepository:
                 set {assignments}
                 where id = :salon_id and owner_id = :actor_id and is_active
                 returning id, owner_id, name, description, category, address, city, lat, lng,
-                          timezone, working_hours, approval_mode, slot_interval_minutes,
+                          timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
                 """
@@ -1282,6 +1288,10 @@ class PlatformRepository:
         except Exception as exc:
             await self.session.rollback()
             message = str(exc)
+            if "salon_not_accepting_bookings" in message:
+                raise SalonNotAcceptingBookingsError(
+                    "This salon is not accepting bookings right now"
+                ) from exc
             if "not offered by this staff" in message.lower():
                 raise ValidationError("Selected staff member does not offer this service") from exc
             if "slot" in message.lower() or "available" in message.lower():
@@ -3323,7 +3333,7 @@ class PlatformRepository:
         extra = await self.session.execute(
             text(
                 """
-                select s.address, s.working_hours, img.url as image_url
+                select s.address, s.working_hours, s.accepting_bookings, img.url as image_url
                 from salons s
                 left join lateral (
                   select url
@@ -3342,6 +3352,7 @@ class PlatformRepository:
             salon["address"] = extra_row["address"]
             salon["image_url"] = extra_row["image_url"]
             salon["working_hours"] = extra_row["working_hours"]
+            salon["accepting_bookings"] = extra_row["accepting_bookings"]
 
         salon["id"] = str(salon["id"])
         salon["services"] = await self.list_public_services(salon["id"])

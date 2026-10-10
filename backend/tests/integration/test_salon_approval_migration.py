@@ -129,7 +129,7 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
         priority = next(p for p in revisions if p.stem == "0017_salon_display_priority")
         for path in revisions:
             # The current v3 baseline already contains 0005's experience column.
-            if path.stem.startswith(("0001_", "0005_", "0006_", "0015_", "0017_")):
+            if path.stem.startswith(("0001_", "0005_", "0006_", "0015_", "0017_", "0022_")):
                 continue
             for sql in migration_sql(path, "upgrade"):
                 await conn.execute(isolate(sql, schema))

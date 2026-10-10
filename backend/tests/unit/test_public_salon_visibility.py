@@ -53,6 +53,7 @@ class SQLiteSession:
                 id text primary key, name text, description text, category text,
                 address text, city text, lat real, lng real, timezone text,
                 working_hours text, approval_mode text, slot_interval_minutes int,
+                accepting_bookings boolean not null default 1,
                 approval_status text, is_active bool, profile_completed bool,
                 display_priority int not null default 0, qr_token text,
                 discovery_visibility text not null default 'listed',

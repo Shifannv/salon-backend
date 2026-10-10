@@ -66,6 +66,12 @@ class SlotUnavailableError(ConflictError):
     code = "slot_unavailable"
 
 
+class SalonNotAcceptingBookingsError(ConflictError):
+    """The salon owner has paused new bookings."""
+
+    code = "salon_not_accepting_bookings"
+
+
 class DeletionBlockedError(ConflictError):
     """Account deletion is blocked until open bookings or requests are resolved."""
 

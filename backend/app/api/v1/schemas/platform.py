@@ -12,6 +12,7 @@ from pydantic import (
     ConfigDict,
     Field,
     HttpUrl,
+    StrictBool,
     StringConstraints,
     TypeAdapter,
     field_validator,
@@ -102,6 +103,7 @@ class SalonSummaryResponse(BaseModel):
     lng: float | None = None
     timezone: str
     approval_mode: str
+    accepting_bookings: bool = True
     profile_completed: bool
     is_active: bool
     working_hours: dict[str, Any] | None = None
@@ -162,6 +164,7 @@ class SalonDetailResponse(BaseModel):
     timezone: str
     working_hours: dict[str, Any]
     approval_mode: str
+    accepting_bookings: bool = True
     profile_completed: bool
     is_active: bool
     images: list[SalonImageResponse] = Field(default_factory=list)
@@ -182,6 +185,7 @@ class OwnerSalonResponse(BaseModel):
     timezone: str
     working_hours: dict[str, Any]
     approval_mode: str
+    accepting_bookings: bool
     slot_interval_minutes: int
     qr_token: str
     profile_completed: bool
@@ -219,6 +223,7 @@ class OwnerSalonSettingsRequest(BaseModel):
 
     approval_mode: Literal["auto", "manual"] | None = None
     working_hours: dict[str, Any] | None = None
+    accepting_bookings: StrictBool | None = None
 
 
 class SalonImageCreateRequest(HostedMediaRequest):

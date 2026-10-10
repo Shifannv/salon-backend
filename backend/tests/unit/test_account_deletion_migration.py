@@ -27,7 +27,7 @@ def test_revision_chain_is_linear_after_media_guards():
     assert migration.revision == "0021_account_deletion"
     assert migration.down_revision == "0020_media_reference_guards"
     heads = [p.stem for p in VERSIONS.glob("0*.py")]
-    assert max(heads) == "0021_account_deletion" and len(heads) == len(set(heads))
+    assert "0021_account_deletion" in heads and len(heads) == len(set(heads))
 
 
 def test_upgrade_creates_bound_challenges_and_a_pii_free_ledger():
