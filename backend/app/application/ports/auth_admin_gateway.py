@@ -12,6 +12,17 @@ class CreatedAuthUser:
     email: str
 
 
+@dataclass(frozen=True, slots=True)
+class AuthUserContacts:
+    """Provider-side contact methods and whether the provider has verified them."""
+
+    user_id: str
+    email: str | None
+    email_verified: bool
+    phone: str | None
+    phone_verified: bool
+
+
 class AuthAdminGateway(ABC):
     """Abstract interface for privileged Supabase Auth management.
 
@@ -55,3 +66,11 @@ class AuthAdminGateway(ABC):
         Args:
             user_id: The Supabase Auth user UUID.
         """
+
+    @abstractmethod
+    async def get_user(self, user_id: str) -> AuthUserContacts | None:
+        """Return the provider's verified contacts for a user, or None if absent."""
+
+    @abstractmethod
+    async def delete_user(self, user_id: str) -> None:
+        """Permanently delete a Supabase Auth user. A missing user counts as success."""

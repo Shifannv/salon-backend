@@ -76,6 +76,18 @@ class Settings(BaseSettings):
     customer_cancellation_cutoff_minutes: int = Field(default=120, ge=0, le=10080)
     allow_late_cancellation_requests: bool = True
 
+    # Account deletion. The secret keys the HMAC of OTP-bound contacts, confirmation
+    # tokens and status tokens. Unset => deletion endpoints answer 503 outside local/test.
+    account_deletion_secret: str | None = Field(default=None, min_length=32)
+    account_deletion_challenge_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    account_deletion_confirmation_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    account_deletion_resend_cooldown_seconds: int = Field(default=60, ge=10, le=3600)
+    account_deletion_max_attempts: int = Field(default=5, ge=1, le=10)
+    account_deletion_max_resends: int = Field(default=3, ge=0, le=10)
+    account_deletion_max_challenges_per_hour: int = Field(default=5, ge=1, le=50)
+    account_deletion_worker_poll_seconds: int = Field(default=15, ge=1, le=3600)
+    account_deletion_stale_processing_seconds: int = Field(default=600, ge=60)
+
     # Subscription provider ('none' = no external payment calls, no webhook routes).
     # Future values: 'stripe', 'razorpay', etc.
     subscription_provider: str = "none"

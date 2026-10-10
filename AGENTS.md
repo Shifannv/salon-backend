@@ -89,6 +89,9 @@ infrastructure -> domain/application ports
 - Do not insert directly into `bookings` or `booking_services` from Python.
 - Do not compute available slots in Python.
 - Use soft delete through `is_active`; do not add hard-delete behavior for platform data.
+  The one scoped exception is verified, user-confirmed account erasure (`backend/docs/ACCOUNT_DELETION.md`),
+  which hard-deletes the account's profile and Supabase Auth identity and anonymizes retained records.
+  Do not extend it to other entities.
 - Do not expose raw Postgres errors, constraint names, or SQL fragments in HTTP responses.
 
 ## Deployment Rules

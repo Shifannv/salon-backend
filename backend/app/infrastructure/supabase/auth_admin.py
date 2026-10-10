@@ -2,9 +2,13 @@
 
 import httpx
 
-from app.application.ports.auth_admin_gateway import AuthAdminGateway, CreatedAuthUser
+from app.application.ports.auth_admin_gateway import (
+    AuthAdminGateway,
+    AuthUserContacts,
+    CreatedAuthUser,
+)
 from app.core.config import Settings
-from app.core.exceptions import ConflictError, ValidationError
+from app.core.exceptions import ConflictError, ServiceUnavailableError, ValidationError
 
 
 class SupabaseAuthAdminGateway(AuthAdminGateway):
@@ -63,6 +67,43 @@ class SupabaseAuthAdminGateway(AuthAdminGateway):
             raise ValidationError(
                 f"Could not ban Supabase Auth user {user_id}: {response.status_code}"
             )
+
+    async def get_user(self, user_id: str) -> AuthUserContacts | None:
+        """Return the provider's verified contacts for a user."""
+
+        base_url, headers = self._admin_base()
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(
+                f"{base_url}/auth/v1/admin/users/{user_id}", headers=headers
+            )
+        if response.status_code == 404:
+            return None
+        if response.is_error:
+            raise ServiceUnavailableError("Authentication provider is unavailable")
+        data = response.json()
+        return AuthUserContacts(
+            user_id=str(data["id"]),
+            email=data.get("email") or None,
+            email_verified=bool(data.get("email_confirmed_at")),
+            phone=data.get("phone") or None,
+            phone_verified=bool(data.get("phone_confirmed_at")),
+        )
+
+    async def delete_user(self, user_id: str) -> None:
+        """Hard-delete a Supabase Auth user; an already-missing user is success."""
+
+        base_url, headers = self._admin_base()
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.request(
+                "DELETE",
+                f"{base_url}/auth/v1/admin/users/{user_id}",
+                json={"should_soft_delete": False},
+                headers=headers,
+            )
+        if response.status_code == 404:
+            return
+        if response.is_error:
+            raise ServiceUnavailableError("Authentication provider could not delete the user")
 
     def _admin_base(self) -> tuple[str, dict[str, str]]:
         """Return base URL and auth headers for the Admin API."""

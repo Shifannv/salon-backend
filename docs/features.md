@@ -22,3 +22,13 @@ Current website integration additions include full super-admin onboarding review
 discovery visibility and home placement controls, optional enforced admin MFA, and
 QR-scoped booking retries. See the website implementation prompt for exact contracts.
 Paid subscription checkout/webhooks remain unimplemented; existing activation is manual/test.
+
+## Account deletion (implemented, not yet production-verified)
+
+Customers and owners can permanently delete their account from either app through one
+backend workflow: verification code to their own verified email/phone, explicit `DELETE`
+confirmation, immediate lockout, then durable background erasure of the Auth identity,
+profile, media, caches and tokens. Past bookings are retained anonymized; an owner's salon is
+removed from customer-facing screens and scrubbed. Deletion is blocked while open bookings
+or pending requests exist. The public web deletion page required by Google Play lives in the
+separate website repository and is **not built yet**. See `backend/docs/ACCOUNT_DELETION.md`.

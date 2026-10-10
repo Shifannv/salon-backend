@@ -54,3 +54,12 @@ Online payment still requires a verified provider webhook.
 Customer cancellation is immediate only before the configured cutoff. After the cutoff,
 the customer can request cancellation while the booking remains active; only the owning
 salon may approve or decline it. Closure preview/application is owner-only.
+
+## Account deletion
+
+Only `customer` and `owner` accounts may delete themselves; `staff` and `super_admin` get 403.
+The target account is always the verified JWT `sub` resolved through `profiles`; request
+bodies cannot name a user. A deletion challenge is bound to one user, one purpose and one
+contact hash, and its code must authenticate that same Supabase user. The status endpoint is
+the only unauthenticated route and is guarded by an HMAC status token. The admin ledger
+(`GET /v1/admin/account-deletions`) is super-admin only and contains no personal identifiers.

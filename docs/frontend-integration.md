@@ -39,3 +39,22 @@ See the [website implementation prompt](../backend/docs/WEBSITE_SUPERADMIN_PROMP
 
 Never place the Supabase service-role key, database URL, R2 secret, or Firebase service
 account in a frontend environment.
+
+## Account deletion contract (customer app, owner app, website)
+
+All three call the same endpoints with the user's bearer token; never send a user id or role.
+
+1. `POST /v1/account/deletion/challenges` `{channel: "email"|"phone", contact?}` -> 202
+   `{challenge_id, masked_destination, expires_at, resend_available_at}`.
+2. `POST /v1/account/deletion/challenges/{challenge_id}/verify` `{code}` -> 200
+   `{confirmation_token, expires_at}` (nothing is deleted yet).
+3. `POST /v1/account/deletion` `{challenge_id, confirmation_token, confirm: "DELETE"}` -> 202
+   `{request_id, status, status_token}`. Show an irreversible-action warning first. Afterwards
+   the bearer token is rejected (401): sign the user out locally.
+4. `GET /v1/account/deletion/{request_id}` with header `X-Status-Token: <status_token>` -> 200
+   `{status: pending|processing|completed|failed, requested_at, completed_at}`. `failed` means
+   a retry is scheduled; the account stays locked.
+
+Errors use the standard envelope. Handle `deletion_blocked` (409: tell the user to finish or
+cancel open bookings/requests), `contact_mismatch` (422), `invalid_verification_code` (400),
+and 429 (honor `resend_available_at`). Details: `backend/docs/ACCOUNT_DELETION.md`.

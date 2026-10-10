@@ -44,3 +44,14 @@ curl http://127.0.0.1:8000/health/redis
 - A booking conflict is expected under concurrency; clients should refresh slots.
 - If database connections are exhausted, inspect pool settings and Supabase pooler
   limits before increasing application concurrency.
+
+## Account deletion worker
+
+- Compose service `account-deletion-worker` drains `account_deletion_requests`. If it is not
+  running, confirmed accounts are locked but not erased; start it and check logs.
+- A request stuck in `failed` retries with backoff (30 s doubling to 1 h) and records only an
+  error class in `last_error_code` (for example `ServiceUnavailableError` = Supabase down,
+  `ErasureVerificationError` = a post-condition failed). Fix the cause; do not edit rows to
+  force `completed`.
+- Migrations `0020` then `0021` must be applied explicitly before enabling the feature.
+- Full procedure and data matrix: `ACCOUNT_DELETION.md`.
