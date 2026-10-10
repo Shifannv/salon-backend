@@ -14,7 +14,7 @@ from app.application.use_cases.workspace import assert_approved_workspace
 from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile, Role
-from app.domain.services.authorization import is_owner_or_staff
+from app.domain.services.authorization import is_owner, is_owner_or_staff
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 _log = logging.getLogger(__name__)
@@ -227,6 +227,19 @@ class OwnerUseCases:
 
         self._assert_owner_workspace(actor)
         return await self.repository.update_owner_salon(actor.id, values)
+
+    async def update_settings(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
+        """Update owner settings; pausing bookings needs the approved salon's owner.
+
+        ``accepting_bookings`` only gates *new* bookings (enforced in Postgres). It never
+        cancels, moves or notifies about existing bookings.
+        """
+
+        if "accepting_bookings" in values:
+            if not is_owner(actor):
+                raise ForbiddenError("Only the salon owner can change booking availability")
+            await assert_approved_workspace(self.repository, actor)
+        return await self.update_my_salon(actor, values)
 
     async def get_business_salon(self, actor: Profile) -> dict[str, Any]:
         """Return the approved salon for operational tools such as walk-in QR."""

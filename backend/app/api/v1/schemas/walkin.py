@@ -51,6 +51,7 @@ class WalkInSalonResponse(BaseModel):
     qr_token: str | None = None
     timezone: str
     approval_mode: str
+    accepting_bookings: bool = True  # False → show "Not accepting bookings right now"
     working_hours: dict = Field(default_factory=dict)
     services: list[WalkInServiceSummary] = Field(default_factory=list)
     staff: list[WalkInStaffSummary] = Field(default_factory=list)

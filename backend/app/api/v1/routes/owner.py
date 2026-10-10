@@ -129,10 +129,16 @@ async def update_settings(
     payload: OwnerSalonSettingsRequest,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    cache: CacheGateway = Depends(get_cache),
 ) -> OwnerSalonResponse:
-    """Update owner salon settings (approval mode and working hours)."""
+    """Update owner salon settings (approval mode, working hours, accepting bookings)."""
 
-    salon = await _use_cases(session).update_my_salon(actor, payload.model_dump(exclude_unset=True))
+    values = payload.model_dump(exclude_unset=True)
+    salon = await _use_cases(session).update_settings(actor, values)
+    if "accepting_bookings" in values:
+        # Public salon payloads and the cached QR page embed accepting_bookings.
+        await cache.delete_prefix(f"salon:{salon['id']}:")
+        await cache.delete(f"walkin:qr:{salon['qr_token']}")
     return OwnerSalonResponse(**salon)
 
 

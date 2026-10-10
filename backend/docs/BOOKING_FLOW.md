@@ -43,3 +43,19 @@ Owners preview holiday/leave impact through `/v1/salons/me/closures/preview`, th
 the exact set through `/v1/salons/me/closures`. Applying creates the closure, cancels only
 the overlapping active bookings, and persists a notification for each customer in one
 transaction.
+
+## Pausing new bookings
+
+`salons.accepting_bookings` (default `true`) lets an approved salon's owner pause new
+bookings with `PATCH /v1/salons/me/settings {"accepting_bookings": false}`. Staff,
+customers, admins and unapproved salons get 403.
+
+- Enforced in Postgres (migration `0022`): `get_available_slots` returns no rows and
+  `create_booking` raises `salon_not_accepting_bookings` for every source, including
+  owner/staff `manual_walkin`. The API maps it to `409` with error code
+  `salon_not_accepting_bookings`.
+- Existing bookings are untouched: no cancellation, no notifications.
+- `accepting_bookings` is exposed on `OwnerSalonResponse`, salon list/detail and the
+  walk-in QR payload so apps can show "Not accepting bookings right now". Toggling
+  clears the `salon:{id}:*` and `walkin:qr:{token}` cache keys.
+- Idempotent replays of a booking created before the pause still return that booking.
