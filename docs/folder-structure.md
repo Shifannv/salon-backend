@@ -15,7 +15,6 @@ salon-backend/
     docker-compose.yml
     requirements*.txt
   docs/                 concise project-level decisions
-  .github/workflows/    CI, deployment on main pushes, and manual deployment
 ```
 
 Frontend source does not belong in this repository. Do not move code between the four

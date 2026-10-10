@@ -1,5 +1,8 @@
 # Docker deployment
 
+Deploy manually with Docker Compose on the GCP VM. This branch contains no GitHub
+Actions workflows. Run verification locally before deploying.
+
 Use `backend/` as the Docker build context.
 Use Docker Compose v2 with `up --wait` and `--wait-timeout` support.
 
@@ -40,99 +43,61 @@ Review it before running it against a populated database.
 
 ## GCP VM
 
-On a supported Ubuntu/Debian VM, install Docker once and then deploy:
-
-```bash
-cd backend
-bash scripts/gcp-vm-install-docker.sh
-cp .env.gcp.example .env
-# Fill .env with real server-side values.
-docker compose build
-docker compose run --rm api alembic upgrade head
-bash scripts/gcp-vm-deploy.sh
-```
-
-The GitHub Actions deployment builds from `backend/`, pushes to Artifact
-Registry, and updates the VM. Runtime secrets belong in `backend/.env` on the VM or in
-the hosting platform, never in the image.
-
-## GitHub Actions
-
-CI runs on pushes to `main`, `preview`, and `hafiz`, and on pull requests targeting
-`main` or `preview`. It checks Ruff,
-pytest, shell syntax, Compose configuration, and the Docker image. The image smoke
-check verifies `/health` with `PORT=8080`, non-root execution, worker imports, and
-packaged Alembic revisions without contacting production services.
-
-The **Deploy** workflow runs automatically on every push to `main`, including merged
-pull requests. Pushes to other branches do not trigger deployment. Manual dispatch
-remains available on a reviewed ref. Each deployment calls CI first, then
-builds and smoke-tests the release image before publishing it with the full commit SHA.
-Both API and worker are deployed by the published digest, not a mutable `latest` tag.
-Deployments across branches are serialized because they target the same VM.
-The workflow copies only `backend/docker-compose.yml` and
-`backend/scripts/gcp-vm-deploy.sh` from that ref to `~/salon-backend` on the VM.
-It preserves the VM's `.env` and does not update the rest of its Git checkout.
-
-Required GitHub Actions secrets:
-
-| Secret | Purpose |
-| --- | --- |
-| `GCP_PROJECT_ID` | Project containing Artifact Registry |
-| `GCP_REGION` | Artifact Registry repository location, e.g. `us-central1` or `us`; never a VM zone such as `us-central1-a` |
-| `GCP_SA_KEY` | Google service-account JSON for the runner; needs registry write access |
-| `GCP_VM_HOST` | SSH hostname or IP address |
-| `GCP_VM_USER` | VM login user with Docker access |
-| `GCP_VM_SSH_KEY` | Private SSH key for that user |
-
-Create the Artifact Registry Docker repository named `salon-backend` before deploying.
-The workflow verifies this repository before building an image. If `GCP_REGION` does
-not resolve it, the workflow searches the configured project and uses the location of
-the single matching repository. Discovery needs permission to list repositories across
-locations. Missing, ambiguous, inaccessible, or nonstandard Docker repositories stop
-deployment with an explanation. Both the runner and VM authenticate to the verified
-registry hostname.
-
-To find the location, open Google Cloud Console, select the deployment project, then
-open **Artifact Registry > Repositories** and check the **Location** for `salon-backend`.
-Copy it to GitHub **Settings > Secrets and variables > Actions > GCP_REGION**.
-An HTML 404 during `blobs/uploads/` can indicate an invalid registry hostname; check
-the repository location rather than using the VM zone.
-
-The VM needs `gcloud`, registry read access, Docker Compose, and a configured
-`~/salon-backend/backend/.env`. The workflow currently builds Linux amd64 images, so
-use an amd64 VM. Bootstrap Docker once with `gcp-vm-install-docker.sh`, then log in
-again after Docker group membership changes.
-
-Review Alembic revisions before merging them into `main`. Every deployment runs a
-separate migration step using the exact release image before updating services; a
-migration failure stops deployment. Neither container startup nor the VM deploy script
-runs migrations. Changes must remain compatible with the old services while migrations
-run. Revision `0014_repair_cancel_reason` repairs the nullable column
-missing from some databases already recorded at revision `0013`.
-
-Alternatively, apply migrations explicitly on the VM using a reviewed published image:
+Clone the repository onto a supported Ubuntu/Debian VM. Install Docker once:
 
 ```bash
 cd ~/salon-backend/backend
-export SALON_API_IMAGE=REGION-docker.pkg.dev/PROJECT/salon-backend/salon-platform-api@sha256:REVIEWED_DIGEST
-docker compose pull api
-docker compose run --rm --no-deps api alembic upgrade head
-bash scripts/gcp-vm-deploy.sh --pull
+bash scripts/gcp-vm-install-docker.sh
 ```
 
-Do not use a stale VM checkout to run new migrations. Save the deployed image digest
-from the workflow summary and export `SALON_API_IMAGE` before later manual Compose
-commands; the workflow's environment does not persist in a new SSH session.
+Log out and back in after Docker group membership changes. Then create the runtime
+environment file on the VM:
+
+```bash
+cd ~/salon-backend/backend
+cp .env.gcp.example .env
+chmod 600 .env
+# Fill .env with real server-side values on the VM.
+```
+
+Runtime secrets belong in `backend/.env` on the VM or in the hosting platform, never
+in Git or the image. Local builds on the VM do not require Artifact Registry or
+GitHub Actions secrets.
+
+Before each deployment, use the reviewed release checkout, build it, inspect the
+database revision, apply reviewed migrations, and deploy:
+
+```bash
+cd ~/salon-backend/backend
+docker compose build
+docker compose run --rm --no-deps api alembic current
+docker compose run --rm --no-deps api alembic upgrade head
+bash scripts/gcp-vm-deploy.sh
+docker compose ps
+curl --fail http://127.0.0.1:8000/health
+curl --fail http://127.0.0.1:8000/health/db
+curl --fail http://127.0.0.1:8000/health/redis
+```
+
+Stop if a migration fails. A new VM can still connect to an existing database; if its
+schema was installed without Alembic tracking, follow the [migration guide](../migrations/README.md)
+before applying migrations. Changes must remain compatible with any old services
+while migrations run. Neither container startup nor the VM deploy script runs migrations.
 
 The deploy script builds from the local checkout by default (`--build`), or pulls
 `SALON_API_IMAGE` with `--pull`. It validates Compose and updates all three services,
 waiting up to 120 seconds for readiness. It exits nonzero on failure without an
-automatic rollback. To restore an earlier image, export its digest and rerun with
-`--pull` only after checking database compatibility.
+automatic rollback.
+
+If using an independently published image, authenticate the VM to its registry,
+set `SALON_API_IMAGE` to the reviewed image digest, pull it, and apply migrations from
+that exact image before calling `bash scripts/gcp-vm-deploy.sh --pull`. Save the digest
+and set it again for later manual Compose commands. To restore an earlier image,
+set its digest and rerun with `--pull` only after checking database compatibility.
 
 For an alternate runtime env file, set `COMPOSE_ENV_FILE` before calling the script.
 It uses that file for both Compose interpolation and container environment settings.
+For direct Compose commands, also pass `--env-file "$COMPOSE_ENV_FILE"`.
 
 ## Cloud Run
 
