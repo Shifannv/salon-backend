@@ -72,14 +72,21 @@ class AccountDeletionUseCases:
 
     async def _assert_not_blocked(self, actor: Profile) -> None:
         blockers = await self.repository.count_blockers(actor.id, actor.role.value)
-        if blockers["open_bookings"] or blockers["pending_requests"]:
+        details: dict[str, int] = {}
+        if blockers["open_bookings"]:
+            details["open_bookings"] = blockers["open_bookings"]
+        if blockers["pending_requests"]:
+            details["pending_requests"] = blockers["pending_requests"]
+        if details:
             raise DeletionBlockedError(
-                "Resolve open bookings and pending requests before deleting your account "
-                f"({blockers['open_bookings']} open bookings, "
-                f"{blockers['pending_requests']} pending requests)"
+                "Resolve open bookings and pending requests before deleting your account",
+                details=details,
             )
         if blockers["active_subscriptions"] and self.settings.subscription_provider != "none":
-            raise DeletionBlockedError("Cancel your active subscription before deleting your account")
+            raise DeletionBlockedError(
+                "Cancel your active subscription before deleting your account",
+                details={"active_subscriptions": blockers["active_subscriptions"]},
+            )
 
     async def _verified_destination(self, actor: Profile, channel: str) -> str:
         contacts = await self.auth_admin.get_user(actor.id)
