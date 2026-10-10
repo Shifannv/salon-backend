@@ -9,6 +9,7 @@ describe the overall project, current features, and remaining integration bounda
 - [Database plan](database-plan.md)
 - [Features](features.md)
 - [Frontend integration](frontend-integration.md)
+- [Frontend integration prompts and readiness checklist](FRONTEND_INTEGRATION_PROMPTS.md)
 - [Customer app API contract](Customer-App-Backend-API-Document.md)
 - [Salon owner app API contract](Salon-Owner-App-Backend-API-Document.md)
 - [Git workflow](git-workflow.md)
