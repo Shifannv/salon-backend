@@ -193,7 +193,7 @@ async def get_my_qr(
     summary="Get a signed upload URL for a salon image",
     description=(
         "Returns a short-lived signed PUT URL and the resulting public URL for "
-        "uploading a salon image directly to Cloudflare R2.\n\n"
+        "uploading a salon image through the backend image validation gateway.\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
         "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"
@@ -545,7 +545,7 @@ async def list_staff_services(
     summary="Get a signed upload URL for a staff photo",
     description=(
         "Returns a short-lived signed PUT URL and the resulting public URL for "
-        "uploading a staff photo directly to Cloudflare R2.\n\n"
+        "uploading a staff photo through the backend image validation gateway.\n\n"
         "**Upload flow:**\n"
         "1. Call this endpoint to get `upload_url` and `public_url`.\n"
         "2. `PUT <upload_url>` with the image binary and `Content-Type: <your_mime_type>` header.\n"

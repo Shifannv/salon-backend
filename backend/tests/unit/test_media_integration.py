@@ -1,10 +1,12 @@
 """Regression coverage for QR, provider uploads, avatars and reports."""
 
+from io import BytesIO
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.api.deps import get_authenticated_session, get_current_actor, get_storage_gateway
 from app.api.v1.routes import media, owner, reports
@@ -12,9 +14,12 @@ from app.application.use_cases.media import MAX_IMAGE_BYTES, UploadAvatar
 from app.application.use_cases.reports import SubmitReport
 from app.core.exceptions import ForbiddenError, ValidationError, register_exception_handlers
 from app.domain.entities.profile import Role
+from app.infrastructure.media.pillow_processor import PillowImageProcessor
 from tests.conftest import make_owner, make_profile
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"sample"
+_png = BytesIO()
+Image.new("RGB", (64, 64), "blue").save(_png, "PNG")
+PNG = _png.getvalue()
 
 
 def client_for(router, prefix="/v1"):
@@ -30,7 +35,7 @@ async def test_avatar_upload_persists_only_actor_profile():
     repo, storage = AsyncMock(), AsyncMock()
     storage.upload_bytes.return_value = "https://cdn.example.test/avatar.png"
     actor = make_profile()
-    url = await UploadAvatar(repo, storage).execute(actor, PNG, "image/png", "images")
+    url = await UploadAvatar(repo, storage, PillowImageProcessor()).execute(actor, PNG, "image/png", "images")
     repo.update_profile.assert_awaited_once_with(actor.id, {"avatar_url": url})
     assert storage.upload_bytes.call_args.args[1].startswith(f"avatars/{actor.id}/")
 
@@ -47,7 +52,7 @@ async def test_avatar_upload_persists_only_actor_profile():
 async def test_avatar_rejects_invalid_images_before_upload(data, mime):
     repo, storage = AsyncMock(), AsyncMock()
     with pytest.raises(ValidationError):
-        await UploadAvatar(repo, storage).execute(make_profile(), data, mime, "images")
+        await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), data, mime, "images")
     storage.upload_bytes.assert_not_awaited()
     repo.update_profile.assert_not_awaited()
 
@@ -56,7 +61,7 @@ async def test_avatar_provider_failure_does_not_update_profile():
     repo, storage = AsyncMock(), AsyncMock()
     storage.upload_bytes.side_effect = ValidationError("Provider unavailable")
     with pytest.raises(ValidationError):
-        await UploadAvatar(repo, storage).execute(make_profile(), PNG, "image/png", "images")
+        await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), PNG, "image/png", "images")
     repo.update_profile.assert_not_awaited()
 
 

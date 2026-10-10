@@ -84,63 +84,38 @@ def test_get_public_url_strips_trailing_slash_from_base():
 
 
 @pytest.mark.asyncio
-async def test_get_upload_url_calls_boto3_with_correct_params():
-    gw = R2StorageGateway(_FULL_SETTINGS)
-
-    fake_url = "https://fake-presigned.r2.dev/put?sig=abc"
-    fake_client = MagicMock()
-    fake_client.generate_presigned_url.return_value = fake_url
-
-    with patch.object(gw, "_build_client", return_value=fake_client):
-        url = await gw.get_upload_url("salon-images", "salon-images/s1/img.jpeg", "image/jpeg")
-
-    assert url == fake_url
-    fake_client.generate_presigned_url.assert_called_once_with(
-        "put_object",
-        Params={"Bucket": "salon-images", "Key": "salon-images/s1/img.jpeg", "ContentType": "image/jpeg"},
-        ExpiresIn=300,
-    )
+async def test_upload_url_requires_public_api_origin():
+    gw = R2StorageGateway(_FULL_SETTINGS.model_copy(update={"public_api_base_url": None}))
+    with pytest.raises(ValidationError, match="PUBLIC_API_BASE_URL"):
+        await gw.get_upload_url("salon-images", "salon-images/s1/img.jpeg", "image/jpeg")
 
 
 @pytest.mark.asyncio
-async def test_get_upload_url_raises_validation_error_on_boto3_failure():
-    gw = R2StorageGateway(_FULL_SETTINGS)
-
-    fake_client = MagicMock()
-    fake_client.generate_presigned_url.side_effect = RuntimeError("network error")
-
-    with (
-        patch.object(gw, "_build_client", return_value=fake_client),
-        pytest.raises(ValidationError, match="Could not generate R2 upload URL"),
-    ):
-        await gw.get_upload_url("salon-images", "salon-images/s1/img.jpeg", "image/jpeg")
+async def test_upload_url_is_a_backend_capability_without_r2_presigning():
+    from pydantic import HttpUrl, TypeAdapter
+    origin = TypeAdapter(HttpUrl).validate_python("https://api.example.test")
+    gw = R2StorageGateway(_FULL_SETTINGS.model_copy(update={"public_api_base_url": origin}))
+    with patch.object(gw, "_build_client") as build:
+        url = await gw.get_upload_url("salon-images", "salon-images/s1/img.jpeg", "image/jpeg")
+    assert url.startswith("https://api.example.test/v1/media/uploads/")
+    gw.validate_upload_token(url.rsplit("/", 1)[-1], "image/jpeg")
+    build.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_get_upload_url_raises_when_r2_not_configured():
     gw = R2StorageGateway(_PARTIAL_SETTINGS)
     with pytest.raises(ValidationError, match="R2_ACCESS_KEY_ID"):
-        await gw.get_upload_url("salon-images", "path/to/img.jpeg", "image/jpeg")
+        await gw.get_upload_url("salon-images", "avatars/u/img.jpeg", "image/jpeg")
 
 
-# ---------------------------------------------------------------------------
-# boto3 client caching
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_get_client_caches_boto3_client_across_calls():
+def test_get_client_caches_boto3_client_across_calls():
     gw = R2StorageGateway(_FULL_SETTINGS)
-
     fake_client = MagicMock()
-    fake_client.generate_presigned_url.return_value = "https://presigned.example.com"
-
-    with patch.object(gw, "_build_client", return_value=fake_client) as mock_build:
-        await gw.get_upload_url("salon-images", "path/img.jpeg", "image/jpeg")
-        await gw.get_upload_url("salon-images", "path/img2.jpeg", "image/webp")
-
-    # _build_client should only be called once despite two presign calls
-    mock_build.assert_called_once()
+    with patch.object(gw, "_build_client", return_value=fake_client) as build:
+        assert gw._get_client() is fake_client
+        assert gw._get_client() is fake_client
+    build.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

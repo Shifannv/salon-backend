@@ -420,6 +420,7 @@ async def test_get_image_upload_url_raises_for_non_owner():
 @pytest.mark.asyncio
 async def test_get_staff_photo_upload_url_returns_upload_result():
     repo = make_mock_repo()
+    repo.list_owner_staff.return_value = [{"id": "staff-007"}]
     repo.get_owner_salon.return_value = SALON
     gw = _FakeStorageGateway()
     uc = OwnerUseCases(repo, storage_gateway=gw)
