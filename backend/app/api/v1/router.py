@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.routes import (
+    account_deletion,
     admin,
     auth,
     booking_actions,
@@ -18,6 +19,12 @@ from app.api.v1.routes import (
 )
 
 api_v1_router = APIRouter(prefix="/v1")
+api_v1_router.include_router(
+    account_deletion.router, prefix="/account/deletion", tags=["account deletion"]
+)
+api_v1_router.include_router(
+    account_deletion.admin_router, prefix="/admin", tags=["account deletion"]
+)
 api_v1_router.include_router(media.router, tags=["media"])
 api_v1_router.include_router(reports.router, tags=["reports"])
 api_v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])

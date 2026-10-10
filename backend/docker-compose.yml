@@ -66,6 +66,22 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+  account-deletion-worker:
+    image: ${SALON_API_IMAGE:-salon-platform-api:latest}
+    env_file:
+      - ${COMPOSE_ENV_FILE:-.env}
+    command: ["python", "-m", "app.infrastructure.account_deletion.worker"]
+    environment: *app-environment
+    healthcheck:
+      disable: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
   redis:
     image: redis:7-alpine
     restart: unless-stopped

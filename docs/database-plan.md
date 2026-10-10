@@ -39,3 +39,12 @@ Rules:
 - Never expose raw database errors, SQL, or constraint names through HTTP responses.
 
 See [the migration guide](../backend/migrations/README.md) for safe commands.
+
+## Account deletion (revision `0021_account_deletion`)
+
+Adds `account_deletion_challenges` (per-user, hashed contact/confirmation, attempt and expiry
+state, one live row per user) and `account_deletion_requests` (durable erasure outbox and
+PII-free ledger, no foreign key to `profiles`). Relaxes `NOT NULL` on `salons.owner_id` and
+`booking_action_requests.requested_by`, teaches `set_audit_actor()` to stand down inside the
+erasure transaction (`app.account_erasure`), and adds `erase_profile_references(uuid)` which
+nulls every no-action foreign key to `profiles(id)`. Requires `0020` first.

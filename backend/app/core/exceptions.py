@@ -65,11 +65,30 @@ class SlotUnavailableError(ConflictError):
     code = "slot_unavailable"
 
 
+class DeletionBlockedError(ConflictError):
+    """Account deletion is blocked until open bookings or requests are resolved."""
+
+    code = "deletion_blocked"
+
+
 class ValidationError(AppError):
     """Raised when business validation fails."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     code = "validation_error"
+
+
+class ContactMismatchError(ValidationError):
+    """The supplied contact is not a verified contact of the authenticated account."""
+
+    code = "contact_mismatch"
+
+
+class InvalidVerificationCodeError(AppError):
+    """A verification code or confirmation token is wrong, expired or already used."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = "invalid_verification_code"
 
 
 class ServiceUnavailableError(AppError):
