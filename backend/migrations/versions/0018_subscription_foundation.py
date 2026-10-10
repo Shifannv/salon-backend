@@ -50,7 +50,9 @@ create table subscription_plans (
   updated_at      timestamptz not null default now(),
   updated_by      uuid references profiles(id)
 );
+    """)
 
+    op.execute("""
 create trigger t_subscription_plans_audit before insert or update on subscription_plans
   for each row execute function set_audit_actor();
     """)
@@ -86,11 +88,18 @@ create table salon_subscriptions (
   updated_at            timestamptz not null default now(),
   updated_by            uuid references profiles(id)
 );
+    """)
 
+    op.execute("""
 create trigger t_salon_subscriptions_audit before insert or update on salon_subscriptions
   for each row execute function set_audit_actor();
+    """)
 
+    op.execute("""
 create index idx_salon_subscriptions_salon_id on salon_subscriptions(salon_id);
+    """)
+
+    op.execute("""
 create index idx_salon_subscriptions_status   on salon_subscriptions(status);
     """)
 
@@ -115,7 +124,9 @@ create table subscription_events (
   processing_status            subscription_event_processing_status not null default 'received',
   error_message                text
 );
+    """)
 
+    op.execute("""
 create index idx_subscription_events_subscription
   on subscription_events(salon_subscription_id);
     """)
