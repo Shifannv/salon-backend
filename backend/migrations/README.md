@@ -21,6 +21,12 @@ Alembic owns the complete schema history.
 - `versions/0019_discovery_placement.py` adds discovery visibility/home placement and
   a super-admin database write guard. See the [website contract](../docs/WEBSITE_SUPERADMIN_PROMPT.md).
 
+Revision `0020_media_reference_guards` is required for safe managed-media cleanup.
+It locks media references on all seven tables and requires direct Supabase clients to
+assign new hosted URLs through the backend API. Review it before deployment; the cleanup
+worker refuses to delete media until all seven guards are installed. See
+[media operations](../docs/IMAGE_MEDIA.md).
+
 For a new empty database, run only:
 
 ```bash

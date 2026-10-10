@@ -18,6 +18,44 @@ class PlatformRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def lock_media_url(self, url: str) -> None:
+        """Serialize reference writes and cleanup across API/worker processes."""
+        await self.session.execute(
+            text("select pg_advisory_xact_lock(hashtextextended(:url, 0))"), {"url": url},
+        )
+
+    async def media_reference_guards_installed(self) -> bool:
+        """Cleanup requires enabled DB guards, including direct Data API writes."""
+        result = await self.session.execute(text("""
+            select count(*) = 7
+            from pg_trigger t
+            join pg_class c on c.oid = t.tgrelid
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = current_schema() and t.tgname = 'media_reference_guard'
+              and t.tgenabled in ('O', 'A') and not t.tgisinternal
+              and c.relname in ('profiles', 'staff', 'salon_images', 'services',
+                                'service_categories', 'service_subcategories', 'salons')
+        """))
+        return bool(result.scalar_one())
+
+    async def media_url_is_referenced(self, url: str) -> bool:
+        """Include inactive records: soft deletion must not destroy shared media."""
+        # This does not bypass RLS. A role whose policies would hide references
+        # gets an error instead of a dangerously incomplete cleanup decision.
+        await self.session.execute(text("set local row_security = off"))
+        result = await self.session.execute(text("""
+            select exists (
+                select 1 from profiles where avatar_url = :url
+                union all select 1 from staff where photo_url = :url
+                union all select 1 from salon_images where url = :url and is_active = true
+                union all select 1 from services where photo_url = :url
+                union all select 1 from service_categories where image_url = :url
+                union all select 1 from service_subcategories where image_url = :url
+                union all select 1 from salons where qr_image_url = :url
+            )
+        """), {"url": url})
+        return bool(result.scalar_one())
+
     async def create_salon_report(
         self, actor_id: str, salon_id: str, reason: str, details: str,
     ) -> dict[str, Any]:
@@ -651,6 +689,17 @@ class PlatformRepository:
         """Create an image for the owner's salon."""
 
         salon = await self.get_owner_salon(actor_id)
+        # The publication use case holds the URL advisory lock. A lost attach
+        # response can safely retry without inserting a duplicate gallery row.
+        existing = await self.session.execute(text("""
+            select id, salon_id, url, caption, is_main, sort_order, created_at, updated_at
+            from salon_images where salon_id = :salon_id and url = :url and is_active = true
+            limit 1
+        """), {"salon_id": salon["id"], "url": values["url"]})
+        row = existing.mappings().one_or_none()
+        if row is not None:
+            await self.session.commit()
+            return dict(row)
         result = await self.session.execute(
             text(
                 """

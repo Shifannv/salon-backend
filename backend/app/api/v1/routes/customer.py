@@ -6,7 +6,12 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_cache, get_current_actor
+from app.api.deps import (
+    get_authenticated_session,
+    get_cache,
+    get_current_actor,
+    get_storage_gateway,
+)
 from app.api.v1.schemas.admin import CategoryResponse, SubcategoryResponse
 from app.api.v1.schemas.platform import (
     ProfileResponse,
@@ -28,7 +33,7 @@ catalog_router = APIRouter()
 
 
 def _use_cases(session: AsyncSession) -> CustomerUseCases:
-    return CustomerUseCases(PlatformRepository(session))
+    return CustomerUseCases(PlatformRepository(session), storage_gateway=get_storage_gateway())
 
 
 @router.get(

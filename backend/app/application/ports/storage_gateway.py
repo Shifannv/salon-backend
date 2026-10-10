@@ -2,6 +2,8 @@
 
 from abc import ABC, abstractmethod
 
+from app.application.ports.image_processor import ImagePolicy
+
 _UPLOAD_TTL_SECONDS = 300  # 5 minutes — exposed so implementations stay consistent
 
 _ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
@@ -11,7 +13,7 @@ _ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
         "image/webp",
     }
 )
-"""Image MIME types accepted for presigned upload URLs.
+"""Image MIME types accepted for signed upload URLs.
 
 Shared here so schemas and use cases can reference a single source of truth.
 """
@@ -21,13 +23,13 @@ class StorageGateway(ABC):
     """Abstract interface for cloud object storage.
 
     The infrastructure layer implements this for each storage backend:
-    - R2StorageGateway  (Cloudflare R2, S3-compatible presigned URLs)
+    - R2StorageGateway  (validated backend upload gateway, Cloudflare R2 storage)
     - SupabaseStorageGateway  (legacy, kept for reference)
     """
 
     @abstractmethod
     async def get_upload_url(self, bucket: str, path: str, content_type: str = "image/jpeg") -> str:
-        """Return a short-lived presigned URL the client can PUT to directly.
+        """Return a short-lived signed URL the client can PUT image bytes to.
 
         Args:
             bucket: Storage bucket name (e.g. 'salon-images').
@@ -35,7 +37,7 @@ class StorageGateway(ABC):
             content_type: MIME type of the file to be uploaded.
 
         Returns:
-            A presigned PUT URL valid for ``_UPLOAD_TTL_SECONDS`` seconds.
+            A signed PUT URL valid for ``_UPLOAD_TTL_SECONDS`` seconds.
         """
 
     @abstractmethod
@@ -94,3 +96,7 @@ class StorageGateway(ABC):
     async def accept_upload(self, token: str, data: bytes, content_type: str) -> None:
         """Validate and process a signed upload before publishing it."""
         raise NotImplementedError("Upload gateway unavailable")
+
+    async def validate_media_reference(self, url: str, namespace: str, *, policy: ImagePolicy | None = None) -> None:
+        """Require an owned object with trusted proof of server-side processing."""
+        raise NotImplementedError("Media publication validation unavailable")

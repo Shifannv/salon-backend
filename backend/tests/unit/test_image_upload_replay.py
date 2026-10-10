@@ -56,6 +56,7 @@ async def test_profile_write_failure_preserves_previous_image():
     repo, storage = AsyncMock(), AsyncMock()
     repo.update_profile.side_effect = RuntimeError("write failed")
     actor = replace(make_profile(), avatar_url="https://cdn.test/avatars/u/old.jpg")
+    repo.get_profile.return_value = {"avatar_url": actor.avatar_url}
     with pytest.raises(RuntimeError):
         await CustomerUseCases(repo, storage).update_profile(actor,
             {"avatar_url": "https://cdn.test/avatars/u/new.jpg"}, bucket="images", r2_public_base="https://cdn.test")

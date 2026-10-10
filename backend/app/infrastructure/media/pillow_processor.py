@@ -1,10 +1,14 @@
 """Bounded, metadata-free image decoding and encoding."""
 
 import asyncio
+import hashlib
+import threading
 import warnings
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from io import BytesIO
+from typing import ClassVar
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -18,6 +22,11 @@ _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="image-decode")
 
 
 class PillowImageProcessor:
+    # Only hashes of outputs produced by this process are trusted. No image bytes,
+    # client flags or metadata are cached. Eviction/restart simply re-encodes.
+    _approved_outputs: ClassVar[OrderedDict[tuple, None]] = OrderedDict()
+    _approved_lock = threading.Lock()
+
     def __init__(self, max_pixels: int = 40_000_000, max_source_bytes: int = 5 * 1024 * 1024):
         self.max_pixels = max_pixels
         self.max_source_bytes = max_source_bytes
@@ -33,6 +42,11 @@ class PillowImageProcessor:
         expected = SUPPORTED_FORMATS.get(content_type)
         if not expected:
             raise ValidationError("Upload a JPEG, PNG or WebP image; convert HEIC on your device first")
+        key = (hashlib.sha256(data).digest(), content_type, policy, self.max_pixels)
+        with self._approved_lock:
+            if key in self._approved_outputs:
+                self._approved_outputs.move_to_end(key)
+                return data
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -67,6 +81,12 @@ class PillowImageProcessor:
                                 candidate.save(output, format=expected, **options)
                                 result = output.getvalue()
                                 if len(result) <= policy.max_bytes:
+                                    output_key = (hashlib.sha256(result).digest(), content_type, policy, self.max_pixels)
+                                    with self._approved_lock:
+                                        self._approved_outputs[output_key] = None
+                                        self._approved_outputs.move_to_end(output_key)
+                                        while len(self._approved_outputs) > 256:
+                                            self._approved_outputs.popitem(last=False)
                                     return result
                             finally:
                                 candidate.close()

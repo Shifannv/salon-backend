@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     image_gallery_dimension: int = Field(default=1600, ge=1, le=4096)
     image_avatar_max_bytes: int = Field(default=512000, ge=1, le=5242880)
     image_photo_max_bytes: int = Field(default=1048576, ge=1, le=5242880)
+    media_cleanup_grace_seconds: int = Field(default=86400, ge=3600)
+    media_cleanup_interval_seconds: int = Field(default=3600, ge=60)
 
     # Firebase Cloud Messaging (service account JSON string)
     firebase_credentials_json: str | None = None

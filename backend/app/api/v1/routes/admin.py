@@ -11,6 +11,7 @@ from app.api.deps import (
     get_authenticated_session,
     get_cache,
     get_current_actor,
+    get_storage_gateway,
     require_role,
 )
 from app.api.v1.schemas.admin import (
@@ -42,7 +43,7 @@ def _admin_use_cases(session: AsyncSession, auth_admin: AuthAdminGateway) -> Adm
 
 
 def _catalog_use_cases(session: AsyncSession) -> CatalogAdminUseCases:
-    return CatalogAdminUseCases(PlatformRepository(session))
+    return CatalogAdminUseCases(PlatformRepository(session), storage_gateway=get_storage_gateway())
 
 
 # ── Salon management ──────────────────────────────────────────────────────────

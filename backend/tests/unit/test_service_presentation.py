@@ -1,5 +1,7 @@
 """Service contract validation and media ownership checks."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 from pydantic import ValidationError
 
@@ -47,7 +49,14 @@ def test_patch_omission_null_and_openapi():
 async def test_service_photo_uses_owned_media_namespace():
     repo = make_mock_repo()
     repo.get_owner_salon.return_value = {"id": "salon-001"}
-    uc = OwnerUseCases(repo, service_media_base="https://media.example.com")
+    from tests.unit.test_image_processing import gateway, photo_data
+    gw = gateway()
+    gw.settings.r2_public_url = "https://media.example.com"
+    path = "salon-images/salon-001/photo.jpg"
+    gw._client.head_object.return_value = {"ContentType": "image/jpeg", "ContentLength": len(photo_data),
+                                          "Metadata": gw._processed_metadata(path, photo_data, "image/jpeg")}
+    repo.lock_media_url = AsyncMock()
+    uc = OwnerUseCases(repo, storage_gateway=gw, service_media_base="https://media.example.com")
     for url in ("https://evil.example.com/photo.jpg",
                 "https://media.example.com/salon-images/other/photo.jpg"):
         with pytest.raises(BusinessValidationError):

@@ -11,7 +11,8 @@ The previous document claimed every owner endpoint was connected, but
 owner notifications for customer-created and customer-cancelled bookings.
 
 The previous storage guidance was also stale. Backend-managed media uses Cloudflare R2,
-not ImageKit. Clients may upload directly only through backend-issued presigned URLs.
+not ImageKit. Clients upload through backend-issued signed gateway URLs; the backend
+validates and processes bytes before writing R2 objects.
 
 ## Authentication
 
@@ -49,7 +50,7 @@ Supabase Auth operation.
 | GET | `/v1/auth/me` | Current actor |
 | GET | `/v1/profiles/me` | Current profile |
 | PATCH | `/v1/profiles/me` | Update name, phone, or avatar URL |
-| POST | `/v1/profiles/me/avatar-upload-url` | Presigned avatar upload |
+| POST | `/v1/profiles/me/avatar-upload-url` | Signed gateway avatar upload |
 | GET | `/v1/salons/me` | Owner salon |
 | PATCH | `/v1/salons/me` | Update salon profile |
 | POST | `/v1/salons/me/complete-profile` | Submit onboarding for super admin review |
@@ -60,14 +61,14 @@ Supabase Auth operation.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| POST | `/v1/salons/me/images/upload-url` | Presigned salon-image upload |
+| POST | `/v1/salons/me/images/upload-url` | Signed gateway salon-image upload |
 | GET/POST | `/v1/salons/me/images` | List/create image records |
 | PATCH/DELETE | `/v1/salons/me/images/{image_id}` | Update/soft-delete image |
 | GET/POST | `/v1/salons/me/services` | List/create services |
 | PATCH/DELETE | `/v1/salons/me/services/{service_id}` | Update/deactivate service |
 | GET/POST | `/v1/salons/me/staff` | List/create staff |
 | PATCH/DELETE | `/v1/salons/me/staff/{staff_id}` | Update/deactivate staff |
-| POST | `/v1/salons/me/staff/{staff_id}/photo-upload-url` | Presigned staff-photo upload |
+| POST | `/v1/salons/me/staff/{staff_id}/photo-upload-url` | Signed gateway staff-photo upload |
 | GET/POST | `/v1/salons/me/staff/{staff_id}/services` | List/assign services |
 | GET/PUT | `/v1/salons/me/staff/{staff_id}/services/{assignment_id}/languages` | Languages |
 
@@ -142,9 +143,34 @@ the latest preview and also returns `409` if the overlap set changed.
 
 For profile avatars, salon images, and staff photos:
 
-1. Request a presigned URL from the matching upload-url endpoint.
-2. `PUT` the binary directly to `upload_url` with the exact requested content type.
-3. Persist `public_url` using the relevant profile, salon-image, or staff endpoint.
+1. Process the selected/captured image using the shared frontend utility.
+2. Request a signed URL from the matching upload-url endpoint using the encoded MIME
+   type and matching filename extension. The URL expires after 300 seconds.
+3. `PUT` the processed binary to the returned backend gateway `upload_url` with the
+   exact content type. It returns 204 after validation, processing and R2 storage.
+4. Persist `public_url` using the relevant profile, salon-image, staff or service endpoint.
+
+Only JPEG, PNG and WebP are accepted. Inputs are limited to 5242880 bytes, 40 million
+pixels and 16384 pixels per edge; animation and malformed files are rejected. HEIC/HEIF
+must be converted on the device, with a useful error if decoding is unavailable.
+Output defaults: avatars 512 px/512000 bytes; staff 1024 px/1048576 bytes;
+gallery and service photos 1600 px/1048576 bytes. Aspect ratio and alpha are preserved;
+EXIF orientation is corrected and metadata stripped. JPEG/WebP quality starts at 84
+with at most five encoding attempts; PNG uses lossless encoding and bounded resizing.
+
+New photo references require the correct resource namespace and signed proof that
+the stored object passed backend processing. Missing, foreign, unprocessed, expired,
+spoofed or oversized uploads/references return 422 with `error.code=validation_error`.
+Authentication and ownership failures retain their existing 401/403/404 behavior.
+Existing legacy URLs still render and can remain unchanged; assigning a different
+external URL is rejected. Bundled avatar identifiers remain supported.
+
+An identical PUT retry against a still-valid grant succeeds without overwriting;
+different bytes are rejected. The owner client retries network/5xx PUT failures once
+using the same encoded bytes and grant. Repeating a gallery attachment with the same
+URL returns its existing active row; change captions/ordering through PATCH.
+Unreferenced managed media is retired by the scheduled cleanup worker. See
+[media operations](../backend/docs/IMAGE_MEDIA.md) for deployment and retention details.
 
 Never place R2 credentials in the owner app. The customer multipart avatar endpoint is
 separate and should not be reused for salon or staff images.

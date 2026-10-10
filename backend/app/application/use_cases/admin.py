@@ -4,6 +4,8 @@ from typing import Any
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
 from app.application.ports.salon_approval_repository import SalonApprovalRepository
+from app.application.ports.storage_gateway import StorageGateway
+from app.application.use_cases.media_publication import validate_media_reference
 from app.core.exceptions import ConflictError, ForbiddenError, ValidationError
 from app.domain.entities.profile import Profile
 from app.domain.services.authorization import is_super_admin
@@ -136,8 +138,14 @@ class AdminUseCases:
 class CatalogAdminUseCases:
     """Super-admin service catalog management."""
 
-    def __init__(self, repository: PlatformRepository) -> None:
+    def __init__(self, repository: PlatformRepository, storage_gateway: StorageGateway | None = None) -> None:
         self.repository = repository
+        self.storage_gateway = storage_gateway
+
+    async def _validate_image(self, values: dict[str, Any]) -> None:
+        # Catalog admins have platform-wide authority, but an image must still
+        # come from a validated gallery upload rather than an arbitrary URL.
+        await validate_media_reference(self.repository, self.storage_gateway, values.get("image_url"), "salon-images/")
 
     def _assert_admin(self, actor: Profile) -> None:
         if not is_super_admin(actor):
@@ -157,6 +165,7 @@ class CatalogAdminUseCases:
     ) -> dict[str, Any]:
         """Create a service category."""
         self._assert_admin(actor)
+        await self._validate_image(values)
         return await self.repository.create_category(values)
 
     async def update_category(
@@ -164,6 +173,11 @@ class CatalogAdminUseCases:
     ) -> dict[str, Any]:
         """Update a service category."""
         self._assert_admin(actor)
+        if values.get("image_url"):
+            await self.repository.lock_media_url(values["image_url"])
+            current = await self.repository.get_category(category_id)
+            if values["image_url"] != current.get("image_url"):
+                await self._validate_image(values)
         return await self.repository.update_category(category_id, values)
 
     async def deactivate_category(
@@ -187,6 +201,7 @@ class CatalogAdminUseCases:
     ) -> dict[str, Any]:
         """Create a service subcategory."""
         self._assert_admin(actor)
+        await self._validate_image(values)
         return await self.repository.create_subcategory(values)
 
     async def update_subcategory(
@@ -194,6 +209,11 @@ class CatalogAdminUseCases:
     ) -> dict[str, Any]:
         """Update a service subcategory."""
         self._assert_admin(actor)
+        if values.get("image_url"):
+            await self.repository.lock_media_url(values["image_url"])
+            current = await self.repository.get_subcategory(subcategory_id)
+            if values["image_url"] != current.get("image_url"):
+                await self._validate_image(values)
         return await self.repository.update_subcategory(subcategory_id, values)
 
     async def deactivate_subcategory(

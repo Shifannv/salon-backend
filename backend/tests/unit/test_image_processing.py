@@ -154,14 +154,14 @@ async def test_oversized_gateway_body_never_creates_object():
     gw._client.put_object.assert_not_called()
 
 
-async def test_failed_avatar_publication_cleans_only_new_object():
+async def test_failed_avatar_publication_defers_cleanup_until_committed_reference_check():
     repo, storage = AsyncMock(), AsyncMock()
     repo.update_profile.side_effect = RuntimeError("database failure")
     storage.upload_bytes.return_value = "https://cdn.example.test/new.jpeg"
     with pytest.raises(RuntimeError):
         await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), photo_data, "image/jpeg", "images")
-    key = storage.upload_bytes.call_args.args[1]
-    storage.delete_object.assert_awaited_once_with("images", key)
+    storage.delete_object.assert_not_awaited()
+    repo.lock_media_url.assert_awaited_once_with("https://cdn.example.test/new.jpeg")
 
 
 async def test_media_does_not_use_redis():
