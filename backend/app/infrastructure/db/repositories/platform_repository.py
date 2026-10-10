@@ -2083,7 +2083,8 @@ class PlatformRepository:
                 from booking_action_requests ar
                 join bookings b on b.id = ar.booking_id
                 join salons s on s.id = b.salon_id
-                where (:request_status is null or ar.status = :request_status)
+                where (cast(:request_status as text) is null
+                       or ar.status::text = cast(:request_status as text))
                   and (
                     s.owner_id = :actor_id
                     or exists (
@@ -2393,7 +2394,7 @@ class PlatformRepository:
             predicate = """
                 tstzrange(b.start_datetime, b.end_datetime, '[)')
                   && tstzrange(:start_datetime, :end_datetime, '[)')
-                and (:staff_id is null or b.staff_id = cast(:staff_id as uuid))
+                and (cast(:staff_id as uuid) is null or b.staff_id = cast(:staff_id as uuid))
             """
             params = {
                 "salon_id": salon_id,

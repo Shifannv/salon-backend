@@ -68,6 +68,23 @@ def test_no_bind_param_is_immediately_followed_by_a_pg_cast():
     )
 
 
+# `:name is null` with no cast: asyncpg prepares the statement server-side and Postgres
+# cannot infer a type for a parameter whose first use is `IS NULL`
+# ("could not determine data type of parameter $1" -> 500 on
+# GET /v1/booking-action-requests?status=pending).
+_UNTYPED_NULL_CHECK_PATTERN = re.compile(
+    r"(?<!as )(?<!cast\()\(\s*:[a-zA-Z_]\w*\s+is\s+null", re.IGNORECASE
+)
+
+
+def test_no_bind_param_null_check_is_untyped():
+    offenders = [s for s in _sql_string_literals() if _UNTYPED_NULL_CHECK_PATTERN.search(s)]
+    assert offenders == [], (
+        "Found `(:param is null ...)` without a cast in platform_repository.py; asyncpg "
+        "cannot infer the parameter type. Use `cast(:param as <type>) is null`."
+    )
+
+
 def test_reference_repro_of_the_broken_pattern():
     """Documents *why* the guard above exists, against the real production dialect
     (asyncpg's paramstyle is numeric `$1, $2, ...`, not the generic dialect's pyformat --
