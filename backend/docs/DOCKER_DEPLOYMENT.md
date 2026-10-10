@@ -65,24 +65,43 @@ in Git or the image. Local builds on the VM do not require Artifact Registry or
 GitHub Actions secrets.
 
 Before each deployment, use the reviewed release checkout, build it, inspect the
-database revision, apply reviewed migrations, and deploy:
+database revision, apply reviewed migrations, and deploy. The subshell below stops
+on the first error, including a failed migration:
 
 ```bash
+(
+set -e
 cd ~/salon-backend/backend
 docker compose build
 docker compose run --rm --no-deps api alembic current
 docker compose run --rm --no-deps api alembic upgrade head
+docker compose run --rm --no-deps api alembic current
 bash scripts/gcp-vm-deploy.sh
 docker compose ps
 curl --fail http://127.0.0.1:8000/health
 curl --fail http://127.0.0.1:8000/health/db
 curl --fail http://127.0.0.1:8000/health/redis
+)
 ```
 
 Stop if a migration fails. A new VM can still connect to an existing database; if its
 schema was installed without Alembic tracking, follow the [migration guide](../migrations/README.md)
 before applying migrations. Changes must remain compatible with any old services
 while migrations run. Neither container startup nor the VM deploy script runs migrations.
+Health checks confirm service connectivity; they do not verify the Alembic revision.
+
+If an upgrade fails with `cannot insert multiple commands into a prepared statement`,
+use the release containing the corrected migration statement boundaries, rebuild the
+image, and retry the explicit upgrade. Do not stamp past the failed revision. The
+`0018` and `0021` corrections preserve their revision IDs and SQL schema; databases
+already at those revisions do not rerun them.
+
+To test the `0014`-to-head deployment path locally, set `MIGRATION_TEST_DB` to an
+explicitly disposable localhost PostgreSQL admin URL with database/role creation
+permissions, then run `python -m pytest tests/integration/test_deployment_migration_chain.py`.
+The test creates and removes its own database, supplies minimal Supabase Auth
+prerequisites, and exercises online Alembic upgrade, repeat upgrade, and `0021`
+downgrade/re-upgrade through asyncpg. It never uses the runtime `DATABASE_URL`.
 
 The deploy script builds from the local checkout by default (`--build`), or pulls
 `SALON_API_IMAGE` with `--pull`. It validates Compose and updates all three services,
