@@ -16,6 +16,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # asyncpg prepares each call: keep top-level SQL statements separate while
+    # leaving dollar-quoted PL/pgSQL bodies intact.
     op.execute("""
         create table account_deletion_challenges (
           id uuid primary key default gen_random_uuid(),
@@ -37,11 +39,17 @@ def upgrade() -> None:
           consumed_at timestamptz,
           created_at timestamptz not null default now()
         );
+    """)
+    op.execute("""
         create unique index uq_account_deletion_challenge_live
           on account_deletion_challenges (user_id)
           where status in ('sent', 'verified');
+    """)
+    op.execute("""
         alter table account_deletion_challenges enable row level security;
+    """)
 
+    op.execute("""
         create table account_deletion_requests (
           id uuid primary key default gen_random_uuid(),
           user_id uuid,
@@ -60,17 +68,29 @@ def upgrade() -> None:
           updated_at timestamptz not null default now(),
           completed_at timestamptz
         );
+    """)
+    op.execute("""
         create unique index uq_account_deletion_request_open
           on account_deletion_requests (user_id)
           where status <> 'completed';
+    """)
+    op.execute("""
         create index idx_account_deletion_requests_due
           on account_deletion_requests (status, next_attempt_at)
           where status in ('pending', 'processing', 'failed');
+    """)
+    op.execute("""
         create index idx_account_deletion_requests_requested
           on account_deletion_requests (requested_at desc);
+    """)
+    op.execute("""
         alter table account_deletion_requests enable row level security;
+    """)
 
+    op.execute("""
         alter table salons alter column owner_id drop not null;
+    """)
+    op.execute("""
         alter table booking_action_requests alter column requested_by drop not null;
     """)
     op.execute("""
@@ -85,6 +105,8 @@ def upgrade() -> None:
             execute format('alter table bookings drop constraint %I', c.conname);
           end loop;
         end $$;
+    """)
+    op.execute("""
         alter table bookings add constraint bookings_customer_or_walkin_check
           check (customer_id is not null or source = 'manual_walkin'
                  or customer_name = 'Deleted customer');
@@ -143,6 +165,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("""
         alter table bookings drop constraint if exists bookings_customer_or_walkin_check;
+    """)
+    op.execute("""
         alter table bookings add check (customer_id is not null or source = 'manual_walkin');
     """)
     op.execute("drop function if exists erase_profile_references(uuid);")
@@ -162,7 +186,13 @@ def downgrade() -> None:
     """)
     op.execute("""
         alter table booking_action_requests alter column requested_by set not null;
+    """)
+    op.execute("""
         alter table salons alter column owner_id set not null;
+    """)
+    op.execute("""
         drop table if exists account_deletion_requests;
+    """)
+    op.execute("""
         drop table if exists account_deletion_challenges;
     """)
