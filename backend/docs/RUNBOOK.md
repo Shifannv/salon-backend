@@ -45,6 +45,48 @@ curl http://127.0.0.1:8000/health/redis
 - If database connections are exhausted, inspect pool settings and Supabase pooler
   limits before increasing application concurrency.
 
+## Super-admin provisioning
+
+Run this **from a trusted machine** (your local workstation or a secure bastion) — never from a shared CI runner where logs may be captured.
+
+```bash
+# From backend/
+python -m scripts.provision_super_admin --email admin@example.com --yes
+```
+
+- `--email` is the super-admin's login address (required).
+- `--yes` is a safety gate; the script refuses without it.
+- The password is read from `SUPER_ADMIN_PASSWORD` (env var) or an interactive `getpass` prompt.
+  It is **never** passed on the command line, never logged, and never written to disk.
+- The script is idempotent: re-running it updates the password and re-asserts
+  `role='super_admin'` and `is_active=true` on the profiles row.
+
+### Where the credentials live
+
+- **Password** — stored as a hash in Supabase Auth only.  Not in any `.env`, Vercel secret,
+  or document.
+- **Change the password** after the first successful login.
+- **Enrol TOTP** at `/superadmin/login` on first sign-in to the website.
+- Once TOTP is enrolled, set `ADMIN_REQUIRE_MFA=true` in the backend environment and
+  redeploy.  After that, an `aal1`-only token returns `403 mfa_required`.
+
+### Supabase pre-requisites
+
+Before the first login from the website:
+
+- TOTP MFA must be enabled in the Supabase Auth dashboard.
+- The website origin must be in the Supabase redirect allowlist
+  (`https://<website>/api/admin/auth/callback`).
+- The Supabase Site URL should be set to the website origin.
+
+### Verify after provisioning
+
+```bash
+# Confirm role and is_active via the API (replace <token> with a fresh JWT):
+curl -H "Authorization: Bearer <token>" http://localhost:8000/v1/auth/me
+# Expected: {"role": "super_admin", "is_active": true, ...}
+```
+
 ## Account deletion worker
 
 - Compose service `account-deletion-worker` drains `account_deletion_requests`. If it is not
