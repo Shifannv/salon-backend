@@ -120,6 +120,46 @@ async def test_create_booking_customer_app():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "title", "kind"),
+    [
+        ("pending", "Booking Requested", "booking_requested"),
+        ("confirmed", "Booking Confirmed", "booking_confirmed"),
+    ],
+)
+async def test_create_booking_notifies_customer_and_owner(status, title, kind):
+    from unittest.mock import AsyncMock
+
+    from fastapi import BackgroundTasks
+
+    repo = make_mock_repo()
+    repo.create_booking.return_value = make_booking(status=status)
+    uc = BookingUseCases(repo)
+    uc._notify_user = AsyncMock()
+    tasks = BackgroundTasks()
+    actor = make_profile(role=Role.customer)
+
+    booking = await uc.create_booking(
+        actor,
+        {
+            "salon_id": "salon-001",
+            "staff_id": "staff-001",
+            "service_ids": ["service-001"],
+            "start_datetime": "2025-06-01T10:00:00",
+            "customer_name": "Test",
+            "source": "app",
+        },
+        tasks,
+    )
+    for task in tasks.tasks:
+        await task.func(*task.args, **task.kwargs)
+
+    sent = {call.args[2]: call.args for call in uc._notify_user.await_args_list}
+    assert kind in sent and sent[kind][3] == title
+    assert sent[kind][0] == str(booking["customer_id"])
+
+
+@pytest.mark.asyncio
 async def test_create_booking_customer_app_allows_owner_as_customer():
     repo = make_mock_repo()
     repo.create_booking.return_value = make_booking()

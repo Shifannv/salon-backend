@@ -637,7 +637,25 @@ class BookingUseCases:
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
         if background_tasks is not None and values.get("source") != "manual_walkin":
             background_tasks.add_task(self.notify_new_booking_owner, booking)
+            background_tasks.add_task(self.notify_new_booking_customer, booking)
         return booking
+
+    async def notify_new_booking_customer(self, booking: dict[str, Any]) -> None:
+        """Acknowledge a new app booking to the customer who made it."""
+
+        if booking.get("status") == "confirmed":
+            title, body, kind = (
+                "Booking Confirmed",
+                "Your appointment has been confirmed.",
+                "booking_confirmed",
+            )
+        else:
+            title, body, kind = (
+                "Booking Requested",
+                "Your booking request was sent. We'll notify you once the salon responds.",
+                "booking_requested",
+            )
+        await self._notify_customer(booking, title, body, kind)
 
     async def notify_new_booking_owner(self, booking: dict[str, Any]) -> None:
         """Notify a salon owner about an app or QR booking."""
