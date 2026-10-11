@@ -97,8 +97,57 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/v1/auth/me
   error class in `last_error_code` (for example `ServiceUnavailableError` = Supabase down,
   `ErasureVerificationError` = a post-condition failed). Fix the cause; do not edit rows to
   force `completed`.
-- Migrations `0020` then `0021` must be applied explicitly before enabling the feature.
+- Migrations `0020`, `0021` and `0028` (through `alembic upgrade head`) must be applied
+  explicitly before enabling the feature.
+- The worker has a heartbeat **healthcheck**: `docker compose ps` must show
+  `account-deletion-worker` as `healthy`. `unhealthy` means it is dead, wedged, cannot reach
+  the database, or is paused because Redis is configured but unreachable - in every case
+  confirmed accounts stay locked with their data intact until it recovers. It also refuses to
+  start (exit 1, CRITICAL log naming the setting) when Supabase admin credentials or R2
+  storage settings are missing or incomplete; fix the `.env` and restart.
+- Owner deletions first cancel the salon's future bookings, notify the customers and refund
+  online payments, and only then erase. `last_error_code = 'refunds_pending'` with status
+  `pending` is normal while refunds settle (it is not a failure).
 - Full procedure and data matrix: `ACCOUNT_DELETION.md`.
+
+Stale or stuck requests (anything not completed an hour after it was requested):
+
+```sql
+select id, role, status, attempts, last_error_code, requested_at, next_attempt_at, updated_at,
+       (select array_agg(k order by k) from jsonb_object_keys(step_state) k) as steps_done
+from account_deletion_requests
+where status <> 'completed' and requested_at < now() - interval '1 hour'
+order by requested_at;
+```
+
+The same data is on `GET /v1/admin/account-deletions` (`attempts`, `last_error_code`,
+`next_attempt_at`, `updated_at`). `steps_done` shows how far it got
+(`bookings_cancelled`, `refunds_issued`, `refunds_settled`, `auth_banned`, `db_erased`, ...).
+Fix the cause named by `last_error_code`; never edit rows to force `completed`.
+
+**Failed closure refunds.** When an owner deletes their account, online payments on the
+cancelled bookings are refunded automatically. If that cannot be done after
+`ACCOUNT_DELETION_REFUND_MAX_ATTEMPTS` claims, erasure proceeds anyway and the worker logs
+an ERROR (`Closure refund ... could not be issued` / `... still unsettled`). Find them:
+
+```sql
+select r.id, r.status, r.failure_code, r.amount, r.provider, r.refund_ref, r.created_at,
+       p.payment_ref, p.booking_id
+from payment_refunds r join booking_payments p on p.id = r.payment_id
+where r.idempotency_key = 'salon_closed' and r.status in ('failed', 'created')
+order by r.created_at;
+```
+
+- `failed` + `refund_call_failed` / `provider_unavailable`: the provider was unreachable or
+  not configured. Refund the customer from the provider dashboard against `payment_ref`
+  (amount shown), then note it; do not insert a second `payment_refunds` row for that payment.
+- `failed` + a provider code: the provider declined; investigate with the provider.
+- `created` older than a few hours: the provider accepted it but the settlement webhook never
+  arrived. Check `refund_ref` in the provider dashboard; if processed, the refund webhook
+  (or a replay) will close the row. The customer's money is not at risk, only the ledger.
+- An online payment captured *after* the closure (a checkout in flight) is not auto-refunded:
+  look for `booking_payments` with `status = 'captured'` on bookings with
+  `cancellation_reason = 'salon_closed'` and no `payment_refunds` row, and refund by hand.
 
 ## Payments
 

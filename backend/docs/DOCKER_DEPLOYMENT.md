@@ -129,7 +129,8 @@ the API process alone does not poll the outbox.
 
 `docker-compose.yml` has a `payment-webhook-worker` service
 (`python -m app.infrastructure.payments.webhook_worker`) alongside `notification-worker`,
-`media-cleanup` and `account-deletion-worker` (unchanged). It retries stored webhook
+`media-cleanup` and `account-deletion-worker` (unchanged here; the deletion worker has its own
+heartbeat healthcheck, see `ACCOUNT_DELETION.md`). It retries stored webhook
 events, reconciles stale open payment intents and prunes expired idempotency keys. Its HTTP
 health check is disabled like the other pollers. It is harmless while
 `PAYMENT_PROVIDER=none`.

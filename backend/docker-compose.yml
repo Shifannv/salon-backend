@@ -72,8 +72,16 @@ services:
       - ${COMPOSE_ENV_FILE:-.env}
     command: ["python", "-m", "app.infrastructure.account_deletion.worker"]
     environment: *app-environment
+    # The worker touches a heartbeat file after every poll cycle (see
+    # app/infrastructure/account_deletion/health.py). A dead, wedged or database-less worker
+    # leaves the file stale, so `docker compose ps` shows it unhealthy instead of silently
+    # leaving locked accounts un-erased.
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-m", "app.infrastructure.account_deletion.health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     init: true
     restart: unless-stopped
     stop_grace_period: 30s

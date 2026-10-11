@@ -28,10 +28,21 @@ Paid subscription checkout/webhooks remain unimplemented; existing activation is
 Customers and owners can permanently delete their account from either app through one
 backend workflow: verification code to their own verified email/phone, explicit `DELETE`
 confirmation, immediate lockout, then durable background erasure of the Auth identity,
-profile, media, caches and tokens. Past bookings are retained anonymized; an owner's salon is
-removed from customer-facing screens and scrubbed. Deletion is blocked while open bookings
-or pending requests exist. The public web deletion page required by Google Play lives in the
-separate website repository and is **not built yet**. See `backend/docs/ACCOUNT_DELETION.md`.
+profile, media, caches and tokens. Past bookings are retained anonymized. An owner's salon
+becomes an inert "Closed salon" shell (no name, city, address, hours, payout details, holidays
+or provider references) so other customers keep their own history; staff logins that exist only
+for that salon are deleted. There is no grace period. **An owner's upcoming bookings do not
+block deletion: they are cancelled (`salon_closed`), each customer is notified (fixed copy,
+names no one) and online payments are refunded through the payment gateway before anything is
+erased; cash receipts are not refunded by the platform and the notice says so.** A failed
+refund is recorded for the operator and does not block erasure after a retry cap. Customers
+are still blocked by their own upcoming bookings/pending requests, and owners by an active
+paid subscription when a subscription provider is configured. The worker has a heartbeat
+healthcheck and refuses to start with incomplete storage/Supabase settings. The public web
+deletion page required by Google Play lives in the separate website repository and is **not
+built yet**. Status: BUILT and SQL-verified on a throwaway PostgreSQL; refund path DORMANT
+until a payment provider exists (verified with a fake gateway only); NOT staging-tested. See
+`backend/docs/ACCOUNT_DELETION.md`.
 
 ## Payment collection (backend)
 

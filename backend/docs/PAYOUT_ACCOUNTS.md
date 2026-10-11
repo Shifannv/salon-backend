@@ -36,8 +36,13 @@ Request/response shapes are in `docs/Salon-Owner-App-Backend-API-Document.md`.
 - Read-only salon resolution: `GET` payout, history and setup-status never provision a
   salon (they previously could, and committed). `PUT` still provisions.
 - Erasure: `salon_payout_account_history` cascades from `salons`, but salons are
-  soft-deactivated, so account erasure must delete history rows explicitly (account-deletion
-  owner to confirm; not changed here).
+  soft-deactivated, so account erasure deletes the account and its history rows explicitly
+  (`SALON_CASCADE_TABLES` in `account_deletion_repository.py`; verified by the real-SQL
+  residual-PII sweep). The history holds the holder name, UPI id, bank name, IFSC and last
+  four digits, so leaving it behind would have kept banking details after deletion.
+- `ck_payout_upi_format` allows 2-255 characters before the `@` (PostgreSQL's regex engine
+  rejects a `{2,256}` repetition, which made every UPI payout save fail with a database error
+  until this was caught by running the migrations on a real PostgreSQL).
 
 ## Status
 

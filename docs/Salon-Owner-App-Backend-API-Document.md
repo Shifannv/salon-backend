@@ -224,6 +224,30 @@ separate and should not be reused for salon or staff images.
   endpoint records an owner/staff-confirmed payment only.
 - OpenAPI already exists at `/openapi.json`; frontend types can be generated from it.
 
+## Account deletion (owner)
+
+Same four calls as the customer app (`POST /v1/account/deletion/challenges`, `.../verify`,
+`POST /v1/account/deletion`, `GET /v1/account/deletion/{id}` with `X-Status-Token`).
+
+- **Changed:** open bookings and pending booking-action requests no longer produce
+  `409 deletion_blocked` for an owner. After the final confirm the backend (1) cancels every
+  upcoming pending/confirmed booking at the owner's salons with `cancellation_reason:
+  "salon_closed"`, (2) resolves open booking-action requests, (3) notifies each customer with
+  fixed text that names no one, (4) refunds captured **online** payments through the payment
+  gateway (cash / manually recorded payments are not refunded by the platform - the customer
+  notice says so), (5) waits for refunds to settle, then (6) erases. There is no grace period.
+- `409 deletion_blocked` for an owner now means only an active paid subscription
+  (`details.active_subscriptions`, and only when a subscription provider is configured).
+- The challenge response includes `bookings_to_cancel`: show "N upcoming bookings will be
+  cancelled and refunded" before the final confirmation.
+- The status response includes `stage` (`queued | refunding | waiting_for_refunds | erasing |
+  completed`). While refunds settle `status` is `pending` and `stage` is
+  `waiting_for_refunds`; this is normal and can last hours if the payment provider is slow.
+- What is removed: the account, the salon's name/city/address/description/coordinates/QR/hours,
+  images, holidays, payout details and their history, and provider references; staff logins that
+  exist only for this salon are deleted. The salon remains as an anonymous "Closed salon" shell
+  so customers keep their booking history. Details: `backend/docs/ACCOUNT_DELETION.md`.
+
 ## Payments and payout history (backend, dormant until a provider is configured)
 
 Owner endpoints: `GET /v1/salons/me/payout-account/history` (newest first; entries have

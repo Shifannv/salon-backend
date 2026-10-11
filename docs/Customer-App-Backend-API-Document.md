@@ -220,6 +220,24 @@ Common codes are `unauthorized`, `forbidden`, `not_found`, `validation_error`,
 `conflict`, `slot_unavailable`, `service_unavailable`, and `internal_error`. Raw SQL,
 constraint names, credentials, and stack traces are never returned.
 
+## Account deletion and closed salons
+
+`POST /v1/account/deletion/challenges` -> `/verify` -> `POST /v1/account/deletion` ->
+`GET /v1/account/deletion/{id}` (header `X-Status-Token`); never send a user id. A customer
+with an upcoming (pending/confirmed) booking or a pending booking-action request gets
+`409 deletion_blocked` with `details.open_bookings` / `details.pending_requests`: cancel them
+(or wait) and retry. Past bookings are kept anonymised ("Deleted customer").
+
+When a **salon owner** deletes their account, your upcoming bookings at that salon are
+cancelled by the backend: the booking has `status: "cancelled"` and `cancellation_reason:
+"salon_closed"`, and you receive a `booking_cancelled` notification (`data.reason:
+"salon_closed"`) reading "This salon has closed, so your booking has been cancelled.", plus
+"Any online payment you made will be refunded to your original payment method." and/or "A
+payment you made directly to the salon is not refunded by the platform." Online refunds go
+through the payment provider (none is configured yet). Afterwards the salon appears as
+"Closed salon" in your history and older notifications about it lose their text. Details:
+`backend/docs/ACCOUNT_DELETION.md`.
+
 ## Online payments (backend, dormant until a provider is configured)
 
 - `GET /v1/payments/config` always answers 200: `{enabled, provider, public_key, currency,
