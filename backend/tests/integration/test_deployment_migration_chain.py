@@ -59,7 +59,8 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
             create schema auth;
             create table auth.users (
                 id uuid primary key, email text, phone text,
-                raw_user_meta_data jsonb not null default '{}'
+                raw_user_meta_data jsonb not null default '{}',
+                raw_app_meta_data jsonb not null default '{}'
             );
             create function auth.uid() returns uuid language sql stable as $$
                 select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
@@ -68,14 +69,22 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
         """)
         # Restore the existing 0014 state as SQL; the path under test is the real
         # online Alembic upgrade from that deployed revision, with asyncpg prepares.
-        sql = await alembic(url.render_as_string(hide_password=False), "upgrade",
-                            "0004_service_duration_slot_steps", "--sql")
+        sql = await alembic(
+            url.render_as_string(hide_password=False),
+            "upgrade",
+            "0004_service_duration_slot_steps",
+            "--sql",
+        )
         await conn.execute(sql)
         # The consolidated baseline already includes 0005's experience column.
         # Reconstruct its historical pre-0005 state only in this fixture database.
         await conn.execute("alter table staff drop column experience")
-        sql = await alembic(url.render_as_string(hide_password=False), "upgrade",
-                            "0004_service_duration_slot_steps:0014_repair_cancel_reason", "--sql")
+        sql = await alembic(
+            url.render_as_string(hide_password=False),
+            "upgrade",
+            "0004_service_duration_slot_steps:0014_repair_cancel_reason",
+            "--sql",
+        )
         await conn.execute(sql)
         assert await conn.fetchval("select version_num from alembic_version") == (
             "0014_repair_cancel_reason"
@@ -87,41 +96,75 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
 
         await alembic(url.render_as_string(hide_password=False), "upgrade", "head")
         assert await conn.fetchval("select version_num from alembic_version") == (
-            "0021_account_deletion"
+            "0024_secure_new_user_role"
         )
         assert await conn.fetchval("select email from profiles where id=$1", user_id) == (
             "migration@example.test"
         )
-        for table in ("subscription_plans", "salon_subscriptions",
-                      "account_deletion_challenges", "account_deletion_requests"):
+        untrusted_id = uuid4()
+        await conn.execute(
+            """insert into auth.users (id, email, raw_user_meta_data)
+               values ($1, 'untrusted-role@example.test', '{"role":"super_admin"}'::jsonb)""",
+            untrusted_id,
+        )
+        assert (
+            await conn.fetchval("select role::text from profiles where id=$1", untrusted_id)
+            == "customer"
+        )
+        trusted_id = uuid4()
+        await conn.execute(
+            """insert into auth.users (id, email, raw_app_meta_data)
+               values ($1, 'trusted-role@example.test', '{"role":"owner"}'::jsonb)""",
+            trusted_id,
+        )
+        assert (
+            await conn.fetchval("select role::text from profiles where id=$1", trusted_id)
+            == "owner"
+        )
+        for table in (
+            "subscription_plans",
+            "salon_subscriptions",
+            "account_deletion_challenges",
+            "account_deletion_requests",
+        ):
             assert await conn.fetchval("select to_regclass($1)::text", table) == table
         for table in ("account_deletion_challenges", "account_deletion_requests"):
             assert await conn.fetchval(
                 "select relrowsecurity from pg_class where oid=to_regclass($1)", table
             )
-        assert await conn.fetchval("""
+        assert (
+            await conn.fetchval("""
             select count(*) from information_schema.columns
             where table_schema='public' and table_name='salons'
               and column_name in ('discovery_visibility', 'home_placement')
-        """) == 2
-        assert await conn.fetchval("""
+        """)
+            == 2
+        )
+        assert (
+            await conn.fetchval("""
             select count(*) from pg_trigger
             where tgname='media_reference_guard' and not tgisinternal
-        """) == 7
+        """)
+            == 7
+        )
 
         # A repeat deploy is a no-op. A rollback without erased data restores the
         # previous schema; reapplying must work with the same online driver too.
         await alembic(url.render_as_string(hide_password=False), "upgrade", "head")
-        await alembic(url.render_as_string(hide_password=False), "downgrade",
-                      "0020_media_reference_guards")
+        await alembic(
+            url.render_as_string(hide_password=False), "downgrade", "0020_media_reference_guards"
+        )
         assert await conn.fetchval("select to_regclass('account_deletion_requests')") is None
-        assert await conn.fetchval("""
+        assert (
+            await conn.fetchval("""
             select is_nullable from information_schema.columns
             where table_schema='public' and table_name='salons' and column_name='owner_id'
-        """) == "NO"
+        """)
+            == "NO"
+        )
         await alembic(url.render_as_string(hide_password=False), "upgrade", "head")
         assert await conn.fetchval("select version_num from alembic_version") == (
-            "0021_account_deletion"
+            "0024_secure_new_user_role"
         )
     finally:
         if conn is not None:

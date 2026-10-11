@@ -42,6 +42,13 @@ class _AuthUser:
     email: str
 
 
+@dataclass
+class _ProfileState:
+    role: str
+    is_active: bool
+    owns_salon: bool
+
+
 def _admin_base() -> tuple[str, dict[str, str]]:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise SystemExit(
@@ -67,9 +74,7 @@ async def _find_user_by_email(
             headers=headers,
         )
     if response.is_error:
-        raise RuntimeError(
-            f"Could not list Supabase users: HTTP {response.status_code}"
-        )
+        raise RuntimeError(f"Could not list Supabase users: HTTP {response.status_code}")
     data = response.json()
     for user in data.get("users", []):
         if (user.get("email") or "").lower() == email.lower():
@@ -85,7 +90,6 @@ async def _create_auth_user(
         "email": email,
         "password": password,
         "email_confirm": True,
-        "user_metadata": {"role": "super_admin"},
         "app_metadata": {"role": "super_admin"},
     }
     async with httpx.AsyncClient(timeout=15) as client:
@@ -95,9 +99,7 @@ async def _create_auth_user(
             headers=headers,
         )
     if response.is_error:
-        raise RuntimeError(
-            f"Could not create Supabase Auth user: HTTP {response.status_code}"
-        )
+        raise RuntimeError(f"Could not create Supabase Auth user: HTTP {response.status_code}")
     data = response.json()
     return _AuthUser(user_id=str(data["id"]), email=str(data["email"]))
 
@@ -118,9 +120,7 @@ async def _update_auth_password(
         )
 
 
-async def _upsert_profile(
-    database_url: str, user_id: str, email: str
-) -> None:
+async def _upsert_profile(database_url: str, user_id: str, email: str) -> None:
     """Ensure the profiles row has role='super_admin' and is_active=true."""
     conn_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
     connection = await asyncpg.connect(conn_url, timeout=15, statement_cache_size=0)
@@ -141,6 +141,43 @@ async def _upsert_profile(
         await connection.close()
 
 
+async def _get_profile_state(database_url: str, user_id: str) -> _ProfileState | None:
+    """Return the business role before changing any Auth credential."""
+    conn_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    connection = await asyncpg.connect(conn_url, timeout=15, statement_cache_size=0)
+    try:
+        row = await connection.fetchrow(
+            """
+            SELECT p.role::text AS role,
+                   p.is_active,
+                   EXISTS (SELECT 1 FROM public.salons s WHERE s.owner_id = p.id) AS owns_salon
+            FROM public.profiles p
+            WHERE p.id = $1::uuid
+            """,
+            user_id,
+        )
+    finally:
+        await connection.close()
+    if row is None:
+        return None
+    return _ProfileState(
+        role=str(row["role"]),
+        is_active=bool(row["is_active"]),
+        owns_salon=bool(row["owns_salon"]),
+    )
+
+
+def _assert_safe_existing_profile(state: _ProfileState | None) -> None:
+    """Never silently turn a customer, owner, or staff identity into a platform admin."""
+    if state is None or state.role == "super_admin":
+        return
+    ownership = " and owns a salon" if state.owns_salon else ""
+    raise RuntimeError(
+        f"Refusing to convert an existing {state.role} profile{ownership} into a "
+        "super-admin. Provision a dedicated admin email instead."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public entry point (also used by tests via dependency injection)
 # ---------------------------------------------------------------------------
@@ -158,6 +195,8 @@ async def provision(
     Admin API is called directly.
     """
     email = email.strip().lower()
+    if len(password) < 12:
+        raise ValueError("Super-admin passwords must contain at least 12 characters.")
 
     if auth_gateway is not None:
         # Test path: delegate to the injected fake.
@@ -170,6 +209,8 @@ async def provision(
 
     existing = await _find_user_by_email(base_url, headers, email)
     if existing is not None:
+        profile_state = await _get_profile_state(settings.database_url, existing.user_id)
+        _assert_safe_existing_profile(profile_state)
         logger.info("Existing user found (%s), updating password…", existing.user_id)
         await _update_auth_password(base_url, headers, existing.user_id, password)
         user = existing
@@ -188,8 +229,10 @@ async def provision(
 # Fake gateway type hint (import guard so domain code stays clean)
 # ---------------------------------------------------------------------------
 
+
 class _FakeGateway:
     """Protocol satisfied by the fake in tests — not imported at module level."""
+
     async def ensure_super_admin(self, email: str, password: str) -> _AuthUser: ...
     async def upsert_profile(self, user_id: str, email: str) -> None: ...
 

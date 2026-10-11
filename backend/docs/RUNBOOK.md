@@ -60,6 +60,8 @@ python -m scripts.provision_super_admin --email admin@example.com --yes
   It is **never** passed on the command line, never logged, and never written to disk.
 - The script is idempotent: re-running it updates the password and re-asserts
   `role='super_admin'` and `is_active=true` on the profiles row.
+- The script refuses to convert an existing customer, owner, or staff profile. Use a
+  dedicated admin email so provisioning cannot detach an owner from their salon.
 
 ### Where the credentials live
 
