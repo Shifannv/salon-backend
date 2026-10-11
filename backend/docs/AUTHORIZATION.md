@@ -63,3 +63,20 @@ bodies cannot name a user. A deletion challenge is bound to one user, one purpos
 contact hash, and its code must authenticate that same Supabase user. The status endpoint is
 the only unauthenticated route and is guarded by an HMAC status token. The admin ledger
 (`GET /v1/admin/account-deletions`) is super-admin only and contains no personal identifiers.
+
+## Payments
+
+- `POST /v1/webhooks/{provider}` is the **first unauthenticated money route**. Its only
+  credential is the provider signature over the raw body, compared in constant time inside
+  the adapter. It is not registered at all unless a provider is configured.
+- Customers may start/confirm/cancel online payments only on their own bookings
+  (`customer_id = actor`). Refunds, earnings and settlement-account routes are owner-only;
+  settlement registration and refunds also require an approved workspace.
+- Reading `GET /bookings/{id}/payments` is allowed to the booking's customer and to salon
+  owner/staff (approved workspace); everyone else gets 404.
+- Every money POST requires `Idempotency-Key`, scoped per actor.
+- Payment tables are backend-only: RLS on, `anon/authenticated` privileges revoked,
+  read-only policies for the parties to a payment; `payment_webhook_events` and
+  `payment_idempotency_keys` have no policy (deny-all).
+
+BUILT: the above. NOT BUILT: admin-side refund/override endpoints.

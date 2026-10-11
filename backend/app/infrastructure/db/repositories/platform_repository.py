@@ -1,17 +1,21 @@
 """Raw SQL repository adapter for frontend-facing platform APIs."""
 
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import bindparam, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
     NotFoundError,
+    PaymentInProgressError,
+    PaymentOvercollectionError,
     SalonNotAcceptingBookingsError,
     SlotUnavailableError,
     ValidationError,
@@ -591,6 +595,182 @@ class PlatformRepository:
         )
         await self.session.commit()
         return await self._owner_salon_with_images(result.mappings().one())
+
+    async def _owner_salon_id(self, actor_id: str) -> str:
+        """Return the id of the owner's active salon, provisioning a blank one if needed."""
+
+        row = await self._get_owner_salon_row(actor_id)
+        if row is None:
+            return str((await self.provision_owner_salon(actor_id))["id"])
+        return str(row["id"])
+
+    async def _find_owner_salon_id(self, actor_id: str) -> str | None:
+        """Read-only salon resolver: the owner's active salon id, or None.
+
+        Unlike ``_owner_salon_id`` this never provisions (and never commits), so a
+        ``GET`` cannot create a salon row as a side effect.
+        """
+
+        row = await self._get_owner_salon_row(actor_id)
+        return None if row is None else str(row["id"])
+
+    async def get_payout_account(self, actor_id: str) -> dict[str, Any] | None:
+        """Return the owner's payout row with the account number already masked.
+
+        The projection to ``bank_account_last4`` happens inside Postgres
+        (``salon_payout_account_masked``), so the full number is never read into Python.
+        Does not provision a salon: an owner with no salon simply has no payout row.
+        """
+
+        salon_id = await self._find_owner_salon_id(actor_id)
+        if salon_id is None:
+            return None
+        result = await self.session.execute(
+            text("select * from salon_payout_account_masked(:salon_id)"),
+            {"salon_id": salon_id},
+        )
+        row = result.mappings().one_or_none()
+        return dict(row) if row is not None else None
+
+    async def update_payout_account(
+        self,
+        actor_id: str,
+        values: dict[str, Any],
+        validate: Callable[[dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        """Merge ``values`` into the owner's payout row entirely inside SQL.
+
+        Omitted fields keep their stored value; an explicit ``None`` clears the field.
+        ``validate`` receives the merged *view* in which the stored account number is
+        represented only by a presence marker, so Python never holds the full value and
+        ``validate`` may raise ``ValidationError``. A per-salon advisory lock serialises
+        writers.
+        """
+
+        salon_id = await self._owner_salon_id(actor_id)
+        await self.session.execute(
+            text("select pg_advisory_xact_lock(hashtext(:key))"),
+            {"key": f"payout:{salon_id}"},
+        )
+        current = await self.get_payout_account(actor_id) or {}
+        view: dict[str, Any] = {
+            "account_holder_name": current.get("account_holder_name"),
+            "upi_id": current.get("upi_id"),
+            "bank_name": current.get("bank_name"),
+            "ifsc": current.get("ifsc"),
+            # Presence marker only; never the stored number.
+            "bank_account_number": "stored" if current.get("bank_account_last4") else None,
+        }
+        view.update({k: v for k, v in values.items() if k in view})
+
+        fields = ("account_holder_name", "upi_id", "bank_name", "bank_account_number", "ifsc")
+        written = {k: v for k, v in values.items() if k in fields}
+        if "bank_account_number" in values and values["bank_account_number"] is None:
+            # Clearing the account number takes the dependent bank fields with it unless the
+            # caller says otherwise (ck_payout_bank_triple: they cannot stand alone).
+            for dependent in ("ifsc", "bank_name"):
+                if dependent not in values:
+                    view[dependent] = None
+                    written[dependent] = None
+        validate(view)
+        params: dict[str, Any] = {"salon_id": salon_id}
+        for field in fields:
+            params[field] = written.get(field)
+            params[f"set_{field}"] = field in written
+        await self.session.execute(
+            text(
+                """
+                insert into salon_payout_accounts
+                  (salon_id, account_holder_name, upi_id, bank_name, bank_account_number, ifsc)
+                values
+                  (:salon_id, :account_holder_name, :upi_id, :bank_name,
+                   :bank_account_number, :ifsc)
+                on conflict (salon_id) do update set
+                  account_holder_name = case when cast(:set_account_holder_name as boolean)
+                    then excluded.account_holder_name
+                    else salon_payout_accounts.account_holder_name end,
+                  upi_id = case when cast(:set_upi_id as boolean)
+                    then excluded.upi_id else salon_payout_accounts.upi_id end,
+                  bank_name = case when cast(:set_bank_name as boolean)
+                    then excluded.bank_name else salon_payout_accounts.bank_name end,
+                  bank_account_number = case when cast(:set_bank_account_number as boolean)
+                    then excluded.bank_account_number
+                    else salon_payout_accounts.bank_account_number end,
+                  ifsc = case when cast(:set_ifsc as boolean)
+                    then excluded.ifsc else salon_payout_accounts.ifsc end
+                """
+            ),
+            params,
+        )
+        row = await self.get_payout_account(actor_id)
+        await self.session.commit()
+        if row is None:  # pragma: no cover - the upsert above guarantees a row
+            raise NotFoundError("Payout account not found")
+        return row
+
+    async def list_payout_account_history(
+        self, actor_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Return the owner's payout change history (last four digits only)."""
+
+        salon_id = await self._find_owner_salon_id(actor_id)
+        if salon_id is None:
+            return []
+        result = await self.session.execute(
+            text(
+                """
+                select h.id, h.changed_at, h.action, h.changed_fields,
+                       h.before_state as before_state, h.after_state as after_state,
+                       p.full_name as changed_by_name
+                from salon_payout_account_history h
+                left join profiles p on p.id = h.changed_by
+                where h.salon_id = :salon_id
+                order by h.changed_at desc, h.id desc
+                limit :limit
+                """
+            ),
+            {"salon_id": salon_id, "limit": limit},
+        )
+        rows = [dict(row) for row in result.mappings().all()]
+        for row in rows:
+            for key in ("before_state", "after_state"):
+                if isinstance(row.get(key), str):
+                    row[key] = json.loads(row[key])
+        return rows
+
+    async def get_setup_facts(self, actor_id: str) -> dict[str, Any]:
+        """Return the raw facts behind the owner setup checklist in one query.
+
+        Read-only: an owner who has no salon yet gets all-empty facts rather than a
+        freshly provisioned row.
+        """
+
+        salon_id = await self._find_owner_salon_id(actor_id)
+        if salon_id is None:
+            return {
+                "name": None, "category": None, "address": None, "city": None,
+                "working_hours": None, "has_photos": False, "has_services": False,
+                "has_staff": False, "has_payout": False,
+            }
+        result = await self.session.execute(
+            text(
+                """
+                select s.name, s.category, s.address, s.city, s.working_hours,
+                       exists (select 1 from salon_images i
+                               where i.salon_id = s.id and i.is_active) as has_photos,
+                       exists (select 1 from services sv
+                               where sv.salon_id = s.id and sv.is_active) as has_services,
+                       exists (select 1 from staff st
+                               where st.salon_id = s.id and st.is_active) as has_staff,
+                       exists (select 1 from salon_payout_accounts p
+                               where p.salon_id = s.id) as has_payout
+                from salons s
+                where s.id = :salon_id
+                """
+            ),
+            {"salon_id": salon_id},
+        )
+        return dict(result.mappings().one())
 
     async def update_owner_salon(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Update owner-editable salon fields."""
@@ -1271,17 +1451,31 @@ class PlatformRepository:
             )
             booking_id = result.scalar_one()
             if values.get("payment_preference") is not None:
+                # The deposit is derived here, in SQL, from the price create_booking
+                # computed. Python never recomputes or supplies an amount.
                 await self.session.execute(
                     text(
                         """
                         update bookings
-                        set payment_preference = :payment_preference
+                        set payment_preference = cast(:payment_preference as text),
+                            currency = :currency,
+                            deposit_amount = case
+                              when cast(:payment_preference as text) = 'pay_advance'
+                                then least(total_price, greatest(
+                                  round(total_price * cast(:advance_percent as numeric) / 100, 2),
+                                  0.01))
+                              when cast(:payment_preference as text) = 'pay_full'
+                                then total_price
+                              else null
+                            end
                         where id = :booking_id
                         """
                     ),
                     {
                         "booking_id": booking_id,
                         "payment_preference": values["payment_preference"],
+                        "currency": settings.payment_currency,
+                        "advance_percent": settings.payment_advance_percent,
                     },
                 )
             await self.session.commit()
@@ -1363,6 +1557,7 @@ class PlatformRepository:
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
                   b.payment_status, b.payment_method, b.payment_preference,
+                  b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name  as salon_name,
@@ -1456,6 +1651,7 @@ class PlatformRepository:
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
                   b.payment_status, b.payment_method, b.payment_preference,
+                  b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
                   s.name   as salon_name,
@@ -1793,6 +1989,61 @@ class PlatformRepository:
         )
         return [dict(row) for row in result.mappings().all()]
 
+    async def _insert_manual_payment(
+        self, *, booking_id: str, actor_id: str, method: str
+    ) -> None:
+        """Write the manual receipt as a ledger row; the trigger settles payment_status.
+
+        The caller must hold the booking row lock. The amount is whatever the ledger says is
+        still outstanding, so recording the balance after an online deposit settles exactly
+        the remainder (and can never over-collect: the database raises
+        ``payment_overcollection`` otherwise).
+        """
+
+        gateway_open = await self.session.execute(
+            text(
+                """
+                select 1 from booking_payments
+                where booking_id = :booking_id and channel = 'gateway'
+                  and status in ('created', 'authorized')
+                limit 1
+                """
+            ),
+            {"booking_id": booking_id},
+        )
+        if gateway_open.first() is not None:
+            raise PaymentInProgressError(
+                "An online payment is in progress for this booking; wait for it to settle "
+                "or ask the customer to cancel it"
+            )
+        try:
+            await self.session.execute(
+                text(
+                    """
+                    insert into booking_payments
+                      (booking_id, salon_id, payer_id, recorded_by, channel, purpose,
+                       settlement_model, method, amount, currency, status, intent_reference,
+                       captured_at)
+                    select b.id, b.salon_id, b.customer_id, :actor_id, 'manual',
+                           case when b.paid_amount - b.refunded_amount > 0
+                                then 'balance' else 'full' end,
+                           'offline', cast(:method as text),
+                           greatest(b.total_price - (b.paid_amount - b.refunded_amount), 0),
+                           b.currency, 'captured', 'manual:' || gen_random_uuid()::text, now()
+                    from bookings b
+                    where b.id = :booking_id
+                    """
+                ),
+                {"booking_id": booking_id, "actor_id": actor_id, "method": method},
+            )
+        except DBAPIError as exc:
+            await self.session.rollback()
+            if "payment_overcollection" in str(exc):
+                raise PaymentOvercollectionError(
+                    "This payment would collect more than the booking total"
+                ) from exc
+            raise
+
     async def record_payment(
         self, actor_id: str, booking_id: str, payment_method: str
     ) -> dict[str, Any]:
@@ -1821,16 +2072,10 @@ class PlatformRepository:
         if row["payment_status"] == "paid":
             raise ConflictError("Payment has already been recorded")
 
-        await self.session.execute(
-            text(
-                """
-                update bookings
-                set payment_status = 'paid',
-                    payment_method = cast(:payment_method as payment_method)
-                where id = :booking_id
-                """
-            ),
-            {"booking_id": booking_id, "payment_method": payment_method},
+        await self._insert_manual_payment(
+            booking_id=booking_id,
+            actor_id=actor_id,
+            method=payment_method,
         )
         await self.session.execute(
             text(
@@ -2119,6 +2364,7 @@ class PlatformRepository:
         request_id: str,
         decision: str,
         reason: str | None,
+        payment_method: str = "cash",
     ) -> dict[str, Any]:
         """Resolve one request and transition its booking atomically."""
 
@@ -2175,18 +2421,19 @@ class PlatformRepository:
             if current["payment_status"] != "unpaid":
                 raise ConflictError("Payment has already been recorded")
             if decision == "received":
-                await self.session.execute(
-                    text(
-                        """
-                        update bookings
-                        set payment_status = 'paid', payment_method = 'cash'
-                        where id = :booking_id and payment_status = 'unpaid'
-                        """
-                    ),
-                    {"booking_id": current["booking_id"]},
+                # The method is the salon's statement of how the customer actually paid;
+                # it used to be hardcoded to 'cash'.
+                await self._insert_manual_payment(
+                    booking_id=str(current["booking_id"]),
+                    actor_id=actor_id,
+                    method=payment_method,
                 )
                 title = "Payment received"
-                body = "The salon confirmed your cash payment. Your receipt is recorded."
+                body = (
+                    "The salon confirmed your cash payment. Your receipt is recorded."
+                    if payment_method == "cash"
+                    else "The salon confirmed your payment. Your receipt is recorded."
+                )
                 notification_type = "payment_received"
             else:
                 title = "Payment not received"

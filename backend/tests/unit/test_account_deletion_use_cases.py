@@ -58,6 +58,7 @@ class FakeRepo:
         self.rows: dict[str, dict] = {}
         self.ids = count(1)
         self.blockers = {"open_bookings": 0, "pending_requests": 0, "active_subscriptions": 0}
+        self.impact = 0
         self.requests: dict[str, dict] = {}
         self.confirmed: list[tuple[str, str]] = []
 
@@ -67,6 +68,9 @@ class FakeRepo:
 
     async def count_blockers(self, user_id, role):
         return self.blockers
+
+    async def count_closure_impact(self, user_id):
+        return {"bookings_to_cancel": self.impact, "requests_to_resolve": 0}
 
     async def count_recent_challenges(self, user_id, window_seconds):
         return sum(1 for r in self.rows.values() if r["user_id"] == user_id)
@@ -222,10 +226,11 @@ async def test_other_roles_cannot_self_delete(role):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("blocker", ["open_bookings", "pending_requests"])
 async def test_open_work_blocks_before_any_code_is_sent(blocker):
+    # Customers only: the SQL adapter never reports open bookings/requests for an owner.
     uc, repo, gateway = build()
     repo.blockers[blocker] = 2
     with pytest.raises(DeletionBlockedError) as error:
-        await uc.start_challenge(make_owner(), "email", None)
+        await uc.start_challenge(make_profile(), "email", None)
     assert error.value.status_code == 409 and error.value.code == "deletion_blocked"
     assert gateway.sent == []
 
@@ -236,7 +241,7 @@ async def test_deletion_blocked_error_carries_structured_counts():
     repo.blockers["open_bookings"] = 3
     repo.blockers["pending_requests"] = 1
     with pytest.raises(DeletionBlockedError) as exc_info:
-        await uc.start_challenge(make_owner(), "email", None)
+        await uc.start_challenge(make_profile(), "email", None)
     details = exc_info.value.details
     assert details is not None
     assert details["open_bookings"] == 3
@@ -439,3 +444,24 @@ async def test_no_otp_token_or_contact_is_logged(caplog):
     text = "\n".join(record.getMessage() for record in caplog.records)
     for secret in (CODE, token, accepted["status_token"], "test@example.com", "+919876543210"):
         assert secret not in text
+
+
+@pytest.mark.asyncio
+async def test_owner_is_told_how_many_bookings_will_be_cancelled_not_blocked():
+    uc, repo, gateway = build()
+    repo.impact = 4
+    result = await uc.start_challenge(make_owner(), "email", None)
+    assert result["bookings_to_cancel"] == 4 and gateway.sent
+    customer = await uc.start_challenge(make_profile(), "email", None)
+    assert customer["bookings_to_cancel"] == 0
+
+
+def test_deletion_stage_progresses_through_the_cancel_refund_erase_phases():
+    from app.application.use_cases.account_deletion import deletion_stage
+
+    assert deletion_stage("pending", {}) == "queued"
+    assert deletion_stage("processing", {"bookings_cancelled": True}) == "refunding"
+    assert deletion_stage("pending", {"bookings_cancelled": True, "refunds_issued": True}) == "waiting_for_refunds"
+    assert deletion_stage("processing", {"refunds_settled": True}) == "erasing"
+    assert deletion_stage("processing", {"db_erased": True}) == "erasing"
+    assert deletion_stage("completed", {}) == "completed"

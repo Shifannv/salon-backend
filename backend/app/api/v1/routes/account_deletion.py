@@ -39,7 +39,7 @@ _ERRORS = {
     401: {"description": "Missing/invalid token, or the account is already deactivated"},
     403: {"description": "Account type cannot use self-service deletion"},
     404: {"description": "Challenge or request not found for this account"},
-    409: {"description": "deletion_blocked: open bookings, pending requests or subscription"},
+    409: {"description": "deletion_blocked. Customers: upcoming bookings or pending requests (details.open_bookings / details.pending_requests). Owners: only an active subscription (details.active_subscriptions) - open bookings never block an owner, they are cancelled and refunded"},
     429: {"description": "Cooldown, resend or attempt limit reached"},
 }
 
@@ -99,7 +99,9 @@ async def verify_deletion_challenge(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Irreversibly delete the account (explicit confirmation)",
     description="Locks the account immediately and queues permanent erasure of the "
-    "identity and personal data. There is no recovery.",
+    "identity and personal data. There is no recovery. For an owner the worker first "
+    "cancels every upcoming booking at their salons (customers are notified, online payments "
+    "refunded) and only then erases.",
     responses={**_ERRORS, 400: {"description": "invalid_verification_code"}},
 )
 async def confirm_account_deletion(

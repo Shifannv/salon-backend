@@ -39,7 +39,7 @@ class InMemoryCache(CacheGateway):
     async def delete(self, key: str):
         self._store.pop(key, None)
 
-    async def delete_prefix(self, prefix: str):
+    async def delete_prefix(self, prefix: str, *, strict: bool = False):
         to_del = [k for k in self._store if k.startswith(prefix)]
         for k in to_del:
             del self._store[k]

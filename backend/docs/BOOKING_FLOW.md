@@ -59,3 +59,21 @@ customers, admins and unapproved salons get 403.
   walk-in QR payload so apps can show "Not accepting bookings right now". Toggling
   clears the `salon:{id}:*` and `walkin:qr:{token}` cache keys.
 - Idempotent replays of a booking created before the pause still return that booking.
+
+## Payment
+
+Payment sits beside, not inside, the booking state machine. `create_booking` computes
+`total_price` in Postgres; when the customer picks `pay_advance`/`pay_full`, the booking's
+`deposit_amount` is derived in SQL from it (`PAYMENT_ADVANCE_PERCENT`). `payment_preference`
+accepts `pay_at_salon|pay_advance|pay_full`.
+
+Money is recorded only as ledger rows (`booking_payments`): a manual receipt
+(`POST /bookings/{id}/payment`, or the owner confirming a customer's "I paid" request, which
+now records the method the salon states instead of always `cash`) or a gateway intent. A
+trigger recomputes `payment_status`/`paid_amount`/`refunded_amount`. A deposit leaves the
+booking `unpaid` with `payment_state: partially_paid`. Cash plus an online capture that
+would exceed the total is refused (`payment_overcollection`). `can_record_payment` is now
+enforced in `BookingUseCases.record_payment` (owner/staff only; super admins no longer pass).
+
+BUILT: ledger, manual receipt, derived columns. DORMANT: online intents, confirm, refund,
+webhooks (no provider configured). NOT BUILT: auto-cancelling an unpaid-deposit booking.

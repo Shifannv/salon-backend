@@ -25,8 +25,12 @@ class CacheGateway(ABC):
         """Remove a key from the cache."""
 
     @abstractmethod
-    async def delete_prefix(self, prefix: str) -> None:
-        """Remove all keys matching the prefix."""
+    async def delete_prefix(self, prefix: str, *, strict: bool = False) -> None:
+        """Remove all keys matching the prefix.
+
+        Cache errors are swallowed by default (a cache miss is harmless). ``strict=True``
+        re-raises them, for callers - like account erasure - that must know the data is gone.
+        """
 
     @abstractmethod
     async def set_idempotency(self, key: str, value: Any) -> None:

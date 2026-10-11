@@ -49,7 +49,8 @@ def test_start_returns_202_with_masked_destination_only(client):
     body = response.json()
     assert body["masked_destination"] == "t***@example.com"
     assert set(body) == {"challenge_id", "channel", "masked_destination", "expires_at",
-                         "resend_available_at"}
+                         "resend_available_at", "bookings_to_cancel"}
+    assert body["bookings_to_cancel"] == 0
     uc.start_challenge.assert_awaited_once()
     assert uc.start_challenge.await_args.args[2] is None
 
@@ -131,7 +132,8 @@ def test_status_is_authenticated_by_header_token_not_jwt(client):
     http, uc, _ = client
     rid = uuid4()
     uc.get_status.return_value = {
-        "request_id": str(rid), "status": "processing", "requested_at": NOW, "completed_at": None,
+        "request_id": str(rid), "status": "processing", "stage": "erasing", "requested_at": NOW,
+        "completed_at": None,
     }
     app.dependency_overrides.pop(get_current_actor, None)  # no bearer token at all
     assert http.get(f"/v1/account/deletion/{rid}").status_code == 422
@@ -204,7 +206,8 @@ def test_admin_ledger_is_super_admin_only_and_has_no_personal_fields(client):
     assert response.status_code == 200
     row = response.json()[0]
     assert set(row) == {"id", "role", "salon_id", "salon_name", "salon_city", "status",
-                        "requested_at", "completed_at"}
+                        "requested_at", "completed_at", "attempts", "last_error_code",
+                        "next_attempt_at", "updated_at"}
 
 
 def test_openapi_documents_every_deletion_operation():

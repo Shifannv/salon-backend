@@ -94,8 +94,11 @@ class RedisCache(CacheGateway):
         except Exception as exc:
             logger.debug("Redis DEL error for key %s: %s", key, exc)
 
-    async def delete_prefix(self, prefix: str) -> None:
-        """Remove all keys matching a prefix (e.g. invalidating a catalog subset)."""
+    async def delete_prefix(self, prefix: str, *, strict: bool = False) -> None:
+        """Remove all keys matching a prefix (e.g. invalidating a catalog subset).
+
+        ``strict`` re-raises Redis errors instead of logging them at debug level.
+        """
         if self._client is None:
             return
         try:
@@ -105,6 +108,8 @@ class RedisCache(CacheGateway):
             if keys:
                 await self._client.delete(*keys)
         except Exception as exc:
+            if strict:
+                raise
             logger.debug("Redis DEL prefix error for %s: %s", prefix, exc)
 
     async def set_idempotency(self, key: str, value: Any) -> None:

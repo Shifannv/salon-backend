@@ -128,3 +128,25 @@ The event-processing contract is ready:
 - Failed processing is retryable (status + error_message tracked)
 - Raw payload storage must avoid secrets and PII
 - Provider payloads must not be trusted without signature verification
+
+## Payment provider decision (shared or separate)
+
+Customer payments (`PAYMENTS.md`) and subscriptions share **one webhook endpoint and one
+intake/idempotency table per provider**: `POST /v1/webhooks/{provider}` writes to
+`payment_webhook_events`. A provider has one secret and one URL; two endpoints would mean
+two signature implementations that can disagree on a replay.
+
+Consequences for this document:
+
+- Intake idempotency for payment events moved to `payment_webhook_events`. The
+  `subscription_events` table remains the **subscription domain log** (and its partial
+  unique index is unchanged); a future subscription adapter should normalise events into
+  it after the shared intake.
+- The `PaymentGateway` port and the future `SubscriptionProviderAdapter` stay **separate
+  ports with disjoint methods**. `payment_provider_accounts` models the salon as *payee*;
+  do not reuse `subscription_provider_accounts`, where the salon is the *payer*.
+- `webhooks.py` now exists but is registered **only when `PAYMENT_PROVIDER != none`**.
+  `SUBSCRIPTION_PROVIDER` is still independent and still has no webhook handling.
+
+Status: subscription payment collection is NOT BUILT; payment-collection for bookings is
+BUILT and DORMANT (see `PAYMENTS.md`).

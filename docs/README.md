@@ -20,5 +20,7 @@ Backend-specific references:
 - [Architecture](../backend/docs/ARCHITECTURE.md)
 - [Authorization](../backend/docs/AUTHORIZATION.md)
 - [Booking flow](../backend/docs/BOOKING_FLOW.md)
+- [Payments](../backend/docs/PAYMENTS.md)
+- [Payout accounts](../backend/docs/PAYOUT_ACCOUNTS.md)
 - [Runbook](../backend/docs/RUNBOOK.md)
 - [Docker deployment](../backend/docs/DOCKER_DEPLOYMENT.md)

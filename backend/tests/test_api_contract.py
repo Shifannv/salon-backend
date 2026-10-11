@@ -17,6 +17,15 @@ def test_openapi_contains_new_cross_app_endpoints() -> None:
     assert "/v1/bookings/{booking_id}/cancellation-requests" in paths
     assert "/v1/salons/me/closures/preview" in paths
     assert "/v1/salons/me/closures" in paths
+    assert "/v1/salons/me/payout-account" in paths
+    assert "/v1/salons/me/setup-status" in paths
+    assert "/v1/salons/me/payout-account/history" in paths
+    assert "/v1/payments/config" in paths
+    assert "/v1/bookings/{booking_id}/payments/intent" in paths
+    assert "/v1/salons/me/earnings" in paths
+    # The pre-existing manual receipt route keeps its contract.
+    assert "/v1/bookings/{booking_id}/payment" in paths
+    assert "/v1/webhooks/{provider}" not in paths  # dormant until a provider is configured
 
 
 def test_request_validation_uses_shared_error_envelope() -> None:

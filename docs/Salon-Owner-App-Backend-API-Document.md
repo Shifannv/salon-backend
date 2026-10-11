@@ -56,6 +56,9 @@ Supabase Auth operation.
 | POST | `/v1/salons/me/complete-profile` | Submit onboarding for super admin review |
 | PATCH | `/v1/salons/me/settings` | Approval mode and working hours |
 | GET | `/v1/salons/me/qr` | QR image URL or SVG |
+| GET | `/v1/salons/me/payout-account` | Masked payout account (owner only) |
+| PUT | `/v1/salons/me/payout-account` | Save UPI / bank payout details (merge) |
+| GET | `/v1/salons/me/setup-status` | New-owner setup checklist |
 
 ### Images, services, and staff
 
@@ -139,6 +142,34 @@ the latest preview and also returns `409` if the overlap set changed.
 | GET | `/v1/catalog/categories` | Active categories |
 | GET | `/v1/catalog/categories/{category_id}/subcategories` | Active subcategories |
 
+## Payout account and setup checklist
+
+Owner only (staff, customers and admins get 403). Both work while the salon is still
+pending admin approval, like `complete-profile`.
+
+`GET` and `PUT /v1/salons/me/payout-account` return the same masked shape:
+
+```json
+{"configured": true, "account_holder_name": "Asha Nair", "upi_id": "asha@okbank",
+ "bank_name": "HDFC", "bank_account_last4": "9012", "ifsc": "HDFC0001234",
+ "has_upi": true, "has_bank": true, "updated_at": "2026-10-11T10:00:00Z"}
+```
+
+When nothing is saved: `configured=false`, `has_upi=false`, `has_bank=false`, all else null.
+The full account number is never returned.
+
+`PUT` body (all optional, `extra` fields rejected): `account_holder_name` (2-100),
+`upi_id` (`name@bank`, lowercased), `bank_name` (<=100), `bank_account_number` (9-18
+digits), `ifsc` (uppercased, `AAAA0XXXXXX`). Merge semantics: an omitted field keeps its
+stored value, an explicit `null` (or blank string) clears it. The merged result must have
+a holder name and a UPI ID or (account number and IFSC), else 422.
+
+`GET /v1/salons/me/setup-status` returns `completed_count`, `total_count`, `is_complete`
+and `items` in this fixed order, each `{key, title, description, done, action}`:
+`profile_basics`/`business_profile` (name, category, address, city), `working_hours`/
+`working_hours` (one open day), `photos`/`photos` (one active image), `services`/`services`
+(one active service), `staff`/`staff` (one active staff member), `payout`/`payout`.
+
 ## Media upload flow
 
 For profile avatars, salon images, and staff photos:
@@ -192,3 +223,19 @@ separate and should not be reused for salon or staff images.
 - Online payment requires a payment provider and verified webhook. The existing payment
   endpoint records an owner/staff-confirmed payment only.
 - OpenAPI already exists at `/openapi.json`; frontend types can be generated from it.
+
+## Payments and payout history (backend, dormant until a provider is configured)
+
+Owner endpoints: `GET /v1/salons/me/payout-account/history` (newest first; entries have
+`changed_at`, `action`, `changed_fields`, `changed_by_name`, `before`, `after` where
+account numbers appear only as `bank_account_last4`), `GET /v1/salons/me/earnings`,
+`GET /v1/salons/me/settlement-account`, `POST /v1/salons/me/settlement-account/register`,
+`POST /v1/bookings/{id}/payments/{payment_id}/refund`, `GET /v1/bookings/{id}/payments`.
+All POSTs need an `Idempotency-Key` header. `POST /v1/bookings/{id}/payment` keeps its
+contract and may now return 409 `payment_in_progress`. `POST
+/v1/booking-action-requests/{id}/respond` accepts optional `payment_method`
+(`cash` default, or `online`). `BookingResponse` adds `currency`, `deposit_amount`,
+`paid_amount`, `refunded_amount`, `payment_state`. With no provider, money endpoints return
+503 `payment_provider_not_configured`. See `backend/docs/PAYMENTS.md`.
+
+Status: BUILT (backend); DORMANT pending a provider; NOT BUILT: owner-app screens.

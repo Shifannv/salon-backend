@@ -44,6 +44,22 @@ def mask_contact(channel: str, value: str) -> str:
     return "*" * max(len(value) - 4, 0) + value[-4:]
 
 
+def deletion_stage(status: str, step_state: dict[str, Any]) -> str:
+    """Coarse, PII-free progress label derived from the recorded steps."""
+
+    if status == "completed":
+        return "completed"
+    if step_state.get("auth_banned") or step_state.get("db_erased"):
+        return "erasing"
+    if step_state.get("refunds_settled"):
+        return "erasing"
+    if step_state.get("refunds_issued"):
+        return "waiting_for_refunds"
+    if step_state.get("bookings_cancelled"):
+        return "refunding"
+    return "queued"
+
+
 class AccountDeletionUseCases:
     """Authorizes and coordinates the user-facing deletion workflow."""
 
@@ -78,8 +94,11 @@ class AccountDeletionUseCases:
         if blockers["pending_requests"]:
             details["pending_requests"] = blockers["pending_requests"]
         if details:
+            # Only customers reach this: an owner's open bookings and requests are cancelled,
+            # refunded and resolved by the erasure worker instead of blocking.
             raise DeletionBlockedError(
-                "Resolve open bookings and pending requests before deleting your account",
+                "Cancel your upcoming bookings and resolve pending requests before "
+                "deleting your account",
                 details=details,
             )
         if blockers["active_subscriptions"] and self.settings.subscription_provider != "none":
@@ -134,7 +153,12 @@ class AccountDeletionUseCases:
                 cfg.account_deletion_challenge_ttl_seconds, cfg.account_deletion_max_attempts,
             )
         await self.auth_gateway.send_verification_code(channel, destination)
+        impact = (
+            await self.repository.count_closure_impact(actor.id)
+            if actor.role == Role.owner else {"bookings_to_cancel": 0}
+        )
         return {
+            "bookings_to_cancel": impact["bookings_to_cancel"],
             "challenge_id": str(challenge["id"]),
             "channel": channel,
             "masked_destination": mask_contact(channel, destination),
@@ -203,6 +227,7 @@ class AccountDeletionUseCases:
         return {
             "request_id": request_id,
             "status": str(row["status"]),
+            "stage": deletion_stage(str(row["status"]), row.get("step_state") or {}),
             "requested_at": row["requested_at"],
             "completed_at": row["completed_at"],
         }

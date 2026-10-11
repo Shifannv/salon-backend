@@ -2,6 +2,7 @@ from app.api.v1.schemas.media_urls import HostedMediaRequest
 
 """Frontend-facing API schemas."""
 
+import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any, ClassVar, Literal
@@ -20,6 +21,7 @@ from pydantic import (
 )
 
 from app.core.config import settings
+from app.domain.entities.payment import derive_payment_state
 
 
 class ProfileUpdateRequest(HostedMediaRequest):
@@ -441,7 +443,7 @@ class BookingCreateRequest(BaseModel):
     customer_phone: str | None = None
     source: Literal["app", "manual_walkin", "qr_walkin"] = "app"
     notes: str | None = None
-    payment_preference: Literal["pay_at_salon"] | None = None
+    payment_preference: Literal["pay_at_salon", "pay_advance", "pay_full"] | None = None
 
 
 class BookingLineResponse(BaseModel):
@@ -477,6 +479,12 @@ class BookingResponse(BaseModel):
     payment_status: str
     payment_method: str | None = None
     payment_preference: str | None = None
+    # Money columns are a derived cache of the payment ledger (see PAYMENTS.md).
+    currency: str = "INR"
+    deposit_amount: Decimal | None = None
+    paid_amount: Decimal = Decimal("0")
+    refunded_amount: Decimal = Decimal("0")
+    payment_state: str = "unpaid"
     rejection_reason: str | None = None
     cancellation_reason: str | None = None
     notes: str | None = None
@@ -516,6 +524,9 @@ class BookingResponse(BaseModel):
             and cutoff <= now < self.end_datetime
             and self.latest_cancellation_request_status != "pending"
         )
+        self.payment_state = derive_payment_state(
+            self.payment_status, self.paid_amount, self.refunded_amount
+        ).value
         self.can_confirm_payment = (
             self.status in {"confirmed", "completed"}
             and self.payment_status == "unpaid"
@@ -781,3 +792,133 @@ class ImageUploadUrlResponse(BaseModel):
     upload_url: str = Field(description="Signed PUT URL. Client must PUT to this within expires_in seconds.")
     public_url: str = Field(description="Permanent public URL of the uploaded object. Store this in the DB.")
     expires_in: int = Field(description="Upload URL TTL in seconds.")
+
+
+_UPI_RE = re.compile(r"^[A-Za-z0-9._-]{2,255}@[A-Za-z]{2,64}$")
+_IFSC_RE = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
+_ACCOUNT_RE = re.compile(r"^[0-9]{9,18}$")
+
+
+def _blank_to_none(value: Any) -> Any:
+    """Strip strings; a blank string is treated like an explicit null (clear)."""
+
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return value
+
+
+class OwnerPayoutAccountRequest(BaseModel):
+    """Partial update of the owner's payout destination (merge semantics).
+
+    Omitted fields keep their stored value; an explicit ``null`` clears the field.
+    Error messages never include the submitted value.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account_holder_name: str | None = None
+    upi_id: str | None = None
+    bank_name: str | None = None
+    bank_account_number: str | None = None
+    ifsc: str | None = None
+
+    @field_validator("account_holder_name", mode="after")
+    @classmethod
+    def _holder(cls, value: str | None) -> str | None:
+        value = _blank_to_none(value)
+        if value is not None and not 2 <= len(value) <= 100:
+            raise ValueError("Account holder name must be 2-100 characters")
+        return value
+
+    @field_validator("upi_id", mode="after")
+    @classmethod
+    def _upi(cls, value: str | None) -> str | None:
+        value = _blank_to_none(value)
+        if value is None:
+            return None
+        if not _UPI_RE.fullmatch(value):
+            raise ValueError("Enter a valid UPI ID such as name@bank")
+        return value.lower()
+
+    @field_validator("bank_name", mode="after")
+    @classmethod
+    def _bank(cls, value: str | None) -> str | None:
+        value = _blank_to_none(value)
+        if value is not None and len(value) > 100:
+            raise ValueError("Bank name must be at most 100 characters")
+        return value
+
+    @field_validator("bank_account_number", mode="after")
+    @classmethod
+    def _account(cls, value: str | None) -> str | None:
+        value = _blank_to_none(value)
+        if value is not None and not _ACCOUNT_RE.fullmatch(value):
+            raise ValueError("Account number must be 9-18 digits")
+        return value
+
+    @field_validator("ifsc", mode="after")
+    @classmethod
+    def _ifsc(cls, value: str | None) -> str | None:
+        value = _blank_to_none(value)
+        if value is None:
+            return None
+        value = value.upper()
+        if not _IFSC_RE.fullmatch(value):
+            raise ValueError("Enter a valid 11-character IFSC code")
+        return value
+
+
+class OwnerPayoutAccountResponse(BaseModel):
+    """Masked payout account. The full account number is never returned."""
+
+    configured: bool
+    account_holder_name: str | None = None
+    upi_id: str | None = None
+    bank_name: str | None = None
+    bank_account_last4: str | None = None
+    ifsc: str | None = None
+    has_upi: bool
+    has_bank: bool
+    updated_at: datetime | None = None
+
+
+class PayoutSnapshotResponse(BaseModel):
+    """Point-in-time payout destination; the account number is last four digits only."""
+
+    account_holder_name: str | None = None
+    upi_id: str | None = None
+    bank_name: str | None = None
+    ifsc: str | None = None
+    bank_account_last4: str | None = None
+
+
+class PayoutHistoryEntryResponse(BaseModel):
+    """One change to the payout destination."""
+
+    id: str
+    changed_at: datetime
+    action: Literal["created", "updated"]
+    changed_fields: list[str] = Field(default_factory=list)
+    changed_by_name: str | None = None
+    before: PayoutSnapshotResponse | None = None
+    after: PayoutSnapshotResponse
+
+
+class SetupItemResponse(BaseModel):
+    """One step of the new-owner setup checklist."""
+
+    key: Literal["profile_basics", "working_hours", "photos", "services", "staff", "payout"]
+    title: str
+    description: str
+    done: bool
+    action: Literal["business_profile", "working_hours", "photos", "services", "staff", "payout"]
+
+
+class OwnerSetupStatusResponse(BaseModel):
+    """Authoritative checklist of what a new owner still has to finish."""
+
+    completed_count: int
+    total_count: int
+    is_complete: bool
+    items: list[SetupItemResponse]

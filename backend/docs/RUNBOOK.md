@@ -99,3 +99,39 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/v1/auth/me
   force `completed`.
 - Migrations `0020` then `0021` must be applied explicitly before enabling the feature.
 - Full procedure and data matrix: `ACCOUNT_DELETION.md`.
+
+## Payments
+
+Env vars: see `.env.example` (`PAYMENT_*`, `RAZORPAY_*`). Default `PAYMENT_PROVIDER=none`
+is dormant. The `payment-webhook-worker` Compose service runs always and idles while
+dormant. Apply `alembic upgrade head` (0026, 0027) explicitly **before** deploying code.
+
+Operator queries:
+
+```sql
+-- events that failed and need a human (amount mismatch / overcollection are never retried)
+select id, event_type, last_error_code, attempts, received_at
+from payment_webhook_events where processing_status = 'failed' order by received_at desc;
+-- intents stuck open
+select id, booking_id, status, order_ref, updated_at from booking_payments
+where channel = 'gateway' and status in ('created','authorized') and updated_at < now() - interval '1 hour';
+-- refunds still pending
+select * from payment_refunds where status = 'created' and updated_at < now() - interval '1 hour';
+```
+
+**Over-collection (`payment_overcollection`).** The system refuses to silently collect
+twice. If cash was recorded and an online capture then arrived (or vice versa), the capture
+event is `failed` with `last_error_code = 'overcollection'` and the ledger row stays
+unsettled. A person must refund the customer (provider dashboard) or the duplicate, then
+mark the event handled. Do not edit `bookings.payment_status` by hand: a trigger rejects it.
+
+**Amount mismatch.** The row is failed (`failure_code = amount_mismatch`), the booking is
+not marked paid, and an ERROR is logged. Investigate with the provider.
+
+**Lost webhook.** The worker reconciles open intents older than
+`PAYMENT_RECONCILE_AFTER_SECONDS` via the provider API automatically.
+
+**Rotating the webhook secret** requires changing it in the provider dashboard and `.env`
+together; deliveries in between fail signature (400) and are retried by the provider.
+
+Unverified: all of the above SQL and triggers were not run against a live Postgres.

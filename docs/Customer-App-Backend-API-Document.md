@@ -219,3 +219,21 @@ Expected application and request-validation errors use:
 Common codes are `unauthorized`, `forbidden`, `not_found`, `validation_error`,
 `conflict`, `slot_unavailable`, `service_unavailable`, and `internal_error`. Raw SQL,
 constraint names, credentials, and stack traces are never returned.
+
+## Online payments (backend, dormant until a provider is configured)
+
+- `GET /v1/payments/config` always answers 200: `{enabled, provider, public_key, currency,
+  advance_percent, settlement_model}`. Use `enabled` instead of the hardcoded "UPI is not
+  available yet". `enabled:false` today.
+- `POST /v1/bookings` accepts `payment_preference` of `pay_at_salon`, `pay_advance` or
+  `pay_full`; the booking returns `currency`, `deposit_amount`, `paid_amount`,
+  `refunded_amount` and a derived `payment_state` (`unpaid|partially_paid|paid|refunded`).
+  `payment_status` is still `unpaid|paid`.
+- `POST /v1/bookings/{id}/payments/intent` (optional `{purpose}`), `/confirm`
+  (`{order_ref, payment_ref, signature}`) and `/cancel` all require an `Idempotency-Key`
+  header (8-200 chars; reuse with a different body is 409). The amount is never sent by the
+  client. `GET /v1/bookings/{id}/payments` returns the ledger (instrument, failure code).
+- Errors: 503 `payment_provider_not_configured`, 409 `payment_in_progress`,
+  409 `payment_amount_mismatch`, 409 `idempotency_key_reuse`.
+
+Status: BUILT (backend); DORMANT pending a provider; NOT BUILT: customer-app checkout UI.

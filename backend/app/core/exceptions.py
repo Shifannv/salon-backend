@@ -112,6 +112,78 @@ class TooManyRequestsError(AppError):
     code = "too_many_requests"
 
 
+class PaymentProviderNotConfiguredError(AppError):
+    """No payment provider is configured, so online payment is unavailable."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "payment_provider_not_configured"
+
+
+class PaymentCapabilityError(AppError):
+    """The configured gateway/settlement model does not support this operation."""
+
+    status_code = status.HTTP_501_NOT_IMPLEMENTED
+    code = "payment_capability_unsupported"
+
+
+class PaymentProviderError(AppError):
+    """The payment provider rejected a request or was unreachable."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    code = "payment_provider_error"
+
+
+class InvalidWebhookSignatureError(AppError):
+    """A webhook body failed signature verification; nothing is recorded."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = "invalid_webhook_signature"
+
+
+class WebhookPayloadTooLargeError(AppError):
+    """A webhook body exceeded the configured size cap."""
+
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
+    code = "webhook_payload_too_large"
+
+
+class PaymentAmountMismatchError(ConflictError):
+    """The provider reports an amount different from the ledger row."""
+
+    code = "payment_amount_mismatch"
+
+
+class PaymentOvercollectionError(ConflictError):
+    """Accepting this payment would collect more than the booking total."""
+
+    code = "payment_overcollection"
+
+
+class PaymentInProgressError(ConflictError):
+    """A gateway payment is open on the booking, so it cannot be settled manually."""
+
+    code = "payment_in_progress"
+
+
+class IdempotencyKeyRequiredError(AppError):
+    """A money-mutating request arrived without an Idempotency-Key header."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = "idempotency_key_required"
+
+
+class IdempotencyKeyReuseError(ConflictError):
+    """The Idempotency-Key was already used with a different request."""
+
+    code = "idempotency_key_reuse"
+
+
+class IdempotencyInProgressError(ConflictError):
+    """The first request carrying this Idempotency-Key is still running."""
+
+    code = "idempotency_in_progress"
+
+
 def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str]:
     """Build CORS headers for the response, based on the request Origin.
 
@@ -167,6 +239,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             return obj
 
         safe_errors = _sanitise(exc.errors())
+        if request.url.path.endswith("/payout-account"):
+            # Never echo or log bank/UPI details submitted by the client.
+            safe_errors = [
+                {k: v for k, v in err.items() if k != "input"}
+                for err in safe_errors  # type: ignore[attr-defined]
+            ]
         logger.warning(
             "Request validation error on %s %s: %s",
             request.method,
