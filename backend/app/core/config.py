@@ -1,6 +1,9 @@
 """Environment-backed application configuration."""
 
+import re
+from decimal import Decimal
 from functools import lru_cache
+from importlib.util import find_spec
 from urllib.parse import urlparse
 
 from pydantic import Field, HttpUrl, model_validator
@@ -87,10 +90,38 @@ class Settings(BaseSettings):
     account_deletion_max_challenges_per_hour: int = Field(default=5, ge=1, le=50)
     account_deletion_worker_poll_seconds: int = Field(default=15, ge=1, le=3600)
     account_deletion_stale_processing_seconds: int = Field(default=600, ge=60)
+    # Claims after which a still-unsettled (or un-issuable) closure refund is recorded as
+    # failed/left for the operator and erasure proceeds. Backoff makes 8 claims ~3 hours.
+    account_deletion_refund_max_attempts: int = Field(default=8, ge=1, le=50)
 
     # Subscription provider ('none' = no external payment calls, no webhook routes).
     # Future values: 'stripe', 'razorpay', etc.
     subscription_provider: str = "none"
+
+    # Customer payment collection. 'none' = dormant: GET /v1/payments/config answers
+    # enabled=false, money endpoints answer 503, and no webhook route is registered.
+    # Any other value names an adapter module in app/infrastructure/payments/.
+    payment_provider: str = "none"
+    # 'platform_collect' = provider-side split settlement (funds stay in the provider's
+    # escrow; the provider splits to each salon's linked account). 'direct_to_salon' is
+    # reserved for per-salon credentials, which do not exist yet, so boot refuses it.
+    payment_settlement_model: str = "platform_collect"
+    payment_currency: str = Field(default="INR", pattern=r"^[A-Z]{3}$")
+    # Share of the booking total taken up front by "Pay advance".
+    payment_advance_percent: int = Field(default=30, ge=1, le=100)
+    payment_intent_ttl_seconds: int = Field(default=900, ge=60, le=86400)
+    payment_idempotency_ttl_seconds: int = Field(default=86400, ge=60, le=604800)
+    payment_webhook_max_body_bytes: int = Field(default=262144, ge=1024, le=4194304)
+    payment_webhook_max_attempts: int = Field(default=8, ge=1, le=50)
+    payment_platform_fee_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    payment_worker_poll_seconds: int = Field(default=10, ge=1, le=3600)
+    payment_reconcile_after_seconds: int = Field(default=600, ge=60, le=86400)
+    # Razorpay credentials (used only when PAYMENT_PROVIDER=razorpay).
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: str | None = None
+    razorpay_webhook_secret: str | None = None
+    razorpay_route_enabled: bool = False
+    razorpay_api_base_url: str = "https://api.razorpay.com/v1"
 
     # Database connection pool
     db_pool_size: int = 5
@@ -110,6 +141,54 @@ class Settings(BaseSettings):
             if host.endswith(suffix):
                 self.r2_account_id = host.removesuffix(suffix)
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_payment_settings(self) -> "Settings":
+        """Refuse illegal payment configurations in every environment.
+
+        Kept apart from ``validate_production_settings`` so that a half-configured
+        provider fails the boot in local/test too, not only in production.
+        """
+
+        self.payment_provider = (self.payment_provider or "none").strip().lower()
+        if self.payment_provider != "none":
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", self.payment_provider):
+                raise ValueError("PAYMENT_PROVIDER must be 'none' or an adapter module name")
+            if find_spec(f"app.infrastructure.payments.{self.payment_provider}") is None:
+                raise ValueError(
+                    f"PAYMENT_PROVIDER={self.payment_provider!r} has no adapter in "
+                    "app/infrastructure/payments/"
+                )
+        if self.payment_settlement_model not in {"platform_collect", "direct_to_salon"}:
+            raise ValueError("PAYMENT_SETTLEMENT_MODEL must be platform_collect or direct_to_salon")
+        if self.payment_settlement_model == "direct_to_salon":
+            # Customers paying each salon's own provider account needs a per-salon
+            # credential store, which is not built.
+            raise ValueError(
+                "PAYMENT_SETTLEMENT_MODEL=direct_to_salon is not available until per-salon "
+                "provider credentials exist"
+            )
+        if self.payment_provider == "razorpay":
+            problems = [
+                name
+                for name, value in {
+                    "RAZORPAY_KEY_ID": self.razorpay_key_id,
+                    "RAZORPAY_KEY_SECRET": self.razorpay_key_secret,
+                    "RAZORPAY_WEBHOOK_SECRET": self.razorpay_webhook_secret,
+                }.items()
+                if not value
+            ]
+            if problems:
+                raise ValueError(
+                    "PAYMENT_PROVIDER=razorpay is missing: " + ", ".join(problems)
+                )
+            if self.payment_settlement_model == "platform_collect" and not self.razorpay_route_enabled:
+                raise ValueError(
+                    "PAYMENT_SETTLEMENT_MODEL=platform_collect requires RAZORPAY_ROUTE_ENABLED=true "
+                    "(collecting into the platform's own account without split settlement would "
+                    "make the platform a payment aggregator)"
+                )
         return self
 
     @model_validator(mode="after")

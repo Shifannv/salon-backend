@@ -42,6 +42,8 @@ create table salons (
   created_at timestamptz not null default now());
 create table salon_images (id uuid primary key default gen_random_uuid(),
   salon_id uuid references salons(id) on delete cascade, url text);
+create table salon_payout_accounts (salon_id uuid primary key references salons(id) on delete cascade,
+  account_holder_name text not null, upi_id text, bank_account_number text, ifsc text);
 create table staff (id uuid primary key default gen_random_uuid(), salon_id uuid references salons(id),
   profile_id uuid references profiles(id), name text not null, photo_url text,
   specialization text, is_active boolean default true);
@@ -208,6 +210,7 @@ async def test_owner_erasure_hides_and_scrubs_salon_but_keeps_other_customers_hi
     await run(db, "insert into salons (id, owner_id, name, address, city, description, lat, lng, created_by) "
                   "values (:s,:o,'Cuts','1 Main St','Kochi','nice',1,2,:o)", s=salon, o=owner)
     await run(db, "insert into salon_images (salon_id, url) values (:s,'https://m.example/salon-images/a.jpg')", s=salon)
+    await run(db, "insert into salon_payout_accounts (salon_id, account_holder_name, upi_id) values (:s,'Owner','a@upi')", s=salon)
     await run(db, "insert into staff (salon_id, profile_id, name, photo_url) values (:s,:u,'Dee','https://m.example/staff-photos/d.jpg')",
               s=salon, u=staff_user)
     await run(db, "insert into services (salon_id, photo_url) values (:s,'https://m.example/salon-images/svc.jpg')", s=salon)
@@ -226,6 +229,7 @@ async def test_owner_erasure_hides_and_scrubs_salon_but_keeps_other_customers_hi
     assert salon_row["address"] is None and salon_row["description"] is None and salon_row["lat"] is None
     assert salon_row["created_by"] is None
     assert await run(db, "select 1 from salon_images") == []
+    assert await run(db, "select 1 from salon_payout_accounts") == []
     staff = (await run(db, "select * from staff"))[0]
     assert staff["name"] == "Former staff" and staff["photo_url"] is None
     assert staff["profile_id"] is None and staff["is_active"] is False

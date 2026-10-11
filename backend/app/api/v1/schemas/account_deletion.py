@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 DeletionStatus = Literal["pending", "processing", "completed", "failed"]
+DeletionStage = Literal["queued", "refunding", "waiting_for_refunds", "erasing", "completed"]
 
 
 class StartDeletionChallengeRequest(BaseModel):
@@ -28,6 +29,11 @@ class DeletionChallengeResponse(BaseModel):
     masked_destination: str
     expires_at: datetime
     resend_available_at: datetime
+    bookings_to_cancel: int = Field(
+        default=0,
+        description="Owners only: upcoming pending/confirmed bookings that confirming will "
+        "cancel (customers are notified and online payments refunded). Always 0 for customers.",
+    )
 
 
 class VerifyDeletionChallengeRequest(BaseModel):
@@ -61,12 +67,17 @@ class AccountDeletionAcceptedResponse(BaseModel):
 class AccountDeletionStatusResponse(BaseModel):
     request_id: UUID
     status: DeletionStatus
+    stage: DeletionStage = Field(
+        description="queued -> (owners) refunding -> waiting_for_refunds -> erasing -> completed. "
+        "While refunds settle, status stays pending and stage is waiting_for_refunds."
+    )
     requested_at: datetime
     completed_at: datetime | None = None
 
 
 class AdminAccountDeletionResponse(BaseModel):
-    """Ledger row: deliberately carries no name, email, phone or user id."""
+    """Ledger row: no name, email, phone or user id. ``salon_name``/``salon_city`` hold the
+    live business snapshot only until completion, then the anonymised shell values."""
 
     id: UUID
     role: Literal["customer", "owner"]
@@ -76,3 +87,11 @@ class AdminAccountDeletionResponse(BaseModel):
     status: DeletionStatus
     requested_at: datetime
     completed_at: datetime | None = None
+    attempts: int = 0
+    last_error_code: str | None = Field(
+        default=None,
+        description="Exception class of the last failed step, or refunds_pending while "
+        "waiting for refunds. Null when completed.",
+    )
+    next_attempt_at: datetime | None = None
+    updated_at: datetime | None = None

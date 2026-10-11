@@ -63,14 +63,17 @@ class BookingActionRequestUseCases:
         decision: str,
         reason: str | None,
         background_tasks: BackgroundTasks | None = None,
+        *,
+        payment_method: str = "cash",
     ) -> dict[str, Any]:
         """Resolve one request as an authorized salon actor."""
 
         if actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Salon workspace access required")
         await assert_approved_workspace(self.repository, actor)
+        extra = {"payment_method": payment_method} if decision == "received" else {}
         item = await self.repository.respond_booking_action_request(
-            actor.id, request_id, decision, reason
+            actor.id, request_id, decision, reason, **extra
         )
         self._schedule_outbox(item, background_tasks)
         return item

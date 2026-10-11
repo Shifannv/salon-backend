@@ -37,6 +37,10 @@ _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="fcm")
 _EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 _EXPO_TOKEN_PREFIX = "ExponentPushToken["
 
+# Android channel created by the owner app (high importance, audible). Apps that do not
+# define it (e.g. the customer app) fall back to their default channel, so this is safe.
+_ANDROID_CHANNEL_ID = "salon-alerts-v3"
+
 
 class FCMGateway(PushGateway):
     """Firebase Cloud Messaging + Expo push delivery.
@@ -136,6 +140,8 @@ class FCMGateway(PushGateway):
                     json={
                         "to": token,
                         "sound": "default",
+                        "priority": "high",
+                        "channelId": _ANDROID_CHANNEL_ID,
                         "title": str(notification["title"]),
                         "body": notification.get("body") or "",
                         "data": self._provider_data(notification),
@@ -207,6 +213,16 @@ class FCMGateway(PushGateway):
                 body=notification.get("body") or "",
             ),
             data=self._provider_data(notification),
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    channel_id=_ANDROID_CHANNEL_ID, sound="default"
+                ),
+            ),
+            apns=messaging.APNSConfig(
+                headers={"apns-priority": "10"},
+                payload=messaging.APNSPayload(aps=messaging.Aps(sound="default")),
+            ),
         )
         messaging.send(message, app=app)
 

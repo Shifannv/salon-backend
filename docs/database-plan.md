@@ -48,3 +48,17 @@ PII-free ledger, no foreign key to `profiles`). Relaxes `NOT NULL` on `salons.ow
 `booking_action_requests.requested_by`, teaches `set_audit_actor()` to stand down inside the
 erasure transaction (`app.account_erasure`), and adds `erase_profile_references(uuid)` which
 nulls every no-action foreign key to `profiles(id)`. Requires `0020` first.
+
+## Payments and payout audit (migrations 0026, 0027)
+
+New tables: `booking_payments` (ledger), `payment_refunds`, `payment_webhook_events`,
+`payment_idempotency_keys`, `payment_provider_accounts`, `salon_payout_account_history`.
+New `bookings` columns: `currency`, `deposit_amount`, `paid_amount`, `refunded_amount`
+(a derived cache of the ledger; `payment_preference` CHECK widened to
+`pay_at_salon|pay_advance|pay_full`). Functions: `recompute_booking_payment_state`,
+`salon_payout_account_masked`. All new status columns are `text` + `CHECK`; the
+`payment_status`/`payment_method` enums are unchanged. New tables are RLS-enabled with
+anon/authenticated privileges revoked.
+
+BUILT: schema as migrations. NOT VERIFIED: never run against a live Postgres. NOT BUILT:
+column encryption of `salon_payout_accounts.bank_account_number`.

@@ -124,3 +124,25 @@ For Cloud Run, deploy the same build context and configure all runtime environme
 variables in Cloud Run. Keep the container port aligned with `PORT`.
 Cloud Run needs a separately scheduled notification worker or equivalent outbox drainer;
 the API process alone does not poll the outbox.
+
+## Payment webhook worker
+
+`docker-compose.yml` has a `payment-webhook-worker` service
+(`python -m app.infrastructure.payments.webhook_worker`) alongside `notification-worker`,
+`media-cleanup` and `account-deletion-worker` (unchanged). It retries stored webhook
+events, reconciles stale open payment intents and prunes expired idempotency keys. Its HTTP
+health check is disabled like the other pollers. It is harmless while
+`PAYMENT_PROVIDER=none`.
+
+New environment variables (all optional; defaults in `.env.example`): `PAYMENT_PROVIDER`,
+`PAYMENT_SETTLEMENT_MODEL`, `PAYMENT_CURRENCY`, `PAYMENT_ADVANCE_PERCENT`,
+`PAYMENT_INTENT_TTL_SECONDS`, `PAYMENT_IDEMPOTENCY_TTL_SECONDS`,
+`PAYMENT_WEBHOOK_MAX_BODY_BYTES`, `PAYMENT_WEBHOOK_MAX_ATTEMPTS`,
+`PAYMENT_PLATFORM_FEE_PERCENT`, `PAYMENT_WORKER_POLL_SECONDS`,
+`PAYMENT_RECONCILE_AFTER_SECONDS`, and provider credentials. A configured provider with
+missing credentials, or `PAYMENT_SETTLEMENT_MODEL=direct_to_salon`, fails container boot on
+purpose. Enabling a provider also needs the provider webhook URL
+`https://<api>/v1/webhooks/<provider>` registered with the provider.
+
+BUILT: service + env. DORMANT: until a provider is configured. NOT BUILT: a worker
+health check (the compose service has none).

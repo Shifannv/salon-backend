@@ -61,13 +61,27 @@ class FakeLedger:
     async def complete_request(self, request_id):
         self.status = "completed"
 
-    async def erase_database(self, user_id, role):
+    async def erase_database(self, user_id, role, staff_profile_ids=None):
         self.erased.append((user_id, role))
         self.profile_present = False
         self.events.append("db")
 
     async def profile_exists(self, user_id):
         return self.profile_present
+
+    async def requeue_request(self, request_id, reason_code, delay_seconds):
+        self.status, self.error, self.delay = "pending", reason_code, delay_seconds
+
+    # Closure phase: no bookings, no payments (the PAYMENT_PROVIDER=none shape).
+    async def cancel_open_bookings(self, user_id):
+        self.events.append("cancel")
+        return {"cancelled": 0, "notified": 0, "resolved": 0}
+
+    async def list_closure_refund_candidates(self, user_id):
+        return []
+
+    async def list_unsettled_closure_refunds(self, user_id):
+        return []
 
 
 class FakeAdmin:
@@ -107,6 +121,7 @@ def make_service(request, *, referenced=()):
     refs.lock_media_url = AsyncMock()
     refs.media_url_is_referenced = AsyncMock(side_effect=lambda url: url in referenced)
     release = AsyncMock()
+    cache.available = True
     service = AccountErasureService(ledger, admin, storage, cache, refs, release, BUCKET, 600)
     return service, ledger, admin, storage, cache, refs, release
 
@@ -126,9 +141,11 @@ async def test_owner_erasure_runs_every_step_and_completes():
     assert USER not in admin.users
     prefixes = [call.args[0] for call in cache.delete_prefix.await_args_list]
     assert f"salon:{SALON}:" in prefixes and f"idempotency:walkin:v2:{USER}:" in prefixes
+    assert STAFF_USER not in admin.users  # staff login removed once its profile is gone
     assert ledger.events == [
+        "cancel", "step:bookings_cancelled", "step:refunds_issued", "step:refunds_settled",
         "step:auth_banned", "db", "step:db_erased", "step:media_deleted",
-        "step:cache_cleared", "step:auth_deleted",
+        "step:cache_cleared", "step:auth_deleted", "step:staff_auth_deleted",
     ]
 
 
@@ -138,8 +155,9 @@ async def test_customer_erasure_skips_salon_cache_keys():
     await service.process_next()
     assert ledger.status == "completed"
     assert [c.args[0] for c in cache.delete_prefix.await_args_list] == [
-        f"idempotency:walkin:v2:{USER}:"
+        f"idempotency:walkin:v2:{USER}:", f"idempotency:booking:{USER}:",
     ]
+    assert "cancel" not in ledger.events  # customers have no salon to close
 
 
 @pytest.mark.asyncio
@@ -226,8 +244,17 @@ async def test_nothing_due_returns_false():
 async def test_missing_storage_configuration_fails_instead_of_skipping_media():
     service, ledger, *_ = make_service(make_request(media=[f"{BASE}/avatars/{USER}/a.jpg"]))
     service.bucket = None
+    service.storage_required = True
     await service.process_next()
     assert ledger.status == "failed" and ledger.error == "ErasureVerificationError"
+
+
+@pytest.mark.asyncio
+async def test_unconfigured_storage_in_local_dev_does_not_loop_forever_on_foreign_avatars():
+    service, ledger, *_ = make_service(make_request(media=["https://lh3.googleusercontent.com/a"]))
+    service.bucket = None  # storage_required stays False: nothing managed can exist
+    await service.process_next()
+    assert ledger.status == "completed"
 
 
 @pytest.mark.parametrize(

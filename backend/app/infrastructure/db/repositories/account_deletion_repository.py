@@ -17,6 +17,35 @@ _CHALLENGE_COLUMNS = (
 )
 _OWNED_SALONS = "select id from salons where owner_id = :uid"
 
+# Salons are soft-deactivated, never deleted, so ``on delete cascade`` foreign keys to
+# salons(id) NEVER fire. Every such table must be emptied explicitly by
+# ``_scrub_owner_business``. tests/unit/test_account_erasure_schema_guard.py fails when a
+# migration adds a cascade FK to salons that is missing from this tuple.
+SALON_CASCADE_TABLES: tuple[str, ...] = (
+    "salon_images",
+    "salon_holidays",
+    "blocked_slots",
+    "salon_payout_accounts",
+    "salon_payout_account_history",
+)
+# Plain (NO ACTION) salon references that hold provider-side identifiers: also emptied.
+SALON_PROVIDER_REFERENCE_TABLES: tuple[str, ...] = (
+    "subscription_provider_accounts",
+    "payment_provider_accounts",
+)
+
+SALON_CLOSED_REASON = "salon_closed"
+CLOSURE_REFUND_KEY = "salon_closed"
+SHELL_SALON_NAME = "Closed salon"
+REMOVED_TEXT = "Removed"
+ANONYMISED_NOTIFICATION_TITLE = "Booking update"
+
+CLOSURE_NOTICE_BASE = "This salon has closed, so your booking has been cancelled."
+CLOSURE_NOTICE_ONLINE = " Any online payment you made will be refunded to your original payment method."
+CLOSURE_NOTICE_MANUAL = (
+    " A payment you made directly to the salon is not refunded by the platform."
+)
+
 
 def _json(value: Any) -> Any:
     return json.loads(value) if isinstance(value, str) else value
@@ -29,15 +58,16 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         self.session = session
 
     async def count_blockers(self, user_id: str, role: str) -> dict[str, int]:
+        """Counts that genuinely block deletion.
+
+        An owner's open bookings and pending requests are NOT blockers: the worker
+        cancels, notifies and refunds them (``count_closure_impact``). Only an active
+        subscription can block an owner. A customer still has to resolve their own
+        upcoming bookings and pending requests.
+        """
+
         if role == "owner":
-            bookings = f"""
-                select count(*) from bookings b
-                where b.salon_id in ({_OWNED_SALONS})
-                  and b.status in ('pending', 'confirmed') and b.end_datetime > now()"""
-            requests = f"""
-                select count(*) from booking_action_requests r
-                join bookings b on b.id = r.booking_id
-                where b.salon_id in ({_OWNED_SALONS}) and r.status = 'pending'"""
+            bookings = requests = "select 0"
             subscriptions = f"""
                 select count(*) from salon_subscriptions
                 where salon_id in ({_OWNED_SALONS})
@@ -60,6 +90,24 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             result = await self.session.execute(text(sql), {"uid": user_id})
             counts[name] = int(result.scalar_one())
         return counts
+
+    async def count_closure_impact(self, user_id: str) -> dict[str, int]:
+        """What closing an owner's salons will do: bookings cancelled, requests resolved."""
+
+        result = await self.session.execute(
+            text(f"""
+                select
+                  (select count(*) from bookings b
+                    where b.salon_id in ({_OWNED_SALONS})
+                      and b.status in ('pending', 'confirmed') and b.end_datetime > now()),
+                  (select count(*) from booking_action_requests r
+                    join bookings b on b.id = r.booking_id
+                    where b.salon_id in ({_OWNED_SALONS}) and r.status = 'pending')
+            """),
+            {"uid": user_id},
+        )
+        bookings, requests = result.one()
+        return {"bookings_to_cancel": int(bookings), "requests_to_resolve": int(requests)}
 
     async def count_recent_challenges(self, user_id: str, window_seconds: int) -> int:
         result = await self.session.execute(
@@ -238,6 +286,7 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         role = str(profile["role"])
         salon = None
         staff_profile_ids: list[str] = []
+        salon_ids: list[str] = []
         media_urls: list[str] = []
         avatar = (await s.execute(
             text("select avatar_url from profiles where id = :uid"), {"uid": user_id}
@@ -254,6 +303,12 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
                 text("update salons set is_active = false where owner_id = :uid"),
                 {"uid": user_id},
             )
+            salon_ids = [
+                str(r[0]) for r in (await s.execute(
+                    text("select id from salons where owner_id = :uid order by created_at"),
+                    {"uid": user_id},
+                )).all()
+            ]
             rows = await s.execute(
                 text(f"""
                     select distinct st.profile_id from staff st
@@ -276,6 +331,11 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
                     text("update profiles set is_active = false where id = any(cast(:ids as uuid[]))"),
                     {"ids": staff_profile_ids},
                 )
+                avatars = await s.execute(
+                    text("select avatar_url from profiles where id = any(cast(:ids as uuid[]))"),
+                    {"ids": staff_profile_ids},
+                )
+                media_urls.extend(str(r[0]) for r in avatars.all() if r[0])
             urls = await s.execute(
                 text(f"""
                     select url from salon_images where salon_id in ({_OWNED_SALONS})
@@ -287,6 +347,8 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             )
             media_urls.extend(str(r[0]) for r in urls.all() if r[0])
 
+        # Owners are never blocked by open bookings/requests: the worker cancels and
+        # refunds them. Customers still resolve their own.
         blockers = await self.count_blockers(user_id, role)
         blocker_details: dict[str, int] = {}
         if blockers["open_bookings"]:
@@ -295,7 +357,8 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             blocker_details["pending_requests"] = blockers["pending_requests"]
         if blocker_details:
             raise DeletionBlockedError(
-                "Resolve open bookings and pending requests before deleting your account",
+                "Cancel your upcoming bookings and resolve pending requests before "
+                "deleting your account",
                 details=blocker_details,
             )
 
@@ -315,7 +378,8 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
              "salon_id": str(salon["id"]) if salon else None,
              "salon_name": salon["name"] if salon else None,
              "salon_city": salon["city"] if salon else None,
-             "state": json.dumps({"staff_profile_ids": staff_profile_ids}),
+             "state": json.dumps(
+                 {"staff_profile_ids": staff_profile_ids, "salon_ids": salon_ids}),
              "media": json.dumps(sorted(set(media_urls)))},
         )).mappings().one()
         await s.execute(
@@ -329,19 +393,25 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
     async def get_request(self, request_id: str) -> dict[str, Any] | None:
         result = await self.session.execute(
             text("""
-                select id, status, requested_at, completed_at from account_deletion_requests
+                select id, status, requested_at, completed_at, step_state
+                from account_deletion_requests
                 where id = :id
             """),
             {"id": request_id},
         )
         row = result.mappings().one_or_none()
-        return dict(row) if row else None
+        if row is None:
+            return None
+        data = dict(row)
+        data["step_state"] = _json(data["step_state"]) or {}
+        return data
 
     async def list_requests(self, limit: int, offset: int) -> list[dict[str, Any]]:
         result = await self.session.execute(
             text("""
                 select id, role, salon_id, salon_name, salon_city, status,
-                       requested_at, completed_at
+                       requested_at, completed_at, attempts, last_error_code,
+                       next_attempt_at, updated_at
                 from account_deletion_requests
                 order by requested_at desc limit :limit offset :offset
             """),
@@ -399,71 +469,405 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         )
         await self.session.commit()
 
+    async def requeue_request(self, request_id: str, reason_code: str, delay_seconds: int) -> None:
+        """Wait without failing: used while refunds settle, so the status stays ``pending``."""
+
+        await self.session.rollback()
+        await self.session.execute(
+            text("""
+                update account_deletion_requests
+                set status = 'pending', last_error_code = :code, updated_at = now(),
+                    next_attempt_at = now() + :delay * interval '1 second'
+                where id = :id and status = 'processing'
+            """),
+            {"id": request_id, "code": reason_code[:80], "delay": delay_seconds},
+        )
+        await self.session.commit()
+
     async def complete_request(self, request_id: str) -> None:
+        """Close the ledger row: drop every identifier and anonymise the salon snapshot."""
+
         await self.session.execute(
             text("""
                 update account_deletion_requests
                 set status = 'completed', completed_at = now(), updated_at = now(),
-                    user_id = null, media_keys = '[]'::jsonb, last_error_code = null
+                    user_id = null, media_keys = '[]'::jsonb, last_error_code = null,
+                    step_state = '{}'::jsonb,
+                    salon_name = case when salon_name is null then null else :shell end,
+                    salon_city = null
                 where id = :id and status = 'processing'
             """),
-            {"id": request_id},
+            {"id": request_id, "shell": SHELL_SALON_NAME},
         )
         await self.session.commit()
 
-    async def erase_database(self, user_id: str, role: str) -> None:
+    # ------------------------------------------------------- cancel and refund
+    async def cancel_open_bookings(self, user_id: str) -> dict[str, int]:
+        """Cancel every future pending/confirmed booking at the owner's salons and tell
+        each customer, in ONE transaction, so a retry can neither skip nor repeat a notice.
+
+        Also resolves every open booking-action request at those salons and cancels
+        never-attempted checkout intents. Returns counts; a re-run finds nothing to do.
+        """
+
+        s = self.session
+        params = {"uid": user_id}
+        try:
+            rows = (await s.execute(
+                text(f"""
+                    select id from bookings
+                    where salon_id in ({_OWNED_SALONS})
+                      and status in ('pending', 'confirmed') and end_datetime > now()
+                    order by id for update
+                """),
+                params,
+            )).all()
+            ids = [str(r[0]) for r in rows]
+            notified = 0
+            if ids:
+                await s.execute(
+                    text("""
+                        update bookings
+                        set status = 'cancelled', cancellation_reason = :reason
+                        where id = any(cast(:ids as uuid[]))
+                    """),
+                    {"ids": ids, "reason": SALON_CLOSED_REASON},
+                )
+                await s.execute(
+                    text("""
+                        update booking_payments set status = 'cancelled'
+                        where booking_id = any(cast(:ids as uuid[]))
+                          and channel = 'gateway' and status = 'created'
+                    """),
+                    {"ids": ids},
+                )
+                notified = (await s.execute(
+                    text("""
+                        with created as (
+                          insert into notifications (user_id, booking_id, type, title, body, data)
+                          select b.customer_id, b.id, 'booking_cancelled', 'Booking cancelled',
+                                 cast(:base as text)
+                                 || case when exists (
+                                      select 1 from booking_payments p
+                                      where p.booking_id = b.id and p.channel = 'gateway'
+                                        and p.status in ('captured', 'partially_refunded'))
+                                    then cast(:online as text) else '' end
+                                 || case when exists (
+                                      select 1 from booking_payments p
+                                      where p.booking_id = b.id and p.channel = 'manual'
+                                        and p.status = 'captured' and p.amount > 0)
+                                    then cast(:manual as text) else '' end,
+                                 jsonb_build_object('reason', cast(:reason as text))
+                          from bookings b
+                          where b.id = any(cast(:ids as uuid[])) and b.customer_id is not null
+                          returning id, user_id
+                        ), queued as (
+                          insert into notification_outbox (notification_id, user_id)
+                          select id, user_id from created
+                          returning 1
+                        )
+                        select count(*) from queued
+                    """),
+                    {"ids": ids, "base": CLOSURE_NOTICE_BASE, "online": CLOSURE_NOTICE_ONLINE,
+                     "manual": CLOSURE_NOTICE_MANUAL, "reason": SALON_CLOSED_REASON},
+                )).scalar_one()
+            resolved = (await s.execute(
+                text(f"""
+                    update booking_action_requests
+                    set status = 'resolved', decision = 'invalidated',
+                        decision_reason = 'Salon closed', resolved_at = now()
+                    where status = 'pending'
+                      and booking_id in (select id from bookings where salon_id in ({_OWNED_SALONS}))
+                """),
+                params,
+            )).rowcount
+            await s.commit()
+            return {"cancelled": len(ids), "notified": int(notified), "resolved": int(resolved or 0)}
+        except BaseException:
+            await s.rollback()
+            raise
+
+    async def list_closure_refund_candidates(self, user_id: str) -> list[dict[str, Any]]:
+        """Online payments on closure-cancelled bookings, with any refund already begun."""
+
+        result = await self.session.execute(
+            text(f"""
+                select p.id as payment_id, p.booking_id, p.provider, p.payment_ref, p.amount,
+                       p.status as payment_status,
+                       coalesce((select sum(r.amount) from payment_refunds r
+                                 where r.payment_id = p.id and r.status <> 'failed'
+                                   and r.idempotency_key <> :key), 0) as other_refunded,
+                       c.id as refund_id, c.status as refund_status, c.refund_ref
+                from booking_payments p
+                join bookings b on b.id = p.booking_id
+                left join payment_refunds c
+                  on c.payment_id = p.id and c.idempotency_key = :key
+                where b.salon_id in ({_OWNED_SALONS})
+                  and b.status = 'cancelled' and b.cancellation_reason = :reason
+                  and p.channel = 'gateway' and p.payment_ref is not null
+                  and (p.status in ('captured', 'partially_refunded') or c.id is not null)
+                order by p.created_at, p.id
+            """),
+            {"uid": user_id, "key": CLOSURE_REFUND_KEY, "reason": SALON_CLOSED_REASON},
+        )
+        return [dict(r) for r in result.mappings().all()]
+
+    async def begin_closure_refund(
+        self, payment_id: str, booking_id: str, provider: str | None, amount: Any
+    ) -> dict[str, Any]:
+        """Insert the refund row (or return the existing one) BEFORE calling the provider.
+
+        ``unique (payment_id, idempotency_key)`` makes this exactly-once per payment.
+        """
+
+        s = self.session
+        try:
+            await s.execute(
+                text("""
+                    insert into payment_refunds
+                      (payment_id, booking_id, provider, amount, status, reason, idempotency_key)
+                    values (:p, :b, :provider, :amount, 'created', :reason, :key)
+                    on conflict (payment_id, idempotency_key) do nothing
+                """),
+                {"p": payment_id, "b": booking_id, "provider": provider, "amount": amount,
+                 "reason": SALON_CLOSED_REASON, "key": CLOSURE_REFUND_KEY},
+            )
+            row = (await s.execute(
+                text("""
+                    select id, status, refund_ref, amount from payment_refunds
+                    where payment_id = :p and idempotency_key = :key
+                """),
+                {"p": payment_id, "key": CLOSURE_REFUND_KEY},
+            )).mappings().one()
+            await s.commit()
+            return dict(row)
+        except BaseException:
+            await s.rollback()
+            raise
+
+    async def finish_closure_refund(
+        self, refund_id: str, refund_ref: str | None, status: str, failure_code: str | None
+    ) -> None:
+        try:
+            await self.session.execute(
+                text("""
+                    update payment_refunds
+                    set refund_ref = :ref, status = :status, failure_code = :code,
+                        processed_at = case when :status = 'processed' then now() else processed_at end
+                    where id = :id and status = 'created'
+                """),
+                {"id": refund_id, "ref": refund_ref, "status": status,
+                 "code": failure_code[:120] if failure_code else None},
+            )
+            await self.session.commit()
+        except BaseException:
+            await self.session.rollback()
+            raise
+
+    async def record_failed_closure_refund(
+        self, payment_id: str, booking_id: str, provider: str | None, amount: Any, failure_code: str
+    ) -> None:
+        """Operator-visible record of a refund the platform could not issue."""
+
+        try:
+            await self.session.execute(
+                text("""
+                    insert into payment_refunds
+                      (payment_id, booking_id, provider, amount, status, reason,
+                       idempotency_key, failure_code)
+                    values (:p, :b, :provider, :amount, 'failed', :reason, :key, :code)
+                    on conflict (payment_id, idempotency_key) do update
+                      set status = 'failed', failure_code = excluded.failure_code
+                      where payment_refunds.status = 'created'
+                        and payment_refunds.refund_ref is null
+                """),
+                {"p": payment_id, "b": booking_id, "provider": provider, "amount": amount,
+                 "reason": SALON_CLOSED_REASON, "key": CLOSURE_REFUND_KEY,
+                 "code": failure_code[:120]},
+            )
+            await self.session.commit()
+        except BaseException:
+            await self.session.rollback()
+            raise
+
+    async def list_unsettled_closure_refunds(self, user_id: str) -> list[str]:
+        result = await self.session.execute(
+            text(f"""
+                select r.id from payment_refunds r
+                join bookings b on b.id = r.booking_id
+                where b.salon_id in ({_OWNED_SALONS})
+                  and r.idempotency_key = :key and r.status = 'created'
+                order by r.created_at, r.id
+            """),
+            {"uid": user_id, "key": CLOSURE_REFUND_KEY},
+        )
+        return [str(r[0]) for r in result.all()]
+
+    # ---------------------------------------------------------------- erasure
+    async def erase_database(
+        self, user_id: str, role: str, staff_profile_ids: list[str] | None = None
+    ) -> None:
         s = self.session
         try:
             await s.execute(text("select set_config('app.account_erasure', 'on', true)"))
             params = {"uid": user_id}
-            await s.execute(text("delete from notifications where user_id = :uid"), params)
-            await s.execute(text("delete from device_tokens where user_id = :uid"), params)
-            await s.execute(text("delete from salon_reports where reporter_id = :uid"), params)
-            await s.execute(
-                text("update booking_action_requests set reason = null where requested_by = :uid"),
-                params,
-            )
-            await s.execute(
-                text("""
-                    update bookings
-                    set customer_name = 'Deleted customer', customer_phone = null, notes = null
-                    where customer_id = :uid
-                """),
-                params,
-            )
+            await self._scrub_user_footprint(params)
+            deletable_staff: list[str] = []
             if role == "owner":
-                await self._scrub_owner_business(params)
+                deletable_staff = await self._scrub_owner_business(params, staff_profile_ids or [])
             await s.execute(text("select erase_profile_references(:uid)"), params)
             await s.execute(text("delete from profiles where id = :uid"), params)
+            for staff_id in deletable_staff:
+                await s.execute(text("select erase_profile_references(:uid)"), {"uid": staff_id})
+                await s.execute(text("delete from profiles where id = :uid"), {"uid": staff_id})
             await s.commit()
         except BaseException:
             await s.rollback()
             raise
 
-    async def _scrub_owner_business(self, params: dict[str, str]) -> None:
+    async def _scrub_notifications(self, predicate: str, params: dict[str, Any]) -> None:
+        """Anonymise other people's notifications that name a deleted person.
+
+        Delivery/outbox error text can echo provider payloads, so it goes too. The
+        predicate must not depend on the columns being rewritten.
+        """
+
         s = self.session
+        ids = f"select id from notifications where {predicate}"
         await s.execute(
-            text("""
-                update salons
-                set is_active = false, description = null, address = null, lat = null,
-                    lng = null, qr_image_url = null, working_hours = '{}'::jsonb,
-                    qr_token = encode(gen_random_bytes(16), 'hex')
-                where owner_id = :uid
-            """),
+            text(f"update notification_deliveries set error = null where notification_id in ({ids})"),
             params,
         )
         await s.execute(
-            text(f"delete from salon_images where salon_id in ({_OWNED_SALONS})"), params
-        )
-        await s.execute(
-            text(f"update services set photo_url = null where salon_id in ({_OWNED_SALONS})"),
+            text(f"update notification_outbox set last_error = null where notification_id in ({ids})"),
             params,
         )
         await s.execute(
             text(f"""
-                delete from blocked_slots
-                where salon_id in ({_OWNED_SALONS})
-                   or staff_id in (select id from staff where salon_id in ({_OWNED_SALONS}))
+                update notifications
+                set title = :title, body = null, data = null
+                where {predicate}
+                  and (title is distinct from :title or body is not null or data is not null)
+            """),
+            {**params, "title": ANONYMISED_NOTIFICATION_TITLE},
+        )
+
+    async def _scrub_user_footprint(self, params: dict[str, str]) -> None:
+        """Everything that points at the person being erased, whatever their role."""
+
+        s = self.session
+        await s.execute(text("delete from notifications where user_id = :uid"), params)
+        await s.execute(text("delete from device_tokens where user_id = :uid"), params)
+        # Other people's inbox items that name this customer (owner/staff "X booked ...").
+        await self._scrub_notifications(
+            "user_id <> :uid and booking_id in (select id from bookings where customer_id = :uid)",
+            params,
+        )
+        await s.execute(text("delete from salon_reports where reporter_id = :uid"), params)
+        await s.execute(
+            text("""
+                update booking_action_requests
+                set reason = case when requested_by = :uid then null else reason end,
+                    decision_reason = case when decision = 'decline' then :removed end
+                where requested_by = :uid
+                   or booking_id in (select id from bookings where customer_id = :uid)
+            """),
+            {**params, "removed": REMOVED_TEXT},
+        )
+        await s.execute(
+            text("""
+                update bookings
+                set customer_name = 'Deleted customer', customer_phone = null, notes = null,
+                    rejection_reason = case when status = 'rejected' then :removed end,
+                    cancellation_reason = case when cancellation_reason = :closed
+                                               then cancellation_reason end
+                where customer_id = :uid
+            """),
+            {**params, "removed": REMOVED_TEXT, "closed": SALON_CLOSED_REASON},
+        )
+        # Financial rows are RETAINED (amounts, ids, provider references); only the
+        # people on them are detached.
+        await s.execute(text("update booking_payments set payer_id = null where payer_id = :uid"), params)
+        await s.execute(
+            text("update booking_payments set recorded_by = null where recorded_by = :uid"), params
+        )
+        await s.execute(text("delete from payment_idempotency_keys where actor_id = :uid"), params)
+
+    async def _scrub_owner_business(self, params: dict[str, str], staff_ids: list[str]) -> list[str]:
+        """Empty a closed salon down to an anonymous shell.
+
+        Returns the staff profile ids that are safe to hard-delete (see below).
+        """
+
+        s = self.session
+        owned = f"({_OWNED_SALONS})"
+        # Staff logins that existed only for these salons are separate people whose
+        # profile (name, email, phone, avatar) would otherwise be banned but kept for
+        # ever. Guard: staff role, no staff row at a salon this owner does not own, never a
+        # customer, never an owner. Anything failing the guard stays banned, not deleted.
+        deletable_staff: list[str] = []
+        if staff_ids:
+            rows = await s.execute(
+                text(f"""
+                    select p.id from profiles p
+                    where p.id = any(cast(:ids as uuid[])) and p.role = 'staff' and p.id <> :uid
+                      and not exists (select 1 from staff o where o.profile_id = p.id
+                                      and o.salon_id not in {owned})
+                      and not exists (select 1 from bookings b where b.customer_id = p.id)
+                      and not exists (select 1 from salons x where x.owner_id = p.id)
+                """),
+                {**params, "ids": staff_ids},
+            )
+            deletable_staff = [str(r[0]) for r in rows.all()]
+        if staff_ids:
+            await s.execute(
+                text("delete from payment_idempotency_keys where actor_id = any(cast(:ids as uuid[]))"),
+                {"ids": staff_ids},
+            )
+
+        # Cascade FKs to salons never fire (salons are kept): delete explicitly.
+        for table in SALON_CASCADE_TABLES + SALON_PROVIDER_REFERENCE_TABLES:
+            await s.execute(text(f"delete from {table} where salon_id in {owned}"), params)
+        await s.execute(
+            text(
+                "delete from blocked_slots where staff_id in "
+                f"(select id from staff where salon_id in {owned})"
+            ),
+            params,
+        )
+        await s.execute(
+            text(f"""
+                update subscription_events set error_message = null
+                where error_message is not null and salon_subscription_id in (
+                  select id from salon_subscriptions where salon_id in {owned})
+            """),
+            params,
+        )
+        await s.execute(
+            text(f"update salon_reports set details = '' where salon_id in {owned} and details <> ''"),
+            params,
+        )
+
+        await s.execute(
+            text("""
+                update salons
+                set is_active = false, name = :shell, city = null, description = null,
+                    address = null, lat = null, lng = null, qr_image_url = null,
+                    rejection_reason = null, working_hours = '{}'::jsonb,
+                    qr_token = encode(gen_random_bytes(16), 'hex')
+                where owner_id = :uid
+            """),
+            {**params, "shell": SHELL_SALON_NAME},
+        )
+        await s.execute(
+            text(f"update services set photo_url = null, description = null where salon_id in {owned}"),
+            params,
+        )
+        await s.execute(
+            text(f"""
+                update staff_services set specialization = null
+                where specialization is not null
+                  and staff_id in (select id from staff where salon_id in {owned})
             """),
             params,
         )
@@ -471,11 +875,73 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             text(f"""
                 update staff
                 set name = 'Former staff', photo_url = null, specialization = null,
-                    profile_id = null, is_active = false
-                where salon_id in ({_OWNED_SALONS})
+                    experience = null, profile_id = null, is_active = false
+                where salon_id in {owned}
             """),
             params,
         )
+
+        # Bookings stay (other customers' history) but lose owner-written free text, and
+        # walk-in people - who have no account and no other holder - lose their details.
+        await s.execute(
+            text(f"""
+                update bookings
+                set rejection_reason = case when status = 'rejected' then :removed end,
+                    cancellation_reason = case when cancellation_reason = :closed
+                                               then cancellation_reason end
+                where salon_id in {owned}
+                  and (rejection_reason is distinct from case when status = 'rejected' then :removed end
+                       or cancellation_reason is distinct from case when cancellation_reason = :closed
+                                                                    then cancellation_reason end)
+            """),
+            {**params, "removed": REMOVED_TEXT, "closed": SALON_CLOSED_REASON},
+        )
+        await s.execute(
+            text(f"""
+                update bookings
+                set customer_name = 'Deleted customer', customer_phone = null, notes = null
+                where salon_id in {owned} and customer_id is null
+                  and (customer_name <> 'Deleted customer' or customer_phone is not null
+                       or notes is not null)
+            """),
+            params,
+        )
+        await s.execute(
+            text(f"""
+                update booking_action_requests
+                set decision_reason = case when decision = 'decline' then :removed end
+                where decision_reason is not null
+                  and decision_reason is distinct from case when decision = 'decline' then :removed end
+                  and booking_id in (select id from bookings where salon_id in {owned})
+            """),
+            {**params, "removed": REMOVED_TEXT},
+        )
+        # An owner-typed refund reason is free text; the closure code is not.
+        await s.execute(
+            text(f"""
+                update payment_refunds set reason = null
+                where reason is not null and reason <> :closed
+                  and booking_id in (select id from bookings where salon_id in {owned})
+            """),
+            {**params, "closed": SALON_CLOSED_REASON},
+        )
+        # Whoever recorded a cash receipt (owner or staff) is detached; amounts stay.
+        await s.execute(
+            text(f"""
+                update booking_payments set recorded_by = null
+                where salon_id in {owned} and recorded_by is not null
+            """),
+            params,
+        )
+        # Customers' and staff inbox items about this salon may name the owner, the staff
+        # or the salon; the cancellation notices written by the closure step are exempt.
+        await self._scrub_notifications(
+            f"""user_id <> :uid
+                and booking_id in (select id from bookings where salon_id in {owned})
+                and coalesce(data ->> 'reason', '') <> '{SALON_CLOSED_REASON}'""",
+            params,
+        )
+        return deletable_staff
 
     async def profile_exists(self, user_id: str) -> bool:
         result = await self.session.execute(

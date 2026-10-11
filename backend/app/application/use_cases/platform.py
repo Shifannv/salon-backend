@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.authorization import is_owner, is_owner_or_staff
+from app.domain.services.booking_policy import can_record_payment
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 _log = logging.getLogger(__name__)
@@ -199,6 +200,96 @@ class CustomerUseCases:
         return _upload_result(upload_url, public_url)
 
 
+PAYOUT_FIELDS = ("account_holder_name", "upi_id", "bank_name", "bank_account_number", "ifsc")
+
+
+def validate_payout_account(merged: dict[str, Any]) -> None:
+    """Validate the merged payout row. Messages never contain submitted values."""
+
+    if not merged.get("account_holder_name"):
+        raise ValidationError("Account holder name is required")
+    if merged.get("ifsc") and not merged.get("bank_account_number"):
+        raise ValidationError("An IFSC code needs a bank account number")
+    if merged.get("bank_name") and not merged.get("bank_account_number"):
+        raise ValidationError("A bank name needs a bank account number")
+    if merged.get("bank_account_number") and not merged.get("ifsc"):
+        raise ValidationError("A bank account number needs an IFSC code")
+    has_bank = bool(merged.get("bank_account_number")) and bool(merged.get("ifsc"))
+    if not merged.get("upi_id") and not has_bank:
+        raise ValidationError("Add a UPI ID, or both a bank account number and IFSC code")
+
+
+def mask_payout_account(row: dict[str, Any] | None) -> dict[str, Any]:
+    """Build the public response; only the last 4 digits of the account survive."""
+
+    if row is None:
+        return {
+            "configured": False, "account_holder_name": None, "upi_id": None,
+            "bank_name": None, "bank_account_last4": None, "ifsc": None,
+            "has_upi": False, "has_bank": False, "updated_at": None,
+        }
+    # The repository already masks inside Postgres; ``bank_account_number`` is accepted
+    # only so a caller holding a full row can never leak more than four digits.
+    last4 = row.get("bank_account_last4")
+    if last4 is None and row.get("bank_account_number"):
+        last4 = row["bank_account_number"][-4:]
+    return {
+        "configured": True,
+        "account_holder_name": row["account_holder_name"],
+        "upi_id": row.get("upi_id"),
+        "bank_name": row.get("bank_name"),
+        "bank_account_last4": last4,
+        "ifsc": row.get("ifsc"),
+        "has_upi": bool(row.get("upi_id")),
+        "has_bank": bool(last4) and bool(row.get("ifsc")),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def _has_open_day(hours: Any) -> bool:
+    if not isinstance(hours, dict):
+        return False
+    return any(isinstance(day, dict) and day.get("open") for day in hours.values())
+
+
+def build_setup_status(facts: dict[str, Any]) -> dict[str, Any]:
+    """Turn raw salon facts into the ordered setup checklist."""
+
+    def present(key: str) -> bool:
+        value = facts.get(key)
+        return isinstance(value, str) and bool(value.strip())
+
+    items = [
+        ("profile_basics", "Business details",
+         "Add your salon name, category, address and city.",
+         all(present(k) for k in ("name", "category", "address", "city")), "business_profile"),
+        ("working_hours", "Working hours",
+         "Choose the days and times you are open.",
+         _has_open_day(facts.get("working_hours")), "working_hours"),
+        ("photos", "Salon photos",
+         "Add at least one photo of your salon.", bool(facts.get("has_photos")), "photos"),
+        ("services", "Services",
+         "Add at least one service customers can book.",
+         bool(facts.get("has_services")), "services"),
+        ("staff", "Staff",
+         "Add at least one team member.", bool(facts.get("has_staff")), "staff"),
+        ("payout", "Payout details",
+         "Tell us where to send your customer payments.",
+         bool(facts.get("has_payout")), "payout"),
+    ]
+    result = [
+        {"key": key, "title": title, "description": desc, "done": done, "action": action}
+        for key, title, desc, done, action in items
+    ]
+    completed = sum(1 for item in result if item["done"])
+    return {
+        "completed_count": completed,
+        "total_count": len(result),
+        "is_complete": completed == len(result),
+        "items": result,
+    }
+
+
 class OwnerUseCases:
     """Barber/owner app use cases."""
 
@@ -254,6 +345,45 @@ class OwnerUseCases:
 
         self._assert_owner_workspace(actor)
         return await self.repository.complete_owner_salon(actor.id, values or {})
+
+    # ── Payout account & setup checklist (owner only, not approval-gated) ──────
+    # Like complete_profile/get_my_salon these deliberately skip
+    # assert_approved_workspace: a brand-new owner must be able to finish setup
+    # while the salon still awaits admin approval. Staff are NOT allowed.
+
+    def _assert_owner_only(self, actor: Profile) -> None:
+        if not is_owner(actor):
+            raise ForbiddenError("Only the salon owner can manage payout details")
+
+    async def get_payout_account(self, actor: Profile) -> dict[str, Any]:
+        """Return the masked payout account (never the full account number)."""
+
+        self._assert_owner_only(actor)
+        return mask_payout_account(await self.repository.get_payout_account(actor.id))
+
+    async def update_payout_account(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
+        """Merge ``values`` into the stored payout account and return the masked result."""
+
+        self._assert_owner_only(actor)
+
+        row = await self.repository.update_payout_account(
+            actor.id,
+            {k: v for k, v in values.items() if k in PAYOUT_FIELDS},
+            validate_payout_account,
+        )
+        return mask_payout_account(row)
+
+    async def get_payout_history(self, actor: Profile, limit: int = 50) -> list[dict[str, Any]]:
+        """Return who changed the payout destination and when (last four digits only)."""
+
+        self._assert_owner_only(actor)
+        return await self.repository.list_payout_account_history(actor.id, limit)
+
+    async def get_setup_status(self, actor: Profile) -> dict[str, Any]:
+        """Return the authoritative new-owner setup checklist."""
+
+        self._assert_owner_only(actor)
+        return build_setup_status(await self.repository.get_setup_facts(actor.id))
 
     async def list_images(self, actor: Profile) -> list[dict[str, Any]]:
         """List salon images."""
@@ -637,7 +767,25 @@ class BookingUseCases:
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
         if background_tasks is not None and values.get("source") != "manual_walkin":
             background_tasks.add_task(self.notify_new_booking_owner, booking)
+            background_tasks.add_task(self.notify_new_booking_customer, booking)
         return booking
+
+    async def notify_new_booking_customer(self, booking: dict[str, Any]) -> None:
+        """Acknowledge a new app booking to the customer who made it."""
+
+        if booking.get("status") == "confirmed":
+            title, body, kind = (
+                "Booking Confirmed",
+                "Your appointment has been confirmed.",
+                "booking_confirmed",
+            )
+        else:
+            title, body, kind = (
+                "Booking Requested",
+                "Your booking request was sent. We'll notify you once the salon responds.",
+                "booking_requested",
+            )
+        await self._notify_customer(booking, title, body, kind)
 
     async def notify_new_booking_owner(self, booking: dict[str, Any]) -> None:
         """Notify a salon owner about an app or QR booking."""
@@ -873,7 +1021,7 @@ class BookingUseCases:
         """Record booking payment."""
 
         await assert_approved_workspace(self.repository, actor)
-        if not is_owner_or_staff(actor):
+        if not is_owner_or_staff(actor) or not can_record_payment(actor):
             raise ForbiddenError("Salon workspace access required")
         booking = await self.repository.record_payment(
             actor.id, booking_id, payment_method

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
 from app.application.ports.cache_gateway import CacheGateway
+from app.application.ports.payment_gateway import PaymentGateway
 from app.application.ports.storage_gateway import StorageGateway
 from app.core.config import settings
 from app.core.exceptions import AdminMFARequiredError, ForbiddenError, UnauthorizedError
@@ -16,6 +17,7 @@ from app.domain.entities.profile import Profile, Role
 from app.infrastructure.cache.redis import get_redis_cache
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
 from app.infrastructure.db.session import get_session, set_actor_context
+from app.infrastructure.payments.resolver import PaymentGatewayResolver, get_payment_resolver
 from app.infrastructure.r2.storage import R2StorageGateway
 from app.infrastructure.supabase.auth_admin import SupabaseAuthAdminGateway
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
@@ -50,6 +52,16 @@ def get_storage_gateway() -> StorageGateway:
 def get_cache() -> CacheGateway:
     """Return the configured cache gateway."""
     return get_redis_cache()
+
+
+def get_payment_gateway_resolver() -> PaymentGatewayResolver:
+    """Return the process-wide payment gateway resolver (dormant unless configured)."""
+    return get_payment_resolver()
+
+
+def get_payment_gateway() -> PaymentGateway:
+    """Domain-typed annotation, concrete factory: the platform-level gateway."""
+    return get_payment_resolver().resolve()
 
 
 async def get_current_actor(

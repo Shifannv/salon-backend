@@ -23,6 +23,9 @@ class BookingActionRespondRequest(BaseModel):
 
     decision: BookingActionDecision
     reason: str | None = Field(default=None, max_length=500)
+    # Only used when confirming a payment: how the customer actually paid. Defaults to the
+    # historical behaviour so existing clients are unaffected.
+    payment_method: Literal["cash", "online"] = "cash"
 
     @model_validator(mode="after")
     def require_decline_reason(self) -> "BookingActionRespondRequest":

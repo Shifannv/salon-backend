@@ -12,11 +12,13 @@ from app.api.v1.routes import (
     media,
     notifications,
     owner,
+    payments,
     profiles,
     reports,
     subscriptions,
     walkin,
 )
+from app.core.config import settings
 
 api_v1_router = APIRouter(prefix="/v1")
 api_v1_router.include_router(
@@ -32,6 +34,7 @@ api_v1_router.include_router(profiles.router, prefix="/profiles", tags=["profile
 api_v1_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_v1_router.include_router(customer.router, prefix="/customer", tags=["customer"])
 api_v1_router.include_router(owner.router, prefix="/salons", tags=["salon owner"])
+api_v1_router.include_router(payments.router, tags=["payments"])
 api_v1_router.include_router(customer.salons_router, tags=["salons"])
 api_v1_router.include_router(customer.catalog_router, prefix="/catalog", tags=["catalog"])
 api_v1_router.include_router(bookings.router, tags=["bookings"])
@@ -39,3 +42,9 @@ api_v1_router.include_router(booking_actions.router, tags=["booking actions"])
 api_v1_router.include_router(notifications.router, tags=["notifications"])
 api_v1_router.include_router(walkin.router, prefix="/walkin", tags=["walkin"])
 api_v1_router.include_router(subscriptions.router, prefix="/admin", tags=["subscriptions"])
+
+# The webhook path 404s unless a payment provider is configured.
+if settings.payment_provider != "none":
+    from app.api.v1.routes import webhooks
+
+    api_v1_router.include_router(webhooks.router, tags=["webhooks"])

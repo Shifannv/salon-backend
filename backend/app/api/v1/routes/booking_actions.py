@@ -54,6 +54,7 @@ async def create_payment_confirmation_request(
         "payment_confirmation",
         payload.reason,
         background_tasks,
+        payment_method=payload.payment_method,
     )
     return BookingActionRequestResponse(**row)
 

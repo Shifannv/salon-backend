@@ -32,8 +32,13 @@ class BookingActionRepository(Protocol):
         request_id: str,
         decision: str,
         reason: str | None,
+        payment_method: str = "cash",
     ) -> dict[str, Any]:
-        """Resolve one pending request and apply its booking transition atomically."""
+        """Resolve one pending request and apply its booking transition atomically.
+
+        ``payment_method`` only matters for a ``received`` payment confirmation: it is how
+        the salon says the customer actually paid (cash or online).
+        """
 
     async def get_notification_outbox_event(
         self, outbox_id: str

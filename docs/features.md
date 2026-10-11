@@ -32,3 +32,14 @@ profile, media, caches and tokens. Past bookings are retained anonymized; an own
 removed from customer-facing screens and scrubbed. Deletion is blocked while open bookings
 or pending requests exist. The public web deletion page required by Google Play lives in the
 separate website repository and is **not built yet**. See `backend/docs/ACCOUNT_DELETION.md`.
+
+## Payment collection (backend)
+
+- BUILT: payment ledger (`booking_payments`), refunds, webhook intake with replay gate,
+  DB-backed idempotency, retry/reconcile worker, derived `payment_state`, advance/full
+  payment preferences, owner earnings, payout-account audit history.
+- DORMANT: online payment end to end until `PAYMENT_PROVIDER` and credentials are set
+  (reference adapter for one provider is included, tested against a mock transport only).
+- NOT BUILT: per-salon provider credentials (customer pays salon directly), platform-held
+  disbursement (licensed activity), commission policy, encryption at rest of the account
+  number, subscription payments. Details: `backend/docs/PAYMENTS.md`.

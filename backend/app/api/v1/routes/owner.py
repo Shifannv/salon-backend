@@ -19,10 +19,14 @@ from app.api.v1.schemas.platform import (
     ImageUploadUrlRequest,
     ImageUploadUrlResponse,
     LanguageResponse,
+    OwnerPayoutAccountRequest,
+    OwnerPayoutAccountResponse,
     OwnerSalonCompleteProfileRequest,
     OwnerSalonResponse,
     OwnerSalonSettingsRequest,
     OwnerSalonUpdateRequest,
+    OwnerSetupStatusResponse,
+    PayoutHistoryEntryResponse,
     SalonImageCreateRequest,
     SalonImageResponse,
     SalonImageUpdateRequest,
@@ -140,6 +144,99 @@ async def update_settings(
         await cache.delete_prefix(f"salon:{salon['id']}:")
         await cache.delete(f"walkin:qr:{salon['qr_token']}")
     return OwnerSalonResponse(**salon)
+
+
+# ── Payout account & setup checklist ──────────────────────────────────────────
+
+
+@router.get(
+    "/me/payout-account",
+    response_model=OwnerPayoutAccountResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get owner payout account (masked)",
+    description=(
+        "Owner only. Works while the salon is still pending approval. The full bank "
+        "account number is never returned, only its last 4 digits."
+    ),
+)
+async def get_payout_account(
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> OwnerPayoutAccountResponse:
+    """Return the masked payout account."""
+
+    return OwnerPayoutAccountResponse(**await _use_cases(session).get_payout_account(actor))
+
+
+@router.put(
+    "/me/payout-account",
+    response_model=OwnerPayoutAccountResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Save owner payout account",
+    description=(
+        "Owner only. Merge semantics: omitted fields keep their stored value, an "
+        "explicit null clears a field. The merged result needs an account holder name "
+        "and either a UPI ID or both account number and IFSC, otherwise 422."
+    ),
+)
+async def put_payout_account(
+    payload: OwnerPayoutAccountRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> OwnerPayoutAccountResponse:
+    """Create or update the payout account and return the masked result."""
+
+    row = await _use_cases(session).update_payout_account(
+        actor, payload.model_dump(exclude_unset=True)
+    )
+    return OwnerPayoutAccountResponse(**row)
+
+
+@router.get(
+    "/me/payout-account/history",
+    response_model=list[PayoutHistoryEntryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Payout account change history",
+    description=(
+        "Owner only. Newest first. Records who changed the destination and which fields "
+        "changed; account numbers appear as their last 4 digits only."
+    ),
+)
+async def get_payout_account_history(
+    limit: int = Query(default=50, ge=1, le=200),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> list[PayoutHistoryEntryResponse]:
+    """Return the audit trail of payout destination changes."""
+
+    rows = await _use_cases(session).get_payout_history(actor, limit)
+    return [
+        PayoutHistoryEntryResponse(
+            id=str(row["id"]),
+            changed_at=row["changed_at"],
+            action=row["action"],
+            changed_fields=list(row["changed_fields"] or []),
+            changed_by_name=row.get("changed_by_name"),
+            before=row.get("before_state"),
+            after=row["after_state"],
+        )
+        for row in rows
+    ]
+
+
+@router.get(
+    "/me/setup-status",
+    response_model=OwnerSetupStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get owner setup checklist",
+)
+async def get_setup_status(
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> OwnerSetupStatusResponse:
+    """Return which onboarding steps the owner has finished."""
+
+    return OwnerSetupStatusResponse(**await _use_cases(session).get_setup_status(actor))
 
 
 # ── QR code ───────────────────────────────────────────────────────────────

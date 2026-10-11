@@ -171,11 +171,11 @@ async def test_immediate_cancel_rejects_late_request() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("decision", "expected_write"),
-    [("received", True), ("not_received", False)],
+    ("decision", "expected_write", "method"),
+    [("received", True, "cash"), ("received", True, "online"), ("not_received", False, "cash")],
 )
 async def test_payment_owner_decision_changes_money_only_when_received(
-    decision: str, expected_write: bool
+    decision: str, expected_write: bool, method: str
 ) -> None:
     now = datetime.now(UTC)
     repository, session = _repository(
@@ -193,9 +193,9 @@ async def test_payment_owner_decision_changes_money_only_when_received(
             }
         ),
         _Result({"status": "pending"}),
-        *([_Result()] if expected_write else []),
         _Result(),
     )
+    repository._insert_manual_payment = AsyncMock()  # type: ignore[method-assign]
     repository._insert_notification_outbox = AsyncMock(return_value="outbox-1")
     repository._get_booking_action_request_row = AsyncMock(  # type: ignore[method-assign]
         return_value={"id": "request-1", "status": "resolved"}
@@ -203,11 +203,19 @@ async def test_payment_owner_decision_changes_money_only_when_received(
     repository.get_booking = AsyncMock(return_value={"id": "booking-1"})
 
     result = await repository.respond_booking_action_request(
-        "owner-1", "request-1", decision, None
+        "owner-1", "request-1", decision, None, payment_method=method
     )
 
     statements = [str(call.args[0]) for call in session.execute.await_args_list]
-    assert any("set payment_status = 'paid'" in sql for sql in statements) is expected_write
+    # Nothing writes payment_status directly any more: money moves only as a ledger row.
+    assert not any("set payment_status" in sql for sql in statements)
+    if expected_write:
+        # The salon's stated method is recorded, not a hardcoded 'cash'.
+        repository._insert_manual_payment.assert_awaited_once_with(
+            booking_id="booking-1", actor_id="owner-1", method=method
+        )
+    else:
+        repository._insert_manual_payment.assert_not_awaited()
     resolved_write = next(
         call for call in session.execute.await_args_list
         if "decision_reason = :reason, resolved_by" in str(call.args[0])
