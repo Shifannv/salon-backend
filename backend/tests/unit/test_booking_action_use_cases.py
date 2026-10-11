@@ -110,3 +110,32 @@ async def test_closure_preview_and_apply_are_owner_only() -> None:
             {**values, "reason": "Emergency", "affected_booking_ids": []},
         )
 
+
+
+def test_http_pending_requests_for_owner_without_any_returns_empty_list(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
+    from fastapi.testclient import TestClient
+
+    from app.api.deps import get_authenticated_session, get_current_actor
+    from app.main import app
+
+    repo = make_mock_repo()
+    repo.list_booking_action_requests.return_value = []
+    monkeypatch.setattr(
+        "app.api.v1.routes.booking_actions._action_use_cases",
+        lambda session: BookingActionRequestUseCases(repo),
+    )
+
+    async def session():
+        yield AsyncMock()
+
+    app.dependency_overrides[get_current_actor] = lambda: make_owner()
+    app.dependency_overrides[get_authenticated_session] = session
+    try:
+        response = TestClient(app).get("/v1/booking-action-requests?status=pending")
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json() == []
+    repo.list_booking_action_requests.assert_awaited_once_with(make_owner().id, "pending")

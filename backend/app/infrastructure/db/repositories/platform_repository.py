@@ -1320,9 +1320,10 @@ class PlatformRepository:
         if role == "customer":
             predicate = "b.customer_id = :actor_id"
         elif role in {"owner", "staff"}:
+            # Workspace roles only see their own salon: personal bookings the actor made
+            # as a customer at other salons must not leak into owner analytics/inbox.
             predicate = """
-              b.customer_id = :actor_id
-              or exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
+              exists (select 1 from salons s2 where s2.id = b.salon_id and s2.owner_id = :actor_id)
               or exists (
                 select 1 from staff st2
                 where st2.salon_id = b.salon_id
@@ -1867,10 +1868,11 @@ class PlatformRepository:
         self,
         *,
         user_id: str,
-        booking_id: str,
+        booking_id: str | None,
         notification_type: str,
         title: str,
         body: str,
+        data: dict[str, Any] | None = None,
     ) -> str:
         """Persist a notification and retryable push event in this transaction."""
 
@@ -1878,8 +1880,9 @@ class PlatformRepository:
             text(
                 """
                 with created_notification as (
-                  insert into notifications (user_id, booking_id, type, title, body)
-                  values (:user_id, :booking_id, :notification_type, :title, :body)
+                  insert into notifications (user_id, booking_id, type, title, body, data)
+                  values (:user_id, :booking_id, :notification_type, :title, :body,
+                          cast(:data as jsonb))
                   returning id, user_id
                 )
                 insert into notification_outbox (notification_id, user_id)
@@ -1893,6 +1896,7 @@ class PlatformRepository:
                 "notification_type": notification_type,
                 "title": title,
                 "body": body,
+                "data": json.dumps(data) if data else None,
             },
         )
         return str(result.scalar_one())
@@ -1901,10 +1905,11 @@ class PlatformRepository:
         self,
         *,
         user_id: str,
-        booking_id: str,
+        booking_id: str | None,
         notification_type: str,
         title: str,
         body: str,
+        data: dict[str, Any] | None = None,
     ) -> str:
         """Persist a notification/outbox pair outside another state transaction."""
 
@@ -1914,6 +1919,7 @@ class PlatformRepository:
             notification_type=notification_type,
             title=title,
             body=body,
+            data=data,
         )
         await self.session.commit()
         return outbox_id

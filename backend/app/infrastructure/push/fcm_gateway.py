@@ -17,6 +17,7 @@ the upstream service reports as permanently invalid.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -74,7 +75,7 @@ class FCMGateway(PushGateway):
         result = await self.session.execute(
             text(
                 """
-                select id, booking_id, type, title, body
+                select id, booking_id, type, title, body, data
                 from notifications
                 where id = :notification_id
                 """
@@ -215,8 +216,6 @@ class FCMGateway(PushGateway):
         if self._app is not None:
             return self._app
 
-        import json
-
         import firebase_admin  # type: ignore[import]
         from firebase_admin import credentials  # type: ignore[import]
 
@@ -237,7 +236,13 @@ class FCMGateway(PushGateway):
     def _provider_data(self, notification: dict[str, Any]) -> dict[str, str]:
         """Return string-only metadata accepted by Expo and FCM."""
 
+        extra = notification.get("data") or {}
+        if isinstance(extra, str):
+            extra = json.loads(extra)
+        if not isinstance(extra, dict):
+            extra = {}
         data = {
+            **extra,
             "notification_id": notification.get("id"),
             "booking_id": notification.get("booking_id"),
             "type": notification.get("type"),

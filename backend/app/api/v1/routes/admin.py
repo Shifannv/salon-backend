@@ -1,9 +1,9 @@
 """Super-admin API routes."""
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
@@ -34,12 +34,36 @@ from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.admin import AdminUseCases, CatalogAdminUseCases
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
+from app.infrastructure.push.outbox_worker import enqueue_and_deliver_notification
 
 router = APIRouter()
 
 
 def _admin_use_cases(session: AsyncSession, auth_admin: AuthAdminGateway) -> AdminUseCases:
-    return AdminUseCases(PlatformRepository(session), auth_admin)
+    return AdminUseCases(
+        PlatformRepository(session),
+        auth_admin,
+        notify_owner=_notify_owner,
+    )
+
+
+async def _notify_owner(
+    *,
+    user_id: str,
+    notification_type: str,
+    title: str,
+    body: str,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """Persist and push an owner notification that is not tied to a booking."""
+    await enqueue_and_deliver_notification(
+        user_id=user_id,
+        booking_id=None,
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        data=data,
+    )
 
 
 def _catalog_use_cases(session: AsyncSession) -> CatalogAdminUseCases:
@@ -128,11 +152,14 @@ async def get_salon_onboarding(
 @router.post("/salons/{salon_id}/approve", response_model=AdminSalonResponse, status_code=200)
 async def approve_salon(
     salon_id: UUID,
+    background_tasks: BackgroundTasks,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
 ) -> AdminSalonResponse:
-    salon = await _admin_use_cases(session, auth_admin).approve_salon(actor, str(salon_id))
+    salon = await _admin_use_cases(session, auth_admin).approve_salon(
+        actor, str(salon_id), background_tasks
+    )
     return AdminSalonResponse(**salon)
 
 
@@ -140,12 +167,13 @@ async def approve_salon(
 async def reject_salon(
     salon_id: UUID,
     payload: AdminRejectSalonRequest,
+    background_tasks: BackgroundTasks,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
 ) -> AdminSalonResponse:
     salon = await _admin_use_cases(session, auth_admin).reject_salon(
-        actor, str(salon_id), payload.rejection_reason
+        actor, str(salon_id), payload.rejection_reason, background_tasks
     )
     return AdminSalonResponse(**salon)
 
