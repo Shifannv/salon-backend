@@ -20,6 +20,11 @@ Alembic owns the complete schema history.
 - `versions/0018_subscription_foundation.py` adds manual subscription management.
 - `versions/0019_discovery_placement.py` adds discovery visibility/home placement and
   a super-admin database write guard. See the [website contract](../docs/WEBSITE_SUPERADMIN_PROMPT.md).
+- `versions/0022_salon_accepting_bookings.py` lets owners pause new bookings and enforces
+  that state inside the database booking functions.
+- `versions/0023_notification_data.py` adds structured notification metadata.
+- `versions/0024_secure_new_user_role.py` prevents user-editable metadata from assigning
+  privileged profile roles and removes direct API execution of the Auth signup trigger.
 
 Revision `0020_media_reference_guards` is required for safe managed-media cleanup.
 It locks media references on all seven tables and requires direct Supabase clients to
