@@ -45,16 +45,26 @@ account in a frontend environment.
 All three call the same endpoints with the user's bearer token; never send a user id or role.
 
 1. `POST /v1/account/deletion/challenges` `{channel: "email"|"phone", contact?}` -> 202
-   `{challenge_id, masked_destination, expires_at, resend_available_at}`.
+   `{challenge_id, masked_destination, expires_at, resend_available_at, bookings_to_cancel}`.
+   `bookings_to_cancel` is the number of upcoming bookings that confirming an **owner**
+   deletion will cancel (always 0 for customers): show it in the warning.
 2. `POST /v1/account/deletion/challenges/{challenge_id}/verify` `{code}` -> 200
    `{confirmation_token, expires_at}` (nothing is deleted yet).
 3. `POST /v1/account/deletion` `{challenge_id, confirmation_token, confirm: "DELETE"}` -> 202
    `{request_id, status, status_token}`. Show an irreversible-action warning first. Afterwards
    the bearer token is rejected (401): sign the user out locally.
 4. `GET /v1/account/deletion/{request_id}` with header `X-Status-Token: <status_token>` -> 200
-   `{status: pending|processing|completed|failed, requested_at, completed_at}`. `failed` means
-   a retry is scheduled; the account stays locked.
+   `{status: pending|processing|completed|failed, stage: queued|refunding|waiting_for_refunds|
+   erasing|completed, requested_at, completed_at}`. `failed` means a retry is scheduled; the
+   account stays locked. An owner may sit in `pending` / `waiting_for_refunds` for a while
+   (refunds settling) - that is normal, not a failure.
 
-Errors use the standard envelope. Handle `deletion_blocked` (409: tell the user to finish or
-cancel open bookings/requests), `contact_mismatch` (422), `invalid_verification_code` (400),
-and 429 (honor `resend_available_at`). Details: `backend/docs/ACCOUNT_DELETION.md`.
+Errors use the standard envelope. Handle `deletion_blocked` (409). **Customers**: tell them
+to cancel their upcoming bookings / resolve pending requests (`details.open_bookings`,
+`details.pending_requests`). **Owners are no longer blocked by open bookings or requests**
+- they are cancelled and refunded by the backend; an owner is blocked only by an active paid
+subscription (`details.active_subscriptions`). Also handle `contact_mismatch` (422),
+`invalid_verification_code` (400), and 429 (honor `resend_available_at`). Customers whose
+booking is cancelled because the salon closed receive a `booking_cancelled` notification
+(`data.reason = "salon_closed"`) and the booking has `cancellation_reason = "salon_closed"`.
+Details: `backend/docs/ACCOUNT_DELETION.md`.

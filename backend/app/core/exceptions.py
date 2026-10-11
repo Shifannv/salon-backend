@@ -73,7 +73,7 @@ class SalonNotAcceptingBookingsError(ConflictError):
 
 
 class DeletionBlockedError(ConflictError):
-    """Account deletion is blocked until open bookings or requests are resolved."""
+    """Account deletion is blocked: a customer's own open work or an owner's paid subscription."""
 
     code = "deletion_blocked"
 

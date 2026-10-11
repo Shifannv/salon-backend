@@ -49,6 +49,17 @@ PII-free ledger, no foreign key to `profiles`). Relaxes `NOT NULL` on `salons.ow
 erasure transaction (`app.account_erasure`), and adds `erase_profile_references(uuid)` which
 nulls every no-action foreign key to `profiles(id)`. Requires `0020` first.
 
+**`0028_account_erasure_hardening`** replaces `erase_profile_references` so it also nulls
+`ON DELETE RESTRICT` keys, and adds a partial index `idx_account_deletion_requests_open_age`
+(`requested_at where status <> 'completed'`) for the stale-request query. No new columns: the
+cancel/refund/settle phases are boolean keys in `account_deletion_requests.step_state`
+(`bookings_cancelled`, `refunds_issued`, `refunds_settled`, plus the existing erase steps, and
+`salon_ids` / `staff_profile_ids` until completion). Salons are soft-deactivated, so every
+`ON DELETE CASCADE` FK to `salons(id)` (`salon_images`, `salon_holidays`, `blocked_slots`,
+`salon_payout_accounts`, `salon_payout_account_history`) is emptied by explicit deletes in
+`account_deletion_repository.py`; a unit test fails when a migration adds one that is not
+listed. Closure refunds are `payment_refunds` rows with `idempotency_key = 'salon_closed'`.
+
 ## Payments and payout audit (migrations 0026, 0027)
 
 New tables: `booking_payments` (ledger), `payment_refunds`, `payment_webhook_events`,
