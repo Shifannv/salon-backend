@@ -54,6 +54,7 @@ class BookingActionRepository(Protocol):
         notification_type: str,
         title: str,
         body: str,
+        data: dict[str, Any] | None = None,
     ) -> str:
         """Persist a notification and outbox event together."""
 

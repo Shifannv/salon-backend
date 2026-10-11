@@ -68,3 +68,17 @@ revision without changing its tracking or inventing a replacement.
 After reviewing the approval migration, apply `alembic upgrade head` as an explicit
 deploy step, then deploy the backend. Migrations never run on API startup.
 The owner waiting screen and super admin page belong in their separate frontend repos.
+
+## Owner push on decision
+
+When an admin approves or rejects a salon, the owner receives a push (and an in-app
+notification, `type = approval_status`, no booking). Delivery is best-effort: a push failure
+never undoes the decision, and an owner with no active device token is skipped silently.
+Repeating the same decision (same status, same rejection reason) does not push again.
+
+- Approved: title "Your salon is verified 🎉"; data `{type: approval_status, status: approved}`.
+- Rejected: title "Action needed on your salon"; data
+  `{type: approval_status, status: rejected, reason: <reason, max 500 chars>}`.
+
+The structured data is stored in `notifications.data` (migration `0023_notification_data`;
+run `alembic upgrade head` before deploying this backend version).

@@ -133,3 +133,33 @@ def test_admin_approval_routes_enforce_use_case_authorization():
             assert response.status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_owner_salon_response_exposes_approved_at_for_the_verified_celebration():
+    from datetime import UTC, datetime
+
+    from app.api.v1.schemas.platform import OwnerSalonResponse
+
+    base = {
+        "id": "s",
+        "owner_id": "o",
+        "name": "Salon",
+        "timezone": "UTC",
+        "working_hours": {},
+        "approval_mode": "auto",
+        "accepting_bookings": True,
+        "slot_interval_minutes": 30,
+        "qr_token": "q",
+        "profile_completed": True,
+        "approval_status": "approved",
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+    }
+    stamped = datetime(2026, 2, 3, 4, 5, tzinfo=UTC)
+    assert (
+        OwnerSalonResponse(**base, approved_at=stamped)
+        .model_dump(mode="json")["approved_at"]
+        .startswith("2026-02-03T04:05")
+    )
+    assert OwnerSalonResponse(**base).model_dump()["approved_at"] is None

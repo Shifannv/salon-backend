@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from app.core.config import settings
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -40,12 +41,13 @@ async def deliver_notification_outbox_event(outbox_id: str) -> None:
 async def enqueue_and_deliver_notification(
     *,
     user_id: str,
-    booking_id: str,
+    booking_id: str | None,
     notification_type: str,
     title: str,
     body: str,
+    data: dict[str, Any] | None = None,
 ) -> None:
-    """Persist a generic booking notification, then attempt push delivery."""
+    """Persist a notification (booking-linked or not), then attempt push delivery."""
 
     async with AsyncSessionLocal() as session:
         repository = PlatformRepository(session)
@@ -55,6 +57,7 @@ async def enqueue_and_deliver_notification(
             notification_type=notification_type,
             title=title,
             body=body,
+            data=data,
         )
     await deliver_notification_outbox_event(outbox_id)
 
