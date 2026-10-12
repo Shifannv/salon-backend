@@ -50,7 +50,15 @@ async def payment_webhook(
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > settings.payment_webhook_max_body_bytes:
         raise WebhookPayloadTooLargeError("Webhook payload too large")
-    raw_body = await request.body()
+    # Bounded read: a missing/lying Content-Length must not let a caller buffer unbounded bytes.
+    chunks: list[bytes] = []
+    received = 0
+    async for chunk in request.stream():
+        received += len(chunk)
+        if received > settings.payment_webhook_max_body_bytes:
+            raise WebhookPayloadTooLargeError("Webhook payload too large")
+        chunks.append(chunk)
+    raw_body = b"".join(chunks)
     ack, event_id = await PaymentWebhookUseCases(
         PaymentRepository(session), resolver, settings
     ).ingest(provider, raw_body, dict(request.headers))

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.application.ports.cache_gateway import CacheGateway
 
@@ -21,6 +22,14 @@ logger = logging.getLogger(__name__)
 
 _CATALOG_TTL_SECONDS = 300      # 5 minutes
 _IDEMPOTENCY_TTL_SECONDS = 60   # 1 minute
+
+
+def _redacted_target(redis_url: str) -> str:
+    """Host and port only: the URL carries the Redis password."""
+    parsed = urlsplit(redis_url)
+    if not parsed.hostname:
+        return "<redis>"
+    return f"{parsed.hostname}:{parsed.port}" if parsed.port else parsed.hostname
 
 
 class RedisCache(CacheGateway):
@@ -45,7 +54,7 @@ class RedisCache(CacheGateway):
                 socket_timeout=2.0,
             )
             await client.ping()
-            logger.info("Redis cache connected at %s", redis_url)
+            logger.info("Redis cache connected at %s", _redacted_target(redis_url))
             return cls(client)
         except Exception as exc:
             logger.warning("Redis unavailable (%s) — cache disabled", exc)

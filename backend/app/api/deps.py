@@ -19,6 +19,10 @@ from app.infrastructure.db.repositories.profile_repository import SQLProfileRepo
 from app.infrastructure.db.session import get_session, set_actor_context
 from app.infrastructure.payments.resolver import PaymentGatewayResolver, get_payment_resolver
 from app.infrastructure.r2.storage import R2StorageGateway
+from app.infrastructure.subscriptions.resolver import (
+    SubscriptionProviderResolver,
+    get_subscription_resolver,
+)
 from app.infrastructure.supabase.auth_admin import SupabaseAuthAdminGateway
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
 
@@ -62,6 +66,11 @@ def get_payment_gateway_resolver() -> PaymentGatewayResolver:
 def get_payment_gateway() -> PaymentGateway:
     """Domain-typed annotation, concrete factory: the platform-level gateway."""
     return get_payment_resolver().resolve()
+
+
+def get_subscription_provider_resolver() -> SubscriptionProviderResolver:
+    """Return the process-wide subscription billing resolver (dormant unless configured)."""
+    return get_subscription_resolver()
 
 
 async def get_current_actor(

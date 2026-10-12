@@ -272,7 +272,11 @@ async def test_active_subscription_blocks_only_with_a_real_provider():
     uc, repo, _ = build()
     repo.blockers["active_subscriptions"] = 1
     await uc.start_challenge(make_owner(), "email", None)
-    uc, repo, gateway = build(subscription_provider="stripe")
+    uc, repo, gateway = build(
+        subscription_provider="razorpay", subscription_razorpay_key_id="rzp_test_x",
+        subscription_razorpay_key_secret="k", subscription_grace_days=0,
+        subscription_razorpay_webhook_secret="w" * 32,
+    )
     repo.blockers["active_subscriptions"] = 1
     with pytest.raises(DeletionBlockedError):
         await uc.start_challenge(make_owner(), "email", None)
@@ -465,3 +469,20 @@ def test_deletion_stage_progresses_through_the_cancel_refund_erase_phases():
     assert deletion_stage("processing", {"refunds_settled": True}) == "erasing"
     assert deletion_stage("processing", {"db_erased": True}) == "erasing"
     assert deletion_stage("completed", {}) == "completed"
+
+
+@pytest.mark.asyncio
+async def test_a_subscription_bought_after_the_challenge_blocks_at_confirm():
+    actor = make_owner()
+    uc, repo, _ = build(
+        user_id=actor.id, subscription_provider="razorpay",
+        subscription_razorpay_key_id="rzp_test_x", subscription_razorpay_key_secret="k",
+        subscription_grace_days=0, subscription_razorpay_webhook_secret="w" * 32,
+    )
+    challenge_id, token = await verified_flow(uc, actor)  # no subscription yet: allowed
+    repo.blockers["active_subscriptions"] = 1  # bought between the challenge and the confirm
+    with pytest.raises(DeletionBlockedError):
+        await uc.confirm(actor, challenge_id, token)
+    assert repo.confirmed == []
+    repo.blockers["active_subscriptions"] = 0  # cancelled: paid-through time no longer blocks
+    assert (await uc.confirm(actor, challenge_id, token))["request_id"]

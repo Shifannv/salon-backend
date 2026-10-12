@@ -263,3 +263,157 @@ contract and may now return 409 `payment_in_progress`. `POST
 503 `payment_provider_not_configured`. See `backend/docs/PAYMENTS.md`.
 
 Status: BUILT (backend); DORMANT pending a provider; NOT BUILT: owner-app screens.
+
+### Payments and payee onboarding: stage 1 additions (backend only, dormant, not sandbox-tested)
+
+Money is `Decimal` strings in rupees. All POSTs require `Idempotency-Key` (same key + same body replays).
+
+`POST /v1/salons/me/settlement-account/register` (owner of an approved salon). Body is required for providers
+that need KYC (Cashfree) and optional otherwise. Either `bank_account_number` + `ifsc`, or `upi_id`:
+
+```json
+{"legal_name": "Asha Salon", "contact_email": "owner@example.com", "contact_phone": "9876543210",
+ "account_type": "individual", "business_type": "salon", "pan": "ABCDE1234F",
+ "bank_account_number": "123456789012", "ifsc": "HDFC0001234"}
+```
+
+These values are sent once to the provider and never stored, logged, returned or echoed in an error (a 422 shows
+only field names and messages, never the submitted values). 200 and `GET /v1/salons/me/settlement-account`:
+
+```json
+{"provider_enabled": true, "supported": true, "requires_details": true, "onboarding_status": "pending",
+ "requirements": ["Your KYC details are being reviewed."], "account_reference_masked": "...g1"}
+```
+
+`onboarding_status` is one of `not_started | pending | needs_action | active | rejected | suspended`;
+`requirements` is actionable text (empty when `active`). Customers can pay only while `active`. Calling register
+again after a bank detail change (from any non-pending status) starts a fresh registration: the status returns
+to `pending`, an audit row is written and online payments pause until it is `active` again. Errors: 403 not an
+owner, 422 invalid details or missing details, 502 `payment_provider_error` / `payment_outcome_unknown` (retry
+with the same key; the pending registration is reused), 503 provider not configured.
+
+`GET /v1/salons/me/earnings` -> 200 (all from the immutable commission snapshot; provider fees/taxes are not
+included):
+
+```json
+{"currency": "INR", "online_collected": "1000.00", "online_refunded": "400.00", "platform_fees": "100.00",
+ "commission_reversed": "40.00", "platform_commission_net": "60.00", "overcollected": "0.00",
+ "online_net": "540.00", "manual_recorded": "0.00", "online_payment_count": 1, "manual_payment_count": 0,
+ "note": "..."}
+```
+
+`POST /v1/bookings/{id}/payments/{payment_id}/refund` body `{"amount": "250.00", "reason": "..."}` (`amount`
+optional). The row is created before the provider is asked; a 502 `payment_outcome_unknown` means it may still
+have been issued: retry with the SAME `Idempotency-Key` (the same provider refund id is re-sent). Refunds go to
+the provider that holds the payment. If the payment has an `overcollected_amount`, the excess is refunded first
+(omit `amount` to refund it; a larger amount is 422) and the booking stays paid. The commission share is
+reversed proportionally (not for excess refunds). `GET /v1/bookings/{id}/payments` shows `refunds[].applies_to_excess`.
+
+## Subscription billing (backend only, dormant, not sandbox-tested)
+
+**Website purchase flow.** The owner mobile app must NOT show prices or a purchase control (store policy);
+it only reads entitlement. The website uses the same Supabase JWT. Provider default is `none`: every money
+route answers `503 payment_provider_not_configured`. Money is a `Decimal` **string in rupees** (`"349.00"`);
+only `client_payload.amount` is an integer in **paise** because the checkout widget needs it. Owner role only
+(`403` for customer, staff, super admin; `403` for an owner without an active salon). Admin manual/test
+activation under `/v1/admin/...` is admin-only and must never be called by a frontend.
+Errors use the standard `{"error": {"code", "message", "details"}}` envelope.
+
+### `GET /v1/subscriptions/config` (no auth, always 200)
+
+```json
+{"enabled": false, "provider": null, "mode": "one_time", "renewal": "manual",
+ "native_purchase_allowed": false, "public_key": null, "currency": "INR"}
+```
+Enabled: `"enabled": true, "provider": "razorpay", "public_key": "rzp_test_..."` (the public key id only).
+
+### `GET /v1/subscription-plans` (owner)
+
+```json
+[{"id": "uuid", "code": "growth_1m", "name": "Growth - 1 month", "description": null, "tier": 1,
+  "price_amount": "349.00", "currency": "INR", "billing_interval": "monthly",
+  "features": {"unlimited_bookings": true, "split_bill": true, "daily_ledger": true},
+  "tax_inclusive": null}]
+```
+`billing_interval` is `monthly | quarterly | semiannual | yearly`. `tax_inclusive` null = GST treatment undecided.
+Premium plans add `rank_boost`, `smart_slot_filler`, `sms_alerts` and `monthly_alert_cap: 300`.
+
+### `GET /v1/salons/me/subscription` (owner)
+
+```json
+{"provider_enabled": true, "status": "active",
+ "plan": {"id": "uuid", "code": "growth_1m", "name": "Growth - 1 month", "tier": 1},
+ "entitlement_active": true, "entitlement_state": "active",
+ "features": {"split_bill": true}, "paid_through": "2026-11-12T18:42:26Z",
+ "grace_ends_at": null, "in_grace": false, "renewal": "manual",
+ "cancelled": false, "cancelled_at": null,
+ "latest_payment": {"id": "uuid", "plan_code": "growth_1m", "status": "paid", "amount": "349.00",
+   "currency": "INR", "billing_interval": "monthly", "tax_amount": null, "tax_inclusive": null,
+   "refunded_amount": "0.00", "order_ref": "order_...", "receipt": "sub_...", "period_start": "...",
+   "period_end": "...", "expires_at": "...", "paid_at": "...", "applied_at": "...",
+   "payment_verified": true, "entitlement_applied": true, "created_at": "..."},
+ "open_checkout": null, "verification": null}
+```
+`entitlement_state`: `none | active | cancelled_paid_through | grace | expired | suspended`. `status` is null
+when the salon never subscribed (`entitlement_active` false, `plan` null). `features` is `{}` unless entitled.
+`payment_verified` (the provider confirmed the payment) and `entitlement_applied` (the backend granted access) are
+different facts. `grace_ends_at` is non-null only while `in_grace`. Viewing this never requires an active plan.
+
+### `POST /v1/salons/me/subscription/checkout` (owner, approved salon)
+
+Header `Idempotency-Key: <8-200 chars>` is **required** (`400 idempotency_key_required`). Same key + same body
+replays the stored response; same key + different `plan_id` is `409 idempotency_key_reuse`.
+
+```json
+{"plan_id": "uuid"}
+```
+200:
+```json
+{"billing_id": "uuid", "provider": "razorpay", "order_ref": "order_Nabc123", "receipt": "sub_1f3c...",
+ "plan_id": "uuid", "plan_code": "growth_1m", "amount": "349.00", "currency": "INR",
+ "billing_interval": "monthly", "expires_at": "2026-10-13T10:00:00+00:00",
+ "client_payload": {"key_id": "rzp_test_...", "order_id": "order_Nabc123", "amount": 34900, "currency": "INR"}}
+```
+The amount is the plan price **at this moment**, snapshotted server side (a later price change never alters this
+purchase). The purchase row is committed before the provider is called. Errors: `404` plan missing/inactive/free;
+`409 conflict` suspended subscription, a different plan while a paid period runs, or a different plan already open;
+`503` billing off; `502 payment_provider_error` (definitive refusal: nothing was created; retry);
+`502 payment_outcome_unknown` (timeout): **retry with the SAME key**, the open purchase is resumed by its receipt and
+no second order is created. A second checkout of the same plan while one is open returns the same order.
+
+### `POST /v1/salons/me/subscription/verify` (owner)
+
+```json
+{"order_ref": "order_Nabc123", "payment_ref": "pay_...", "signature": "<hex>"}
+```
+`payment_ref`/`signature` are optional and only a **hint** of which payment to fetch; they never grant access.
+The backend fetches the provider's payments for the order and activates only for a captured payment with the
+snapshot's amount and currency. Response: the subscription state above plus `"verification"`:
+`started | renewed | already_applied | pending | no_order | mismatch | duplicate_payment | blocked_suspended |
+blocked_closed`. Safe to call repeatedly (activation happens at most once). `404` for another salon's order.
+`pending` = not paid at the provider yet. The webhook and the worker apply the same result without this call.
+
+### `POST /v1/salons/me/subscription/cancel` (owner)
+
+No body, no key needed (idempotent), works even when billing is off. Sets status `cancelled`/`cancelled_at`;
+paid-through access remains (`entitlement_state: "cancelled_paid_through"`). Buying again before the period ends
+renews the same subscription. `404` when the salon never subscribed. Returns the subscription state.
+
+### `GET /v1/salons/me/subscription/payments?limit=50&offset=0` (owner)
+
+Array of the `latest_payment` shape, newest first (`limit` 1-200). Available after expiry and when billing is off.
+
+### `GET /v1/salons/me/access-state` (owner, thin stub)
+
+```json
+{"access_state": "subscribed_growth", "entitlement_active": true, "entitlement_state": "active",
+ "features": {"split_bill": true}, "paid_through": "2026-11-12T18:42:26Z", "grace_ends_at": null,
+ "source": "subscription"}
+```
+`access_state`: `not_subscribed | subscribed | subscribed_growth | subscribed_premium` (tier 1 / >= 2 / other). It
+reflects the subscription alone; trial and soft-lock states are added later by extending `derive_entitlement`.
+
+### Webhook (provider to backend, not an app route)
+
+`POST /v1/webhooks/razorpay`, signed with `SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET`; see `backend/docs/SUBSCRIPTIONS.md`.
+Status: BUILT (backend); DORMANT; NOT sandbox-tested; NOT BUILT: website screens, owner-app screens (by decision).

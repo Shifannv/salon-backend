@@ -245,7 +245,7 @@ def test_subscription_admin_endpoints_require_auth():
     from app.main import app
 
     paths = app.openapi()["paths"]
-    admin_paths = [p for p in paths if "subscription" in p]
+    admin_paths = [p for p in paths if "subscription" in p and p != "/v1/subscriptions/config"]
     assert len(admin_paths) >= 5
     for path in admin_paths:
         for method_info in paths[path].values():

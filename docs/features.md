@@ -51,6 +51,14 @@ until a payment provider exists (verified with a fake gateway only); NOT staging
   payment preferences, owner earnings, payout-account audit history.
 - DORMANT: online payment end to end until `PAYMENT_PROVIDER` and credentials are set
   (reference adapter for one provider is included, tested against a mock transport only).
+- BUILT (stage 1, tested locally with fakes/MockTransport and a throwaway PostgreSQL 18; NOT
+  sandbox-tested, NOT deployed): multi-provider webhook routing, Cashfree PG + Easy Split adapter,
+  server-side payment refresh (`POST /v1/bookings/{id}/payments/refresh`), immutable commission
+  snapshot with proportional refund reversal, overcollection recorded (not rolled back) with
+  operator-visible anomalies, commit-before-provider-call crash safety for intents, refunds and
+  vendor registration, vendor KYC onboarding that never persists KYC data.
 - NOT BUILT: per-salon provider credentials (customer pays salon directly), platform-held
-  disbursement (licensed activity), commission policy, encryption at rest of the account
-  number, subscription payments. Details: `backend/docs/PAYMENTS.md`.
+  disbursement (licensed activity), automatic booking release on payment failure/expiry,
+  encryption at rest of the account number, subscription payments, provider fee/tax capture
+  (columns exist, unpopulated). Details: `backend/docs/PAYMENTS.md`,
+  `backend/docs/PAYMENT_DECISIONS.md`.

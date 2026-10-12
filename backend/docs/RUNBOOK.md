@@ -151,9 +151,13 @@ order by r.created_at;
 
 ## Payments
 
-Env vars: see `.env.example` (`PAYMENT_*`, `RAZORPAY_*`). Default `PAYMENT_PROVIDER=none`
-is dormant. The `payment-webhook-worker` Compose service runs always and idles while
-dormant. Apply `alembic upgrade head` (0026, 0027) explicitly **before** deploying code.
+Env vars: see `.env.example` (`PAYMENT_*`, `RAZORPAY_*`, `CASHFREE_*`,
+`SUBSCRIPTION_*`). Default `PAYMENT_PROVIDER=none` and `SUBSCRIPTION_PROVIDER=none` are dormant. The
+`payment-webhook-worker` Compose service runs always and idles while dormant. Apply
+`alembic upgrade head` (0026-0031) explicitly **before** deploying code. Webhook URLs to register
+at the provider: `https://<api>/v1/webhooks/cashfree` (payments, refunds, vendor, settlement) and, for
+subscriptions, `https://<api>/v1/webhooks/razorpay` (signed with `SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET`;
+events `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, `refund.failed`).
 
 Operator queries:
 
@@ -168,11 +172,36 @@ where channel = 'gateway' and status in ('created','authorized') and updated_at 
 select * from payment_refunds where status = 'created' and updated_at < now() - interval '1 hour';
 ```
 
-**Over-collection (`payment_overcollection`).** The system refuses to silently collect
-twice. If cash was recorded and an online capture then arrived (or vice versa), the capture
-event is `failed` with `last_error_code = 'overcollection'` and the ledger row stays
-unsettled. A person must refund the customer (provider dashboard) or the duplicate, then
-mark the event handled. Do not edit `bookings.payment_status` by hand: a trigger rejects it.
+**Over-collection.** Real money is never dropped. When an online capture exceeds what the booking
+was owed (typically cash was recorded first), the capture IS recorded: the ledger row is `captured`
+with `overcollected_amount` > 0, the booking is NOT counted paid twice, an ERROR
+(`OVERCOLLECTION ...`) is logged and a `payment_anomalies` row (`kind = 'overcollection'`) appears.
+Refund the excess with `POST /v1/bookings/{id}/payments/{payment_id}/refund` (omit `amount`; the
+excess is refunded first and does not reduce the booking's paid state). Cash recorded AFTER an
+online capture is refused by the database (`payment_overcollection`, 409 to the salon).
+Do not edit `bookings.payment_status` by hand: a trigger rejects it.
+
+```sql
+-- everything an operator must look at
+select kind, provider, salon_id, booking_id, payment_id, amount, detail, created_at
+from payment_anomalies where resolved_at is null order by created_at;
+-- close one after handling it
+update payment_anomalies set resolved_at = now() where id = '<id>';
+-- payee registration trail (references and statuses only, never KYC data)
+select * from payment_provider_account_audit where salon_id = '<salon>' order by created_at desc;
+```
+
+**Settlement failure / reversal** (`settlement_failed`, `settlement_reversed` anomalies): the
+vendor's payout failed at the provider; no ledger money moves. Fix the vendor's bank details
+(owner re-registers) or resolve in the provider dashboard.
+
+**Refund `created` for long.** The worker asks the provider for it by OUR refund id every
+`PAYMENT_RECONCILE_AFTER_SECONDS`. A `refund_onhold` anomaly means the provider holds it for
+insufficient balance: top up the provider balance.
+
+**Unknown outcome after a timeout.** Intent/refund/vendor rows are committed BEFORE the provider
+is called. An open intent whose `provider_order_confirmed_at` is null is resumed by the customer's
+retry (same booking, purpose, amount) or reconciled by the worker through its order id.
 
 **Amount mismatch.** The row is failed (`failure_code = amount_mismatch`), the booking is
 not marked paid, and an ERROR is logged. Investigate with the provider.
@@ -184,3 +213,14 @@ not marked paid, and an ERROR is logged. Investigate with the provider.
 together; deliveries in between fail signature (400) and are retried by the provider.
 
 Unverified: all of the above SQL and triggers were not run against a live Postgres.
+
+### Owner subscription billing (stage 2, dormant)
+
+Enable only after a Razorpay **test-mode** run (see `SUBSCRIPTIONS.md`, UNVERIFIED list). Env:
+`SUBSCRIPTION_PROVIDER=razorpay`, `SUBSCRIPTION_RAZORPAY_KEY_ID`, `SUBSCRIPTION_RAZORPAY_KEY_SECRET`,
+`SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET` (>= 32 chars), `SUBSCRIPTION_GRACE_DAYS` (explicit; `0` allowed),
+`SUBSCRIPTION_ALLOW_LIVE=true` only for `rzp_live_` keys. Migrations 0030 (billing) and 0031 (plan seed) first.
+The same `payment-webhook-worker` runs the subscription pass; alert on log lines starting
+`ALERT subscription_billing`. Recovery queries and the duplicate/mismatch/blocked procedures are in
+`SUBSCRIPTIONS.md` ("Operator recovery"). Turning billing off (`none`) leaves history, cancel and entitlement
+reads working and never touches booking collection.

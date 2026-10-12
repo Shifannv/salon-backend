@@ -255,3 +255,54 @@ through the payment provider (none is configured yet). Afterwards the salon appe
   409 `payment_amount_mismatch`, 409 `idempotency_key_reuse`.
 
 Status: BUILT (backend); DORMANT pending a provider; NOT BUILT: customer-app checkout UI.
+
+### Online payments: stage 1 additions (backend only, dormant, not sandbox-tested)
+
+Money is `Decimal` strings in rupees (2 dp). All POSTs require `Idempotency-Key` (8-200 chars); the same key
+with the same body replays the stored response, with a different body it is 409 `idempotency_key_reuse`
+(409 `idempotency_in_progress` while the first is running). After a 502 `payment_outcome_unknown` or
+`payment_provider_error` the same key may be retried.
+
+`GET /v1/payments/config` now also returns `confirmation`:
+
+```json
+{"enabled": true, "provider": "cashfree", "public_key": null, "currency": "INR",
+ "advance_percent": 30, "settlement_model": "platform_collect", "confirmation": "refresh"}
+```
+
+`POST /v1/bookings/{id}/payments/intent` (body optional `{"purpose": "deposit|balance|full"}`) -> 200:
+
+```json
+{"payment_id": "9f1c...", "provider": "cashfree", "order_ref": "pi_3c1e...", "purpose": "full",
+ "amount": "500.00", "currency": "INR",
+ "client_payload": {"payment_session_id": "session_...", "order_id": "pi_3c1e...", "environment": "sandbox"},
+ "expires_at": "2026-10-12T10:15:00+00:00"}
+```
+
+Open the provider checkout with `client_payload`. Razorpay returns `{"key_id", "order_id", "amount", "currency"}`
+instead. Errors: 404 not your booking, 409 already paid / `payment_in_progress` / salon cannot take online
+payments yet, 422 `validation_error` (profile needs a 10-digit phone for Cashfree), 502 provider errors.
+
+`POST /v1/bookings/{id}/payments/refresh` body `{"order_ref": "pi_3c1e..."}` (new): call this when the checkout
+returns. The server asks the provider; nothing you send is trusted and a "success" from the SDK proves nothing.
+Safe to repeat (use a new key per attempt while waiting). 200 returns the ledger below. 404 if the order is not
+yours; 409 `payment_amount_mismatch` if the provider reports a different amount (the booking is not marked paid).
+
+`POST /v1/bookings/{id}/payments/confirm` is unchanged for Razorpay (`{order_ref, payment_ref, signature}`). The
+two last fields are now optional in the schema; providers without a callback signature treat the call as
+`/refresh`. Use `confirmation` from the config to choose.
+
+Ledger response (`/refresh`, `/confirm`, `/cancel`, `GET /payments`); `payments[].overcollected_amount` is new
+and `"0.00"` unless money was captured beyond what the booking was owed (the salon refunds it):
+
+```json
+{"booking_id": "b1", "currency": "INR", "total_price": "500.00", "deposit_amount": null,
+ "paid_amount": "500.00", "refunded_amount": "0.00", "payment_status": "paid", "payment_state": "paid",
+ "payments": [{"id": "9f1c...", "booking_id": "b1", "channel": "gateway", "purpose": "full",
+   "settlement_model": "platform_collect", "provider": "cashfree", "method": null, "instrument": "upi",
+   "amount": "500.00", "currency": "INR", "status": "captured", "overcollected_amount": "0.00",
+   "failure_code": null, "expires_at": "2026-10-12T10:15:00+00:00",
+   "captured_at": "2026-10-12T10:03:11+00:00", "created_at": "2026-10-12T10:00:00+00:00"}],
+ "refunds": [{"id": "r1", "payment_id": "9f1c...", "amount": "100.00", "status": "processed",
+   "reason": null, "applies_to_excess": false, "created_at": "...", "processed_at": "..."}]}
+```

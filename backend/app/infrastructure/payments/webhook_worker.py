@@ -11,10 +11,15 @@ import asyncio
 import logging
 
 from app.application.use_cases.payments import PaymentWebhookUseCases
+from app.application.use_cases.subscription_billing import SubscriptionReconciler
 from app.core.config import settings
 from app.infrastructure.db.repositories.payment_repository import PaymentRepository
+from app.infrastructure.db.repositories.subscription_billing_repository import (
+    SubscriptionBillingRepository,
+)
 from app.infrastructure.db.session import AsyncSessionLocal
 from app.infrastructure.payments.resolver import get_payment_resolver
+from app.infrastructure.subscriptions.resolver import get_subscription_resolver
 
 _log = logging.getLogger(__name__)
 
@@ -42,22 +47,41 @@ async def reconcile_once(limit: int = 20) -> int:
 
     async with AsyncSessionLocal() as session:
         repository = PaymentRepository(session)
-        count = await PaymentWebhookUseCases(
-            repository, get_payment_resolver(), settings
-        ).reconcile_stale_intents(limit)
+        use_cases = PaymentWebhookUseCases(repository, get_payment_resolver(), settings)
+        count = await use_cases.reconcile_stale_intents(limit)
+        count += await use_cases.reconcile_open_refunds(limit)
         await repository.purge_expired_idempotency()
         await repository.commit()
     return count
 
 
+async def reconcile_subscriptions_once(limit: int = 20) -> dict[str, int]:
+    """Subscription pass: settle stale orders, expire unpaid ones, sweep lapsed periods.
+
+    Independent of HTTP and of the booking provider. Errors are logged with the stable
+    ``ALERT subscription_billing`` prefix so one log filter can alert on them.
+    """
+
+    async with AsyncSessionLocal() as session:
+        reconciler = SubscriptionReconciler(
+            SubscriptionBillingRepository(session), get_subscription_resolver(), settings
+        )
+        return await reconciler.run(limit)
+
+
 async def run_forever() -> None:
     while True:
+        # Booking and subscription passes fail independently of each other.
         try:
             await drain_webhook_events()
             if get_payment_resolver().enabled:
                 await reconcile_once()
         except Exception:
             _log.exception("Payment worker poll failed")
+        try:
+            await reconcile_subscriptions_once()
+        except Exception:
+            _log.exception("ALERT subscription_billing: reconciliation pass failed")
         await asyncio.sleep(settings.payment_worker_poll_seconds)
 
 

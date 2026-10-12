@@ -11,10 +11,15 @@ from app.api.v1.schemas.payment import (
     PaymentConfirmRequest,
     PaymentIntentRequest,
     PaymentIntentResponse,
+    PaymentRefreshRequest,
     PaymentRefundRequest,
     SettlementAccountResponse,
+    SettlementRegistrationRequest,
 )
-from app.application.use_cases.payments import BookingPaymentUseCases
+from app.application.use_cases.payments import (
+    BookingPaymentUseCases,
+    SettlementRegistrationDetails,
+)
 from app.core.config import settings
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.payment_repository import PaymentRepository
@@ -71,7 +76,11 @@ async def create_payment_intent(
     response_model=BookingPaymentsResponse,
     status_code=status.HTTP_200_OK,
     summary="Confirm a client-side payment callback (customer)",
-    description="Requires `Idempotency-Key`. The callback signature and amount are verified server-side.",
+    description=(
+        "Requires `Idempotency-Key`. Providers that sign the client callback need `payment_ref` "
+        "and `signature`; for the others this behaves exactly like `/refresh` and the body is "
+        "ignored. Client-claimed success is never trusted."
+    ),
 )
 async def confirm_payment(
     booking_id: str,
@@ -88,6 +97,30 @@ async def confirm_payment(
         payload.payment_ref,
         payload.signature,
         idempotency_key,
+    )
+    return BookingPaymentsResponse(**body)
+
+
+@router.post(
+    "/bookings/{booking_id}/payments/refresh",
+    response_model=BookingPaymentsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Refresh an online payment from the provider (customer)",
+    description=(
+        "Requires `Idempotency-Key`. The backend asks the provider for the order's status and "
+        "applies it; nothing the client sends is trusted. Safe to call repeatedly."
+    ),
+)
+async def refresh_payment(
+    booking_id: str,
+    payload: PaymentRefreshRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    resolver: PaymentGatewayResolver = Depends(get_payment_gateway_resolver),
+) -> BookingPaymentsResponse:
+    body = await _use_cases(session, resolver).refresh(
+        actor, booking_id, payload.order_ref, idempotency_key
     )
     return BookingPaymentsResponse(**body)
 
@@ -183,9 +216,13 @@ async def get_settlement_account(
     response_model=SettlementAccountResponse,
     status_code=status.HTTP_200_OK,
     summary="Register the salon as a payee at the provider",
-    description="Requires `Idempotency-Key`. Only meaningful for split-settlement providers.",
+    description=(
+        "Requires `Idempotency-Key`. Body carries KYC and bank/UPI details when the provider "
+        "needs them; they are used once in memory and never stored, logged or returned."
+    ),
 )
 async def register_settlement_account(
+    payload: SettlementRegistrationRequest | None = None,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
@@ -193,6 +230,20 @@ async def register_settlement_account(
 ) -> SettlementAccountResponse:
     return SettlementAccountResponse(
         **await _use_cases(session, resolver).register_settlement_account(
-            actor, idempotency_key
+            actor,
+            idempotency_key,
+            SettlementRegistrationDetails(
+                legal_name=payload.legal_name,
+                contact_email=str(payload.contact_email),
+                contact_phone=payload.contact_phone,
+                account_type=payload.account_type,
+                business_type=payload.business_type,
+                pan=payload.pan,
+                bank_account_number=payload.bank_account_number,
+                ifsc=payload.ifsc,
+                upi_id=payload.upi_id,
+            )
+            if payload
+            else None,
         )
     )

@@ -140,6 +140,15 @@ class InvalidWebhookSignatureError(AppError):
     code = "invalid_webhook_signature"
 
 
+class PaymentOutcomeUnknownError(PaymentProviderError):
+    """The provider call timed out or failed in transit: it may or may not have taken effect.
+
+    Callers must reconcile by the persisted operation identity before retrying.
+    """
+
+    code = "payment_outcome_unknown"
+
+
 class WebhookPayloadTooLargeError(AppError):
     """A webhook body exceeded the configured size cap."""
 
@@ -239,7 +248,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             return obj
 
         safe_errors = _sanitise(exc.errors())
-        if request.url.path.endswith("/payout-account"):
+        if request.url.path.endswith(("/payout-account", "/settlement-account/register")):
             # Never echo or log bank/UPI details submitted by the client.
             safe_errors = [
                 {k: v for k, v in err.items() if k != "input"}

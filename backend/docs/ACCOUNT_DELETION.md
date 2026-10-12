@@ -53,13 +53,15 @@ cancels, notifies, resolves and refunds them (next section). What still blocks:
 |---|---|---|
 | Customer | pending/confirmed bookings ending in the future | `open_bookings` |
 | Customer | their own pending booking-action requests | `pending_requests` |
-| Owner | an active/trialing/past-due subscription **and** `SUBSCRIPTION_PROVIDER != none` | `active_subscriptions` |
+| Owner | an active/trialing/past-due subscription **and** `SUBSCRIPTION_PROVIDER != none` (challenge start **and again at confirm**, so a subscription bought in between cannot bypass it) | `active_subscriptions` |
 
 A customer resolves their own bookings through the normal cancel flow, then retries.
 (Cancelling a customer's own future bookings on their behalf was not requested and is not
 done.) A refund in flight is never a blocker. The customer checks run at challenge start and
-again inside the confirm transaction; the owner subscription check keeps its original
-behaviour (challenge start only).
+again inside the confirm transaction. The owner subscription check runs at challenge start and
+is repeated in the confirm use case (stage 2: a purchase made after the challenge started must not
+slip through). Cancelling the subscription (`POST /v1/salons/me/subscription/cancel`, paid-through access
+remains) clears the blocker; it is a `cancelled` row, not an active one.
 
 ```json
 {
@@ -222,6 +224,14 @@ CASCADE` never fires and each table is emptied explicitly):
   (the closure notices are exempt);
 - `salon_reports` about the salon: `details` emptied, the reporter's `reason` kept;
   `subscription_events.error_message` cleared; `salon_subscriptions` rows are kept (dates only);
+- **subscription billing wind-down** (first thing in the owner closure transaction, `cancel_open_bookings`,
+  and re-run inside erasure): future renewal state `cancelled` (`cancelled_at` set), unpaid
+  `created`/`authorized` subscription orders marked `expired` locally (the provider order itself cannot be
+  cancelled; a payment that still lands is recorded `paid` but **never applied**, because the salon has no
+  owner: outcome `blocked_closed`, anomaly `subscription_blocked`), and every paid-but-unused period raises a
+  `subscription_unused_period` row in `payment_anomalies` with the unused amount for a refund decision
+  (refunds of subscription payments are an operator action). `subscription_billing_records` are **retained**
+  (amounts, ids, provider references; no personal data) with `created_by` nulled;
 - **staff logins that exist only for this owner's salons are hard-deleted** (profile in step 5,
   Auth identity in step 9), after being banned in step 4. Guard, re-checked inside the
   transaction: role `staff`, no staff row at any salon the owner does not own, never a
@@ -263,7 +273,7 @@ it is only anonymised once erasure completes.
 | Salon (owner) | **kept as an inert shell**: "Closed salon", no city/address/coordinates/description/QR/hours, `owner_id` NULL, inactive, no reclaim path |
 | Holidays, payout account + history, provider accounts, images, blocked slots | delete |
 | Staff rows | "Former staff", personal fields cleared |
-| Subscription rows | `salon_subscriptions` retained (dates/status only); provider customer/subscription references and event error text removed |
+| Subscription rows | `salon_subscriptions` retained (dates/status only); provider customer/subscription references and event error text removed; `subscription_billing_records` retained (financial), actor nulled; renewal cancelled, unpaid orders expired, unused paid time flagged for the operator |
 | Audit actor columns | NULL |
 | Redis | see above |
 | FCM / Expo | tokens deleted; no other provider-side user records are held |

@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from app.core.exceptions import PaymentCapabilityError
 from app.domain.entities.payment import (
     GatewayCapability,
     LedgerStatus,
@@ -28,6 +29,7 @@ from app.domain.entities.payment import (
     PaymentInstrument,
     RefundStatus,
     SettlementModel,
+    WebhookDomain,
 )
 from app.domain.value_objects.money import Money
 
@@ -57,7 +59,16 @@ class PaymentIntentRequest:
     settlement_model: SettlementModel = SettlementModel.platform_collect
     # Provider linked-account reference of the payee salon (model A only).
     settlement_account_ref: str | None = None
+    # Platform commission snapshotted for THIS payment (never provider fees or taxes). The
+    # payee share is ``amount - platform_fee``.
     platform_fee: Money = field(default_factory=lambda: Money(0))
+    # Payer contact details some providers insist on. Excluded from repr so they never
+    # reach logs.
+    customer_phone: str | None = field(default=None, repr=False)
+    customer_email: str | None = field(default=None, repr=False)
+    customer_name: str | None = field(default=None, repr=False)
+    # Lifetime of the order; the adapter turns it into the provider's expiry field.
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +116,13 @@ class RefundRequest:
     # Fixed per payment/refund so a retry can never refund twice at the provider.
     idempotency_key: str
     reason: str | None = None
+    # Providers that refund by order need it; ``refund_ref`` is OUR deterministic refund id
+    # (persisted before the call) for providers that take a caller-chosen one.
+    order_ref: str | None = None
+    refund_ref: str | None = None
+    # Split-settlement providers: the payee and the commission share being reversed.
+    settlement_account_ref: str | None = None
+    commission_reversal: Money = field(default_factory=lambda: Money(0))
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,16 +154,32 @@ class PaymentEvent:
     failure_code: str | None = None
     account_ref: str | None = None
     onboarding_status: OnboardingStatus | None = None
+    # Settlement events: provider status normalised to initiated|success|failed|reversed.
+    settlement_status: str | None = None
+    domain: WebhookDomain = WebhookDomain.payment
 
 
 @dataclass(frozen=True, slots=True)
 class SettlementAccountRequest:
-    """Register a salon as a payee (model A)."""
+    """Register a salon as a payee (model A).
+
+    Every field except ``salon_id``/``vendor_ref`` is sensitive KYC or bank data: it is used
+    once in memory for the provider call, never persisted by this backend, and hidden from
+    ``repr`` so it can not reach a log line.
+    """
 
     salon_id: str
-    legal_name: str
-    email: str | None = None
-    phone: str | None = None
+    legal_name: str = field(repr=False)
+    # Our deterministic payee id, persisted (status 'pending') BEFORE the provider call.
+    vendor_ref: str | None = None
+    email: str | None = field(default=None, repr=False)
+    phone: str | None = field(default=None, repr=False)
+    account_type: str | None = field(default=None, repr=False)
+    business_type: str | None = field(default=None, repr=False)
+    pan: str | None = field(default=None, repr=False)
+    bank_account_number: str | None = field(default=None, repr=False)
+    ifsc: str | None = field(default=None, repr=False)
+    upi_id: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +233,37 @@ class PaymentGateway(ABC):
         With ``order_ref`` the most advanced payment on that order is returned, or ``None``
         when nobody has attempted payment yet. Used for reconciliation after a lost webhook.
         """
+
+    # ---- optional capabilities (safe defaults; adapters override what they can do) ----
+    def deterministic_order_ref(self, intent_reference: str) -> str | None:
+        """Provider order id derivable from our intent reference, or ``None``.
+
+        A provider that lets the caller choose the order id gets it persisted with the ledger
+        row BEFORE the create call, so a crash or timeout can be reconciled by that id.
+        """
+
+        return None
+
+    def deterministic_refund_ref(self, refund_id: str) -> str | None:
+        """Provider refund id derivable from our refund row id, or ``None``."""
+
+        return None
+
+    async def fetch_intent(self, order_ref: str, request: PaymentIntentRequest) -> PaymentIntent | None:
+        """Look up an existing order. ``None`` = the provider confirms it does not exist.
+
+        Raises ``PaymentCapabilityError`` when the adapter cannot look orders up (the caller
+        then falls back to letting the unconfirmed intent expire).
+        """
+
+        raise PaymentCapabilityError("The payment provider cannot look up orders")
+
+    async def fetch_refund(
+        self, *, refund_ref: str, order_ref: str | None, payment_ref: str | None
+    ) -> RefundResult | None:
+        """Look up a refund by OUR refund id. Raises ``PaymentCapabilityError`` if unsupported."""
+
+        raise PaymentCapabilityError("The payment provider cannot look up refunds")
 
     @abstractmethod
     async def refund(self, request: RefundRequest) -> RefundResult:

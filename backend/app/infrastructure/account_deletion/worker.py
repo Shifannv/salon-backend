@@ -65,7 +65,14 @@ async def drain_account_deletions(cache, limit: int = 20) -> int:
     """Process due requests, each in fresh sessions, until none remain or the limit hits."""
 
     processed = 0
-    gateway = get_payment_resolver().resolve() if settings.payment_provider != "none" else None
+    resolver = get_payment_resolver()
+
+    def gateway_for(provider: str | None):
+        try:
+            return resolver.for_provider(provider)
+        except PaymentProviderNotConfiguredError:
+            return None
+
     while processed < limit:
         async with AsyncSessionLocal() as session, AsyncSessionLocal() as media_session:
             service = AccountErasureService(
@@ -77,7 +84,7 @@ async def drain_account_deletions(cache, limit: int = 20) -> int:
                 release_media_lock=media_session.commit,
                 bucket=settings.r2_bucket,
                 stale_seconds=settings.account_deletion_stale_processing_seconds,
-                payment_gateway=gateway,
+                payment_gateway_for=gateway_for,
                 refund_max_attempts=settings.account_deletion_refund_max_attempts,
                 storage_required=storage_is_required(settings),
                 cache_required=bool(settings.redis_url),

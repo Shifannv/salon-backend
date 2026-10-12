@@ -1,10 +1,12 @@
 """Subscription API schemas — admin only."""
 
 from datetime import datetime
-from typing import Literal
+from decimal import Decimal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+BillingIntervalLiteral = Literal["monthly", "quarterly", "semiannual", "yearly"]
 SubscriptionStatusLiteral = Literal[
     "pending", "trialing", "active", "past_due", "cancelled", "expired", "suspended"
 ]
@@ -17,9 +19,11 @@ class PlanResponse(BaseModel):
     description: str | None = None
     tier: int
     ranking_weight: int
-    price_amount: float
+    price_amount: Decimal = Field(max_digits=10, decimal_places=2)
     currency: str
     billing_interval: str
+    features: dict[str, Any] = Field(default_factory=dict)
+    tax_inclusive: bool | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -36,9 +40,9 @@ class PlanCreateRequest(BaseModel):
     description: str | None = None
     tier: int = Field(default=0, ge=0)
     ranking_weight: int = Field(default=0, ge=0, le=100000)
-    price_amount: float = Field(default=0, ge=0)
-    currency: str = Field(default="INR", max_length=3)
-    billing_interval: str = Field(default="monthly", max_length=20)
+    price_amount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=10, decimal_places=2)
+    currency: str = Field(default="INR", pattern=r"^[A-Z]{3}$")
+    billing_interval: BillingIntervalLiteral = "monthly"
 
 
 class PlanUpdateRequest(BaseModel):
@@ -46,9 +50,9 @@ class PlanUpdateRequest(BaseModel):
     description: str | None = None
     tier: int | None = Field(default=None, ge=0)
     ranking_weight: int | None = Field(default=None, ge=0, le=100000)
-    price_amount: float | None = Field(default=None, ge=0)
-    currency: str | None = Field(default=None, max_length=3)
-    billing_interval: str | None = Field(default=None, max_length=20)
+    price_amount: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    billing_interval: BillingIntervalLiteral | None = None
     is_active: bool | None = None
 
 
