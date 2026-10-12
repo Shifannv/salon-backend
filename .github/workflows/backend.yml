@@ -39,7 +39,7 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip check
-      - run: python -m ruff check app tests migrations
+      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: python -m pytest -q
 
@@ -76,8 +76,9 @@ jobs:
         run: |
           mkdir -p release/scripts
           printf '%s\n' "$RELEASE_IMAGE" > release/image-ref
-          docker image inspect --format '{{.Id}}' "$RELEASE_IMAGE" > release/image-id
           docker save "$RELEASE_IMAGE" | gzip > release/image.tar.gz
+          python3 backend/scripts/docker_image_ids.py release/image.tar.gz "$RELEASE_IMAGE" \
+            "$(docker image inspect --format '{{.Id}}' "$RELEASE_IMAGE")" > release/image-id
           cp backend/docker-compose.yml release/
           cp backend/scripts/gcp-vm-{deploy,release,release-compose}.sh release/scripts/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

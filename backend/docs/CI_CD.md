@@ -13,10 +13,13 @@ upgrade step in the deployment. Migrations are never part of container startup.
    regression, including downgrade/re-upgrade. Other integration tests that require
    their own explicitly configured database remain skipped.
 2. Build from `backend/`, then check non-root execution and `/health` on port 8080.
-3. Package that exact image, its image ID, Compose file and deployment scripts as
+3. Package that exact image, its verified image IDs, Compose file and deployment scripts as
    a seven-day Actions artifact. No registry is required; the VM must be amd64.
 4. Transfer the artifact over SSH with strict host-key verification. Releases live
    under `~/salon-backend/releases/<commit>-<run>-<attempt>/`.
+   The image IDs include the configuration digest used by classic Docker and the
+   equivalent manifest digest used by Docker's containerd store. CI checks that
+   the archive matches the tested image and that each manifest references its configuration.
 5. Load and verify the image; explicitly run `alembic current`, `upgrade head`, and
    `current`; update the API, Redis and all workers using `gcp-vm-deploy.sh
    --local-image`. Verify API/database/Redis health, then mark the release current.
