@@ -4,6 +4,7 @@ from app.api.v1.schemas.media_urls import HostedMediaRequest
 
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt, field_validator
 
@@ -140,6 +141,11 @@ class CategoryResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def stringify_uuid(cls, value: object) -> object:
+        return str(value) if isinstance(value, UUID) else value
+
 
 class SubcategoryCreateRequest(HostedMediaRequest):
     """Create service subcategory request."""
@@ -176,6 +182,11 @@ class SubcategoryResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", "category_id", mode="before")
+    @classmethod
+    def stringify_uuid(cls, value: object) -> object:
+        return str(value) if isinstance(value, UUID) else value
 
 
 class LanguageResponse(BaseModel):
