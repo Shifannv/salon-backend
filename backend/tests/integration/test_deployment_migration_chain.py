@@ -13,10 +13,12 @@ from uuid import uuid4
 
 import asyncpg
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy.engine import make_url
 
 TEST_DB = os.environ.get("MIGRATION_TEST_DB")
 BACKEND = Path(__file__).resolve().parents[2]
+MIGRATION_HEAD = ScriptDirectory(str(BACKEND / "migrations")).get_current_head()
 pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL")
 
 
@@ -47,7 +49,7 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
     conn = None
     try:
         # Roles are cluster-wide Supabase prerequisites in this disposable server.
-        for role in ("anon", "authenticated", "service_role"):
+        for role in ("postgres", "anon", "authenticated", "service_role"):
             if not await admin.fetchval("select 1 from pg_roles where rolname=$1", role):
                 await admin.execute(f'create role "{role}" nologin')
         await admin.execute(f'create database "{database}"')
@@ -96,7 +98,7 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
 
         await alembic(url.render_as_string(hide_password=False), "upgrade", "head")
         assert await conn.fetchval("select version_num from alembic_version") == (
-            "0024_secure_new_user_role"
+            MIGRATION_HEAD
         )
         assert await conn.fetchval("select email from profiles where id=$1", user_id) == (
             "migration@example.test"
@@ -164,7 +166,7 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
         )
         await alembic(url.render_as_string(hide_password=False), "upgrade", "head")
         assert await conn.fetchval("select version_num from alembic_version") == (
-            "0024_secure_new_user_role"
+            MIGRATION_HEAD
         )
     finally:
         if conn is not None:
