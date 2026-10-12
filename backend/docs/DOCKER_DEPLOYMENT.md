@@ -103,8 +103,12 @@ The test creates and removes its own database, supplies minimal Supabase Auth
 prerequisites, and exercises online Alembic upgrade, repeat upgrade, and `0021`
 downgrade/re-upgrade through asyncpg. It never uses the runtime `DATABASE_URL`.
 
-The deploy script builds from the local checkout by default (`--build`), or pulls
-`SALON_API_IMAGE` with `--pull`. It validates Compose and updates all three services,
+For automated GitHub Actions testing and VM releases, follow [CI/CD setup](CI_CD.md).
+Once enabled, use that guide's release wrapper for manual operations.
+
+The deploy script builds from the local checkout by default (`--build`), pulls
+`SALON_API_IMAGE` with `--pull`, or uses an already loaded image with `--local-image`.
+It validates Compose and updates the API, Redis and all worker services,
 waiting up to 120 seconds for readiness. It exits nonzero on failure without an
 automatic rollback.
 

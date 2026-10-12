@@ -24,3 +24,4 @@ Backend-specific references:
 - [Payout accounts](../backend/docs/PAYOUT_ACCOUNTS.md)
 - [Runbook](../backend/docs/RUNBOOK.md)
 - [Docker deployment](../backend/docs/DOCKER_DEPLOYMENT.md)
+- [GitHub Actions CI/CD](../backend/docs/CI_CD.md)
