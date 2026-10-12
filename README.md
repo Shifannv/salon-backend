@@ -5,6 +5,7 @@ clients. Frontend applications live in separate repositories.
 
 ## Local development
 
+
 Requirements: Python 3.12+ and a Supabase Postgres project.
 
 ```bash
