@@ -60,8 +60,11 @@ jobs:
           test "$(docker run --rm --entrypoint id "$RELEASE_IMAGE" -u)" != 0
           docker run -d --name ci-api -e ENVIRONMENT=local -e PORT=8080 \
             -p 127.0.0.1:8080:8080 "$RELEASE_IMAGE"
-          curl --fail --silent --show-error --retry 20 --retry-delay 2 \
-            --retry-connrefused --retry-max-time 90 http://127.0.0.1:8080/health
+          # Docker can reset connections before Uvicorn starts listening.
+          # Retry this read-only probe, while bounding each request and total retries.
+          curl --fail --silent --show-error --retry 60 --retry-delay 2 \
+            --retry-all-errors --connect-timeout 2 --max-time 5 \
+            --retry-max-time 120 http://127.0.0.1:8080/health
       - name: Container logs on failure
         if: failure()
         run: docker logs ci-api 2>&1 || true
