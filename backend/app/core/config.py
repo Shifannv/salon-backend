@@ -4,9 +4,10 @@ import re
 from decimal import Decimal
 from functools import lru_cache
 from importlib.util import find_spec
+from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, HttpUrl, model_validator
+from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -94,9 +95,23 @@ class Settings(BaseSettings):
     # failed/left for the operator and erasure proceeds. Backoff makes 8 claims ~3 hours.
     account_deletion_refund_max_attempts: int = Field(default=8, ge=1, le=50)
 
-    # Subscription provider ('none' = no external payment calls, no webhook routes).
-    # Future values: 'stripe', 'razorpay', etc.
+    # Owner subscription billing provider ('none' = no external calls, billing endpoints answer
+    # 503, no checkout). Any other value names an adapter module in
+    # app/infrastructure/subscriptions/. INDEPENDENT of PAYMENT_PROVIDER: a subscription outage
+    # never disables booking collection and vice versa.
     subscription_provider: str = "none"
+    # Subscription credentials, deliberately separate from the booking RAZORPAY_* settings.
+    subscription_razorpay_key_id: str | None = None
+    subscription_razorpay_key_secret: SecretStr | None = None
+    # Days an expired period keeps the promotion benefit. NO default (a commercial rule):
+    # required when the provider is enabled; 0 is a valid explicit "no grace".
+    subscription_grace_days: int | None = Field(default=None, ge=0, le=90)
+    # Explicit acknowledgement required before LIVE (rzp_live_) keys can be used.
+    subscription_allow_live: bool = False
+    # How long an unpaid checkout order stays open locally before the sweep expires it.
+    subscription_order_ttl_seconds: int = Field(default=3600, ge=300, le=86400)
+    # Age of an open (created/authorized) billing row before the worker asks the provider.
+    subscription_reconcile_after_seconds: int = Field(default=600, ge=60, le=86400)
 
     # Customer payment collection. 'none' = dormant: GET /v1/payments/config answers
     # enabled=false, money endpoints answer 503, and no webhook route is registered.
@@ -113,7 +128,25 @@ class Settings(BaseSettings):
     payment_idempotency_ttl_seconds: int = Field(default=86400, ge=60, le=604800)
     payment_webhook_max_body_bytes: int = Field(default=262144, ge=1024, le=4194304)
     payment_webhook_max_attempts: int = Field(default=8, ge=1, le=50)
-    payment_platform_fee_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    # Commission policy. NO default: the commercial rule is not approved, so a real provider
+    # with platform_collect refuses to boot until both are set deliberately.
+    payment_platform_fee_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    payment_commission_base: Literal["online_amount", "booking_total"] | None = None
+    # The SALON bears the payment gateway fee (never shown to customers). Snapshotted per
+    # payment at intent time and deducted from the Easy Split payee share.
+    payment_gateway_fee_percent: Decimal = Field(default=Decimal("2.0"), ge=0, le=100)
+    # Customer-initiated cancellation of a PAID-ONLINE booking keeps this deduction. The owner
+    # still has to confirm Rs 10 flat vs 10 percent, so both are supported.
+    cancellation_deduction_type: Literal["percent", "flat"] = "percent"
+    cancellation_deduction_value: Decimal = Field(default=Decimal("10.00"), ge=0)
+    # Cancellation refunds whose provider call failed are re-driven by the payment worker this
+    # many times (with the SAME refund id) before an ERROR + anomaly row asks for a human.
+    payment_refund_max_attempts: int = Field(default=8, ge=1, le=50)
+    # Free-text label stamped on every snapshot; bump it when the rule changes.
+    payment_commission_policy_version: str = Field(default="1", min_length=1, max_length=40)
+    # Explicit acknowledgement required before any LIVE (production) provider environment can
+    # be used. Default off: live activation fails closed.
+    payment_allow_live: bool = False
     payment_worker_poll_seconds: int = Field(default=10, ge=1, le=3600)
     payment_reconcile_after_seconds: int = Field(default=600, ge=60, le=86400)
     # Razorpay credentials (used only when PAYMENT_PROVIDER=razorpay).
@@ -122,11 +155,59 @@ class Settings(BaseSettings):
     razorpay_webhook_secret: str | None = None
     razorpay_route_enabled: bool = False
     razorpay_api_base_url: str = "https://api.razorpay.com/v1"
+    # Owner subscriptions use their OWN webhook secret, independent of the booking-payment
+    # provider. Webhooks signed with it are verified, stored and applied by the subscription
+    # billing use cases (only when SUBSCRIPTION_PROVIDER is enabled).
+    subscription_razorpay_webhook_secret: SecretStr | None = None
+    # Cashfree PG + Easy Split (used only when PAYMENT_PROVIDER=cashfree).
+    cashfree_client_id: str | None = None
+    cashfree_client_secret: SecretStr | None = None
+    cashfree_environment: Literal["sandbox", "production"] = "sandbox"
+    cashfree_api_version: str = Field(default="2026-01-01", min_length=8, max_length=20)
+    cashfree_webhook_version: str = Field(default="2025-01-01", min_length=8, max_length=20)
+    cashfree_easy_split_enabled: bool = False
+    cashfree_return_url: str | None = Field(default=None, max_length=250)
+    # Maximum clock skew accepted between x-webhook-timestamp and now (replay window).
+    # Authenticity is the HMAC; replays are stopped by per-provider event-id dedupe. Cashfree retries
+    # for a long time and may reuse the original timestamp, so a tight window would drop real retries.
+    cashfree_webhook_tolerance_seconds: int = Field(default=86400, ge=60, le=86400)
+    # Outbound provider calls: seconds before a call is treated as an unknown outcome.
+    payment_provider_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
+    # Worker pass that would release unpaid bookings after payment failure/expiry. NOT built:
+    # accepted only as false so a deployment cannot believe it is enabled.
+    payment_auto_release_enabled: bool = False
 
     # Database connection pool
     db_pool_size: int = 5
     db_max_overflow: int = 5
     db_pool_timeout_seconds: int = 10
+
+    @field_validator("account_deletion_secret", mode="before")
+    @classmethod
+    def blank_account_deletion_secret_is_unset(cls, value: object) -> object:
+        """Allow unfilled env templates; deletion still requires a configured secret."""
+
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("subscription_grace_days", mode="before")
+    @classmethod
+    def blank_grace_is_unset(cls, value: object) -> object:
+        """``SUBSCRIPTION_GRACE_DAYS=`` means "not decided", never zero."""
+
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("payment_platform_fee_percent", "payment_commission_base", mode="before")
+    @classmethod
+    def blank_commission_is_unset(cls, value: object) -> object:
+        """``KEY=`` in an env template means "not decided", never zero."""
+
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
     def normalize_legacy_r2_settings(self) -> "Settings":
@@ -189,7 +270,114 @@ class Settings(BaseSettings):
                     "(collecting into the platform's own account without split settlement would "
                     "make the platform a payment aggregator)"
                 )
+        if self.payment_provider == "cashfree":
+            problems = [
+                name
+                for name, value in {
+                    "CASHFREE_CLIENT_ID": self.cashfree_client_id,
+                    "CASHFREE_CLIENT_SECRET": (
+                        self.cashfree_client_secret.get_secret_value()
+                        if self.cashfree_client_secret
+                        else None
+                    ),
+                }.items()
+                if not value
+            ]
+            if problems:
+                raise ValueError("PAYMENT_PROVIDER=cashfree is missing: " + ", ".join(problems))
+            if self.payment_settlement_model == "platform_collect" and not self.cashfree_easy_split_enabled:
+                raise ValueError(
+                    "PAYMENT_SETTLEMENT_MODEL=platform_collect requires CASHFREE_EASY_SPLIT_ENABLED=true "
+                    "(collecting into the platform's own account without split settlement would "
+                    "make the platform a payment aggregator)"
+                )
+            if self.cashfree_environment == "production" and not self.payment_allow_live:
+                raise ValueError(
+                    "CASHFREE_ENVIRONMENT=production requires PAYMENT_ALLOW_LIVE=true "
+                    "(live activation is an explicit, reviewed decision)"
+                )
+        if self.payment_provider == "razorpay" and (self.razorpay_key_id or "").startswith(
+            "rzp_live_"
+        ) and not self.payment_allow_live:
+            raise ValueError("A live Razorpay key requires PAYMENT_ALLOW_LIVE=true")
+        if self.payment_provider != "none" and self.payment_settlement_model == "platform_collect":
+            missing = [
+                name
+                for name, value in {
+                    "PAYMENT_PLATFORM_FEE_PERCENT": self.payment_platform_fee_percent,
+                    "PAYMENT_COMMISSION_BASE": self.payment_commission_base,
+                }.items()
+                if value is None
+            ]
+            if missing:
+                raise ValueError(
+                    "A real PAYMENT_PROVIDER with platform_collect needs an approved commission "
+                    "policy; missing: " + ", ".join(missing) + " (there is deliberately no default)"
+                )
+        if self.cancellation_deduction_type == "percent" and self.cancellation_deduction_value > 100:
+            raise ValueError("CANCELLATION_DEDUCTION_VALUE must be at most 100 for a percent rule")
+        if self.payment_auto_release_enabled:
+            raise ValueError(
+                "PAYMENT_AUTO_RELEASE_ENABLED is not built: failed/expired payments never release a "
+                "booking automatically (see PAYMENT_DECISIONS.md)"
+            )
         return self
+
+    @model_validator(mode="after")
+    def validate_subscription_settings(self) -> "Settings":
+        """Fail closed on any half-configured or live-by-accident subscription billing."""
+
+        self.subscription_provider = (self.subscription_provider or "none").strip().lower()
+        secret = self.subscription_razorpay_webhook_secret
+        if secret is not None and secret.get_secret_value() and len(secret.get_secret_value()) < 32:
+            raise ValueError("SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET must be at least 32 characters")
+        provider = self.subscription_provider
+        if provider == "none":
+            return self
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", provider):
+            raise ValueError("SUBSCRIPTION_PROVIDER must be 'none' or an adapter module name")
+        if find_spec(f"app.infrastructure.subscriptions.{provider}") is None:
+            raise ValueError(
+                f"SUBSCRIPTION_PROVIDER={provider!r} has no adapter in "
+                "app/infrastructure/subscriptions/"
+            )
+        if provider == "razorpay":
+            problems = [
+                name
+                for name, value in {
+                    "SUBSCRIPTION_RAZORPAY_KEY_ID": self.subscription_razorpay_key_id,
+                    "SUBSCRIPTION_RAZORPAY_KEY_SECRET": (
+                        self.subscription_razorpay_key_secret.get_secret_value()
+                        if self.subscription_razorpay_key_secret
+                        else None
+                    ),
+                    "SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET": (
+                        secret.get_secret_value() if secret else None
+                    ),
+                }.items()
+                if not value
+            ]
+            if problems:
+                raise ValueError(
+                    "SUBSCRIPTION_PROVIDER=razorpay is missing: " + ", ".join(problems)
+                )
+            if (self.subscription_razorpay_key_id or "").startswith("rzp_live_") and not (
+                self.subscription_allow_live
+            ):
+                raise ValueError("A live Razorpay key requires SUBSCRIPTION_ALLOW_LIVE=true")
+        if self.subscription_grace_days is None:
+            raise ValueError(
+                "SUBSCRIPTION_GRACE_DAYS must be set when SUBSCRIPTION_PROVIDER is enabled "
+                "(0 means no grace; there is deliberately no default)"
+            )
+        return self
+
+    @property
+    def subscription_webhook_provider(self) -> str | None:
+        """Provider whose subscription webhooks are accepted (None = no subscription hook)."""
+
+        # The validator guarantees that an enabled provider has its webhook secret.
+        return None if self.subscription_provider == "none" else self.subscription_provider
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":

@@ -91,7 +91,9 @@ class AccountDeletionRepository(ABC):
     async def cancel_open_bookings(self, user_id: str) -> dict[str, int]:
         """Cancel future bookings at the owner's salons, notify customers, resolve requests.
 
-        One transaction; a re-run is a no-op. Returns cancelled/notified/resolved counts.
+        Also winds down the salons' subscription billing (cancel renewal, expire unpaid
+        orders locally, flag paid-but-unused periods). One transaction; a re-run is a no-op.
+        Returns cancelled/notified/resolved counts.
         """
 
     @abstractmethod

@@ -1,5 +1,6 @@
 """Subscription use cases — admin-only plan and subscription management."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.exceptions import ForbiddenError, ValidationError
@@ -72,7 +73,7 @@ class SalonSubscriptionUseCases:
     ) -> dict[str, Any]:
         _assert_admin(actor)
         return await self.repo.update_subscription_status(
-            subscription_id, SubscriptionStatus.cancelled
+            subscription_id, SubscriptionStatus.cancelled, cancelled_at=datetime.now(UTC)
         )
 
     async def suspend_subscription(

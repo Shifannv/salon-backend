@@ -34,9 +34,9 @@ bundled reference adapter) one adapter file.
   salons out is a licensed activity in India (RBI PA/PG directions) and is deliberately not
   implemented. The only supported "platform collects" form is provider-side split
   settlement (funds stay in the provider's escrow and the provider splits at source).
-- Commission policy beyond a flat `PAYMENT_PLATFORM_FEE_PERCENT` recorded per payment.
 - Customer/owner push notifications on online capture or refund (the manual path still
   notifies).
+- Provider fee and tax capture (columns exist, unpopulated), automatic booking release.
 - Authorise-then-capture flows (the adapter assumes provider auto-capture).
 - Payment-failure UI contract beyond the ledger fields (`instrument`, `failure_code`).
 
@@ -108,10 +108,9 @@ The worker's second pass calls `fetch_payment` for open intents older than
 
 ## Operational landmines
 
-- **Over-collection is refused, loudly.** If cash and an online capture both land,
-  `recompute_booking_payment_state` raises `payment_overcollection` (SQLSTATE 23514). The
-  capture event goes to `failed` (not retried). A human issues a refund. This is deliberate;
-  see `RUNBOOK.md`.
+- **Over-collection is recorded, loudly** (since migration 0029; see "Overcollection" below). Only a
+  manual cash receipt that would exceed the total is still refused (`payment_overcollection`,
+  SQLSTATE 23514).
 - `stamp_booking_lifecycle` stamps `payment_recorded_by` from `auth.uid()`, which is NULL on
   the worker session. Gateway attribution therefore lives on `booking_payments.recorded_by`
   and the recompute sets `payment_recorded_at` itself.
@@ -126,19 +125,136 @@ without the provider's split-settlement feature enabled.
 
 ## Verification status (be honest)
 
-- 585 unit tests pass; they cover the config rules, dormant 503 path, replayed webhook,
-  bad signature writing nothing, amount mismatch, idempotency replay/mismatch, HMAC vectors,
-  paise rounding, worker claim/backoff SQL shape, migration SQL shape, and the decoupling
-  rule (the provider's name appears only in its adapter and `config.py`).
-- **Not verified against a real Postgres:** migrations `0026`/`0027`, the recompute
-  function, triggers, RLS, and every raw SQL statement's runtime behaviour. No disposable
-  database was available (a local server was listening but rejected the default
-  credentials). Run `alembic upgrade head` on staging, then the opt-in integration tests,
-  before any app build depends on this.
-- **Not verified against a real provider.**
+- Unit tests cover config rules, the dormant 503 path, webhook intake (forged, replayed, stale, simultaneous
+  providers), signatures, status mapping, request shapes, timeouts, commission arithmetic, refund reversal,
+  overcollection, crash/timeout recovery for intents, refunds and vendor registration, and authorization.
+- `tests/integration/test_payment_ledger_sql.py` (opt-in: `MIGRATION_TEST_DB=postgresql://.../postgres` on a
+  disposable local server) runs the real Alembic chain to 0029 and exercises the ledger SQL, triggers and
+  locking on PostgreSQL 18, including a concurrent cash receipt versus an online capture.
+- **Not verified:** any staging or production database, RLS as an application role, and every real provider
+  call (Razorpay and Cashfree are mock-tested only).
 
 ## Adding another provider
 
 1. Add `app/infrastructure/payments/<name>.py` with a `create_gateway(settings)` factory.
 2. Add its credentials to `Settings` and `validate_payment_settings`.
 3. Set `PAYMENT_PROVIDER=<name>`. No core, schema, or app change.
+
+---
+
+# Stage 1 additions (Cashfree, multi-provider routing, monetary policy)
+
+## Evidence levels
+
+| Level | Meaning | Stage 1 status |
+|---|---|---|
+| built | code exists | everything below |
+| tested locally | unit tests with fakes / `httpx.MockTransport`, plus `tests/integration/test_payment_ledger_sql.py` against a throwaway PostgreSQL 18 | everything below |
+| sandbox-tested | a real provider sandbox flow ran | **none** |
+| deployed | running in production | **none** |
+
+Every Cashfree field name marked `# UNVERIFIED: confirm in Cashfree sandbox` in
+`app/infrastructure/payments/cashfree.py` must be checked in the sandbox first. Mock tests are not sandbox evidence.
+
+## Providers and configuration
+
+`PAYMENT_PROVIDER` is `none` (default, dormant), `razorpay` or `cashfree`. Cashfree needs
+`CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_EASY_SPLIT_ENABLED=true` (platform_collect) and,
+for production, `CASHFREE_ENVIRONMENT=production` **and** `PAYMENT_ALLOW_LIVE=true`. A real provider with
+platform_collect also refuses to boot without `PAYMENT_PLATFORM_FEE_PERCENT` and `PAYMENT_COMMISSION_BASE`
+(no default exists). `PAYMENT_AUTO_RELEASE_ENABLED=true` is refused: it is not built.
+
+## Gateway registry and webhook routing
+
+`PaymentGatewayResolver` keeps gateways by provider name: `resolve()` = the gateway for NEW payments;
+`for_provider(name)` = the gateway that HOLDS an existing row. Refunds, confirmations, refresh,
+reconciliation and closure refunds always use the row's own provider and never fall back to the configured
+one (a provider that is not enabled is refused with 503, not substituted).
+
+`POST /v1/webhooks/{provider}` exists when a payment provider is configured or `SUBSCRIPTION_PROVIDER` is
+enabled (subscription billing: see `SUBSCRIPTIONS.md`, "Owner billing (stage 2)"). It accepts a provider only if it is independently enabled (404 otherwise), reads a bounded body
+(413), verifies the signature with that provider's own secret/algorithm over the raw bytes before parsing
+(400, nothing stored), and dedupes by `(provider_name, provider_event_reference)`.
+A body signed with the subscription secret is the `subscription` domain: parsed by the SEPARATE
+`SubscriptionProvider` port, stored with `event_type = 'subscription'` (`received`, or `ignored` for an
+unknown kind) and applied by the subscription billing handler (see `SUBSCRIPTIONS.md`); it never touches
+booking money. Event kinds: payment, refund, vendor
+(account), settlement (failed/reversed become `payment_anomalies`), subscription (applied by the billing handler),
+unknown valid events (acknowledged 200). Stored payloads contain identifiers, amounts and sanitised codes only.
+
+Cashfree specifics: signature = Base64(HMAC-SHA256(client_secret, timestamp + raw body)) (base64, not hex),
+`x-webhook-timestamp` must be within `CASHFREE_WEBHOOK_TOLERANCE_SECONDS` (default 86400, the maximum) of now. The window is wide on purpose: Cashfree retries for a long time and may reuse the original timestamp, and replays are already stopped by the HMAC plus per-provider event-id dedupe. Payment event
+references are `TYPE:cf_payment_id` (state is monotone, so a repeat is a true duplicate); vendor and
+settlement references hash the body (a vendor flipping back to a prior status is a new event).
+
+## Confirmation contract
+
+* `POST /v1/bookings/{id}/payments/refresh` `{order_ref}` (new): the backend asks the provider for the order's
+  payments and applies them. Works for every provider; nothing the client sends is trusted.
+* `POST /v1/bookings/{id}/payments/confirm`: `payment_ref`/`signature` are now optional. A provider with a
+  signed client callback (Razorpay) still requires and verifies them; a provider without one (Cashfree, its
+  SDK callback is not proof) treats the call as a refresh and ignores the supplied values.
+* `GET /v1/payments/config` gains `confirmation: "callback" | "refresh"` so the app knows which to call.
+* Only the booking's customer may call either (others get 404), `Idempotency-Key` is required, the lock on the
+  booking is not held while the provider is called.
+
+## Commission snapshot (migration 0029)
+
+At intent time the backend writes on the ledger row: `commission_rate_percent`, `commission_base`
+(`online_amount` | `booking_total`), `platform_commission_amount` and `commission_policy_version`, computed from
+configuration and the booking row (never client input). A trigger forbids changing them afterwards.
+`online_amount`: rate x this payment. `booking_total`: rate x the booking total, allocated across the booking's
+online payments (never above the total, never above the payment). Cash received at the salon carries no
+commission because the platform never holds that money, so with `booking_total` the commission on a cash-paid
+share is not collected (a business decision to confirm). A refund records `commission_reversal_amount`
+(proportional; the refund that exhausts the payment reverses exactly the remainder). `GET /v1/salons/me/earnings`
+reads only the snapshot and reversals. Provider fees/taxes live in separate nullable columns
+(`provider_fee_amount`, `provider_tax_amount`), never mixed with commission and **not populated yet**.
+The legacy `platform_fee_amount` column is kept (backfilled into the new column) and no longer used.
+
+## Overcollection
+
+When an online capture exceeds what the booking is still owed (cash recorded first, or a second online
+payment), the capture is recorded: `booking_payments.overcollected_amount` holds the excess, the booking's
+`paid_amount` excludes it (never paid twice), an ERROR `OVERCOLLECTION ...` is logged, a
+`payment_anomalies` row is written, and the row leaves the open set so the reconcile loop stops. The owner
+refunds the excess with the normal refund API: omitting `amount` refunds the excess first; refunding more
+than the excess while excess remains is refused with 422; an excess refund reverses no commission and does not
+unpay the booking. Cash recorded after an online capture is still refused by the database. The database
+serialises the cash receipt and the capture on the booking row lock (verified on PostgreSQL).
+
+## Crash safety
+
+Identity first, commit, then the provider call; no lock or transaction is held across a remote call.
+
+| Operation | Persisted before the call | Unknown outcome (timeout / 5xx) | Definitive 4xx |
+|---|---|---|---|
+| Create intent | row + deterministic `order_ref` (Cashfree: the `intent_reference`) | one lookup by that id; else the row stays open and unacknowledged (`provider_order_confirmed_at` null), the idempotency key is released, a retry of the same booking/purpose/amount resumes it, and the worker reconciles by order id (recovers a payment the provider took) | row `failed`, booking freed |
+| Owner refund | `payment_refunds` row with deterministic `refund_ref` | row stays `created` (reserves the amount); a retry with the same key re-sends the same provider refund id; the worker resolves it by that id | row `failed`, amount freed |
+| Vendor registration | `payment_provider_accounts` row, vendor id, status `pending` | stays `pending`; retry reuses the same vendor id (idempotent at the provider) | `needs_action` + audit row |
+
+Limitation: Razorpay order ids are provider-generated, so a timeout there cannot be recovered by id; the row
+expires after `PAYMENT_INTENT_TTL_SECONDS` (an orphan unpaid order is harmless; a paid-but-unmatched one is
+an `unmatched` webhook for a human).
+
+## Vendor onboarding
+
+`POST /v1/salons/me/settlement-account/register` takes contact, PAN, account/business type and bank
+(account number + IFSC) or UPI. The values are used once in memory, never persisted, logged, echoed in 422s
+(the scrubbing now covers this path as it does `/payout-account`) or returned. The idempotency fingerprint
+deliberately excludes them. Only vendor id, status and canned requirement text are stored. States:
+`not_started | pending | needs_action | active | rejected | suspended`. Re-registering from any non-pending
+status starts a new generation (new vendor id), resets the account to `pending` (the salon cannot take online
+payments until the provider reports `active` again) and writes `payment_provider_account_audit`. The old
+vendor is not deleted at the provider (manual clean-up). Status changes from webhooks are audited too.
+
+## Order failure / expiry
+
+Not built. A failed or expired payment leaves the booking as it was; nothing releases it
+(`PAYMENT_AUTO_RELEASE_ENABLED` is refused at boot). It needs an approved deadline policy first.
+
+## Known gaps (stage 1)
+
+Provider fee/tax capture; automatic booking release; Razorpay order recovery by receipt; `refund_splits`
+(off, schema unverified); deletion of superseded vendors; commission on cash; real Postgres/provider runs on
+staging; sandbox verification of every `UNVERIFIED` Cashfree item.

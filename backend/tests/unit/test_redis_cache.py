@@ -112,3 +112,13 @@ async def test_redis_cache_global_lifecycle() -> None:
     # After close, get_redis_cache returns a fresh fallback noop
     new_cache = get_redis_cache()
     assert new_cache.available is False
+
+
+def test_redacted_target_never_contains_the_password() -> None:
+    from app.infrastructure.cache.redis import _redacted_target
+
+    url = "rediss://default:s3cret-pass@redis.example.com:6380/0"
+    assert _redacted_target(url) == "redis.example.com:6380"
+    assert "s3cret" not in _redacted_target(url)
+    assert _redacted_target("rediss://:pw@host") == "host"
+    assert _redacted_target("not-a-url") == "<redis>"

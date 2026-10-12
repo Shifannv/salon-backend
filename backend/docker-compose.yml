@@ -12,7 +12,7 @@ services:
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
-    depends_on:
+    depends_on: &redis-dependency
       redis:
         condition: service_healthy
     init: true
@@ -39,6 +39,7 @@ services:
       - ${COMPOSE_ENV_FILE:-.env}
     command: ["python", "-m", "app.infrastructure.push.outbox_worker"]
     environment: *app-environment
+    depends_on: *redis-dependency
     # The image's HTTP health check belongs to the API, not this polling process.
     healthcheck:
       disable: true
@@ -56,6 +57,7 @@ services:
       - ${COMPOSE_ENV_FILE:-.env}
     command: ["python", "-m", "app.infrastructure.media.cleanup_worker"]
     environment: *app-environment
+    depends_on: *redis-dependency
     healthcheck:
       disable: true
     init: true
@@ -72,6 +74,7 @@ services:
       - ${COMPOSE_ENV_FILE:-.env}
     command: ["python", "-m", "app.infrastructure.account_deletion.worker"]
     environment: *app-environment
+    depends_on: *redis-dependency
     # The worker touches a heartbeat file after every poll cycle (see
     # app/infrastructure/account_deletion/health.py). A dead, wedged or database-less worker
     # leaves the file stale, so `docker compose ps` shows it unhealthy instead of silently
@@ -96,6 +99,7 @@ services:
       - ${COMPOSE_ENV_FILE:-.env}
     command: ["python", "-m", "app.infrastructure.payments.webhook_worker"]
     environment: *app-environment
+    depends_on: *redis-dependency
     # Dormant but harmless while PAYMENT_PROVIDER=none: it idles on an empty queue.
     healthcheck:
       disable: true

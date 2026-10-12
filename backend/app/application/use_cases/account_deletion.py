@@ -101,6 +101,9 @@ class AccountDeletionUseCases:
                 "deleting your account",
                 details=details,
             )
+        self._raise_if_subscription_blocks(blockers)
+
+    def _raise_if_subscription_blocks(self, blockers: dict[str, int]) -> None:
         if blockers["active_subscriptions"] and self.settings.subscription_provider != "none":
             raise DeletionBlockedError(
                 "Cancel your active subscription before deleting your account",
@@ -207,6 +210,11 @@ class AccountDeletionUseCases:
 
         self._assert_eligible(actor)
         secret = self._secret()
+        if actor.role.value == "owner":
+            # A subscription bought AFTER the challenge started must not slip past the blocker.
+            self._raise_if_subscription_blocks(
+                await self.repository.count_blockers(actor.id, actor.role.value)
+            )
         request = await self.repository.confirm_deletion(
             actor.id, challenge_id, digest(secret, "confirm", confirmation_token)
         )

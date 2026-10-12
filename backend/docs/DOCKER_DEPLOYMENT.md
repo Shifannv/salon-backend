@@ -1,7 +1,8 @@
 # Docker deployment
 
-Deploy manually with Docker Compose on the GCP VM. This branch contains no GitHub
-Actions workflows. Run verification locally before deploying.
+Deploy with GitHub Actions to the GCP VM, or manually with Docker Compose.
+The workflow verifies branch pushes and pull requests; only `main` can deploy.
+See [CI/CD setup](CI_CD.md) for the required GitHub secrets and VM configuration.
 
 Use `backend/` as the Docker build context.
 Use Docker Compose v2 with `up --wait` and `--wait-timeout` support.
@@ -29,7 +30,7 @@ The worker disables the image's API-only HTTP health check. Compose waits for AP
 Redis health and for the worker process to start; this does not verify successful push
 delivery. Check worker logs and notification delivery records when diagnosing push.
 Redis is accessible only inside the Compose network at `redis:6379`, not on a VM port.
-The API waits for Redis health before starting. API and worker share runtime settings.
+The API and all workers wait for Redis health before starting and share runtime settings.
 
 Compose also runs `media-cleanup` from the API image. Explicitly review/apply migration
 `0020_media_reference_guards` first; cleanup refuses to delete without its seven guards.
@@ -143,11 +144,23 @@ New environment variables (all optional; defaults in `.env.example`): `PAYMENT_P
 `PAYMENT_SETTLEMENT_MODEL`, `PAYMENT_CURRENCY`, `PAYMENT_ADVANCE_PERCENT`,
 `PAYMENT_INTENT_TTL_SECONDS`, `PAYMENT_IDEMPOTENCY_TTL_SECONDS`,
 `PAYMENT_WEBHOOK_MAX_BODY_BYTES`, `PAYMENT_WEBHOOK_MAX_ATTEMPTS`,
-`PAYMENT_PLATFORM_FEE_PERCENT`, `PAYMENT_WORKER_POLL_SECONDS`,
-`PAYMENT_RECONCILE_AFTER_SECONDS`, and provider credentials. A configured provider with
+`PAYMENT_PLATFORM_FEE_PERCENT` and `PAYMENT_COMMISSION_BASE` (**no defaults**: a real provider
+refuses to boot without them), `PAYMENT_COMMISSION_POLICY_VERSION`, `PAYMENT_ALLOW_LIVE`,
+`PAYMENT_PROVIDER_TIMEOUT_SECONDS`, `PAYMENT_WORKER_POLL_SECONDS`, `PAYMENT_RECONCILE_AFTER_SECONDS`,
+and provider credentials: `RAZORPAY_*`, `SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET`, `CASHFREE_CLIENT_ID`,
+`CASHFREE_CLIENT_SECRET`, `CASHFREE_ENVIRONMENT`, `CASHFREE_API_VERSION`, `CASHFREE_WEBHOOK_VERSION`,
+`CASHFREE_EASY_SPLIT_ENABLED`, `CASHFREE_RETURN_URL`, `CASHFREE_WEBHOOK_TOLERANCE_SECONDS`.
+Subscription billing (separate credentials, default off): `SUBSCRIPTION_PROVIDER`,
+`SUBSCRIPTION_RAZORPAY_KEY_ID`, `SUBSCRIPTION_RAZORPAY_KEY_SECRET`, `SUBSCRIPTION_RAZORPAY_WEBHOOK_SECRET`
+(>= 32 chars), `SUBSCRIPTION_GRACE_DAYS` (required when enabled, `0` allowed), `SUBSCRIPTION_ALLOW_LIVE`,
+`SUBSCRIPTION_ORDER_TTL_SECONDS`, `SUBSCRIPTION_RECONCILE_AFTER_SECONDS`. The same worker service also
+reconciles subscription orders and sweeps lapsed periods (migrations 0030-0031 first).
+`CASHFREE_ENVIRONMENT=production` fails boot unless `PAYMENT_ALLOW_LIVE=true`. A configured provider with
 missing credentials, or `PAYMENT_SETTLEMENT_MODEL=direct_to_salon`, fails container boot on
 purpose. Enabling a provider also needs the provider webhook URL
-`https://<api>/v1/webhooks/<provider>` registered with the provider.
+`https://<api>/v1/webhooks/<provider>` registered with the provider (`cashfree`; `razorpay` only for the
+separately-secreted subscription hook). The webhook route exists when a payment provider or
+`SUBSCRIPTION_PROVIDER` is enabled. Migrations 0029-0031 must be applied before the code.
 
 BUILT: service + env. DORMANT: until a provider is configured. NOT BUILT: a worker
 health check (the compose service has none).

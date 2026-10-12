@@ -16,7 +16,8 @@ class SubscriptionPlanRepo:
         where = "" if include_inactive else "where is_active"
         result = await self.session.execute(text(f"""
             select id, code, name, description, tier, ranking_weight,
-                   price_amount, currency, billing_interval, is_active,
+                   price_amount, currency, billing_interval, features, tax_inclusive,
+                   is_active,
                    created_at, updated_at
             from subscription_plans {where}
             order by tier asc, ranking_weight desc, name asc
@@ -41,7 +42,8 @@ class SubscriptionPlanRepo:
                 insert into subscription_plans ({cols})
                 values ({placeholders})
                 returning id, code, name, description, tier, ranking_weight,
-                          price_amount, currency, billing_interval, is_active,
+                          price_amount, currency, billing_interval, features, tax_inclusive,
+                   is_active,
                           created_at, updated_at
             """),
             values,
@@ -59,7 +61,8 @@ class SubscriptionPlanRepo:
                 update subscription_plans set {assignments}
                 where id = :plan_id
                 returning id, code, name, description, tier, ranking_weight,
-                          price_amount, currency, billing_interval, is_active,
+                          price_amount, currency, billing_interval, features, tax_inclusive,
+                   is_active,
                           created_at, updated_at
             """),
             {**allowed, "plan_id": plan_id},

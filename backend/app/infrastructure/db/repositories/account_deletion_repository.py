@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.ports.account_deletion_repository import AccountDeletionRepository
 from app.core.exceptions import DeletionBlockedError, InvalidVerificationCodeError, NotFoundError
 from app.core.tokens import digests_match
+from app.infrastructure.db.repositories.subscription_billing_repository import (
+    SubscriptionBillingRepository,
+)
 
 _CHALLENGE_COLUMNS = (
     "id, user_id, channel, contact_hash, status, attempts, max_attempts, resend_count, "
@@ -27,6 +30,7 @@ SALON_CASCADE_TABLES: tuple[str, ...] = (
     "blocked_slots",
     "salon_payout_accounts",
     "salon_payout_account_history",
+    "salon_access",
 )
 # Plain (NO ACTION) salon references that hold provider-side identifiers: also emptied.
 SALON_PROVIDER_REFERENCE_TABLES: tuple[str, ...] = (
@@ -513,6 +517,9 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         s = self.session
         params = {"uid": user_id}
         try:
+            # Same transaction: stop future subscription renewal, expire unpaid subscription
+            # orders locally and flag paid-but-unused periods BEFORE anything is erased.
+            await SubscriptionBillingRepository(s).wind_down_salons(user_id)
             rows = (await s.execute(
                 text(f"""
                     select id from bookings
@@ -801,6 +808,9 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
 
         s = self.session
         owned = f"({_OWNED_SALONS})"
+        # Re-run inside the erasure transaction: an order paid after the earlier step must not
+        # leave a live renewal behind (idempotent; a late payment later hits 'blocked_closed').
+        await SubscriptionBillingRepository(s).wind_down_salons(params["uid"])
         # Staff logins that existed only for these salons are separate people whose
         # profile (name, email, phone, avatar) would otherwise be banned but kept for
         # ever. Guard: staff role, no staff row at a salon this owner does not own, never a

@@ -1,6 +1,22 @@
 """Settings normalization tests."""
 
+import pytest
+from pydantic import ValidationError
+
 from app.core.config import Settings
+
+
+@pytest.mark.parametrize("secret", ["", "   "])
+def test_blank_account_deletion_secret_is_unconfigured(monkeypatch, secret) -> None:
+    monkeypatch.setenv("ACCOUNT_DELETION_SECRET", secret)
+    settings = Settings(_env_file=None, environment="test")
+
+    assert settings.account_deletion_secret is None
+
+
+def test_short_account_deletion_secret_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="at least 32 characters"):
+        Settings(_env_file=None, environment="test", account_deletion_secret="too-short")
 
 
 def test_settings_accept_legacy_r2_bucket_name() -> None:

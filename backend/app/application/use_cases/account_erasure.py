@@ -89,6 +89,7 @@ class AccountErasureService:
         stale_seconds: int,
         *,
         payment_gateway: PaymentGateway | None = None,
+        payment_gateway_for: Callable[[str | None], PaymentGateway | None] | None = None,
         refund_max_attempts: int = 8,
         storage_required: bool = False,
         cache_required: bool = False,
@@ -102,6 +103,7 @@ class AccountErasureService:
         self.bucket = bucket
         self.stale_seconds = stale_seconds
         self.payment_gateway = payment_gateway
+        self.payment_gateway_for = payment_gateway_for
         self.refund_max_attempts = refund_max_attempts
         self.storage_required = storage_required
         self.cache_required = cache_required
@@ -180,12 +182,13 @@ class AccountErasureService:
         candidates = await self.repository.list_closure_refund_candidates(user_id)
         if not candidates:
             return
-        gateway = self.payment_gateway
-        can_refund = gateway is not None and gateway.supports(GatewayCapability.refunds)
         for payment in candidates:
             payment_id = str(payment["payment_id"])
             booking_id = str(payment["booking_id"])
             provider = payment["provider"]
+            # The provider that HOLDS this payment refunds it; never the configured default.
+            gateway = self._gateway_for_provider(provider)
+            can_refund = gateway is not None and gateway.supports(GatewayCapability.refunds)
             if payment["refund_id"] is not None:
                 row = {"id": payment["refund_id"], "status": payment["refund_status"],
                        "refund_ref": payment["refund_ref"], "amount": payment["amount"]}
@@ -234,6 +237,14 @@ class AccountErasureService:
             if result.status == RefundStatus.failed:
                 logger.error("Provider rejected the closure refund for payment %s (%s)",
                              payment_id, result.failure_code)
+
+    def _gateway_for_provider(self, provider: str | None) -> PaymentGateway | None:
+        if self.payment_gateway_for is not None:
+            return self.payment_gateway_for(provider)
+        gateway = self.payment_gateway
+        if gateway is None or (provider is not None and gateway.provider_name != provider):
+            return None
+        return gateway
 
     async def _settle_refunds(self, user_id: str, attempts: int) -> None:
         """Wait until no closure refund is still ``created`` at the provider."""

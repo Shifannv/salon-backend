@@ -44,7 +44,11 @@ from app.application.ports.payment_gateway import (
     SettlementAccountRequest,
 )
 from app.core.config import Settings
-from app.core.exceptions import PaymentCapabilityError, PaymentProviderError
+from app.core.exceptions import (
+    PaymentCapabilityError,
+    PaymentOutcomeUnknownError,
+    PaymentProviderError,
+)
 from app.domain.entities.payment import (
     GatewayCapability,
     LedgerStatus,
@@ -116,10 +120,15 @@ def _hex_hmac(secret: str, message: bytes) -> str:
 class RazorpayGateway(PaymentGateway):
     """Razorpay Orders + Route implementation of the payment port."""
 
-    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        client: httpx.AsyncClient | None = None,
+        webhook_secret: str | None = None,
+    ) -> None:
         self._key_id = settings.razorpay_key_id or ""
         self._key_secret = settings.razorpay_key_secret or ""
-        self._webhook_secret = settings.razorpay_webhook_secret or ""
+        self._webhook_secret = webhook_secret or settings.razorpay_webhook_secret or ""
         self._route_enabled = settings.razorpay_route_enabled
         self._base_url = settings.razorpay_api_base_url.rstrip("/")
         self._currency = settings.payment_currency
@@ -133,9 +142,15 @@ class RazorpayGateway(PaymentGateway):
         return PROVIDER
 
     def supports(self, capability: GatewayCapability) -> bool:
-        if capability in {GatewayCapability.online_collection, GatewayCapability.refunds}:
+        if capability in {
+            GatewayCapability.online_collection,
+            GatewayCapability.refunds,
+            GatewayCapability.callback_signature,
+        }:
             return True
-        return self._route_enabled  # split_settlement, linked_accounts
+        if capability in {GatewayCapability.split_settlement, GatewayCapability.linked_accounts}:
+            return self._route_enabled
+        return False
 
     def client_config(self) -> ClientConfig:
         return ClientConfig(
@@ -172,7 +187,7 @@ class RazorpayGateway(PaymentGateway):
             )
         except httpx.HTTPError as exc:
             logger.warning("Payment provider unreachable: %s %s", method, path)
-            raise PaymentProviderError("Payment provider is unreachable") from exc
+            raise PaymentOutcomeUnknownError("Payment provider is unreachable") from exc
         if response.status_code >= 400:
             code = None
             try:
@@ -186,7 +201,10 @@ class RazorpayGateway(PaymentGateway):
                 response.status_code,
                 code,
             )
-            raise PaymentProviderError(
+            error_cls = (
+                PaymentOutcomeUnknownError if response.status_code >= 500 else PaymentProviderError
+            )
+            raise error_cls(
                 "Payment provider rejected the request",
                 {"provider_status": response.status_code, "provider_code": code},
             )

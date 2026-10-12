@@ -40,6 +40,7 @@ def settings(**kw) -> Settings:
         "_env_file": None, "environment": "test", "payment_provider": "razorpay",
         "razorpay_key_id": "k", "razorpay_key_secret": "s", "razorpay_webhook_secret": SECRET,
         "razorpay_route_enabled": True, "payment_webhook_max_body_bytes": 2048,
+        "payment_platform_fee_percent": Decimal("10"), "payment_commission_base": "online_amount",
     }
     values.update(kw)
     return Settings(**values)
@@ -281,23 +282,31 @@ async def test_idempotency_unfinished_original_is_in_progress():
 
 
 async def test_observation_amount_mismatch_fails_row_and_never_captures():
-    row = {"id": "p1", "status": "created", "amount": Decimal("500.00"), "currency": "INR"}
-    repo, session = repo_with(_Result(row=row), _Result())
+    row = {"id": "p1", "booking_id": "b1", "salon_id": "s1", "status": "created",
+           "amount": Decimal("500.00"), "currency": "INR"}
+    repo, session = repo_with(
+        _Result(row={"id": "p1", "booking_id": "b1"}), _Result(row={"total_price": Decimal("500")}),
+        _Result(row=row), _Result(), _Result())
     outcome = await repo.apply_payment_observation(
         provider="razorpay", order_ref="o", payment_ref="pay", status="captured",
         amount=Decimal("400.00"), currency="INR", instrument=None, failure_code=None)
     assert outcome == "mismatch"
-    update_params = session.execute.await_args_list[-1].args[1]
+    update_params = session.execute.await_args_list[-2].args[1]
     assert update_params["s"] == "failed" and update_params["f"] == "amount_mismatch"
+    anomaly_sql = str(session.execute.await_args_list[-1].args[0]).lower()
+    assert "insert into payment_anomalies" in anomaly_sql
 
 
 async def test_observation_out_of_order_event_is_ignored():
-    row = {"id": "p1", "status": "captured", "amount": Decimal("500.00"), "currency": "INR"}
-    repo, session = repo_with(_Result(row=row))
+    row = {"id": "p1", "booking_id": "b1", "salon_id": "s1", "status": "captured",
+           "amount": Decimal("500.00"), "currency": "INR"}
+    repo, session = repo_with(
+        _Result(row={"id": "p1", "booking_id": "b1"}), _Result(row={"total_price": Decimal("500")}),
+        _Result(row=row))
     outcome = await repo.apply_payment_observation(
         provider="razorpay", order_ref="o", payment_ref="pay", status="failed",
         amount=None, currency=None, instrument=None, failure_code="x")
-    assert outcome == "ignored" and session.execute.await_count == 1
+    assert outcome == "ignored" and session.execute.await_count == 3  # no write happened
 
 
 async def test_observation_unknown_reference_is_unmatched():
@@ -486,4 +495,4 @@ def test_migration_heads_are_linear():
         revisions[rev] = down.group(1) if down else None
     parents = [d for d in revisions.values() if d]
     assert len(parents) == len(set(parents)), "two revisions share a parent (branch)"
-    assert [r for r in revisions if r not in parents] == ["0028_account_erasure_hardening"]
+    assert [r for r in revisions if r not in parents] == ["0033_payment_fee_snapshot"]

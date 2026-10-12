@@ -52,6 +52,8 @@ def make_settings(**overrides) -> Settings:
         "razorpay_key_secret": KEY_SECRET,
         "razorpay_webhook_secret": SECRET,
         "razorpay_route_enabled": True,
+        "payment_platform_fee_percent": Decimal("10"),
+        "payment_commission_base": "online_amount",
     }
     values.update(overrides)
     return Settings(**values)

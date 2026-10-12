@@ -3,7 +3,6 @@ name: Backend CI/CD
 on:
   pull_request:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -54,23 +53,13 @@ jobs:
         run: |
           image="salon-platform-api:sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "RELEASE_IMAGE=$image" >> "$GITHUB_ENV"
-          docker build --pull --tag "$image" backend
-      - name: Verify non-root runtime and custom port
+          docker build --pull --platform linux/amd64 --tag "$image" backend
+      - name: Validate deployment Compose configuration
         run: |
-          test "$(docker run --rm --entrypoint id "$RELEASE_IMAGE" -u)" != 0
-          docker run -d --name ci-api -e ENVIRONMENT=local -e PORT=8080 \
-            -p 127.0.0.1:8080:8080 "$RELEASE_IMAGE"
-          # Docker can reset connections before Uvicorn starts listening.
-          # Retry this read-only probe, while bounding each request and total retries.
-          curl --fail --silent --show-error --retry 60 --retry-delay 2 \
-            --retry-all-errors --connect-timeout 2 --max-time 5 \
-            --retry-max-time 120 http://127.0.0.1:8080/health
-      - name: Container logs on failure
-        if: failure()
-        run: docker logs ci-api 2>&1 || true
-      - name: Remove smoke test container
-        if: always()
-        run: docker rm -f ci-api 2>/dev/null || true
+          COMPOSE_ENV_FILE=.env.gcp.example docker compose \
+            --env-file backend/.env.gcp.example -f backend/docker-compose.yml config --quiet
+      - name: Verify non-root runtime and custom port
+        run: bash backend/scripts/check-container.sh "$RELEASE_IMAGE"
       - name: Package tested release
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: |

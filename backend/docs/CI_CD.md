@@ -1,6 +1,7 @@
 # GitHub Actions to the GCP VM
 
-The workflow in [backend.yml](../../.github/workflows/backend.yml) tests pull requests.
+The workflow in [backend.yml](../../.github/workflows/backend.yml) tests all branch pushes
+and pull requests.
 A push to `main` (including a merged PR), or a manual Actions run on `main`, also
 deploys production after the checks pass. Other branches cannot deploy. Review
 database migrations before merging: that merge authorizes the explicit Alembic
@@ -12,7 +13,10 @@ upgrade step in the deployment. Migrations are never part of container startup.
    A disposable PostgreSQL 18 service runs the real `0014`-to-current-head migration
    regression, including downgrade/re-upgrade. Other integration tests that require
    their own explicitly configured database remain skipped.
-2. Build from `backend/`, then check non-root execution and `/health` on port 8080.
+2. Build a Linux amd64 image from `backend/`, validate Compose using the committed
+   GCP environment template, then check non-root execution, `/health` on port 8080,
+   all worker imports and the packaged migration files. The smoke check uses
+   `scripts/check-container.sh` and requires no production credentials.
 3. Package that exact image, its verified image IDs, Compose file and deployment scripts as
    a seven-day Actions artifact. No registry is required; the VM must be amd64.
 4. Transfer the artifact over SSH with strict host-key verification. Releases live

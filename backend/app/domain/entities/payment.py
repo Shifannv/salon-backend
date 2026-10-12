@@ -115,6 +115,12 @@ class GatewayCapability(StrEnum):
     refunds = "refunds"
     split_settlement = "split_settlement"
     linked_accounts = "linked_accounts"
+    # The provider returns a signed client callback that proves payment (verify_payment_callback).
+    callback_signature = "callback_signature"
+    # The provider has no callback signature: the backend must fetch the order status itself.
+    server_status_refresh = "server_status_refresh"
+    # Registering a payee needs KYC and bank/UPI details supplied by the owner.
+    vendor_kyc = "vendor_kyc"
 
 
 class PaymentEventType(StrEnum):
@@ -126,7 +132,25 @@ class PaymentEventType(StrEnum):
     refund_processed = "refund_processed"
     refund_failed = "refund_failed"
     account_updated = "account_updated"
+    # Settlement of a vendor's share (initiated / success / failed / reversed).
+    settlement_updated = "settlement_updated"
+    # Valid, signed, but belongs to the subscription domain: recorded and ignored for now.
+    subscription = "subscription"
     ignored = "ignored"
+
+
+class WebhookDomain(StrEnum):
+    """Which business domain a verified webhook belongs to."""
+
+    payment = "payment"
+    subscription = "subscription"
+
+
+class CommissionBase(StrEnum):
+    """What the platform commission percentage is applied to."""
+
+    online_amount = "online_amount"  # each online payment
+    booking_total = "booking_total"  # the whole booking price (allocated across payments)
 
 
 SETTLED_STATUSES = frozenset(
