@@ -15,7 +15,10 @@ if [[ ! -f "$COMPOSE_ENV_FILE" ]]; then
   echo "Missing VM runtime env file: $COMPOSE_ENV_FILE" >&2
   exit 1
 fi
-if [[ "$(docker image inspect --format '{{.Id}}' "$SALON_API_IMAGE")" != "$(cat image-id)" ]]; then
+# Classic Docker reports the config digest; containerd reports the manifest digest.
+# CI verifies both against the same tested archive before recording this allowlist.
+actual_image_id="$(docker image inspect --format '{{.Id}}' "$SALON_API_IMAGE")"
+if ! grep -qxF "$actual_image_id" image-id; then
   echo "Release image does not match the image tested in CI." >&2
   exit 1
 fi

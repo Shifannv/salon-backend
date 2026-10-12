@@ -35,7 +35,7 @@ def release(tmp_path):
 set -eu
 printf '%s|%s|%s|%s\\n' "$*" "${COMPOSE_PROJECT_NAME:-}" "${COMPOSE_ENV_FILE:-}" "${SALON_API_IMAGE:-}" >> "$DEPLOY_TEST_LOG"
 if [[ "$*" == 'image inspect --format'* ]]; then
-  if [[ "${FAIL_STAGE:-}" == image ]]; then echo sha256:wrong; else echo sha256:test-image; fi
+  if [[ "${FAIL_STAGE:-}" == image ]]; then echo sha256:wrong; else echo "${TEST_IMAGE_ID:-sha256:test-image}"; fi
 fi
 case "${FAIL_STAGE:-}" in
   load) [[ "$1" != load ]] || exit 1 ;;
@@ -108,6 +108,15 @@ def test_missing_runtime_env_stops_before_migrations(release):
     assert result.returncode != 0
     assert "alembic upgrade" not in log
     assert not current.exists()
+
+
+def test_containerd_manifest_id_is_accepted_from_verified_allowlist(release):
+    _, target, env = release
+    (target / "image-id").write_text("sha256:test-image\nsha256:manifest\n")
+    env["TEST_IMAGE_ID"] = "sha256:manifest"
+    result, _, current = run_release(release)
+    assert result.returncode == 0, result.stderr
+    assert current.exists()
 
 
 def test_success_migrates_exact_image_then_promotes_healthy_release(release):
