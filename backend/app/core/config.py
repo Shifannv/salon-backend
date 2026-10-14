@@ -188,9 +188,11 @@ class Settings(BaseSettings):
     payment_auto_release_enabled: bool = False
 
     # Database connection pool
-    db_pool_size: int = 5
-    db_max_overflow: int = 5
-    db_pool_timeout_seconds: int = 10
+    db_pool_size: int = Field(default=5, ge=1, le=100)
+    db_max_overflow: int = Field(default=5, ge=0, le=100)
+    db_pool_timeout_seconds: int = Field(default=10, ge=1, le=120)
+    db_pool_recycle_seconds: int = Field(default=1800, ge=60, le=86400)
+    db_connect_timeout_seconds: float = Field(default=10, gt=0, le=120)
 
     @field_validator("account_deletion_secret", mode="before")
     @classmethod

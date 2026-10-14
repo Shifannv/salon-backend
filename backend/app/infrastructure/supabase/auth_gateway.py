@@ -13,6 +13,7 @@ from app.core.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
+from app.core.telemetry import measure_external
 
 
 def channel_field(channel: str) -> str:
@@ -41,6 +42,7 @@ class SupabaseAuthGateway(AuthGateway):
             {"refresh_token": payload.refresh_token},
         )
 
+    @measure_external("supabase_auth")
     async def send_phone_otp(self, phone: str) -> None:
         """Send a phone OTP via Supabase Auth (walk-in QR flow)."""
 
@@ -64,7 +66,7 @@ class SupabaseAuthGateway(AuthGateway):
         """Verify a phone OTP and return tokens (walk-in QR flow)."""
 
         return await self._post(
-            "/auth/v1/token?grant_type=otp",
+            "/auth/v1/verify",
             {"phone": phone, "token": otp, "type": "sms"},
         )
 
@@ -90,6 +92,7 @@ class SupabaseAuthGateway(AuthGateway):
             raise InvalidVerificationCodeError("The verification code is invalid or expired")
         return str(user["id"])
 
+    @measure_external("supabase_auth")
     async def _raw_post(self, path: str, payload: dict[str, object]) -> dict[str, object] | None:
         if not self.settings.supabase_url or not self.settings.supabase_anon_key:
             raise ServiceUnavailableError("Authentication provider is not configured")
@@ -112,6 +115,7 @@ class SupabaseAuthGateway(AuthGateway):
         parsed = response.json() if response.content else {}
         return parsed if isinstance(parsed, dict) else {}
 
+    @measure_external("supabase_auth")
     async def _post(self, path: str, payload: dict[str, str]) -> AuthTokens:
         if not self.settings.supabase_url or not self.settings.supabase_anon_key:
             raise ValidationError("Supabase Auth is not configured")

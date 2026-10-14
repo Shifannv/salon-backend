@@ -8,6 +8,7 @@ from jose import JWTError, jwt
 
 from app.core.config import Settings
 from app.core.exceptions import UnauthorizedError
+from app.core.telemetry import measure_external
 
 # JWKS keys are long-lived; Supabase rotates them very rarely.
 # Cache for 60 minutes so a key rotation is picked up within an hour
@@ -87,6 +88,7 @@ class SupabaseJWTVerifier:
                 return key_data
         return None
 
+    @measure_external("supabase_jwks")
     async def _refresh_jwks(self) -> None:
         """Fetch fresh JWKS from Supabase and update the in-memory cache."""
 

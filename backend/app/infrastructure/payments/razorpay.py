@@ -49,6 +49,7 @@ from app.core.exceptions import (
     PaymentOutcomeUnknownError,
     PaymentProviderError,
 )
+from app.core.telemetry import measure_external
 from app.domain.entities.payment import (
     GatewayCapability,
     LedgerStatus,
@@ -167,6 +168,7 @@ class RazorpayGateway(PaymentGateway):
             self._client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0))
         return self._client
 
+    @measure_external("razorpay")
     async def _request(
         self,
         method: str,

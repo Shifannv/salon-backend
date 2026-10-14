@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -eu
+printf '%s|%s|%s|%s\n' "$*" "${COMPOSE_PROJECT_NAME:-}" "${COMPOSE_ENV_FILE:-}" "${SALON_API_IMAGE:-}" >> "$DEPLOY_TEST_LOG"
+if [[ "$*" == 'image inspect --format'* ]]; then
+  if [[ "${FAIL_STAGE:-}" == image ]]; then echo sha256:wrong; else echo "${TEST_IMAGE_ID:-sha256:test-image}"; fi
+fi
+case "${FAIL_STAGE:-}" in
+  load) [[ "$1" != load ]] || exit 1 ;;
+  migrate) [[ "$*" != *'alembic upgrade head'* ]] || exit 1 ;;
+  up) [[ "$*" != *' up -d '* ]] || exit 1 ;;
+  health) [[ "$*" != *' exec -T api '* ]] || exit 1 ;;
+esac

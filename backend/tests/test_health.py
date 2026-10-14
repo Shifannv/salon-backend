@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.infrastructure.db.session import get_session
+from app.infrastructure.db.session import get_probe_session
 from app.main import app
 
 
@@ -19,11 +19,11 @@ def test_database_health_returns_safe_503_when_database_is_unavailable() -> None
     async def unavailable_session():
         yield UnavailableSession()
 
-    app.dependency_overrides[get_session] = unavailable_session
+    app.dependency_overrides[get_probe_session] = unavailable_session
     try:
         response = TestClient(app).get("/health/db")
     finally:
-        app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_probe_session, None)
 
     assert response.status_code == 503
     assert response.json() == {

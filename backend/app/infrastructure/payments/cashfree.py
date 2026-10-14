@@ -56,6 +56,7 @@ from app.core.exceptions import (
     PaymentProviderError,
     ValidationError,
 )
+from app.core.telemetry import measure_external
 from app.domain.entities.payment import (
     GatewayCapability,
     LedgerStatus,
@@ -265,6 +266,7 @@ class CashfreeGateway(PaymentGateway):
             self._client = httpx.AsyncClient(timeout=httpx.Timeout(self._timeout, connect=5.0))
         return self._client
 
+    @measure_external("cashfree")
     async def _request(
         self,
         method: str,

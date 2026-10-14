@@ -45,9 +45,15 @@ async def prepare(admin_url):
     env=SafetyEnv(url)
     fixture=await env.seed()
     # Known test identities, never real customer data.
-    await env.sql("update profiles set email='customer@example.com',full_name='Test Customer' where id=:id",id=fixture["customer"])
-    await env.sql("update profiles set email='owner@example.com',full_name='Test Owner' where id=:id",id=fixture["owner"])
+    await env.sql("update profiles set email='customer@example.com',full_name='Test Customer',phone='+919000000001',phone_verified=true where id=:id",id=fixture["customer"])
+    await env.sql("update profiles set email='owner@example.com',full_name='Test Owner',phone='+919000000002',phone_verified=true where id=:id",id=fixture["owner"])
     await env.engine.dispose()
+    # This explicit --prepare operation replaces ONLY the dedicated localhost
+    # synthetic fixture. Its separate Redis container must not retain old IDs.
+    import redis.asyncio as redis
+    cache=redis.from_url("redis://127.0.0.1:56389/0")
+    await cache.flushdb()
+    await cache.aclose()
     MANIFEST.parent.mkdir(parents=True,exist_ok=True)
     MANIFEST.write_text(json.dumps({**fixture,"start":fixture["start"].isoformat(),"database_url":url},indent=2),encoding="utf-8")
     print("Prepared disposable local fixture database " + database)

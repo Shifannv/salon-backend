@@ -5,6 +5,7 @@ import hashlib
 import httpx
 
 from app.core.exceptions import ServiceUnavailableError
+from app.core.telemetry import measure_external
 
 
 class ResendEmailGateway:
@@ -17,6 +18,7 @@ class ResendEmailGateway:
         return bool(self.settings.resend_api_key and self.settings.resend_api_key.get_secret_value()
                     and self.settings.resend_from_email and self.settings.resend_domain_verified)
 
+    @measure_external("resend")
     async def send(self, *, recipient, subject, body, event_key):
         if not self.enabled:
             raise ServiceUnavailableError("Email delivery is not configured")

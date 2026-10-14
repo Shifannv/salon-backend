@@ -24,6 +24,18 @@ exception after that cutoff.
 
 ## Verification
 
+Latency diagnostics and measured limits are documented in
+[`verification/latency-investigation.md`](verification/latency-investigation.md).
+The application shares one PostgreSQL pool per process. Business sessions bind
+the READ COMMITTED engine; only real `SELECT 1` reachability probes bind its
+AUTOCOMMIT base engine. Keep business sessions transactional. Default pool limits
+are 5 persistent plus 5 overflow connections, a 10-second checkout timeout,
+1800-second recycle and 10-second asyncpg connection timeout, with pre-ping enabled.
+Budget all API and worker processes against the database connection limit.
+`Server-Timing` in local/test/staging measures time to response headers; structured
+request logs also report total duration and response bytes. Remote DB round trips
+can exceed the entire readiness latency budget even when `SELECT 1` executes quickly.
+
 ```bash
 python -m pytest
 python -m ruff check app tests migrations
