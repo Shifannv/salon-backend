@@ -97,6 +97,11 @@ def _clean_code(value: str | None) -> str | None:
 
 
 def _ledger_row(row: dict[str, Any]) -> dict[str, Any]:
+    manual = row["channel"] == "manual"
+    states = {"captured": "PAID_ONLINE", "created": "PAYMENT_PENDING", "authorized": "PAYMENT_PENDING",
+              "refunded": "REFUNDED", "partially_refunded": "PAID_ONLINE", "failed": "FAILED",
+              "cancelled": "FAILED", "expired": "FAILED"}
+    charge = row.get("online_processing_charge") or Decimal("0")
     return {
         "id": str(row["id"]),
         "booking_id": str(row["booking_id"]),
@@ -114,6 +119,17 @@ def _ledger_row(row: dict[str, Any]) -> dict[str, Any]:
         "expires_at": row.get("expires_at"),
         "captured_at": row.get("captured_at"),
         "created_at": row["created_at"],
+        "payment_mode": "PAY_AT_SALON" if manual else "PAY_ONLINE",
+        "payment_status": "COLLECTED_AT_SALON" if manual else states[row["status"]],
+        "collection_method": row.get("collection_method"),
+        "service_amount": row.get("service_amount", row["amount"] - charge),
+        "online_processing_charge": charge,
+        "total_payable": row["amount"],
+        "provider_order_reference": row.get("order_ref"),
+        "provider_session_id": row.get("provider_session_id"),
+        "provider_payment_reference": row.get("payment_ref"),
+        "collected_by_owner": row.get("collected_by_owner", False),
+        "collected_at": row.get("captured_at") if manual else None,
     }
 
 
@@ -258,11 +274,14 @@ class BookingPaymentUseCases:
             "advance_percent": self.settings.payment_advance_percent,
         }
         if not self.resolver.enabled:
-            return {"enabled": False, **base}
+            return {"enabled": False, "online_payment_available": False,
+                    "online_payment_unavailable_reason": "Online payment coming soon.", **base}
         gateway = self.resolver.resolve()
         client = gateway.client_config()
         return {
             "enabled": client.enabled,
+            "online_payment_available": client.enabled,
+            "online_payment_unavailable_reason": None if client.enabled else "Online payment coming soon.",
             "provider": client.provider,
             "public_key": client.public_key,
             "settlement_model": client.settlement_model.value if client.settlement_model else None,
@@ -298,6 +317,8 @@ class BookingPaymentUseCases:
             raise NotFoundError("Booking not found")
         if booking["status"] not in {"pending", "confirmed"}:
             raise ConflictError("Only pending or confirmed bookings can be paid online")
+        if not booking.get("accepts_new_online_payment", True):
+            raise ConflictError("This salon is not accepting online payments right now.")
 
         total = Money(booking["total_price"])
         net = Money(Decimal(booking["paid_amount"]) - Decimal(booking["refunded_amount"]))
@@ -323,6 +344,16 @@ class BookingPaymentUseCases:
                 raise ConflictError("Part of this booking is already paid; use purpose 'balance'")
             amount = total
 
+        from app.domain.services.checkout import checkout_quote
+        processing = Decimal("0")
+        if booking.get("checkout_policy_version") == "customer_processing_v1":
+            quoted = checkout_quote(amount.amount, "PAY_ONLINE")
+            processing = quoted["online_processing_charge"]
+            if purpose == "balance":
+                full_charge = checkout_quote(total.amount,"PAY_ONLINE")["online_processing_charge"]
+                allocated_charge = await self.repository.processing_charge_allocated(booking_id)
+                processing = max(Decimal("0"),full_charge - allocated_charge)
+            amount = Money(amount.amount + processing)
         await self.repository.expire_stale_open_intents(booking_id)
         resume: dict[str, Any] | None = None
         if await self.repository.get_open_intent(booking_id) is not None:
@@ -382,6 +413,7 @@ class BookingPaymentUseCases:
                 intent_reference=intent_reference,
                 order_ref=order_ref,
                 expires_in_seconds=self.settings.payment_intent_ttl_seconds,
+                **({"online_processing_charge": processing} if processing else {}),
             )
         # The operation identity is durable (and the booking lock released) BEFORE the call.
         await self._checkpoint(actor)
@@ -403,7 +435,9 @@ class BookingPaymentUseCases:
         intent = await self._call_create_intent(
             actor, scope, key, gateway, request, payment_id, order_ref, resumed=resume is not None
         )
-        await self.repository.confirm_intent_order(payment_id, intent.order_ref)
+        session_id = intent.client_payload.get("payment_session_id")
+        kwargs = {"provider_session_id": session_id} if isinstance(session_id, str) else {}
+        await self.repository.confirm_intent_order(payment_id, intent.order_ref, **kwargs)
         body = json.loads(
             json.dumps(
                 {

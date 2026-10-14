@@ -1,5 +1,12 @@
 # Features
 
+Checkout safety/email update (implemented locally; not deployed): two-calendar-month/120-booking
+trial eligibility, server quotes with a 5% online processing charge, Pay at Salon daily/no-show
+guards, collection-before-completion, database idempotency/audits, support/email outbox,
+password-reset requests and sanitized timing/Sentry hooks. Cashfree remains disabled by default.
+See [implementation contract](../backend/docs/PRODUCTION_VERIFICATION.md) and
+[verification results and release blockers](../backend/docs/verification/checkout-results.md).
+
 The backend currently supports:
 
 - Supabase JWT verification, refresh, current-profile lookup, and owner access

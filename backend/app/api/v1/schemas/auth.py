@@ -5,6 +5,14 @@ from pydantic import BaseModel, EmailStr, Field
 from app.domain.entities.profile import Role
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str = "If an account exists, a password reset email has been requested."
+
+
 class RefreshRequest(BaseModel):
     """Refresh-token request."""
 

@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_authenticated_session, get_current_actor, get_payment_gateway_resolver
 from app.api.v1.schemas.payment import (
     BookingPaymentsResponse,
+    BookingQuoteRequest,
+    BookingQuoteResponse,
     EarningsResponse,
     PaymentConfigResponse,
     PaymentConfirmRequest,
@@ -27,6 +29,22 @@ from app.infrastructure.db.repositories.platform_repository import PlatformRepos
 from app.infrastructure.payments.resolver import PaymentGatewayResolver
 
 router = APIRouter()
+
+
+@router.post("/bookings/quote", response_model=BookingQuoteResponse, status_code=status.HTTP_200_OK)
+async def booking_quote(
+    payload: BookingQuoteRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    resolver: PaymentGatewayResolver = Depends(get_payment_gateway_resolver),
+) -> BookingQuoteResponse:
+    from app.application.use_cases.checkout import BookingCheckoutUseCases
+    values = payload.model_dump()
+    for key in ("salon_id", "staff_id"):
+        values[key] = str(values[key])
+    values["service_ids"] = [str(value) for value in values["service_ids"]]
+    result = await BookingCheckoutUseCases(PlatformRepository(session), resolver).quote(actor, values)
+    return BookingQuoteResponse(**result)
 
 
 def _use_cases(session: AsyncSession | None, resolver: PaymentGatewayResolver) -> BookingPaymentUseCases:

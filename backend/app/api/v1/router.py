@@ -17,6 +17,7 @@ from app.api.v1.routes import (
     reports,
     subscription_billing,
     subscriptions,
+    support,
     walkin,
 )
 from app.core.config import settings
@@ -36,6 +37,7 @@ api_v1_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_v1_router.include_router(customer.router, prefix="/customer", tags=["customer"])
 api_v1_router.include_router(owner.router, prefix="/salons", tags=["salon owner"])
 api_v1_router.include_router(payments.router, tags=["payments"])
+api_v1_router.include_router(support.router, tags=["support"])
 api_v1_router.include_router(customer.salons_router, tags=["salons"])
 api_v1_router.include_router(customer.catalog_router, prefix="/catalog", tags=["catalog"])
 api_v1_router.include_router(bookings.router, tags=["bookings"])
@@ -46,7 +48,7 @@ api_v1_router.include_router(subscriptions.router, prefix="/admin", tags=["subsc
 api_v1_router.include_router(subscription_billing.router, tags=["subscription billing"])
 
 # The webhook path 404s unless a payment OR subscription webhook provider is configured.
-if settings.payment_provider != "none" or settings.subscription_webhook_provider is not None:
+if settings.booking_payments_enabled or settings.subscription_webhook_provider is not None:
     from app.api.v1.routes import webhooks
 
     api_v1_router.include_router(webhooks.router, tags=["webhooks"])

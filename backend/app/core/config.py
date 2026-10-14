@@ -7,7 +7,7 @@ from importlib.util import find_spec
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +22,15 @@ class Settings(BaseSettings):
 
     app_name: str = "Salon Platform API"
     environment: str = "local"
+    resend_api_key: SecretStr | None = None
+    resend_from_email: str | None = None
+    support_email: str | None = None
+    resend_domain_verified: bool = False
+    email_worker_poll_seconds: int = Field(default=10, ge=1, le=3600)
+    email_max_attempts: int = Field(default=8, ge=1, le=20)
+    password_reset_redirect_url: HttpUrl | None = None
+    sentry_dsn: SecretStr | None = None
+    sentry_traces_sample_rate: float = Field(default=0.1, ge=0, le=1)
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/salon_platform"
 
     # Supabase Auth (anon / public key — safe for clients)
@@ -160,9 +169,10 @@ class Settings(BaseSettings):
     # billing use cases (only when SUBSCRIPTION_PROVIDER is enabled).
     subscription_razorpay_webhook_secret: SecretStr | None = None
     # Cashfree PG + Easy Split (used only when PAYMENT_PROVIDER=cashfree).
-    cashfree_client_id: str | None = None
-    cashfree_client_secret: SecretStr | None = None
-    cashfree_environment: Literal["sandbox", "production"] = "sandbox"
+    cashfree_enabled: bool = False
+    cashfree_client_id: str | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_APP_ID", "cashfree_client_id"))
+    cashfree_client_secret: SecretStr | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_SECRET_KEY", "cashfree_client_secret"))
+    cashfree_environment: Literal["sandbox", "production"] = Field(default="sandbox", validation_alias=AliasChoices("CASHFREE_ENV", "cashfree_environment"))
     cashfree_api_version: str = Field(default="2026-01-01", min_length=8, max_length=20)
     cashfree_webhook_version: str = Field(default="2025-01-01", min_length=8, max_length=20)
     cashfree_easy_split_enabled: bool = False
@@ -190,6 +200,11 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("password_reset_redirect_url", "resend_from_email", "support_email", mode="before")
+    @classmethod
+    def blank_optional_email_setting_is_unset(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("subscription_grace_days", mode="before")
     @classmethod
@@ -270,7 +285,7 @@ class Settings(BaseSettings):
                     "(collecting into the platform's own account without split settlement would "
                     "make the platform a payment aggregator)"
                 )
-        if self.payment_provider == "cashfree":
+        if self.payment_provider == "cashfree" and self.cashfree_enabled:
             problems = [
                 name
                 for name, value in {
@@ -285,12 +300,6 @@ class Settings(BaseSettings):
             ]
             if problems:
                 raise ValueError("PAYMENT_PROVIDER=cashfree is missing: " + ", ".join(problems))
-            if self.payment_settlement_model == "platform_collect" and not self.cashfree_easy_split_enabled:
-                raise ValueError(
-                    "PAYMENT_SETTLEMENT_MODEL=platform_collect requires CASHFREE_EASY_SPLIT_ENABLED=true "
-                    "(collecting into the platform's own account without split settlement would "
-                    "make the platform a payment aggregator)"
-                )
             if self.cashfree_environment == "production" and not self.payment_allow_live:
                 raise ValueError(
                     "CASHFREE_ENVIRONMENT=production requires PAYMENT_ALLOW_LIVE=true "
@@ -300,7 +309,7 @@ class Settings(BaseSettings):
             "rzp_live_"
         ) and not self.payment_allow_live:
             raise ValueError("A live Razorpay key requires PAYMENT_ALLOW_LIVE=true")
-        if self.payment_provider != "none" and self.payment_settlement_model == "platform_collect":
+        if self.booking_payments_enabled and self.payment_settlement_model == "platform_collect":
             missing = [
                 name
                 for name, value in {
@@ -322,6 +331,12 @@ class Settings(BaseSettings):
                 "booking automatically (see PAYMENT_DECISIONS.md)"
             )
         return self
+
+    @property
+    def booking_payments_enabled(self) -> bool:
+        return self.payment_provider != "none" and (
+            self.payment_provider != "cashfree" or self.cashfree_enabled
+        )
 
     @model_validator(mode="after")
     def validate_subscription_settings(self) -> "Settings":

@@ -97,6 +97,7 @@ async def get_current_actor(
 async def get_authenticated_session(
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_session),
+    request: Request = None,
 ) -> AsyncGenerator[AsyncSession, None]:
     """Yield a session with the actor audit context set exactly once.
 
@@ -105,6 +106,13 @@ async def get_authenticated_session(
     on the session that all repository calls will use.
     """
 
+    if request is not None and request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        from app.infrastructure.db.repositories.support_repository import SupportRepository
+        # Auth has only read the profile so far. Commit quota on this connection rather
+        # than asking for a second connection while holding the first (pool starvation).
+        family = "quote" if request.url.path.endswith("/quote") else "payment" if "payment" in request.url.path else "booking" if "booking" in request.url.path else "mutation"
+        await SupportRepository(session).throttle(f"{family}:{actor.id}", 120 if family == "quote" else 60, 60)
+        await session.commit()
     await set_actor_context(session, actor.id)
     yield session
 

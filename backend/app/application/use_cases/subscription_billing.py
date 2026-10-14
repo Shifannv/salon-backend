@@ -339,6 +339,8 @@ class SubscriptionBillingUseCases:
         """What the SUBSCRIPTION alone implies. Phase 1 extends this with trial/soft-lock."""
 
         state = await self.get_subscription(actor)
+        salon_id = await self._owner_salon(actor)
+        access = await self.repository.booking_access(salon_id)
         tier = (state["plan"] or {}).get("tier")
         if not state["entitlement_active"]:
             label = "not_subscribed"
@@ -356,6 +358,16 @@ class SubscriptionBillingUseCases:
             "paid_through": state["paid_through"],
             "grace_ends_at": state["grace_ends_at"],
             "source": "subscription",
+            "accepts_new_bookings": bool(access["eligible"]),
+            "subscription_wall": not bool(access["eligible"]),
+            "wall_messages": [] if access["eligible"] else [
+                "Your salon is hidden from customers.",
+                "Subscribe to restore search visibility, online payments, and booking details.",
+            ],
+            "trial_started_at": access.get("trial_started_at"),
+            "trial_ends_at": access.get("trial_ends_at"),
+            "trial_booking_limit": access.get("trial_booking_limit"),
+            "trial_bookings_counted": access.get("bookings_counted"),
         }
 
     async def history(self, actor: Profile, limit: int, offset: int) -> list[dict[str, Any]]:

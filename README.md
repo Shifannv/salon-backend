@@ -36,8 +36,18 @@ Use `backend/` as the build context:
 
 ```bash
 cd backend
+docker compose up -d --build api redis
+or
 docker compose up --build -d
 docker compose ps
+
+View API logs:
+docker compose logs -f api
+
+Stop the API and Redis:
+docker compose stop api redis
+run the backend local : 
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Migrations are an explicit deployment step and are not run by the container startup

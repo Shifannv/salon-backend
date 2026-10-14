@@ -59,3 +59,15 @@ async def redis_health(cache: CacheGateway = Depends(get_cache)) -> RedisHealthR
     if not is_alive:
         raise ServiceUnavailableError("Redis is unavailable")
     return RedisHealthResponse(status="ok", redis="reachable")
+
+
+@router.get("/health/ready", response_model=HealthResponse, status_code=status.HTTP_200_OK, tags=["health"])
+async def readiness(session: AsyncSession = Depends(get_session), cache: CacheGateway = Depends(get_cache)) -> HealthResponse:
+    from app.core.config import settings
+    try:
+        await session.execute(text("select 1"))
+    except Exception as exc:
+        raise ServiceUnavailableError("Database is unavailable") from exc
+    if settings.redis_url and (not cache.available or not await cache.ping()):
+        raise ServiceUnavailableError("Redis is unavailable")
+    return HealthResponse(status="ok")

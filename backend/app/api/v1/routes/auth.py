@@ -2,11 +2,17 @@
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_auth_gateway, get_authenticated_session, get_current_actor
-from app.api.v1.schemas.auth import ProfileResponse, RefreshRequest, TokenResponse
+from app.api.v1.schemas.auth import (
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ProfileResponse,
+    RefreshRequest,
+    TokenResponse,
+)
 from app.application.dto.auth import RefreshInput
 from app.application.ports.auth_gateway import AuthGateway
 from app.application.use_cases.auth.me import GetMe
@@ -16,6 +22,21 @@ from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
 
 router = APIRouter()
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse, status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(payload: ForgotPasswordRequest, request: Request,
+    auth_gateway: AuthGateway = Depends(get_auth_gateway)):
+    from app.infrastructure.db.repositories.support_repository import SupportRepository
+    from app.infrastructure.db.session import AsyncSessionLocal
+    # Separate transaction: persist throttling even if the provider request fails.
+    async with AsyncSessionLocal() as session:
+        repository = SupportRepository(session)
+        await repository.throttle("reset:ip:" + (request.client.host if request.client else "unknown"), 10, 3600)
+        await repository.throttle("reset:email:" + str(payload.email).lower(), 3, 3600)
+        await repository.commit()
+    await auth_gateway.request_password_reset(str(payload.email))
+    return ForgotPasswordResponse()
 
 
 @router.post(

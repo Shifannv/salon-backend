@@ -61,7 +61,7 @@ SETTLED = {"captured", "partially_refunded", "refunded"}
 
 def settings(**kw) -> Settings:
     values = {
-        "_env_file": None, "environment": "test", "payment_provider": "cashfree",
+        "_env_file": None, "environment": "test", "payment_provider": "cashfree", "cashfree_enabled": True,
         "cashfree_client_id": "cid", "cashfree_client_secret": "sec",
         "cashfree_easy_split_enabled": True, "payment_platform_fee_percent": D("10"),
         "payment_commission_base": "online_amount", "payment_commission_policy_version": "v7",
@@ -198,7 +198,7 @@ class Ledger:
         self._w()
         return pid
 
-    async def confirm_intent_order(self, payment_id, order_ref):
+    async def confirm_intent_order(self, payment_id, order_ref, provider_session_id=None):
         p = self.payments[payment_id]
         p["order_ref"] = p["order_ref"] or order_ref
         p["provider_order_confirmed_at"] = datetime.now(UTC)
@@ -506,6 +506,20 @@ async def test_booking_total_base_allocates_across_deposit_and_balance_never_abo
     assert second["purpose"] == "balance" and second["amount"] == "970.00"
     commissions = [p["platform_commission_amount"] for p in ledger.payments.values()]
     assert commissions == [D("30.00"), D("70.00")] and sum(commissions) == D("100.00")
+
+
+async def test_balance_absorbs_processing_charge_rounding_residue():
+    ledger, gateway, uc, *_ = build("0.20")
+    async def booking_view(*args):
+        return {**ledger._booking_view(), "paid_amount": D("0.10"),
+                "checkout_policy_version": "customer_processing_v1"}
+    async def allocated(*args):
+        return D("0.01")  # The deposit already carried the whole rounded fee.
+    ledger.lock_booking = booking_view
+    ledger.processing_charge_allocated = allocated
+    result = await uc.create_intent(CUSTOMER, "b1", KEY, "balance")
+    assert result["amount"] == "0.10"
+    assert gateway.requests[0].amount.amount == D("0.10")
 
 
 async def test_missing_commission_policy_fails_closed():

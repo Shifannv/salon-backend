@@ -44,7 +44,7 @@ def build_gateway(settings: Settings) -> PaymentGateway:
     """Instantiate the configured booking adapter by module name (``none`` -> dormant)."""
 
     provider = settings.payment_provider
-    if provider == "none":
+    if not settings.booking_payments_enabled:
         return NullPaymentGateway()
     return _adapter_module(provider).create_gateway(settings)
 
@@ -73,7 +73,7 @@ class PaymentGatewayResolver:
 
     @property
     def enabled(self) -> bool:
-        return self.provider != "none"
+        return self._settings.booking_payments_enabled
 
     @property
     def subscription_provider(self) -> str | None:

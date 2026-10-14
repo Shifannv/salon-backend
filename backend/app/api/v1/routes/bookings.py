@@ -22,12 +22,27 @@ from app.application.use_cases.platform import BookingUseCases
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.db.session import get_session
+from app.infrastructure.payments.resolver import get_payment_resolver
 
 router = APIRouter()
 
 
+@router.post("/bookings/{booking_id}/check-in", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def check_in(booking_id: str, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).mark_attendance(actor, booking_id, no_show=False, idempotency_key=key))
+
+
+@router.post("/bookings/{booking_id}/no-show", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def no_show(booking_id: str, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).mark_attendance(actor, booking_id, no_show=True, idempotency_key=key))
+
+
 def _use_cases(session: AsyncSession) -> BookingUseCases:
-    return BookingUseCases(PlatformRepository(session))
+    return BookingUseCases(PlatformRepository(session), online_payments_enabled=get_payment_resolver().enabled)
 
 
 @router.get(
@@ -66,18 +81,9 @@ async def create_booking(
 ) -> BookingResponse:
     """Create a booking through the database booking function."""
 
-    if idempotency_key:
-        cache_key = f"idempotency:booking:{actor.id}:{idempotency_key}"
-        cached = await cache.get_idempotency(cache_key)
-        if cached:
-            return BookingResponse(**cached)
-
     row = await _use_cases(session).create_booking(
-        actor, payload.model_dump(), background_tasks
+        actor, {**payload.model_dump(), "_idempotency_key": idempotency_key}, background_tasks
     )
-
-    if idempotency_key:
-        await cache.set_idempotency(cache_key, row)
 
     return BookingResponse(**row)
 
@@ -93,7 +99,7 @@ async def create_booking(
     ),
 )
 async def list_bookings(
-    booking_status: Literal["pending", "confirmed", "rejected", "completed", "cancelled"]
+    booking_status: Literal["pending", "confirmed", "checked_in", "no_show", "rejected", "completed", "cancelled"]
     | None = Query(default=None, alias="status"),
     source: Literal["app", "manual_walkin", "qr_walkin"] | None = None,
     date_from: date | None = None,
@@ -184,10 +190,11 @@ async def complete_booking(
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> BookingResponse:
     """Complete a booking. Notifies the customer via push."""
 
-    row = await _use_cases(session).complete(actor, booking_id, background_tasks)
+    row = await _use_cases(session).complete(actor, booking_id, background_tasks, idempotency_key=idempotency_key)
     return BookingResponse(**row)
 
 
@@ -291,10 +298,11 @@ async def record_payment(
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> BookingResponse:
     """Record booking payment."""
 
     row = await _use_cases(session).record_payment(
-        actor, booking_id, payload.payment_method, background_tasks
+        actor, booking_id, payload.payment_method, background_tasks, idempotency_key=idempotency_key
     )
     return BookingResponse(**row)

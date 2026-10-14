@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.telemetry import install_database_metrics
 
 engine = create_async_engine(
     settings.database_url,
@@ -13,8 +14,10 @@ engine = create_async_engine(
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout_seconds,
+    hide_parameters=True,
     connect_args={"statement_cache_size": 0} if "asyncpg" in settings.database_url else {},
 )
+install_database_metrics(engine)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

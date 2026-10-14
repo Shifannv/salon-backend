@@ -1,0 +1,131 @@
+{
+  "environment": "isolated_local_docker",
+  "base_url": "http://127.0.0.1:8055",
+  "requests_per_case": 50,
+  "concurrency": 5,
+  "auth": "normal JWT verification, local Supabase Auth test double",
+  "external_provider_calls": 0,
+  "cache_hit_rate": null,
+  "cases": {
+    "health": {
+      "samples": 50,
+      "p50_ms": 10.432,
+      "p95_ms": 24.357,
+      "p99_ms": 25.44,
+      "error_rate": 0.0,
+      "requests_per_second": 397.22,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 0.44,
+      "database_p95_ms": 0.0,
+      "database_queries_mean": 0.0
+    },
+    "readiness": {
+      "samples": 50,
+      "p50_ms": 27.905,
+      "p95_ms": 63.872,
+      "p99_ms": 84.84,
+      "error_rate": 0.0,
+      "requests_per_second": 148.18,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 56.25,
+      "database_p95_ms": 7.85,
+      "database_queries_mean": 1.0
+    },
+    "search": {
+      "samples": 50,
+      "p50_ms": 33.198,
+      "p95_ms": 129.141,
+      "p99_ms": 207.039,
+      "error_rate": 0.0,
+      "requests_per_second": 100.8,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 120.07,
+      "database_p95_ms": 50.5,
+      "database_queries_mean": 1.0
+    },
+    "authenticated_read": {
+      "samples": 50,
+      "p50_ms": 44.302,
+      "p95_ms": 120.252,
+      "p99_ms": 155.585,
+      "error_rate": 0.0,
+      "requests_per_second": 85.24,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 111.13,
+      "database_p95_ms": 86.25,
+      "database_queries_mean": 1.0
+    },
+    "salon_detail": {
+      "samples": 50,
+      "p50_ms": 30.399,
+      "p95_ms": 39.481,
+      "p99_ms": 41.063,
+      "error_rate": 0.0,
+      "requests_per_second": 154.86,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 29.98,
+      "database_p95_ms": 7.96,
+      "database_queries_mean": 1.0
+    },
+    "slots": {
+      "samples": 50,
+      "p50_ms": 33.198,
+      "p95_ms": 51.178,
+      "p99_ms": 71.622,
+      "error_rate": 0.0,
+      "requests_per_second": 132.19,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 42.62,
+      "database_p95_ms": 30.38,
+      "database_queries_mean": 3.0
+    },
+    "quote": {
+      "samples": 50,
+      "p50_ms": 74.227,
+      "p95_ms": 188.154,
+      "p99_ms": 205.657,
+      "error_rate": 0.0,
+      "requests_per_second": 51.06,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 182.99,
+      "database_p95_ms": 142.51,
+      "database_queries_mean": 9.0
+    },
+    "create_booking": {
+      "samples": 20,
+      "p50_ms": 198.537,
+      "p95_ms": 399.066,
+      "p99_ms": 445.995,
+      "error_rate": 0.0,
+      "requests_per_second": 19.68,
+      "status_codes": {
+        "201": 20
+      },
+      "app_p95_ms": 394.49,
+      "database_p95_ms": 354.44,
+      "database_queries_mean": 12.0
+    },
+    "collection": {
+      "samples": 20,
+      "p50_ms": 89.37880001030862,
+      "p95_ms": 134.76089999312535,
+      "p99_ms": 150.52150000701658,
+      "error_rate": 0.0,
+      "concurrency": 1
+    }
+  }
+}
