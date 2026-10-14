@@ -326,7 +326,9 @@ async def test_shared_pool_keeps_business_transactions_and_probe_autocommit(safe
     from app.infrastructure.db.session import build_engines
     f = await safety.seed()
     pool, business = build_engines(Settings(_env_file=None, environment="test",
-        database_url=str(safety.engine.url), db_pool_size=1, db_max_overflow=0))
+        # URL.__str__ redacts the password; connection configuration must retain it.
+        database_url=safety.engine.url.render_as_string(hide_password=False),
+        db_pool_size=1, db_max_overflow=0))
     assert business.pool is pool.pool
     try:
         async with AsyncSession(business) as session:

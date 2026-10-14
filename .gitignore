@@ -57,3 +57,4 @@ changes-log.txt
 
 # Local test manifests, reports and UI artifacts
 backend/.artifacts/
+backend/.pytest_tmp/
