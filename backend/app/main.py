@@ -1,18 +1,18 @@
 """FastAPI application factory."""
 
 import logging
-import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_v1_router
 from app.api.v1.routes.health import router as health_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
-from app.core.logging import configure_logging, set_request_id
+from app.core.logging import configure_logging
+from app.core.telemetry import TimingMiddleware, init_sentry
 
 _log = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI app."""
 
     configure_logging()
+    sentry_enabled = init_sentry(settings)
 
     app = FastAPI(
         title=settings.app_name,
@@ -70,13 +71,7 @@ def create_app() -> FastAPI:
     )
 
     # Request-ID middleware — stamps every request/response with a correlation ID.
-    @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next) -> Response:
-        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-        set_request_id(request_id)
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
+    app.add_middleware(TimingMiddleware, environment=settings.environment, sentry_enabled=sentry_enabled)
 
     register_exception_handlers(app)
     app.include_router(health_router)

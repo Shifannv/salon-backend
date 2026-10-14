@@ -8,6 +8,9 @@ from app.application.dto.auth import AuthTokens, RefreshInput
 class AuthGateway(Protocol):
     """External authentication provider operations."""
 
+    async def request_password_reset(self, email: str) -> None:
+        """Request a provider-generated reset token. Never generate a custom token."""
+
     async def refresh(self, payload: RefreshInput) -> AuthTokens:
         """Refresh a provider session."""
 

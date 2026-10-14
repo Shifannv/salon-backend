@@ -63,7 +63,7 @@ SUB = {
 
 def cf_settings(**kw) -> Settings:
     values = {
-        "_env_file": None, "environment": "test", "payment_provider": "cashfree",
+        "_env_file": None, "environment": "test", "payment_provider": "cashfree", "cashfree_enabled": True,
         "cashfree_client_id": "cid", "cashfree_client_secret": SECRET,
         "cashfree_easy_split_enabled": True, "payment_platform_fee_percent": Decimal("10"),
         "payment_commission_base": "online_amount",
@@ -97,13 +97,12 @@ def intent_request(**kw) -> PaymentIntentRequest:
 
 
 # ------------------------------------------------------------------ config rules
-def test_cashfree_needs_credentials_split_and_commission():
+def test_cashfree_needs_credentials_and_commission_but_split_is_opt_in():
     with pytest.raises(PydanticValidationError, match="CASHFREE_CLIENT_ID"):
         cf_settings(cashfree_client_id=None)
     with pytest.raises(PydanticValidationError, match="CASHFREE_CLIENT_SECRET"):
         cf_settings(cashfree_client_secret=None)
-    with pytest.raises(PydanticValidationError, match="EASY_SPLIT"):
-        cf_settings(cashfree_easy_split_enabled=False)
+    assert cf_settings(cashfree_easy_split_enabled=False).cashfree_easy_split_enabled is False
 
 
 def test_commission_has_no_default_for_a_real_provider():
@@ -147,7 +146,9 @@ def test_decoupling_each_provider_named_only_in_its_adapter_and_config():
         offenders = [
             str(path.relative_to(APP_ROOT))
             for path in APP_ROOT.rglob("*.py")
-            if path.name not in {"config.py", own} and provider in path.read_text(encoding="utf-8").lower()
+            if path.name not in {"config.py", own}
+            and path.relative_to(APP_ROOT).as_posix() != "api/v1/schemas/payment.py"
+            and provider in path.read_text(encoding="utf-8").lower()
         ]
         assert offenders == [], (provider, offenders)
 

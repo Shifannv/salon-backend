@@ -10,6 +10,8 @@ class BookingStatus(StrEnum):
 
     pending = "pending"
     confirmed = "confirmed"
+    checked_in = "checked_in"
+    no_show = "no_show"
     rejected = "rejected"
     completed = "completed"
     cancelled = "cancelled"

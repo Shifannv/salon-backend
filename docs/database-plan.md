@@ -1,5 +1,11 @@
 # Database plan
 
+Local implementation now includes migrations 0034–0037, tested locally, for checked-in/no-show
+states, trial/daily/no-show booking guards, immutable audits, support/email outbox and processing
+charge snapshots. They have only been applied to disposable local databases; deployment requires
+human review and staging validation. The v3 raw SQL baseline remains unchanged. See
+[migration and API contract](../backend/docs/PRODUCTION_VERIFICATION.md).
+
 Supabase Postgres stores profiles, salons, catalog data, staff, bookings,
 notifications, device tokens, blocked slots, holidays, images, and salon reports.
 

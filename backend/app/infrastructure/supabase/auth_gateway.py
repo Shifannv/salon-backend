@@ -1,5 +1,7 @@
 """Supabase Auth gateway."""
 
+from urllib.parse import urlencode
+
 import httpx
 
 from app.application.dto.auth import AuthTokens, RefreshInput
@@ -24,6 +26,12 @@ class SupabaseAuthGateway(AuthGateway):
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+
+    async def request_password_reset(self, email: str) -> None:
+        path = "/auth/v1/recover"
+        if self.settings.password_reset_redirect_url:
+            path += "?" + urlencode({"redirect_to": str(self.settings.password_reset_redirect_url)})
+        await self._raw_post(path, {"email": email})
 
     async def refresh(self, payload: RefreshInput) -> AuthTokens:
         """Refresh a session token."""

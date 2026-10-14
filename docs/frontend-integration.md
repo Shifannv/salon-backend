@@ -1,5 +1,13 @@
 # Frontend integration
 
+The new checkout/support contract is documented in
+[PRODUCTION_VERIFICATION.md](../backend/docs/PRODUCTION_VERIFICATION.md). Separate clients must
+adopt server quote totals, disabled-online-payment state, Pay at Salon instructions, typed
+409 errors, `cash|upi_direct` collection and owner access-wall fields. Collection and completion
+accept `Idempotency-Key`; booking creation persists replay in Postgres. Existing bookings remain
+accessible after subscription/trial expiry. Native/browser verification has outstanding failures;
+see [current evidence](../backend/docs/verification/checkout-results.md).
+
 Frontend applications use an environment-specific API base URL and send JSON unless an
 endpoint documents multipart upload.
 

@@ -110,6 +110,13 @@ class VerifyRequest(BaseModel):
 
 
 class AccessStateResponse(BaseModel):
+    accepts_new_bookings: bool
+    subscription_wall: bool
+    wall_messages: list[str] = Field(default_factory=list)
+    trial_started_at: datetime | None = None
+    trial_ends_at: datetime | None = None
+    trial_booking_limit: int | None = None
+    trial_bookings_counted: int | None = None
     access_state: Literal["not_subscribed", "subscribed", "subscribed_growth", "subscribed_premium"]
     entitlement_active: bool
     entitlement_state: str

@@ -131,6 +131,8 @@ class SQLiteSession:
             sql, flags=re.DOTALL,
         )
         sql = sql.replace(" ilike ", " like ")
+        # Publication tests use SQLite; transactional trial eligibility is tested on PostgreSQL.
+        sql = re.sub(r"public\.salon_booking_eligible\(([^)]+)\)", "1", sql)
         # render_postcompile expands expanding bindparams (`:ids` → `:ids_1,
         # :ids_2, …`) and rewrites the SQL to use positional `?` markers.
         # The expanded state keeps the rendered parameter names in position order.

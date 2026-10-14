@@ -66,6 +66,18 @@ class SlotUnavailableError(ConflictError):
     code = "slot_unavailable"
 
 
+class PayAtSalonDailyLimitError(ConflictError):
+    code = "pay_at_salon_daily_limit"
+
+
+class PayAtSalonBlockedError(ConflictError):
+    code = "pay_at_salon_temporarily_blocked"
+
+
+class PaymentCollectionRequiredError(ConflictError):
+    code = "payment_collection_required"
+
+
 class SalonNotAcceptingBookingsError(ConflictError):
     """The salon owner has paused new bookings."""
 
@@ -242,22 +254,16 @@ def register_exception_handlers(app: FastAPI) -> None:
             if isinstance(obj, bytes):
                 return f"<{len(obj)} binary bytes — not shown>"
             if isinstance(obj, dict):
-                return {k: _sanitise(v) for k, v in obj.items()}
+                return {k: _sanitise(v) for k, v in obj.items() if k not in {"input", "ctx"}}
             if isinstance(obj, list):
                 return [_sanitise(i) for i in obj]
             return obj
 
         safe_errors = _sanitise(exc.errors())
-        if request.url.path.endswith(("/payout-account", "/settlement-account/register")):
-            # Never echo or log bank/UPI details submitted by the client.
-            safe_errors = [
-                {k: v for k, v in err.items() if k != "input"}
-                for err in safe_errors  # type: ignore[attr-defined]
-            ]
         logger.warning(
             "Request validation error on %s %s: %s",
             request.method,
-            request.url.path,
+            getattr(request.scope.get("route"), "path", "unmatched"),
             safe_errors,
         )
         return JSONResponse(
@@ -276,6 +282,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         # AppError is a named type → routed to ExceptionMiddleware (inside CORSMiddleware).
         # CORSMiddleware adds Access-Control-Allow-Origin automatically.
         body: dict = {"code": exc.code, "message": exc.message}
+        from app.core.telemetry import metrics
+        if metrics.get() is not None:
+            metrics.get().error_code = exc.code
         if exc.details is not None:
             body["details"] = exc.details
         return JSONResponse(
@@ -292,12 +301,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         automatically.  We log the full error but never expose SQL fragments to
         the client.
         """
-        logger.exception(
-            "Database error on %s %s",
-            request.method,
-            request.url.path,
-            exc_info=exc,
-        )
+        logger.error("Database request failed (%s)", type(exc).__name__)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": {"code": "internal_error", "message": "A database error occurred. Please try again."}},
@@ -312,12 +316,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         ``CORSMiddleware``.  Responses from this handler therefore bypass
         ``CORSMiddleware``, so we must inject the CORS headers manually.
         """
-        logger.exception(
-            "Unhandled server error on %s %s",
-            request.method,
-            request.url.path,
-            exc_info=exc,
-        )
+        logger.error("Unhandled request failed (%s)", type(exc).__name__)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"error": {"code": "internal_error", "message": "An unexpected server error occurred."}},

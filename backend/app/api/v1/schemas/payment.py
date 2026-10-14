@@ -3,14 +3,17 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class PaymentConfigResponse(BaseModel):
     """What the apps need to decide whether to offer online payment."""
 
     enabled: bool
+    online_payment_available: bool = False
+    online_payment_unavailable_reason: str | None = "Online payment coming soon."
     provider: str | None = None
     public_key: str | None = None
     currency: str
@@ -19,6 +22,30 @@ class PaymentConfigResponse(BaseModel):
     # 'callback' = POST .../payments/confirm with a signed callback; 'refresh' = POST
     # .../payments/refresh (the backend asks the provider; the SDK callback proves nothing).
     confirmation: str | None = None
+
+
+class BookingQuoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    salon_id: UUID
+    staff_id: UUID
+    service_ids: list[UUID] = Field(min_length=1, max_length=30)
+    start_datetime: AwareDatetime
+    payment_mode: Literal["PAY_ONLINE", "PAY_AT_SALON"]
+
+
+class BookingQuoteResponse(BaseModel):
+    payment_mode: Literal["PAY_ONLINE", "PAY_AT_SALON"]
+    currency: str = "INR"
+    service_amount: Decimal
+    online_processing_charge_percent: Decimal
+    online_processing_charge: Decimal
+    total_payable: Decimal
+    charge_label: str | None
+    instructions: list[str]
+    accepts_bookings: bool
+    payment_options: list[str]
+    online_payment_available: bool
+    online_payment_unavailable_reason: str | None
 
 
 class PaymentIntentRequest(BaseModel):
@@ -92,6 +119,36 @@ class BookingPaymentResponse(BaseModel):
     expires_at: datetime | None = None
     captured_at: datetime | None = None
     created_at: datetime
+    payment_mode: Literal["PAY_ONLINE", "PAY_AT_SALON"]
+    payment_status: str
+    collection_method: Literal["CASH", "UPI_DIRECT"] | None = None
+    service_amount: Decimal
+    online_processing_charge: Decimal
+    total_payable: Decimal
+    cashfree_order_id: str | None = None
+    cashfree_payment_session_id: str | None = None
+    provider_payment_reference: str | None = None
+    collected_by_owner: bool = False
+    collected_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def checkout_provider_aliases(cls, values):
+        if isinstance(values, dict):
+            values = dict(values)
+            manual = values.get("channel") == "manual"
+            values.setdefault("payment_mode", "PAY_AT_SALON" if manual else "PAY_ONLINE")
+            values.setdefault("payment_status", "COLLECTED_AT_SALON" if manual else {
+                "captured":"PAID_ONLINE", "refunded":"REFUNDED", "partially_refunded":"PAID_ONLINE",
+                "created":"PAYMENT_PENDING", "authorized":"PAYMENT_PENDING"
+            }.get(values.get("status"),"FAILED"))
+            values.setdefault("online_processing_charge",Decimal("0"))
+            values.setdefault("service_amount",Decimal(values["amount"])-Decimal(values["online_processing_charge"]))
+            values.setdefault("total_payable",values["amount"])
+            if values.get("provider") == "cashfree":
+                values.update(cashfree_order_id=values.get("provider_order_reference"),
+                              cashfree_payment_session_id=values.get("provider_session_id"))
+        return values
 
 
 class RefundResponse(BaseModel):

@@ -205,6 +205,9 @@ class FakeBillingRepo:
     async def find_owner_salon_id(self, actor_id: str) -> str | None:
         return self.salons.get(actor_id)
 
+    async def booking_access(self, salon_id):
+        return {"eligible": True}
+
     async def get_workspace_salon(self, actor_id: str) -> dict[str, Any] | None:
         return {"is_active": True, "profile_completed": True, "approval_status": "approved"}
 

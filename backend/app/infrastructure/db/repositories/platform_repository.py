@@ -14,6 +14,9 @@ from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
     NotFoundError,
+    PayAtSalonBlockedError,
+    PayAtSalonDailyLimitError,
+    PaymentCollectionRequiredError,
     PaymentInProgressError,
     PaymentOvercollectionError,
     SalonNotAcceptingBookingsError,
@@ -251,6 +254,7 @@ class PlatformRepository:
                       ss.current_period_end, ss.grace_period_end)
             ) promo on true
             where s.is_active and s.profile_completed and s.approval_status = 'approved'
+              and public.salon_booking_eligible(s.id)
               and s.discovery_visibility <> 'hidden'
               and (:surface <> 'home' or s.discovery_visibility = 'listed')
               and (cast(:search as text) is null or s.name ilike cast(:search as text))
@@ -297,7 +301,7 @@ class PlatformRepository:
             text("""
                 select id from salons
                 where id = :salon_id and is_active and profile_completed
-                  and approval_status = 'approved'
+                  and approval_status = 'approved' and public.salon_booking_eligible(id)
             """),
             {"salon_id": salon_id},
         )
@@ -320,6 +324,7 @@ class PlatformRepository:
                        is_active
                 from salons
                 where id = :salon_id and is_active and profile_completed and approval_status = 'approved'
+                  and public.salon_booking_eligible(id)
                 """
             ),
             {"salon_id": salon_id},
@@ -369,7 +374,7 @@ class PlatformRepository:
                 where sv.salon_id = :salon_id
                   and exists (select 1 from salons sl where sl.id = sv.salon_id
                               and sl.is_active and sl.profile_completed
-                              and sl.approval_status = 'approved')
+                              and sl.approval_status = 'approved' and public.salon_booking_eligible(sl.id))
                   and sv.is_active and ss.is_active and sc.is_active
                   and exists (
                     select 1
@@ -1431,6 +1436,14 @@ class PlatformRepository:
         """Call the database booking creation function and return the created booking."""
 
         try:
+            key = values.get("_idempotency_key")
+            replay = await self.begin_booking_operation(values.get("actor_id", ""), "booking:create", key, values)
+            if replay is not None:
+                return replay
+            await self.session.execute(
+                text("select set_config('app.payment_preference', :preference, true)"),
+                {"preference": values.get("payment_preference") or "pay_at_salon"},
+            )
             service_ids_json = json.dumps(values["service_ids"])
             result = await self.session.execute(
                 text(
@@ -1478,10 +1491,21 @@ class PlatformRepository:
                         "advance_percent": settings.payment_advance_percent,
                     },
                 )
+            booking = await self.get_booking(str(booking_id), values.get("actor_id"))
+            if booking is None:
+                raise NotFoundError("Booking not found")
+            await self.finish_booking_operation(values.get("actor_id", ""), "booking:create", key, booking, 201)
             await self.session.commit()
         except Exception as exc:
             await self.session.rollback()
+            from app.core.exceptions import AppError
+            if isinstance(exc, AppError):
+                raise
             message = str(exc)
+            if "pay_at_salon_daily_limit" in message:
+                raise PayAtSalonDailyLimitError("You can keep only 1 active Pay at Salon booking per day.") from exc
+            if "pay_at_salon_temporarily_blocked" in message:
+                raise PayAtSalonBlockedError("Pay at Salon is blocked for 7 days after two no-shows. Online payment remains available where enabled.") from exc
             if "salon_not_accepting_bookings" in message:
                 raise SalonNotAcceptingBookingsError(
                     "This salon is not accepting bookings right now"
@@ -1492,10 +1516,56 @@ class PlatformRepository:
                 raise SlotUnavailableError("Selected slot is no longer available") from exc
             raise ConflictError("Booking could not be created") from exc
 
-        booking = await self.get_booking(str(booking_id), values.get("actor_id"))
-        if booking is None:
-            raise NotFoundError("Booking not found")
         return booking
+
+    async def begin_booking_operation(self, actor_id: str, scope: str, key: str | None, values: dict) -> dict | None:
+        if key is None:
+            return None
+        import hashlib
+
+        from app.core.exceptions import IdempotencyKeyRequiredError
+        from app.infrastructure.db.repositories.payment_repository import PaymentRepository
+        if not 8 <= len(key) <= 200:
+            raise IdempotencyKeyRequiredError("Idempotency-Key must be 8-200 characters")
+        fingerprint = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
+        return await PaymentRepository(self.session).begin_idempotent(actor_id, scope, key, fingerprint, 86400)
+
+    async def finish_booking_operation(self, actor_id: str, scope: str, key: str | None, booking: dict, code: int = 200) -> None:
+        if key is not None:
+            from app.infrastructure.db.repositories.payment_repository import PaymentRepository
+            await PaymentRepository(self.session).finish_idempotent(actor_id, scope, key, code, booking)
+
+    async def quote_services(self, salon_id: str, staff_id: str, service_ids: list[str]) -> Any:
+        result = await self.session.execute(text("""
+            select sum(coalesce(ss.price_override, s.price)) as amount, count(*) as n,
+                   sum(coalesce(ss.duration_minutes, s.duration_minutes)) as duration
+            from services s join staff_services ss on ss.service_id = s.id and ss.staff_id = :staff
+            join staff st on st.id = ss.staff_id
+            where s.salon_id = :salon and st.salon_id = :salon and st.is_active
+              and s.is_active and ss.is_active and s.id in (
+                select value::uuid from jsonb_array_elements_text(cast(:ids as jsonb)) value)
+        """), {"salon": salon_id, "staff": staff_id, "ids": json.dumps(service_ids)})
+        row = result.mappings().one()
+        if row["n"] != len(service_ids) or len(set(service_ids)) != len(service_ids):
+            raise ValidationError("Selected services are not available from this staff member")
+        return dict(row)
+
+    async def checkout_salon(self, salon_id: str) -> dict:
+        result = await self.session.execute(text("""
+            select id, timezone, accepting_bookings from salons
+            where id=:id and public.salon_booking_eligible(id)
+        """), {"id":salon_id})
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Salon not found")
+        return dict(row)
+
+    async def quoted_slot_available(self, staff_id, day, duration, start) -> bool:
+        result = await self.session.execute(text("""
+            select exists(select 1 from get_available_slots(:staff,:day,:duration)
+                          where slot_start=:start)
+        """), {"staff":staff_id,"day":day,"duration":int(duration),"start":start})
+        return result.scalar_one()
 
     async def list_bookings(
         self,
@@ -1556,6 +1626,7 @@ class PlatformRepository:
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
+                  case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * 0.05, 2) else 0 end as online_processing_charge,
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
@@ -1650,6 +1721,7 @@ class PlatformRepository:
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price,
+                  case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * 0.05, 2) else 0 end as online_processing_charge,
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
@@ -1748,8 +1820,15 @@ class PlatformRepository:
         rejection_reason: str | None = None,
         cancellation_reason: str | None = None,
         customer_only: bool = False,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Apply an authorized, valid booking transition under a row lock."""
+        scope = f"booking:{booking_id}:{status}"
+        replay = await self.begin_booking_operation(actor_id, scope, idempotency_key, {
+            "status": status, "rejection_reason": rejection_reason, "cancellation_reason": cancellation_reason,
+        })
+        if replay is not None:
+            return replay
 
         owner_predicate = """
           exists (select 1 from salons s where s.id = bookings.salon_id and s.owner_id = :actor_id)
@@ -1759,7 +1838,8 @@ class PlatformRepository:
         current_result = await self.session.execute(
             text(
                 f"""
-                select id, status, customer_id, customer_name from bookings
+                select id, status, customer_id, customer_name, payment_status, payment_preference,
+                       start_datetime, now() as database_now from bookings
                 where id = :booking_id and ({predicate})
                 for update
                 """
@@ -1771,10 +1851,15 @@ class PlatformRepository:
             raise NotFoundError("Booking not found")
         allowed = {
             "pending": {"confirmed", "rejected", "cancelled"},
-            "confirmed": {"completed", "cancelled"},
+            "confirmed": {"checked_in", "completed", "cancelled", "no_show"},
+            "checked_in": {"completed", "cancelled", "no_show"},
         }
         if status not in allowed.get(current["status"], set()):
             raise ConflictError("Booking state changed; refresh before deciding")
+        if status == "no_show" and current["start_datetime"] > current["database_now"]:
+            raise ValidationError("A customer cannot be marked as a no-show before the appointment starts")
+        if status == "completed" and current.get("payment_preference") == "pay_at_salon" and current.get("payment_status") != "paid":
+            raise PaymentCollectionRequiredError("Collect cash or direct UPI from customer before completing service.")
 
         await self.session.execute(
             text(
@@ -1842,6 +1927,7 @@ class PlatformRepository:
         if booking is None:
             raise NotFoundError("Booking not found")
         booking["_outbox_ids"] = outbox_ids
+        await self.finish_booking_operation(actor_id, scope, idempotency_key, booking)
         await self.session.commit()
         return booking
 
@@ -2023,13 +2109,15 @@ class PlatformRepository:
                     insert into booking_payments
                       (booking_id, salon_id, payer_id, recorded_by, channel, purpose,
                        settlement_model, method, amount, currency, status, intent_reference,
-                       captured_at)
+                       captured_at, collection_method, collected_by_owner)
                     select b.id, b.salon_id, b.customer_id, :actor_id, 'manual',
                            case when b.paid_amount - b.refunded_amount > 0
                                 then 'balance' else 'full' end,
-                           'offline', cast(:method as text),
+                           'offline', case when cast(:method as text) = 'cash' then 'cash' else 'online' end,
                            greatest(b.total_price - (b.paid_amount - b.refunded_amount), 0),
-                           b.currency, 'captured', 'manual:' || gen_random_uuid()::text, now()
+                           b.currency, 'captured', 'manual:' || gen_random_uuid()::text, now(),
+                           case when cast(:method as text) = 'cash' then 'CASH' else 'UPI_DIRECT' end,
+                           exists(select 1 from salons s where s.id=b.salon_id and s.owner_id=:actor_id)
                     from bookings b
                     where b.id = :booking_id
                     """
@@ -2045,9 +2133,13 @@ class PlatformRepository:
             raise
 
     async def record_payment(
-        self, actor_id: str, booking_id: str, payment_method: str
+        self, actor_id: str, booking_id: str, payment_method: str, *, idempotency_key: str | None = None
     ) -> dict[str, Any]:
         """Record an eligible owner-side payment exactly once."""
+        scope = f"booking:{booking_id}:collect"
+        replay = await self.begin_booking_operation(actor_id, scope, idempotency_key, {"method": payment_method})
+        if replay is not None:
+            return replay
 
         result = await self.session.execute(
             text(
@@ -2067,7 +2159,7 @@ class PlatformRepository:
         row = result.mappings().one_or_none()
         if row is None:
             raise NotFoundError("Booking not found")
-        if row["status"] not in {"confirmed", "completed"}:
+        if row["status"] not in {"confirmed", "checked_in", "completed"}:
             raise ConflictError("Only confirmed or completed bookings can be paid")
         if row["payment_status"] == "paid":
             raise ConflictError("Payment has already been recorded")
@@ -2106,6 +2198,7 @@ class PlatformRepository:
         if booking is None:
             raise NotFoundError("Booking not found")
         booking["_outbox_ids"] = outbox_ids
+        await self.finish_booking_operation(actor_id, scope, idempotency_key, booking)
         await self.session.commit()
         return booking
 

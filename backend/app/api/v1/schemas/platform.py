@@ -87,7 +87,27 @@ class ProfileResponse(BaseModel):
     is_active: bool
 
 
-class SalonSummaryResponse(BaseModel):
+class CustomerAvailabilityResponse(BaseModel):
+    accepts_bookings: bool = True
+    payment_options: list[str] = Field(default_factory=lambda: ["PAY_AT_SALON"])
+    online_payment_available: bool = False
+    online_payment_unavailable_reason: str | None = "Online payment coming soon."
+
+    @model_validator(mode="after")
+    def customer_availability(self) -> "CustomerAvailabilityResponse":
+        from app.infrastructure.payments.resolver import get_payment_resolver
+        self.accepts_bookings = bool(getattr(self, "accepting_bookings", True))
+        self.online_payment_available = self.accepts_bookings and get_payment_resolver().enabled
+        self.payment_options = (["PAY_AT_SALON"] if self.accepts_bookings else [])
+        if self.online_payment_available:
+            self.payment_options.append("PAY_ONLINE")
+        self.online_payment_unavailable_reason = (
+            None if self.online_payment_available else "Online payment coming soon."
+        )
+        return self
+
+
+class SalonSummaryResponse(CustomerAvailabilityResponse):
     """Salon list response item.
 
     Services are NOT embedded here. Call GET /salons/{salon_id}/services
@@ -145,7 +165,7 @@ class ServiceResponse(BaseModel):
     updated_at: datetime | None = None
 
 
-class SalonDetailResponse(BaseModel):
+class SalonDetailResponse(CustomerAvailabilityResponse):
     """Salon detail response.
 
     Images are embedded here as they are always needed for the detail view.
@@ -485,6 +505,13 @@ class BookingResponse(BaseModel):
     paid_amount: Decimal = Decimal("0")
     refunded_amount: Decimal = Decimal("0")
     payment_state: str = "unpaid"
+    payment_mode: str = "PAY_AT_SALON"
+    checkout_payment_status: str = "PAY_AT_SALON_PENDING"
+    service_amount: Decimal = Decimal("0")
+    online_processing_charge: Decimal = Decimal("0")
+    total_payable: Decimal = Decimal("0")
+    pending_amount_to_collect: Decimal = Decimal("0")
+    collection_instructions: str | None = None
     rejection_reason: str | None = None
     cancellation_reason: str | None = None
     notes: str | None = None
@@ -527,6 +554,17 @@ class BookingResponse(BaseModel):
         self.payment_state = derive_payment_state(
             self.payment_status, self.paid_amount, self.refunded_amount
         ).value
+        self.service_amount = self.total_price
+        self.payment_mode = "PAY_AT_SALON" if self.payment_preference in {None, "pay_at_salon"} else "PAY_ONLINE"
+        if self.payment_mode == "PAY_AT_SALON":
+            self.online_processing_charge = Decimal("0")
+            self.total_payable = self.total_price
+            self.pending_amount_to_collect = max(Decimal("0"), self.total_price - self.paid_amount + self.refunded_amount)
+            self.checkout_payment_status = "COLLECTED_AT_SALON" if self.payment_status == "paid" else "PAY_AT_SALON_PENDING"
+            self.collection_instructions = "Collect cash or direct UPI from customer before completing service."
+        else:
+            self.total_payable = self.total_price + self.online_processing_charge
+            self.checkout_payment_status = "PAID_ONLINE" if self.payment_status == "paid" else "UNPAID"
         self.can_confirm_payment = (
             self.status in {"confirmed", "completed"}
             and self.payment_status == "unpaid"
@@ -637,7 +675,7 @@ class BarberCancelBookingRequest(BaseModel):
 class PaymentRequest(BaseModel):
     """Record booking payment request."""
 
-    payment_method: Literal["cash", "online"]
+    payment_method: Literal["cash", "upi_direct"]
 
 
 class NotificationResponse(BaseModel):

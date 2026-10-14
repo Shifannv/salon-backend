@@ -739,8 +739,9 @@ class OwnerUseCases:
 class BookingUseCases:
     """Booking and availability use cases."""
 
-    def __init__(self, repository: PlatformRepository) -> None:
+    def __init__(self, repository: PlatformRepository, *, online_payments_enabled: bool = False) -> None:
         self.repository = repository
+        self.online_payments_enabled = online_payments_enabled
 
     async def availability(
         self, staff_id: str, booking_date: date, service_ids: list[str]
@@ -761,8 +762,15 @@ class BookingUseCases:
             await assert_approved_workspace(self.repository, actor)
         if values.get("source") == "manual_walkin" and actor.role not in {Role.owner, Role.staff}:
             raise ForbiddenError("Manual walk-in bookings require salon workspace access")
+        if values.get("source") == "manual_walkin":
+            await assert_approved_workspace(self.repository, actor)
+            salon = await self.repository.get_workspace_salon(actor.id)
+            if salon is None or str(salon["id"]) != str(values["salon_id"]):
+                raise ForbiddenError("You can create walk-in bookings only for your own salon")
         if values.get("source") == "app" and actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer app bookings require customer or owner access")
+        if values.get("payment_preference") in {"pay_full", "pay_advance"} and not self.online_payments_enabled:
+            raise ConflictError("Online payment coming soon.")
         await self.repository.get_public_salon(str(values["salon_id"]))
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
         if background_tasks is not None and values.get("source") != "manual_walkin":
@@ -883,19 +891,28 @@ class BookingUseCases:
         actor: Profile,
         booking_id: str,
         background_tasks: BackgroundTasks | None = None,
+        *, idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Complete a booking."""
 
         await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
-        booking = await self.repository.update_booking_status(actor.id, booking_id, "completed")
+        kwargs = {"idempotency_key": idempotency_key} if idempotency_key else {}
+        booking = await self.repository.update_booking_status(actor.id, booking_id, "completed", **kwargs)
         if background_tasks is not None:
             background_tasks.add_task(
                 self._notify_customer, booking, "Visit Complete",
                 "Thank you for your visit!", "booking_completed"
             )
         return booking
+
+    async def mark_attendance(self, actor: Profile, booking_id: str, *, no_show: bool, idempotency_key: str | None) -> dict:
+        await assert_approved_workspace(self.repository, actor)
+        if not is_owner_or_staff(actor):
+            raise ForbiddenError("Salon workspace access required")
+        return await self.repository.update_booking_status(actor.id, booking_id,
+            "no_show" if no_show else "checked_in", idempotency_key=idempotency_key)
 
     async def cancel(
         self,
@@ -1017,14 +1034,18 @@ class BookingUseCases:
         booking_id: str,
         payment_method: str,
         background_tasks: BackgroundTasks | None = None,
+        *, idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Record booking payment."""
 
         await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor) or not can_record_payment(actor):
             raise ForbiddenError("Salon workspace access required")
+        if payment_method not in {"cash", "upi_direct"}:
+            raise ValidationError("Select Cash or direct UPI to mark payment collected")
+        kwargs = {"idempotency_key": idempotency_key} if idempotency_key else {}
         booking = await self.repository.record_payment(
-            actor.id, booking_id, payment_method
+            actor.id, booking_id, payment_method, **kwargs
         )
         self._schedule_booking_outbox(booking, background_tasks)
         return booking

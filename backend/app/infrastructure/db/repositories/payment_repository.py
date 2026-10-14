@@ -125,7 +125,7 @@ class PaymentRepository:
                 where actor_id = :a and scope = :s and idempotency_key = :k
                 """
             ),
-            {"a": actor_id, "s": scope, "k": key, "st": status_code, "b": json.dumps(body)},
+            {"a": actor_id, "s": scope, "k": key, "st": status_code, "b": json.dumps(body, default=str)},
         )
 
     async def purge_expired_idempotency(self) -> int:
@@ -141,9 +141,10 @@ class PaymentRepository:
         result = await self.session.execute(
             text(
                 """
-                select b.id, b.salon_id, b.customer_id, b.status, b.total_price,
+                select b.id, b.salon_id, b.customer_id, b.status, b.total_price, b.checkout_policy_version,
                        b.deposit_amount, b.paid_amount, b.refunded_amount, b.currency,
                        b.payment_status, b.payment_preference, s.owner_id,
+                       (s.accepting_bookings and public.salon_booking_eligible(s.id)) as accepts_new_online_payment,
                        exists (select 1 from staff st
                                where st.salon_id = b.salon_id and st.profile_id = :actor
                                  and st.is_active) as actor_is_staff
@@ -163,7 +164,7 @@ class PaymentRepository:
         result = await self.session.execute(
             text(
                 """
-                select b.id, b.salon_id, b.customer_id, b.status, b.total_price,
+                select b.id, b.salon_id, b.customer_id, b.status, b.total_price, b.checkout_policy_version,
                        b.deposit_amount, b.paid_amount, b.refunded_amount, b.currency,
                        b.payment_status, b.payment_preference, s.owner_id,
                        exists (select 1 from staff st
@@ -186,6 +187,7 @@ class PaymentRepository:
         platform_commission_amount, commission_rate_percent, commission_base,
         commission_policy_version, overcollected_amount, provider_order_confirmed_at,
         payer_id
+        , collection_method, collected_by_owner, online_processing_charge, service_amount, provider_session_id
     """
 
     async def expire_stale_open_intents(self, booking_id: str) -> None:
@@ -236,6 +238,17 @@ class PaymentRepository:
         )
         return Decimal(result.scalar_one())
 
+    async def processing_charge_allocated(self, booking_id: str) -> Decimal:
+        result = await self.session.execute(text("""
+            select coalesce(sum(p.online_processing_charge),0) - coalesce((
+              select round(sum(r.amount * q.online_processing_charge / nullif(q.amount,0)),2)
+              from payment_refunds r join booking_payments q on q.id=r.payment_id
+              where q.booking_id=:id and r.status='processed'),0)
+            from booking_payments p where p.booking_id=:id and p.channel='gateway'
+              and p.status in ('captured','partially_refunded','refunded')
+        """), {"id":booking_id})
+        return Decimal(result.scalar_one())
+
     async def insert_intent(
         self,
         *,
@@ -252,6 +265,7 @@ class PaymentRepository:
         intent_reference: str,
         order_ref: str | None,
         expires_in_seconds: int,
+        online_processing_charge: Decimal = Decimal("0"),
     ) -> str:
         """Persist the operation identity BEFORE the provider is called.
 
@@ -264,12 +278,12 @@ class PaymentRepository:
                 """
                 insert into booking_payments
                   (booking_id, salon_id, payer_id, recorded_by, channel, purpose,
-                   settlement_model, provider, amount, platform_fee_amount,
+                   settlement_model, provider, amount, online_processing_charge, platform_fee_amount,
                    platform_commission_amount, commission_rate_percent, commission_base,
                    commission_policy_version, currency, status, intent_reference, order_ref,
                    expires_at)
                 values (:booking_id, :salon_id, :actor, :actor, 'gateway', :purpose,
-                        :settlement, :provider, :amount, :commission, :commission, :rate, :base,
+                        :settlement, :provider, :amount, :processing, :commission, :commission, :rate, :base,
                         :version, :currency, 'created', :ref, :order_ref,
                         now() + make_interval(secs => :ttl))
                 returning id
@@ -283,6 +297,7 @@ class PaymentRepository:
                 "settlement": settlement_model,
                 "provider": provider,
                 "amount": amount,
+                "processing": online_processing_charge,
                 "commission": commission_amount,
                 "rate": commission_rate_percent,
                 "base": commission_base,
@@ -295,7 +310,7 @@ class PaymentRepository:
         )
         return str(result.scalar_one())
 
-    async def confirm_intent_order(self, payment_id: str, order_ref: str) -> None:
+    async def confirm_intent_order(self, payment_id: str, order_ref: str, provider_session_id: str | None = None) -> None:
         """The provider acknowledged the order (the crash-safety marker)."""
 
         await self.session.execute(
@@ -303,11 +318,12 @@ class PaymentRepository:
                 """
                 update booking_payments
                 set order_ref = coalesce(order_ref, cast(:o as text)),
-                    provider_order_confirmed_at = now()
+                    provider_order_confirmed_at = now(),
+                    provider_session_id = coalesce(provider_session_id, :session_id)
                 where id = :id
                 """
             ),
-            {"o": order_ref, "id": payment_id},
+            {"o": order_ref, "id": payment_id, "session_id": provider_session_id},
         )
 
     async def fail_intent(self, payment_id: str, failure_code: str) -> None:
@@ -635,7 +651,7 @@ class PaymentRepository:
             await self.session.execute(
                 text(
                     """
-                    select id, booking_id, salon_id, status, amount, currency
+                select id, booking_id, salon_id, status, amount, currency, service_amount, online_processing_charge
                     from booking_payments where id = :id for update
                     """
                 ),
@@ -656,7 +672,9 @@ class PaymentRepository:
             status, failure, outcome = "failed", "amount_mismatch", "mismatch"
         elif status == "captured":
             owed = await self._owed(str(row["booking_id"]), Decimal(booking["total_price"]))
-            excess = max(Decimal(row["amount"]) - owed, Decimal("0.00"))
+            service = Decimal(row["service_amount"])
+            excess = ((max(service - owed, Decimal("0")) * Decimal(row["amount"]) / service)
+                      .quantize(Decimal("0.01"))) if service else Decimal("0")
             if excess > 0:
                 outcome = "overcollected"
         try:
@@ -712,12 +730,12 @@ class PaymentRepository:
                 text(
                     """
                     select
-                      coalesce((select sum(amount - overcollected_amount) from booking_payments
+                      coalesce((select sum(case when amount > 0 then round((amount - overcollected_amount) * service_amount / amount, 2) else 0 end) from booking_payments
                                 where booking_id = :b
                                   and status in ('captured', 'partially_refunded', 'refunded')), 0)
-                      - coalesce((select sum(amount) from payment_refunds
-                                  where booking_id = :b and status = 'processed'
-                                    and not applies_to_excess), 0)
+                      - coalesce((select round(sum(case when p.amount > 0 then r.amount * p.service_amount / p.amount else 0 end), 2) from payment_refunds r join booking_payments p on p.id=r.payment_id
+                                  where r.booking_id = :b and r.status = 'processed'
+                                    and not r.applies_to_excess), 0)
                     """
                 ),
                 {"b": booking_id},

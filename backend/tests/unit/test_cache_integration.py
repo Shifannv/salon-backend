@@ -119,8 +119,9 @@ def test_booking_creation_idempotency() -> None:
             )
             assert resp2.status_code == 201
             assert resp2.json()["id"] == "booking-abc"
-            # Ensure the use case was NOT called again!
-            assert mock_uc.create_booking.await_count == 1
+            # Every retry reaches the transactional DB idempotency gate. Redis is no longer authority.
+            assert mock_uc.create_booking.await_count == 2
+            assert mock_uc.create_booking.await_args.args[1]["_idempotency_key"] == "key-xyz-123"
     finally:
         app.dependency_overrides.pop(get_current_actor, None)
         app.dependency_overrides.pop(get_authenticated_session, None)

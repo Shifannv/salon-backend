@@ -1,0 +1,110 @@
+{
+  "environment": "isolated_local_docker",
+  "base_url": "http://127.0.0.1:8055",
+  "requests_per_case": 50,
+  "concurrency": 20,
+  "auth": "normal JWT verification, local Supabase Auth test double",
+  "external_provider_calls": 0,
+  "cache_hit_rate": null,
+  "cases": {
+    "health": {
+      "samples": 50,
+      "p50_ms": 54.802,
+      "p95_ms": 108.927,
+      "p99_ms": 162.277,
+      "error_rate": 0.0,
+      "requests_per_second": 273.78,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 0.45,
+      "database_p95_ms": 0.0,
+      "database_queries_mean": 0.0
+    },
+    "readiness": {
+      "samples": 50,
+      "p50_ms": 97.747,
+      "p95_ms": 191.868,
+      "p99_ms": 215.703,
+      "error_rate": 0.0,
+      "requests_per_second": 165.45,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 32.57,
+      "database_p95_ms": 14.42,
+      "database_queries_mean": 1.0
+    },
+    "search": {
+      "samples": 50,
+      "p50_ms": 89.874,
+      "p95_ms": 164.77,
+      "p99_ms": 191.481,
+      "error_rate": 0.0,
+      "requests_per_second": 174.17,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 113.4,
+      "database_p95_ms": 73.08,
+      "database_queries_mean": 1.0
+    },
+    "authenticated_read": {
+      "samples": 50,
+      "p50_ms": 94.322,
+      "p95_ms": 176.649,
+      "p99_ms": 194.339,
+      "error_rate": 0.0,
+      "requests_per_second": 150.89,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 88.75,
+      "database_p95_ms": 58.81,
+      "database_queries_mean": 1.0
+    },
+    "salon_detail": {
+      "samples": 50,
+      "p50_ms": 93.424,
+      "p95_ms": 250.4,
+      "p99_ms": 291.977,
+      "error_rate": 0.0,
+      "requests_per_second": 138.54,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 39.34,
+      "database_p95_ms": 11.74,
+      "database_queries_mean": 1.0
+    },
+    "slots": {
+      "samples": 50,
+      "p50_ms": 113.118,
+      "p95_ms": 254.966,
+      "p99_ms": 288.727,
+      "error_rate": 0.0,
+      "requests_per_second": 137.01,
+      "status_codes": {
+        "200": 50
+      },
+      "app_p95_ms": 195.05,
+      "database_p95_ms": 52.38,
+      "database_queries_mean": 3.0
+    },
+    "quote": {
+      "samples": 50,
+      "p50_ms": 10179.945,
+      "p95_ms": 20023.334,
+      "p99_ms": 20111.365,
+      "error_rate": 0.6,
+      "requests_per_second": 1.64,
+      "status_codes": {
+        "200": 20,
+        "500": 30
+      },
+      "app_p95_ms": 20020.98,
+      "database_p95_ms": 125.88,
+      "database_queries_mean": 4.32
+    }
+  }
+}

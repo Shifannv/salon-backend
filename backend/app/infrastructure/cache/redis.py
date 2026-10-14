@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 from urllib.parse import urlsplit
 
 from app.application.ports.cache_gateway import CacheGateway
+from app.core.telemetry import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +80,21 @@ class RedisCache(CacheGateway):
         """Return the decoded value or None on cache miss / no Redis."""
         if self._client is None:
             return None
+        started = time.perf_counter()
+        current = metrics.get()
+        if current is not None:
+            current.cache_reads += 1
         try:
             raw = await self._client.get(key)
+            if raw and current is not None:
+                current.cache_hits += 1
             return json.loads(raw) if raw else None
         except Exception as exc:
             logger.debug("Redis GET error for key %s: %s", key, exc)
             return None
+        finally:
+            if current is not None:
+                current.redis_duration_ms += (time.perf_counter() - started) * 1000
 
     async def set(self, key: str, value: Any, ttl: int = _CATALOG_TTL_SECONDS) -> None:
         """Store a JSON-serialisable value with a TTL."""

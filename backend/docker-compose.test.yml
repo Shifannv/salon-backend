@@ -1,0 +1,20 @@
+# Local verification only; never loads backend/.env or any live provider credentials.
+services:
+  api:
+    image: salon-platform-api:checkout-test
+    environment:
+      ENVIRONMENT: test
+      PORT: "8000"
+      DATABASE_URL: "postgresql+asyncpg://postgres@host.docker.internal:55439/${LOCAL_TEST_DATABASE_NAME:?prepare the disposable local fixture database first}"
+      REDIS_URL: "redis://host.docker.internal:56389/0"
+      SUPABASE_URL: "http://127.0.0.1:8050"
+      SUPABASE_ANON_KEY: local-test-public-key
+      SUPABASE_JWKS_URL: "http://host.docker.internal:8050/auth/v1/.well-known/jwks.json"
+      PAYMENT_PROVIDER: none
+      SUBSCRIPTION_PROVIDER: none
+      CASHFREE_ENABLED: "false"
+      SENTRY_DSN: ""
+      RESEND_API_KEY: ""
+      FIREBASE_CREDENTIALS_JSON: ""
+    ports:
+      - "127.0.0.1:8055:8000"

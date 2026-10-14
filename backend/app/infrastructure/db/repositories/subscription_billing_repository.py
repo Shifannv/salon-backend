@@ -39,6 +39,15 @@ def _row(mapping: Any) -> dict[str, Any]:
 
 
 class SubscriptionBillingRepository(PaymentRepository):
+    async def booking_access(self, salon_id):
+        row = (await self.session.execute(text("""
+            select public.salon_booking_eligible(s.id) as eligible,
+              a.trial_started_at,a.trial_ends_at,a.trial_booking_limit,a.bookings_counted,
+              a.trial_limit_reached_at from salons s
+              left join salon_access a on a.salon_id=s.id where s.id=:id
+        """), {"id":salon_id})).mappings().one()
+        return dict(row)
+
     # ---------------------------------------------------------------- plans
     async def list_purchasable_plans(self) -> list[dict[str, Any]]:
         result = await self.session.execute(
