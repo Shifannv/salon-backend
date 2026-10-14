@@ -8,7 +8,7 @@ from app.api.deps import get_cache
 from app.api.v1.schemas.health import DatabaseHealthResponse, HealthResponse, RedisHealthResponse
 from app.application.ports.cache_gateway import CacheGateway
 from app.core.exceptions import ServiceUnavailableError
-from app.infrastructure.db.session import get_session
+from app.infrastructure.db.session import get_probe_session
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ async def health() -> HealthResponse:
     tags=["health"],
     summary="Check database connectivity",
 )
-async def database_health(session: AsyncSession = Depends(get_session)) -> DatabaseHealthResponse:
+async def database_health(session: AsyncSession = Depends(get_probe_session)) -> DatabaseHealthResponse:
     """Probe the database connection."""
 
     try:
@@ -62,7 +62,7 @@ async def redis_health(cache: CacheGateway = Depends(get_cache)) -> RedisHealthR
 
 
 @router.get("/health/ready", response_model=HealthResponse, status_code=status.HTTP_200_OK, tags=["health"])
-async def readiness(session: AsyncSession = Depends(get_session), cache: CacheGateway = Depends(get_cache)) -> HealthResponse:
+async def readiness(session: AsyncSession = Depends(get_probe_session), cache: CacheGateway = Depends(get_cache)) -> HealthResponse:
     from app.core.config import settings
     try:
         await session.execute(text("select 1"))

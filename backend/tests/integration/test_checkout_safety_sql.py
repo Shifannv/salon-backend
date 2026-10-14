@@ -321,6 +321,31 @@ async def test_collection_actor_can_only_be_anonymized_by_account_erasure(safety
         await session.commit()
 
 
+async def test_shared_pool_keeps_business_transactions_and_probe_autocommit(safety):
+    from app.core.config import Settings
+    from app.infrastructure.db.session import build_engines
+    f = await safety.seed()
+    pool, business = build_engines(Settings(_env_file=None, environment="test",
+        database_url=str(safety.engine.url), db_pool_size=1, db_max_overflow=0))
+    assert business.pool is pool.pool
+    try:
+        async with AsyncSession(business) as session:
+            await set_actor_context(session, f["customer"])
+            await session.execute(text("update salons set name='Uncommitted test' where id=:id"),{"id":f["salon"]})
+            conn = await session.connection()
+            assert (await conn.get_raw_connection()).driver_connection.is_in_transaction()
+            assert (await session.execute(text("select current_setting('request.jwt.claim.sub')"))).scalar_one() == f["customer"]
+            # Closing without commit must roll back both data and transaction-local actor.
+        async with pool.connect() as probe:
+            assert (await probe.execute(text("select name from salons where id=:id"),{"id":f["salon"]})).scalar_one() == "Local test salon"
+            assert not (await probe.get_raw_connection()).driver_connection.is_in_transaction()
+        async with AsyncSession(business) as session:
+            await session.execute(text("select 1"))
+            assert (await (await session.connection()).get_raw_connection()).driver_connection.is_in_transaction()
+    finally:
+        await pool.dispose()
+
+
 async def test_email_claim_concurrency_and_retry_use_stable_event_key(safety):
     from app.infrastructure.email.worker import deliver_once
     # All rows are synthetic in this disposable database. Isolate the worker queue.

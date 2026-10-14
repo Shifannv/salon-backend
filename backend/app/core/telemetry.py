@@ -4,7 +4,8 @@ import re
 import time
 import uuid
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import wraps
 
 import structlog
 
@@ -19,11 +20,33 @@ class RequestMetrics:
     redis_duration_ms: float = 0
     cache_reads: int = 0
     cache_hits: int = 0
+    database_acquire_ms: float = 0
+    external_duration_ms: float = 0
+    external_durations_ms: dict[str, float] = field(default_factory=dict)
+    database_connections_created: int = 0
+    database_pool_checked_out: int = 0
 
 
 metrics: ContextVar[RequestMetrics | None] = ContextVar("request_metrics", default=None)
 _log = structlog.get_logger("api.timing")
 _REQUEST_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}\Z")
+
+
+def measure_external(provider):
+    """Time static provider names only; never capture arguments or response data."""
+    def decorate(function):
+        @wraps(function)
+        async def timed(*args, **kwargs):
+            started = time.perf_counter()
+            try:
+                return await function(*args, **kwargs)
+            finally:
+                if (current := metrics.get()) is not None:
+                    elapsed = (time.perf_counter()-started)*1000
+                    current.external_duration_ms += elapsed
+                    current.external_durations_ms[provider] = current.external_durations_ms.get(provider,0)+elapsed
+        return timed
+    return decorate
 
 
 def scrub_sentry(event, hint=None):
@@ -70,9 +93,10 @@ class TimingMiddleware:
         request_id = supplied if _REQUEST_ID.fullmatch(supplied) else uuid.uuid4().hex
         set_request_id(request_id)
         status_code, response_ms = 500, None
+        response_bytes = 0
 
         async def timed_send(message):
-            nonlocal status_code, response_ms
+            nonlocal status_code, response_ms, response_bytes
             if message["type"] == "http.response.start":
                 if self.sentry_enabled:
                     import sentry_sdk
@@ -82,11 +106,13 @@ class TimingMiddleware:
                 headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-request-id"]
                 headers.append((b"x-request-id", request_id.encode()))
                 if self.environment in {"local", "test", "staging"}:
-                    headers.append((b"server-timing", f"app;dur={response_ms:.2f}, db;dur={current.database_duration_ms:.2f}, queries;desc=\"{current.database_query_count}\"".encode()))
+                    headers.append((b"server-timing", f"app;dur={response_ms:.2f}, db;dur={current.database_duration_ms:.2f}, db_acquire;dur={current.database_acquire_ms:.2f}, redis;dur={current.redis_duration_ms:.2f}, external;dur={current.external_duration_ms:.2f}, queries;desc=\"{current.database_query_count}\"".encode()))
                     if current.cache_reads:
                         headers.append((b"x-cache-reads", str(current.cache_reads).encode()))
                         headers.append((b"x-cache-hits", str(current.cache_hits).encode()))
                 message["headers"] = headers
+            elif message["type"] == "http.response.body":
+                response_bytes += len(message.get("body", b""))
             await send(message)
 
         try:
@@ -100,11 +126,18 @@ class TimingMiddleware:
         finally:
             route = getattr(scope.get("route"), "path", "unmatched")
             _log.info("api_request", request_id=request_id, route=route, method=scope["method"],
-                      status_code=status_code, duration_ms=round(response_ms if response_ms is not None else (time.perf_counter() - started) * 1000, 3),
+                      status_code=status_code, duration_ms=round((time.perf_counter()-started)*1000,3),
+                      response_start_ms=round(response_ms,3) if response_ms is not None else None,
+                      response_bytes=response_bytes,
+                      database_acquire_ms=round(current.database_acquire_ms,3),
+                      database_connections_created=current.database_connections_created,
+                      database_pool_checked_out=current.database_pool_checked_out,
                       database_duration_ms=round(current.database_duration_ms, 3),
                       database_query_count=current.database_query_count,
                       cache_hit=bool(current.cache_hits) if current.cache_reads else None,
                       redis_duration_ms=round(current.redis_duration_ms,3),
+                      external_duration_ms=round(current.external_duration_ms,3),
+                      external_durations_ms={k:round(v,3) for k,v in current.external_durations_ms.items()},
                       error_code=current.error_code, environment=self.environment)
             metrics.reset(token)
             set_request_id("")
@@ -112,6 +145,16 @@ class TimingMiddleware:
 
 def install_database_metrics(engine):
     from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def connected(*args):
+        if (current := metrics.get()) is not None:
+            current.database_connections_created += 1
+
+    @event.listens_for(engine.sync_engine, "checkout")
+    def checkout(*args):
+        if (current := metrics.get()) is not None and hasattr(engine.pool,"checkedout"):
+            current.database_pool_checked_out = max(current.database_pool_checked_out,engine.pool.checkedout())
 
     @event.listens_for(engine.sync_engine, "before_cursor_execute")
     def before(conn, cursor, statement, parameters, context, executemany):

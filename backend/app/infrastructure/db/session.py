@@ -1,24 +1,55 @@
 """Async SQLAlchemy session management."""
 
+import time
 from collections.abc import AsyncGenerator
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.core.telemetry import install_database_metrics
+from app.core.telemetry import install_database_metrics, metrics
 
-engine = create_async_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
-    pool_timeout=settings.db_pool_timeout_seconds,
-    hide_parameters=True,
-    connect_args={"statement_cache_size": 0} if "asyncpg" in settings.database_url else {},
-)
-install_database_metrics(engine)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+def build_engines(config):
+    """Share one pool; idle connections ping without a throwaway transaction.
+
+    EVERY business session binds the READ COMMITTED engine. Only SELECT 1 probes
+    use the base autocommit engine. Option engines share pool/disposal and restore
+    isolation on return; no booking/payment transaction uses autocommit.
+    """
+    pool = create_async_engine(
+        config.database_url, isolation_level="AUTOCOMMIT", pool_pre_ping=True,
+        pool_size=config.db_pool_size, max_overflow=config.db_max_overflow,
+        pool_timeout=config.db_pool_timeout_seconds,
+        pool_recycle=config.db_pool_recycle_seconds, hide_parameters=True,
+        connect_args={"statement_cache_size":0,"timeout":config.db_connect_timeout_seconds}
+        if "asyncpg" in config.database_url else {},
+    )
+    install_database_metrics(pool)
+    return pool, pool.execution_options(isolation_level="READ COMMITTED")
+
+
+class MeasuredAsyncSession(AsyncSession):
+    async def execute(self, *args, **kwargs):
+        if not self.in_transaction():
+            started = time.perf_counter()
+            try:
+                await self.connection()
+            finally:
+                if (current := metrics.get()) is not None:
+                    current.database_acquire_ms += (time.perf_counter()-started)*1000
+        return await super().execute(*args, **kwargs)
+
+
+_pool_engine, engine = build_engines(settings)
+AsyncSessionLocal = async_sessionmaker(engine, class_=MeasuredAsyncSession, expire_on_commit=False)
+_ProbeSessionLocal = async_sessionmaker(_pool_engine, class_=MeasuredAsyncSession, expire_on_commit=False)
+
+
+async def get_probe_session() -> AsyncGenerator[AsyncSession, None]:
+    """Real read-only reachability probe; shares the application connection pool."""
+    async with _ProbeSessionLocal() as session:
+        yield session
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
