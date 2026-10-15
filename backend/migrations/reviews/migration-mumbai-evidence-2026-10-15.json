@@ -1,0 +1,307 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "region": "ap-south-1",
+  "restore_status": "restricted schema-only restore succeeded; never stamp solely from these counts",
+  "source_hashes": {
+    "roles": "168a95a9c745af5ed4679751f90419ac9dc434240a213b03e32a06d5664c2308",
+    "schema": "2506c4fc8da90d63a7cbfb7a0b727df9e492f5e65e6b09bff4c7136a3d273eef"
+  },
+  "catalog": {
+    "tables": 44,
+    "indexes": 148,
+    "policies": 43,
+    "triggers": 73,
+    "extensions": [
+      {
+        "name": "plpgsql",
+        "version": "1.0"
+      },
+      {
+        "name": "pg_stat_statements",
+        "version": "1.11"
+      },
+      {
+        "name": "uuid-ossp",
+        "version": "1.1"
+      },
+      {
+        "name": "pgcrypto",
+        "version": "1.3"
+      },
+      {
+        "name": "supabase_vault",
+        "version": "0.3.1"
+      },
+      {
+        "name": "btree_gist",
+        "version": "1.7"
+      }
+    ],
+    "rls_tables": 44,
+    "alembic_rows": 0,
+    "auth_trigger": 0,
+    "public_create_anon": false,
+    "public_create_authenticated": false
+  },
+  "function_bodies": [
+    {
+      "name": "app_role",
+      "matches": true
+    },
+    {
+      "name": "apply_subscription_billing_record",
+      "matches": true
+    },
+    {
+      "name": "booking_append_audit",
+      "matches": true
+    },
+    {
+      "name": "cancel_salon_subscription_renewal",
+      "matches": true
+    },
+    {
+      "name": "create_booking",
+      "matches": true
+    },
+    {
+      "name": "deactivate_device_token",
+      "matches": true
+    },
+    {
+      "name": "demote_other_main_images",
+      "matches": true
+    },
+    {
+      "name": "effective_duration",
+      "matches": true
+    },
+    {
+      "name": "enqueue_booking_email",
+      "matches": true
+    },
+    {
+      "name": "enqueue_verified_payment_receipt",
+      "matches": true
+    },
+    {
+      "name": "erase_profile_references",
+      "matches": true
+    },
+    {
+      "name": "get_active_tokens",
+      "matches": true
+    },
+    {
+      "name": "get_available_slots",
+      "matches": true
+    },
+    {
+      "name": "get_salon_by_qr",
+      "matches": true
+    },
+    {
+      "name": "guard_audit_immutable",
+      "matches": true
+    },
+    {
+      "name": "guard_booking_against_closure",
+      "matches": true
+    },
+    {
+      "name": "guard_booking_checkout",
+      "matches": true
+    },
+    {
+      "name": "guard_booking_payment_columns",
+      "matches": true
+    },
+    {
+      "name": "guard_booking_salon_approval",
+      "matches": true
+    },
+    {
+      "name": "guard_collection_snapshot",
+      "matches": true
+    },
+    {
+      "name": "guard_media_reference",
+      "matches": true
+    },
+    {
+      "name": "guard_salon_approval",
+      "matches": true
+    },
+    {
+      "name": "guard_salon_discovery_placement",
+      "matches": true
+    },
+    {
+      "name": "guard_salon_display_priority",
+      "matches": true
+    },
+    {
+      "name": "guard_subscription_admin",
+      "matches": true
+    },
+    {
+      "name": "handle_new_user",
+      "matches": true
+    },
+    {
+      "name": "is_subscription_promotion_active",
+      "matches": true
+    },
+    {
+      "name": "is_super_admin",
+      "matches": true
+    },
+    {
+      "name": "owns_salon",
+      "matches": true
+    },
+    {
+      "name": "payment_append_audit",
+      "matches": true
+    },
+    {
+      "name": "payout_account_snapshot",
+      "matches": true
+    },
+    {
+      "name": "recompute_booking_payment_state",
+      "matches": true
+    },
+    {
+      "name": "recompute_salon_trial",
+      "matches": true
+    },
+    {
+      "name": "register_device_token",
+      "matches": true
+    },
+    {
+      "name": "salon_booking_eligible",
+      "matches": true
+    },
+    {
+      "name": "salon_payout_account_masked",
+      "matches": true
+    },
+    {
+      "name": "salon_trial_setting",
+      "matches": true
+    },
+    {
+      "name": "set_audit_actor",
+      "matches": true
+    },
+    {
+      "name": "set_updated_at",
+      "matches": true
+    },
+    {
+      "name": "stamp_booking_lifecycle",
+      "matches": true
+    },
+    {
+      "name": "stamp_checkout_policy",
+      "matches": true
+    },
+    {
+      "name": "stamp_notification_read_at",
+      "matches": true
+    },
+    {
+      "name": "start_salon_trial",
+      "matches": true
+    },
+    {
+      "name": "sweep_lapsed_subscriptions",
+      "matches": true
+    },
+    {
+      "name": "tg_booking_payments_guard",
+      "matches": true
+    },
+    {
+      "name": "tg_booking_payments_recompute",
+      "matches": true
+    },
+    {
+      "name": "tg_bookings_recompute_trial",
+      "matches": true
+    },
+    {
+      "name": "tg_payment_refunds_guard",
+      "matches": true
+    },
+    {
+      "name": "tg_payment_refunds_recompute",
+      "matches": true
+    },
+    {
+      "name": "tg_salon_payout_account_history",
+      "matches": true
+    },
+    {
+      "name": "tg_salons_access_row",
+      "matches": true
+    },
+    {
+      "name": "tg_subscription_billing_guard",
+      "matches": true
+    }
+  ],
+  "removed_client_grant_count": 490,
+  "latency": {
+    "endpoint": "https://wqjlgpnbiapcrlkxumcp.supabase.co/auth/v1/.well-known/jwks.json",
+    "measurement": "Windows curl, separate HTTPS request processes, HTTP 200 for all ten",
+    "total_ms": [
+      595.682,
+      187.447,
+      163.5,
+      163.755,
+      137.743,
+      196.47,
+      212.545,
+      154.614,
+      173.058,
+      153.249
+    ],
+    "median_ms": 168.4065,
+    "p95_nearest_rank_ms": 595.682,
+    "not_measured": [
+      "database latency",
+      "API booking latency",
+      "Sydney comparison"
+    ]
+  },
+  "auth_tests": {
+    "customer_id": "81163183-2757-464e-8f92-b7f5dafe61fa",
+    "owner_id": "cd974685-f3ba-43f6-b00e-cd103935fc28",
+    "login": [
+      200,
+      200
+    ],
+    "jwt_verification": [
+      true,
+      true
+    ],
+    "refresh": [
+      200,
+      200
+    ],
+    "client_profile_read": [
+      403,
+      403
+    ],
+    "logout": [
+      204,
+      204
+    ],
+    "owner_profile_initial": "customer",
+    "owner_profile_fixture_provisioned": "owner",
+    "passwords": "Generated in memory, discarded; not stored"
+  }
+}
