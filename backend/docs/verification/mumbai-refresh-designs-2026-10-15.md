@@ -4,6 +4,25 @@ No design is implemented. No grants, policies, triggers, publications, frontend 
 
 ## Design 1: minimal secure Realtime access with strict RLS
 
+### Compatibility boundary for existing Postgres Changes
+
+Application-row SELECT is a data-access capability even when the normal callback ignores the payload. RLS limits rows, not sensitive columns. A safe grant review must test direct REST/SQL reads as well as events; frontend filters and callback behavior cannot enforce confidentiality.
+
+The smallest candidate inventory for retaining any existing channels is below. It is a conditional alternative requiring an explicit change to the FastAPI-only read contract, not an approved grant plan:
+
+| Table | Candidate recipient scope | Prerequisites before any positive SELECT |
+| --- | --- | --- |
+| bookings | Customer's own rows; currently owned salon's rows for owner | Review every exposed column; replace/reconcile all applicable policies and resolve helper/staff dependencies without broad staff/profile reads |
+| notifications | `user_id = auth.uid()` only | Review payload columns and all applicable policies; add publication membership only after review |
+| blocked_slots | Owner's salon-wide rows or staff rows proven to belong to that owner's salon | Remove broad `blocked_read USING(true)` access; review ALL policies too; verify staff-only rows with NULL salon_id; customers use API availability |
+| salons | At most owner-only rows for this invalidation use case | Avoid granting customer access to whole salon rows just to refresh opening state; customers poll API; review helper dependencies and publication |
+
+Only authenticated SELECT on an explicitly reviewed column allowlist could be considered, with named schema/helper rights only where proven necessary. No anon/PUBLIC grants, writes, business RPC execution, future-object defaults or broad dependency grants. Confirm installed Realtime/SDK support for the exact column privileges, filters and payload before relying on column-level grants. If that combination fails, reject this variant rather than widening access. Review INSERT/UPDATE independently; do not rely on DELETE filtering/RLS for confidentiality or refresh recovery. Handle soft-deactivation and access-revoking updates by periodic API reconciliation because a row leaving readable scope may not deliver a usable event.
+
+This variant cannot safely enable the unchanged customer availability channels: strict own-booking RLS intentionally hides competitors' bookings, while its salon-only block filter misses staff-only blocks. It also cannot survive 0040 unchanged: that revision revokes these application-table rights. Retaining any such grants would require a separately reviewed revision/security decision and new expected-head proof. No grant followed by blindly applying 0040 is a compatible rollout.
+
+### Safe design under the current FastAPI-only contract
+
 Use private Broadcast for cache invalidation rather than existing application-table Postgres Changes. This preserves zero client application-table grants. Retaining the current channels would require application SELECT grants and policy/dependency changes; that conflicts with the architecture decision and is not proposed for execution.
 
 After a successful business transaction commits, FastAPI publishes a small invalidation hint to each currently authorized recipient's private topic `user:<verified UUID>:events`. Determine recipients server-side from current ownership/account status. Hint payload contains an allowlisted resource kind and protocol version only; exclude booking contents, names, contact details, free text, payment values and other users' identifiers. The receiving client refetches through FastAPI. A hint never grants data access.
@@ -59,6 +78,19 @@ Tradeoff: predictable refresh without database event access; higher API read loa
 6. Design 1 additionally tests own-topic allow, foreign-topic deny, anonymous deny, client-send deny, old-token/revocation handling, no row/personal payloads, rollback producing no published hint and correct after-commit delivery. Negative policy tests must account for all permissive policies.
 7. Verify Auth login/refresh/callbacks and R2 media behavior independently. Supabase Storage remains unused. Verify booking conflicts and owner collection/worker behavior without calling real payment/email/push providers.
 
-Existing 22 mocked frontend tests pass but do not satisfy this gate. Live staging build/API binding and multi-session refresh tests remain blocked. Real cross-connection Postgres Changes delivery requires committed test mutations; an outer-transaction rollback alone cannot prove event delivery. Any such staging fixture lifecycle must be separately scoped with synthetic records and verified cleanup. Current work creates no new persistent records.
+Recorded results show 22 mocked frontend tests passed; source hashes still match, but tests were not rerun in this documentation-only revalidation. They do not satisfy this gate. Live staging build/API binding and multi-session refresh tests remain unverified. Real cross-connection Postgres Changes delivery requires committed test mutations; an outer-transaction rollback alone cannot prove event delivery. Any such staging fixture lifecycle must use an isolated authorized target, synthetic records and verified cleanup. Current work creates no new persistent records.
 
-Required next approval: select a design (recommend design 2), authorize the corresponding frontend/backend implementation scope and identify isolated Mumbai staging builds/API for acceptance testing. This is separate from migration execution approval. All 0038–0040 remain uncommitted and unapplied, and no Alembic stamp is authorized.
+For each staging case, record build commits, target/API identity, selected design and interval, actor aliases, mounted screen/query family, mutation commit time, API response time, visible update time, event/error status and pass/fail. Store no tokens or personal payloads. Acceptance latency is the chosen interval plus measured API/render time under healthy foreground conditions; record those times separately. Fault cases must show recovery after service returns and visible stale/error state during failure. A missing result is pending, not a pass.
+
+| Release requirement | Current result |
+| --- | --- |
+| Customer and owner exact staging build/API binding | Pending |
+| Mounted list/detail/availability/inbox/access/summary refresh across two sessions | Pending; known source gaps above |
+| Two-customer/two-owner isolation, logout/switch and token lifecycle | Pending |
+| WebSocket failure/offline/reconnect recovery | Pending |
+| Design 1 private-topic authorization and after-commit delivery, if chosen | Pending |
+| Reviewed expected-head/schema/ACL comparison | Pending independently of refresh |
+
+**0040 remains on hold.** Both customer and owner must pass the selected design's staging cases before any proposal to apply it. Passing refresh does not authorize migration execution or stamping. Re-read live ACL/publication evidence at that point; publication membership or a SUBSCRIBED status alone is not proof of data delivery or compatible refresh.
+
+Recommended implementation: design 2, FastAPI refresh/invalidation. Design 1 private Broadcast remains the secure Realtime alternative. Identify isolated Mumbai staging builds/API before running acceptance; neither design is implemented by this review. No commit, migration execution or Alembic stamp is authorized. On revalidation the six 0038–0040 files were already tracked in Git HEAD; they were left untouched, and no database application was attempted. See the audit for this correction to the older Git-uncommitted claim.

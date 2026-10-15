@@ -1,5 +1,6 @@
 """Async SQLAlchemy session management."""
 
+import ssl
 import time
 from collections.abc import AsyncGenerator
 
@@ -17,19 +18,37 @@ def build_engines(config):
     use the base autocommit engine. Option engines share pool/disposal and restore
     isolation on return; no booking/payment transaction uses autocommit.
     """
+    connect_args = {}
+    if "asyncpg" in config.database_url:
+        connect_args = {"statement_cache_size": 0, "timeout": config.db_connect_timeout_seconds}
+        if getattr(config, "db_ssl_ca_file", None):
+            tls = ssl.create_default_context(cafile=config.db_ssl_ca_file)
+            if not getattr(config, "db_ssl_strict", True):
+                if config.environment != "staging":
+                    raise ValueError("Legacy CA compatibility is restricted to staging")
+                # Supabase's published CA lacks the keyUsage extension required by
+                # Python 3.13+ strict mode. Certificate/hostname checks remain on.
+                tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
+            connect_args["ssl"] = tls
     pool = create_async_engine(
         config.database_url, isolation_level="AUTOCOMMIT", pool_pre_ping=True,
         pool_size=config.db_pool_size, max_overflow=config.db_max_overflow,
         pool_timeout=config.db_pool_timeout_seconds,
         pool_recycle=config.db_pool_recycle_seconds, hide_parameters=True,
-        connect_args={"statement_cache_size":0,"timeout":config.db_connect_timeout_seconds}
-        if "asyncpg" in config.database_url else {},
+        connect_args=connect_args,
     )
     install_database_metrics(pool)
     return pool, pool.execution_options(isolation_level="READ COMMITTED")
 
 
 class MeasuredAsyncSession(AsyncSession):
+    async def commit(self) -> None:
+        await super().commit()
+        # Commit first: a reader must never cache old DB state in the new epoch.
+        # All API and background-worker sessions share this session factory.
+        from app.infrastructure.cache.redis import get_redis_cache
+        await get_redis_cache().invalidate_read_models()
+
     async def execute(self, *args, **kwargs):
         if not self.in_transaction():
             started = time.perf_counter()

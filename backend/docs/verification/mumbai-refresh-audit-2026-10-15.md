@@ -1,12 +1,16 @@
 # Mumbai customer and owner refresh audit
 
-Status: review only. All forward migrations remain uncommitted and unapplied. The latest user instruction holds 0038–0040 and specifically prohibits applying 0040 before customer and owner refresh passes staging tests. No frontend source, settings, grants, publication, or infrastructure changed during this audit.
+Status: review only; compatible API refresh behavior must be verified first. The latest user instruction holds 0038–0040 and specifically prohibits applying 0040 before customer and owner refresh passes staging tests. No frontend source, settings, grants, publication, or infrastructure changed during this audit.
+
+Revalidation on 2026-10-15: the working tree started clean on branch `shifan`, and all six 0038–0040 Python/SQL migration files were already tracked in HEAD. Thus the earlier claim that these files are Git-uncommitted is stale. This audit makes no commits, rewrites no history and changes no migration files. Database non-application is supported by the recorded rollback/history evidence, not a fresh live database query in this revalidation.
 
 ## Evidence and source scope
 
 Inspected customer checkout: `D:/salon/Salon-Customer-APP/customer-app`. The supplied `D:/salon/customer-app` does not exist. Owner: `D:/salon/salon-owner-APP`. Website/admin: `D:/salon/salon-QR-Walking-Web/walking-customer-web`.
 
 File hashes are in `migration-mumbai-refresh-source-inventory-2026-10-15.json` in `backend/migrations/reviews/`. Branch/commit and deployed staging build identity were not verified; user-reported branch is `shifan`. The supplied GitHub OWNER/REPO URL is a placeholder. Findings describe local source, not proof of the Vercel deployment's API configuration.
+
+All 16 inventoried customer/owner source hashes still match on revalidation. Subscription implementations, polling configuration and lifecycle hooks were reread. Frontend build identity and staging API binding remain unverified; the backend branch above does not establish either frontend branch.
 
 Inspected business requests use FastAPI (website/admin through its API/BFF where applicable). Supabase SDK Auth remains separate. No application-table `.from()`/`.rpc()` business calls were found in the inspected source. Existing Postgres Changes subscriptions are direct application-table consumers even though callbacks only invalidate caches. R2 remains the media backend; Supabase Storage stays unused.
 
@@ -38,6 +42,8 @@ Website `lib/qr/queries.ts` already polls availability (default 30s, configurabl
 
 Evidence: `backend/migrations/reviews/migration-mumbai-refresh-permissions-2026-10-15.json`. Effective SELECT is false for anon and authenticated on bookings, blocked_slots, notifications, salons and staff. Direct client SQLSTATE 42501 is expected; no grant is proposed to make direct-client tests pass.
 
+These are recorded catalog findings. No live ACL, RLS, publication or Alembic query was rerun in this revalidation. Refresh this evidence against the isolated staging target before acceptance.
+
 | Table | SELECT required by existing Postgres Changes design | Current relevant RLS | Publication |
 | --- | --- | --- | --- |
 | bookings | authenticated SELECT on subscribed fields; policy dependencies must also be callable/readable | Customer=self OR owns_salon OR superadmin; staff policy queries staff | Present |
@@ -53,7 +59,7 @@ Postgres Changes checks SELECT/RLS; current docs also describe field projection,
 
 ## Verification performed
 
-Existing Jest tests ran without cache or frontend dotenv loading. JSON outputs are at repository root:
+Recorded Jest tests ran without cache or frontend dotenv loading. JSON outputs are in `backend/migrations/reviews/`:
 
 | Output | Suites/tests | Result | Limit |
 | --- | --- | --- | --- |
@@ -61,6 +67,6 @@ Existing Jest tests ran without cache or frontend dotenv loading. JSON outputs a
 | migration-mumbai-owner-refresh-tests-2026-10-15.json | 3 / 16 | PASS | Mock polling, Realtime invalidation and booking hooks |
 | migration-mumbai-owner-lifecycle-tests-2026-10-15.json | 1 / 1 | PASS | Mock native focus/reconnect wiring |
 
-22 tests passed. React test-renderer/act and Node warnings occurred; no failed assertions. These tests do not prove cross-device freshness, channel-error recovery, API deployment binding, real RLS event delivery or actual Mumbai device/browser behavior. No live staging refresh pass is claimed.
+The recorded results show 22 tests passed. They were not rerun for this documentation-only revalidation. React test-renderer/act and Node warnings occurred; no failed assertions. These tests do not prove cross-device freshness, channel-error recovery, API deployment binding, real RLS event delivery or actual Mumbai device/browser behavior. No live staging refresh pass is claimed.
 
 Next: review [the two designs and acceptance gate](mumbai-refresh-designs-2026-10-15.md). Keep migrations held until approved frontend compatibility work passes that gate.

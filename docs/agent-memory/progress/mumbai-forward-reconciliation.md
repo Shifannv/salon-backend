@@ -1,7 +1,7 @@
 # Progress: thameem/mumbai-forward-reconciliation
 
 ## Goal
-Prepare (not execute) forward Alembic revisions 0038-0040 and matching account-deletion changes so the Mumbai Supabase project can reconcile to the repo schema. Inferred from branch name and uncommitted work; no task was given. Confirm with the user.
+Verify compatible customer and owner API refresh behavior before any 0040 application. Audit Realtime subscriptions, SELECT/RLS requirements, invalidation hooks and event-failure fallback; prepare minimal secure Realtime and FastAPI refresh designs. Keep migrations held; no commit, application or stamp is authorized.
 
 ## Status
 in progress
@@ -16,12 +16,15 @@ in progress
 - Everything is uncommitted on this branch (modified docs/tests/repo plus new migrations).
 
 ## Next steps
+0. Complete the customer/owner staging refresh gate in [the designs](../../../backend/docs/verification/mumbai-refresh-designs-2026-10-15.md) before proposing migration execution. Existing mocked tests do not pass this gate.
 1. Run lint and tests from backend/ (`/check`) on the uncommitted work and record results.
 2. Run migration-reviewer on 0038-0040.
 3. Decide what to do with root-level migration-mumbai-* scratch files and migration_mumbai_*.py (commit, move under docs, or leave untracked).
-4. Commit as one coherent change, then PR. Nothing may be executed against Mumbai without explicit authorization.
+4. Keep changes uncommitted under the current instruction. Do not apply 0040 before both apps pass staging refresh. Nothing may be executed against Mumbai without explicit authorization.
 
 ## Decisions
+- 2026-10-15 revalidation: compatible API refresh verification takes priority. Recommend FastAPI polling/invalidation; private Broadcast with strict per-user authorization is the secure Realtime alternative. Raw business-row grants conflict with unchanged 0040 and do not fix customer availability safely.
+- Current checkout starts clean on `shifan`; six 0038-0040 Python/SQL files are already tracked in HEAD. Earlier Git-uncommitted entries below describe historical state. Do not rewrite history to manufacture uncommitted migrations; no commits or migration edits made in this audit. Database non-application remains recorded evidence, not a fresh live query.
 - 2026-10-15: no migration, stamp or grant execution against Mumbai, because the reconciliation doc says it is prepared only.
 
 ## Files touched
@@ -39,5 +42,6 @@ in progress
 - none yet
 
 ## Session log
+- 2026-10-15: revalidated all 16 customer/owner inventory hashes and reread subscription/polling/lifecycle hooks. Updated audit, both safe designs and explicit pending staging gate. No frontend/database/migration changes; staging results remain pending.
 - 2026-10-15: session started
 - 2026-10-15: migration folder cleanup, evidence re-seal and test baseline comparison; root runners and tracked supabase-schema-backup/ await approval (plans only)

@@ -1,5 +1,6 @@
 """Environment-backed application configuration."""
 
+import os
 import re
 from decimal import Decimal
 from functools import lru_cache
@@ -32,6 +33,8 @@ class Settings(BaseSettings):
     sentry_dsn: SecretStr | None = None
     sentry_traces_sample_rate: float = Field(default=0.1, ge=0, le=1)
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/salon_platform"
+    db_ssl_ca_file: str | None = None
+    db_ssl_strict: bool = True
 
     # Supabase Auth (anon / public key — safe for clients)
     supabase_url: HttpUrl | None = None
@@ -421,7 +424,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return cached settings."""
 
-    return Settings()
+    return Settings(_env_file=os.environ.get("SALON_ENV_FILE", ".env"))
 
 
 settings = get_settings()

@@ -9,15 +9,17 @@ Audit (counts only, no content printed):
 
 | Item | Result |
 | --- | --- |
-| Tracked files | 4 (`schema.sql` 269 KB, `roles.sql` 370 B, `history_schema.sql` 0 B, `history_data.sql` 41 B) |
-| Untracked files | 10 (two `mumbai-pre-0038-0040-*` folders, about 1.8 MB: schema, rollback preflight, CA cert, checksums) |
-| Total on disk | 2,058,878 bytes |
+| Tracked files | 14 at HEAD `28eb213`: the original 4 (`schema.sql` 269 KB, `roles.sql` 370 B, `history_schema.sql` 0 B, `history_data.sql` 41 B) plus 10 in two `mumbai-pre-0038-0040-*` folders (about 1.8 MB: schema, rollback preflight, CA cert, checksums, verification.json). The 10 were untracked when audited and were committed afterwards. |
+| Untracked files | 0 |
+| Total size | 2,058,878 bytes (all tracked) |
+| Remote | HEAD is in `origin/main` and `origin/shifan`, so these files are already pushed |
 | Credential patterns (passwords, JWTs, private keys, connection strings, API keys) | none found |
 | Email addresses / `COPY` / `INSERT` data blocks | none found |
 | Content | schema only (`CREATE TABLE` 44 and 83 per file); CA files are public certificates |
 
-Risk: no secrets or user data found, but backups do not belong in Git and the 10
-untracked files would be staged by a blanket `git add -A`.
+Risk: no secrets or user data found, but backups do not belong in Git. They are already
+on the remote, so `git rm --cached` only stops future tracking; it does not remove them
+from history.
 
 Prepared steps (run only after approval):
 
@@ -30,8 +32,9 @@ Prepared steps (run only after approval):
 4. Restore verification: copy back from the external location to a scratch folder,
    re-run `sha256sum -c`, and compare `schema.sql` hashes to the values recorded in
    `backend/migrations/reviews/migration-mumbai-forward-baseline-2026-10-15.json`.
-5. Old commits still contain the 4 tracked files. They hold no secrets, so history
-   rewriting is not recommended.
+5. Old commits (including the pushed ones) still contain all 14 files. They hold no
+   secrets or user data, so history rewriting is not recommended; it would also need a
+   force-push to shared branches.
 
 ## 2. Root `migration_mumbai_*.py` runners (13)
 
