@@ -9,6 +9,7 @@ import asyncio
 import base64
 import json
 import logging
+import math
 import os
 import ssl
 import sys
@@ -98,7 +99,7 @@ def bind():
 
 def percentiles(samples):
     samples = sorted(samples)
-    return {f"p{p}": round(samples[min(len(samples) - 1, int((len(samples)-1)*p/100))], 3)
+    return {f"p{p}": round(samples[max(0, math.ceil(len(samples)*p/100)-1)], 3)
             for p in (50, 95, 99)}
 
 

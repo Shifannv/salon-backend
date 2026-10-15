@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 import httpx
 from sqlalchemy import URL, event
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[4]
 REF = "wqjlgpnbiapcrlkxumcp"
 BASE = f"https://{REF}.supabase.co"
 HOST = "aws-0-ap-south-1.pooler.supabase.com"

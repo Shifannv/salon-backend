@@ -36,7 +36,12 @@ Prepared steps (run only after approval):
    secrets or user data, so history rewriting is not recommended; it would also need a
    force-push to shared branches.
 
-## 2. Root `migration_mumbai_*.py` runners (13)
+## 2. Root `migration_mumbai_*.py` runners (13) - DONE on branch `shifan-repo-cleanup`
+
+Executed differently from the table below: all 13 moved with `git mv` into one folder,
+`backend/scripts/migrations/mumbai/` (the scripts import each other in a cycle, so two
+folders would need import rewrites). `ROOT` is now `parents[4]` in the four scripts that
+define it. See that folder's README. The table below is the original plan.
 
 Target: active tools to `backend/scripts/migrations/`, evidence stays in
 `backend/migrations/reviews/`. Move with `git mv` (tracked) or `mv` (untracked), no copies.
