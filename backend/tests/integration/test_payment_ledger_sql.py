@@ -28,6 +28,11 @@ BACKEND = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL")
 D = Decimal
 
+# 0038–0040 are prepared-only Mumbai migrations with production-specific review guards
+# (they verify Supabase-managed privileges that do not exist on a fresh CI postgres).
+# All integration test databases stop at this revision; 0038+ are validated separately.
+_TEST_HEAD = "0037_customer_processing_charge"
+
 
 def _alembic(url: str, *args: str) -> str:
     env = dict(os.environ, DATABASE_URL=url, ENVIRONMENT="local", PYTHONIOENCODING="utf-8")
@@ -40,7 +45,7 @@ def _alembic(url: str, *args: str) -> str:
     return result.stdout
 
 
-async def _build(database: str, *, revision: str = "head") -> None:
+async def _build(database: str, *, revision: str = _TEST_HEAD) -> None:
     admin_url = make_url(TEST_DB)
     assert admin_url.host in {"localhost", "127.0.0.1", "::1"}
     admin = await asyncpg.connect(admin_url.set(drivername="postgresql").render_as_string(hide_password=False))
