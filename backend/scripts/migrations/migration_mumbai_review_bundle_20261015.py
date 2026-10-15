@@ -271,16 +271,20 @@ COMMIT;
                                "source": line.strip(), "note": "Source excerpt; upgrade/downgrade and dynamic SQL context must be read in original file"})
     write("repository-acl-source-ledger.json", json.dumps(ledger, indent=2) + "\n")
     # Exact backup client ACL SQL lines with their observed destination state.
+    # supabase-schema-backup/ is local-only (gitignored after the evidence was sealed);
+    # skip this section in CI where the file is absent rather than failing the build.
     backup_rows = []
-    for number, line in enumerate((ROOT / "supabase-schema-backup/schema.sql").read_text(encoding="utf-8").splitlines(), 1):
-        if not line.startswith("GRANT ") or not any(f'TO "{r}";' in line for r in CLIENTS[1:]):
-            continue
-        match = re.search(r'ON (TABLE|FUNCTION) "public"\."([^"]+)"', line)
-        if match and ((match[1] == "TABLE" and match[2] in {t["name"] for t in tables})
-                      or (match[1] == "FUNCTION" and match[2] in {f["name"] for f in functions})):
-            backup_rows.append({"backup_line": number, "source_grant": line,
-                                "destination": "absent; intentionally not proposed for restoration"})
-    write("backup-client-grant-differences.json", json.dumps(backup_rows, indent=2) + "\n")
+    _backup_schema = ROOT / "supabase-schema-backup/schema.sql"
+    if _backup_schema.exists():
+        for number, line in enumerate(_backup_schema.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.startswith("GRANT ") or not any(f'TO "{r}";' in line for r in CLIENTS[1:]):
+                continue
+            match = re.search(r'ON (TABLE|FUNCTION) "public"\."([^"]+)"', line)
+            if match and ((match[1] == "TABLE" and match[2] in {t["name"] for t in tables})
+                          or (match[1] == "FUNCTION" and match[2] in {f["name"] for f in functions})):
+                backup_rows.append({"backup_line": number, "source_grant": line,
+                                    "destination": "absent; intentionally not proposed for restoration"})
+        write("backup-client-grant-differences.json", json.dumps(backup_rows, indent=2) + "\n")
     print(json.dumps({"files": sorted(p.name for p in OUT.iterdir()), "privilege_rows": len(rows),
                       "backup_client_grants_absent": len(backup_rows)}))
 
