@@ -1,6 +1,7 @@
 """API dependency wiring."""
 
 from collections.abc import AsyncGenerator
+from functools import partial
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -14,9 +15,9 @@ from app.core.config import settings
 from app.core.exceptions import AdminMFARequiredError, ForbiddenError, UnauthorizedError
 from app.core.security import SupabaseJWTVerifier
 from app.domain.entities.profile import Profile, Role
-from app.infrastructure.cache.redis import get_redis_cache
+from app.infrastructure.cache.redis import get_redis_cache, validated_cache_reads
 from app.infrastructure.db.repositories.profile_repository import SQLProfileRepository
-from app.infrastructure.db.session import get_session, set_actor_context
+from app.infrastructure.db.session import get_session, read_cache_snapshot, set_actor_context
 from app.infrastructure.payments.resolver import PaymentGatewayResolver, get_payment_resolver
 from app.infrastructure.r2.storage import R2StorageGateway
 from app.infrastructure.subscriptions.resolver import (
@@ -53,9 +54,12 @@ def get_storage_gateway() -> StorageGateway:
     return R2StorageGateway(settings)
 
 
-def get_cache() -> CacheGateway:
-    """Return the configured cache gateway."""
-    return get_redis_cache()
+async def get_cache(
+    session: AsyncSession = Depends(get_session),
+) -> AsyncGenerator[CacheGateway, None]:
+    """Validate cache hits using the same database session as the route."""
+    with validated_cache_reads(partial(read_cache_snapshot, session)):
+        yield get_redis_cache()
 
 
 def get_payment_gateway_resolver() -> PaymentGatewayResolver:

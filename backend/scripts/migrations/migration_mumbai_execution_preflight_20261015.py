@@ -11,8 +11,13 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
-
-from migration_mumbai_staging_20261015 import CA_URL, HOST, REF, ROOT, config_values
+from backend.scripts.migrations.migration_mumbai_staging_20261015 import (
+    CA_URL,
+    HOST,
+    REF,
+    ROOT,
+    config_values,
+)
 
 PG_DUMP = Path("C:/Program Files/PostgreSQL/18/bin/pg_dump.exe")
 
@@ -142,6 +147,6 @@ async def backup():
 if __name__ == "__main__":
     try:
         asyncio.run(backup())
-    except Exception as exc:  # noqa: BLE001 -- redact connection details and all secrets.
+    except Exception as exc:
         print(json.dumps({"destination": REF, "status": "backup_failed", "error_type": type(exc).__name__}))
         raise SystemExit(1) from None

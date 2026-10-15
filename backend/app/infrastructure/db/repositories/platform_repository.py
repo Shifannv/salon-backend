@@ -1606,10 +1606,14 @@ class PlatformRepository:
             filters.append("b.source = cast(:source as booking_source)")
             params["source"] = source
         if date_from is not None:
-            filters.append("b.start_datetime >= cast(:date_from as date)")
+            filters.append(
+                "b.start_datetime >= (cast(cast(:date_from as date) as timestamp) AT TIME ZONE s.timezone)"
+            )
             params["date_from"] = date_from
         if date_to is not None:
-            filters.append("b.start_datetime < cast(:date_to as date) + interval '1 day'")
+            filters.append(
+                "b.start_datetime < ((cast(:date_to as date) + interval '1 day') AT TIME ZONE s.timezone)"
+            )
             params["date_to"] = date_to
 
         pagination = ""

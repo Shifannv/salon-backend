@@ -78,6 +78,19 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+async def read_cache_snapshot(session: AsyncSession) -> str | None:
+    """Version public reads from the primary without assigning a transaction ID."""
+    row = (await session.execute(text(
+        "SELECT current_database(), pg_current_snapshot()::text, "
+        "pg_current_xact_id_if_assigned() IS NULL, "
+        "current_setting('transaction_isolation'), pg_is_in_recovery()"
+    ))).one()
+    # Own writes and old/replica snapshots cannot validate shared public payloads.
+    if not row[2] or row[3] != "read committed" or row[4]:
+        return None
+    return f"{row[0]}:{row[1]}"
+
+
 async def set_actor_context(session: AsyncSession, actor_id: str) -> None:
     """Set the per-transaction actor consumed by Supabase-style audit triggers.
 

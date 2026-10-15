@@ -11,7 +11,7 @@ salon-backend/
     migrations/         SQL baseline and Alembic revisions
       reviews/          sealed migration review evidence (never edited, not in the image)
     scripts/            deploy and ops scripts
-      migrations/       one-off migration tooling, see scripts/migrations/mumbai/README.md
+      migrations/       one-off migration tooling, see scripts/migrations/README.md
     tests/              automated tests
     docs/               backend technical and operational notes
     Dockerfile

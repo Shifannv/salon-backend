@@ -1,5 +1,7 @@
 # Mumbai refresh designs — preparation only
 
+Later implementation of design 2 is recorded in [Mumbai local refresh results](mumbai-local-refresh-results-2026-10-15.md). This document preserves the design-stage reasoning; migration acceptance remains held under the limits in that report.
+
 No design is implemented. No grants, policies, triggers, publications, frontend environments or migrations are applied. Both designs keep business reads and writes authorized by FastAPI. Supabase Auth SDK use remains; media stays on R2 and Supabase Storage remains unused.
 
 ## Design 1: minimal secure Realtime access with strict RLS

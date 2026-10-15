@@ -106,7 +106,7 @@ async def rollback_checks(api, app, database, headers_by_role, *, completion=Fal
                 assert response.status_code == 200 and any(row["id"] == booking_id for row in response.json())
 
             if completion:
-                from migration_mumbai_completion_business_20261015 import (
+                from backend.scripts.migrations.evidence.migration_mumbai_completion_business_20261015 import (
                     business_checks,
                 )
                 if runtime_probe:

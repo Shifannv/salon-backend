@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[3]
 # Selected final-state requirements for EVERY revision, plus the complete final
 # catalog comparison below. Earlier function/policy definitions may be superseded.
 REQUIREMENTS = {

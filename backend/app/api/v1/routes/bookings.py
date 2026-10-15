@@ -102,8 +102,8 @@ async def list_bookings(
     booking_status: Literal["pending", "confirmed", "checked_in", "no_show", "rejected", "completed", "cancelled"]
     | None = Query(default=None, alias="status"),
     source: Literal["app", "manual_walkin", "qr_walkin"] | None = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
+    date_from: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
+    date_to: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     actor: Profile = Depends(get_current_actor),

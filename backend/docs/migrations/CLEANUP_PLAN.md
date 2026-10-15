@@ -1,7 +1,20 @@
-# Migration cleanup plan (prepared, NOT executed)
+# Migration cleanup plan and execution record
 
-Nothing here has been run. Each section needs explicit approval. No database,
-Supabase, Sydney, GCP, Docker runtime or Cloud Run access is involved.
+The user approved local cleanup on 2026-10-15. All 14 backup files were verified
+outside the checkout at `D:/salon-secure-backups/supabase-schema-2026-10-15`, including
+embedded schema checksums and a restore-to-scratch comparison. The initial copy
+contained only two files; the 12 missing files were copied before untracking.
+`supabase-schema-backup/` is now ignored and its 14 files were removed from the index
+with `git rm --cached`; every local file is preserved. This is a same-drive copy,
+not an off-site backup. Git history is unchanged and no commit was made.
+
+The 13 runners now follow the requested split: seven active/shared modules under
+`backend/scripts/migrations/` and six historical modules under `evidence/`.
+Package imports and ROOT paths were updated. Invoke with `python -m` from the
+repository root; see [tool instructions](../../scripts/migrations/README.md).
+Historical migration evidence is preserved unchanged. The original plan follows.
+Final compile/lint/path/link and exact-image cleanup evidence is recorded in the
+cleanup verification report; no database operation is part of cleanup.
 
 ## 1. `supabase-schema-backup/` in Git
 
@@ -36,12 +49,11 @@ Prepared steps (run only after approval):
    secrets or user data, so history rewriting is not recommended; it would also need a
    force-push to shared branches.
 
-## 2. Root `migration_mumbai_*.py` runners (13) - DONE on branch `shifan-repo-cleanup`
+## 2. Root `migration_mumbai_*.py` runners (13) - current split implemented
 
-Executed differently from the table below: all 13 moved with `git mv` into one folder,
-`backend/scripts/migrations/mumbai/` (the scripts import each other in a cycle, so two
-folders would need import rewrites). `ROOT` is now `parents[4]` in the four scripts that
-define it. See that folder's README. The table below is the original plan.
+The prior cleanup put all 13 modules in `migrations/mumbai/`. The current authorized
+cleanup moved them with `git mv` into the split below and rewrote cross-folder imports.
+The earlier one-folder instruction is superseded; sealed historical paths are retained.
 
 Target: active tools to `backend/scripts/migrations/`, evidence stays in
 `backend/migrations/reviews/`. Move with `git mv` (tracked) or `mv` (untracked), no copies.

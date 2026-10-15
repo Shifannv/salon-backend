@@ -1,7 +1,7 @@
 # Progress: thameem/mumbai-forward-reconciliation
 
 ## Goal
-Verify compatible customer and owner API refresh behavior before any 0040 application. Audit Realtime subscriptions, SELECT/RLS requirements, invalidation hooks and event-failure fallback; prepare minimal secure Realtime and FastAPI refresh designs. Keep migrations held; no commit, application or stamp is authorized.
+Implement and verify Mumbai local FastAPI refresh/invalidation for customer and owner before any 0040 application. Keep 0038–0040 unapplied; no commit, grant, stamp, Sydney, production, Cloud Run or DNS change is authorized. Current evidence: [local refresh results](../../../backend/docs/verification/mumbai-local-refresh-results-2026-10-15.md).
 
 ## Status
 in progress
@@ -13,14 +13,16 @@ in progress
 - 2026-10-15: migrations folder restructured (versions/ .py only, sql/ sidecars, reviews/ evidence); revision IDs, down_revision and heads unchanged (single head 0040). Evidence re-sealed by script; SQL content hashes unchanged. Nothing executed against any database.
 
 ## In progress
-- Everything is uncommitted on this branch (modified docs/tests/repo plus new migrations).
+- Earlier Git-uncommitted entries are historical. The owner updated/committed and cleaned the shared backend checkout during this session; this agent issued no Git write commands. Preserve that history and unrelated edits.
+- Local staging is configured through ignored `.env.mumbai-local`, guarded Mumbai-only launchers and isolated loopback Redis. FastAPI polling/invalidation is implemented in both separate app checkouts; final real-app Playwright run passed all 11 checks, including both availability failure/retry flows; zero Realtime sockets opened. Synthetic business/Auth data and isolated Redis were cleaned, and local API/Expo servers were stopped.
+- Ordinary suites pass: backend 902 passed / 62 skipped; customer 46; owner 26. Independent committed-connection concurrency remains blocked by the rollback fixture and immutable audit cleanup constraints. The acceptance gate remains held.
 
 ## Next steps
-0. Complete the customer/owner staging refresh gate in [the designs](../../../backend/docs/verification/mumbai-refresh-designs-2026-10-15.md) before proposing migration execution. Existing mocked tests do not pass this gate.
-1. Run lint and tests from backend/ (`/check`) on the uncommitted work and record results.
+0. Keep migration execution held. Real Mumbai/API/Redis and 11 browser checks now pass, but independent-connection concurrency and remaining lifecycle/outage coverage are not established; see [results](../../../backend/docs/verification/mumbai-local-refresh-results-2026-10-15.md). Do not count blocked checks as acceptance.
+1. Backend tests/lint and selected customer/owner suites are recorded in the local results report. Retain the stated owner TypeScript and pre-existing customer lint failures.
 2. Run migration-reviewer on 0038-0040.
-3. Decide what to do with root-level migration-mumbai-* scratch files and migration_mumbai_*.py (commit, move under docs, or leave untracked).
-4. Keep changes uncommitted under the current instruction. Do not apply 0040 before both apps pass staging refresh. Nothing may be executed against Mumbai without explicit authorization.
+3. Historical investigation tools now live together in `backend/scripts/migrations/mumbai/`; ROOT/sibling imports and all six migration source hashes were checked. Do not replay those historical runners for new staging setup: they read normal `.env`.
+4. Keep changes uncommitted under the current instruction. Do not apply 0040 before both apps pass staging refresh. The current user instruction authorizes only isolated synthetic Mumbai staging setup/tests and cleanup; it does not authorize migration execution.
 
 ## Decisions
 - 2026-10-15 revalidation: compatible API refresh verification takes priority. Recommend FastAPI polling/invalidation; private Broadcast with strict per-user authorization is the secure Realtime alternative. Raw business-row grants conflict with unchanged 0040 and do not fix customer availability safely.
@@ -39,9 +41,12 @@ in progress
 - Wider erasure classification guard misses newer tables (separate release risk).
 
 ## Review findings
-- none yet
+- Real Mumbai midnight booking exposed UTC/session-date filtering in booking lists; fixed bounds to each salon's timezone and verified both inclusion on the local day and exclusion on the previous day.
+- The first customer status-polling change created a detail refresh loop; successful detail now stays stable during background refresh, with error/visibility guards retained and a regression test added.
+- Existing owner TypeScript failures (16 schema-test diagnostics) and customer date/time screen lint (same 16 errors / 4 warnings as HEAD) remain separate from passing targeted checks.
 
 ## Session log
+- 2026-10-15: implemented API polling, mutation/cross-cache invalidation and slot failure recovery; verified real Mumbai JWT/API/Redis plus local browser flows with rollback-only business fixtures and verified synthetic Auth cleanup. Final expanded UI/cleanup results are recorded in the linked results report; no migration/grant/stamp executed.
 - 2026-10-15: revalidated all 16 customer/owner inventory hashes and reread subscription/polling/lifecycle hooks. Updated audit, both safe designs and explicit pending staging gate. No frontend/database/migration changes; staging results remain pending.
 - 2026-10-15: session started
 - 2026-10-15: migration folder cleanup, evidence re-seal and test baseline comparison; root runners and tracked supabase-schema-backup/ await approval (plans only)

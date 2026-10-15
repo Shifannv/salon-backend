@@ -5,8 +5,8 @@ import contextlib
 import io
 import json
 
-import migration_mumbai_booking_20261015 as booking
-import migration_mumbai_staging_20261015 as staging
+from backend.scripts.migrations import migration_mumbai_staging_20261015 as staging
+from backend.scripts.migrations.evidence import migration_mumbai_booking_20261015 as booking
 
 original = booking.rollback_checks
 
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     with contextlib.redirect_stdout(captured):
         try:
             asyncio.run(staging.run(api_benchmarks=True))
-        except Exception as exc:  # noqa: BLE001 -- only sanitized exception type is persisted.
+        except Exception as exc:
             error = type(exc).__name__
     result = {"destination": staging.REF, "api_base_url": "http://mumbai-local-test",
               "transport": "in-process ASGI, real Mumbai Auth/Postgres",

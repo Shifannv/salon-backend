@@ -4,9 +4,10 @@ Historical tooling from the 2026-10-15 Mumbai schema reconciliation (revisions 0
 They are **not application code**, are excluded from the Docker image (`scripts/` is in
 `.dockerignore`), and nothing in `app/`, `tests/` or CI imports them.
 
-Run from the repo root, e.g. `backend/.venv/Scripts/python.exe backend/scripts/migrations/mumbai/<script>`.
-All scripts keep flat sibling imports, so they must stay together in this folder.
-`ROOT` is the repo root (`parents[4]`).
+Run from the repo root, e.g. `backend/.venv/Scripts/python.exe -m backend.scripts.migrations.<module>`.
+Run tools as modules from the repository root. Package imports connect active tools
+to the historical `evidence/` package without changing `sys.path`. Active tools use
+`parents[3]` for the repository root; evidence tools import that shared ROOT.
 
 | Script (`migration_mumbai_*_20261015.py`) | Role | Touches DB or network |
 | --- | --- | --- |
@@ -23,3 +24,9 @@ Rules:
 - Evidence under `backend/migrations/reviews/` is sealed by SHA-256. Do not edit it; it records the old repo-root script paths on purpose.
 - `supabase-schema-backup/` at the repo root is local-only (git-ignored). Restore it from the external copy if missing; `sql_preflight` and `execution_preflight` read and write it.
 - Hardcoded `C:/Program Files/PostgreSQL/18/bin` is a Windows dev-machine assumption.
+
+The six historical evidence runners use `-m backend.scripts.migrations.evidence.<module>`.
+Do not execute generators against sealed reviews during a path check. Tests redirect
+generated output to scratch storage and compare it with the sealed source. The live
+local acceptance runner is separate: `backend/scripts/mumbai_refresh_checks.py`; it
+uses the isolated staging file and never invokes migration runners.

@@ -20,9 +20,7 @@ from urllib.parse import unquote
 from uuid import uuid4
 
 import httpx
-from sqlalchemy import URL, event, text
-
-from migration_mumbai_staging_20261015 import (
+from backend.scripts.migrations.migration_mumbai_staging_20261015 import (
     BASE,
     CA_URL,
     HOST,
@@ -30,6 +28,7 @@ from migration_mumbai_staging_20261015 import (
     ROOT,
     config_values,
 )
+from sqlalchemy import URL, event, text
 
 ACTORS = {role: str(uuid4()) for role in ("customer", "owner", "outsider")}
 RESULTS = []
@@ -42,7 +41,7 @@ def record(check, status="passed", **facts):
 
 
 async def metadata(connection):
-    from migration_mumbai_reference_20261015 import CATALOG
+    from backend.scripts.migrations.migration_mumbai_reference_20261015 import CATALOG
 
     catalog = (await connection.execute(text(CATALOG))).scalar_one()
     if isinstance(catalog, str):
@@ -164,14 +163,16 @@ async def main(*, probe_hook=None, fastapi_only=False):
         if re.match(r"\s*(?:CREATE|ALTER|DROP|GRANT|REVOKE|TRUNCATE|COMMENT)\b", statement, re.IGNORECASE):
             raise RuntimeError("Forbidden schema/privilege SQL blocked before execution")
 
+    from backend.scripts.migrations.evidence.migration_mumbai_booking_20261015 import (
+        rollback_checks,
+    )
+    from fastapi import Depends, Request
+
     from app.api.deps import get_current_actor
     from app.infrastructure.db.repositories.profile_repository import (
         SQLProfileRepository,
     )
     from app.main import app
-    from fastapi import Depends, Request
-
-    from migration_mumbai_booking_20261015 import rollback_checks
 
     actor_session_dependency = Depends(db.get_session)
 
@@ -266,7 +267,7 @@ if __name__ == "__main__":
     with contextlib.redirect_stdout(captured):
         try:
             asyncio.run(main())
-        except Exception as exc:  # noqa: BLE001 -- never print SQL/parameters/credentials.
+        except Exception as exc:
             failure = type(exc).__name__
             state = getattr(getattr(exc, "orig", exc), "sqlstate", None)
             ERRORS.append({"test": "runtime_runner", "type": failure, "sqlstate": state,
