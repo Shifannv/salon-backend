@@ -23,7 +23,7 @@ from support_subscription import (
     sub_settings,
     webhook,
 )
-from test_payment_ledger_sql import BACKEND, TEST_DB, _alembic, _build, _drop
+from test_payment_ledger_sql import _TEST_HEAD, BACKEND, TEST_DB, _alembic, _build, _drop
 
 from app.application.use_cases.subscription_billing import (
     SubscriptionBillingUseCases,
@@ -693,8 +693,8 @@ async def test_0030_downgrades_and_upgrades_again_on_a_scratch_database():
             fn = await conn.scalar(text("select to_regprocedure('public.apply_subscription_billing_record(uuid,integer)')"))
             assert fn is None
         await engine.dispose()
-        await asyncio.to_thread(_alembic, url, "upgrade", "head")
-        await asyncio.to_thread(_alembic, url, "upgrade", "head")  # no-op twice
+        await asyncio.to_thread(_alembic, url, "upgrade", _TEST_HEAD)
+        await asyncio.to_thread(_alembic, url, "upgrade", _TEST_HEAD)  # no-op twice
         engine = create_async_engine(url, connect_args={"statement_cache_size": 0})
         async with engine.connect() as conn:
             assert await conn.scalar(text("select count(*) from subscription_plans where code like 'premium\\_%'")) == 3
