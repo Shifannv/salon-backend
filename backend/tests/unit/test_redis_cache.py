@@ -45,8 +45,9 @@ async def test_redis_cache_create_returns_noop_on_none_or_empty_url() -> None:
 async def test_redis_cache_create_handles_connection_failure() -> None:
     # Pointing to an invalid unreachable port
     cache = await RedisCache.create("redis://127.0.0.1:1/0")
-    assert cache.available is False
+    assert cache.available is True  # Configured client is retained for reconnect.
     assert await cache.ping() is False
+    await cache.close()
 
 
 @pytest.mark.asyncio

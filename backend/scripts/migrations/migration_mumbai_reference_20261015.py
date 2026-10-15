@@ -14,8 +14,13 @@ from urllib.parse import unquote
 
 import asyncpg
 import httpx
-
-from migration_mumbai_staging_20261015 import CA_URL, HOST, REF, ROOT, config_values
+from backend.scripts.migrations.migration_mumbai_staging_20261015 import (
+    CA_URL,
+    HOST,
+    REF,
+    ROOT,
+    config_values,
+)
 
 BIN = Path("C:/Program Files/PostgreSQL/18/bin")
 CATALOG = """
@@ -143,7 +148,7 @@ if __name__ == "__main__":
                  "-l", str(directory / "postgres.log"), "-o", f"-h 127.0.0.1 -p {port} -c wal_level=logical", "-w", "start"])
         started = True
         asyncio.run(compare(port))
-    except Exception as exc:  # noqa: BLE001 -- CLI boundary must redact remote credentials.
+    except Exception as exc:
         print(json.dumps({"status": "failed", "error_type": type(exc).__name__,
                           "local_diagnostic": str(exc) if isinstance(exc, (RuntimeError, asyncpg.PostgresError)) else None}))
         raise SystemExit(1) from None

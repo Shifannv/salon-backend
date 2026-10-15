@@ -4,9 +4,11 @@
 Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory system. This session also did the migration-folder restructure (see Done); the Mumbai reconciliation itself is tracked in progress/mumbai-forward-reconciliation.md.
 
 ## Status
-in progress
+blocked
 
 ## Done
+- 2026-10-15: authorized local cleanup verified; 14 backups preserved/untracked, 13 runners relocated, exact test image removed; compile/Ruff/path/link checks pass.
+- 2026-10-15: final synthetic Mumbai lifecycle, cancellation, no-show, Redis-off idempotency and 11 browser checks pass; cleanup verified. Multi-process cache coherence fails; migration readiness remains held.
 - Created CLAUDE.md, .claude/settings.json, skills, commands, agents, docs/agent-memory.
 - Moved the karpathy-guidelines skill to its loadable path (it was nested one level too deep).
 - Kept the existing code-refactorer agent unchanged.
@@ -15,14 +17,16 @@ in progress
 - Test comparison HEAD vs changed tree: 862 vs 871 passed, same 16 setup errors (test_docker_image_ids, test_vm_release). No new failures. Ruff clean. Docker image build, alembic heads/history inside it match local.
 
 ## In progress
+- Authorized cleanup is complete and uncommitted: 14 verified external/local backups untracked with local files preserved; 13 runners split 7 active / 6 evidence; exact migration-layout-check image removed. See [cleanup results](../../../backend/docs/verification/mumbai-cleanup-results-2026-10-15.md).
+- Final Mumbai acceptance: 18 passed, one failed, two blocked; 11 browser checks passed. Cross-process lost Redis invalidation can return an old payload after reconnect. See [final acceptance](../../../backend/docs/verification/mumbai-final-acceptance-2026-10-15.md). Migrations/stamp remain held.
+- Backend 922 passed / 62 skipped; 17 offline migration path tests, compile, Ruff and changed-doc links pass. Concurrent user settings-validator work is preserved.
 - Uncommitted: backend/docs/migrations/CLEANUP_PLAN.md (plan only), Realtime/refresh design edits and backend/app/{core/config.py,infrastructure/cache/redis.py,infrastructure/db/session.py} (from another session, not reviewed here).
 
 ## Next steps
-1. Approve or reject backend/docs/migrations/CLEANUP_PLAN.md section 1: back up supabase-schema-backup/ externally, add the .gitignore rule, then `git rm -r --cached supabase-schema-backup/` (local files stay).
-2. Approve or reject section 2: move the 13 root migration_mumbai_*.py runners to backend/scripts/migrations/ (evidence ones to .../evidence/), fixing ROOT and sibling imports.
-3. Diagnose the 16 setup errors in backend/tests/unit/test_docker_image_ids.py and test_vm_release.py (same on HEAD, likely Windows tmp_path permissions).
-4. Run migration-reviewer on 0038-0040 before any Mumbai execution; nothing may run against Mumbai without explicit authorization.
-5. Remove the local image `salon-api:migration-layout-check` once approved.
+1. Resolve the reproduced cache-coherence failure in `backend/app/infrastructure/cache/redis.py` with durable/shared invalidation recovery, then rerun `backend/scripts/mumbai_redis_outage_checks.py` under a separately scoped fix.
+2. Provide cleanup-safe isolated data for independent-connection booking concurrency; the current overlapping HTTP requests yield 201/409 and one row but serialize DB sessions.
+3. Configure synthetic provider sandbox resources for actual payment failure/refund settlement. Native flow needs a real attached device/emulator.
+4. Keep migrations 0038-0040 and stamp unapplied until every required gate passes; review the uncommitted cleanup separately. Do not rewrite Git history.
 
 ## Decisions
 - 2026-10-15: per-branch progress files, because they mirror one-branch-one-PR and avoid teammate merge conflicts.
@@ -34,9 +38,9 @@ in progress
 - backend/migrations/{sql,reviews,versions}/**, backend/docs/migrations/**, backend/scripts/migrations/reseal_layout_evidence.py, backend/.dockerignore, backend/scripts/check-container.sh, affected tests and docs links
 
 ## Blockers and open questions
-- 16 test setup errors (pre-existing, same on HEAD). Full tests need ENVIRONMENT=local plus an asyncpg DATABASE_URL in process env; see gotchas.md.
-- supabase-schema-backup/ is tracked and already on origin/main (schema only, no secrets found).
-- Mumbai: head reconciliation, Auth delivery, TLS and deployed verification still open (see the other progress file).
+- Final ordinary suite passes: 922 tests, 62 skips. Earlier setup-error entries are historical; use explicit test configuration rather than normal environment files.
+- Backups are now untracked/ignored locally but remain in existing shared Git history; no history rewrite was authorized.
+- Mumbai release gate: reproduced cross-process cache-coherence failure, independent-connection concurrency unproven, and provider settlement sandbox unavailable. Native has no attached device/emulator.
 
 ## Review findings
 - [open] low, backend/migrations/reviews/migration-inspection-2026-10-15.md:363, historical report still names backend/migrations/README.md; left as written.
@@ -44,3 +48,6 @@ in progress
 ## Session log
 - 2026-10-15: workspace and memory setup
 - 2026-10-15: migration folder cleanup, evidence re-seal, HEAD vs changed test comparison, backup and runner plans (not executed)
+- 2026-10-15: session started
+
+- 2026-10-15: executed authorized backup/index/runner/image cleanup; verified final Mumbai lifecycle, Redis-off replay and 11 browser checks; reproduced cross-process cache failure, cleaned synthetic records and held migration readiness.

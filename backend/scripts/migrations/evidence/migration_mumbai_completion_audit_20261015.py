@@ -10,9 +10,14 @@ from urllib.parse import unquote
 
 import asyncpg
 import httpx
-
-from migration_mumbai_reference_20261015 import CATALOG
-from migration_mumbai_staging_20261015 import CA_URL, HOST, REF, ROOT, config_values
+from backend.scripts.migrations.migration_mumbai_reference_20261015 import CATALOG
+from backend.scripts.migrations.migration_mumbai_staging_20261015 import (
+    CA_URL,
+    HOST,
+    REF,
+    ROOT,
+    config_values,
+)
 
 
 def distribution(values):
@@ -104,6 +109,6 @@ async def audit():
 if __name__ == '__main__':
     try:
         asyncio.run(audit())
-    except Exception as exc:  # noqa: BLE001 -- sanitized CLI boundary.
+    except Exception as exc:
         print(json.dumps({"status": "failed", "error_type": type(exc).__name__}))
         raise SystemExit(1) from None

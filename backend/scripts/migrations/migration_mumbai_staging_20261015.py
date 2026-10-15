@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 import httpx
 from sqlalchemy import URL, event
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[3]
 REF = "wqjlgpnbiapcrlkxumcp"
 BASE = f"https://{REF}.supabase.co"
 HOST = "aws-0-ap-south-1.pooler.supabase.com"
@@ -121,7 +121,9 @@ async def run(*, api_benchmarks=False):
                         break
             try:
                 if len(headers_by_role) == 2:
-                    from migration_mumbai_booking_20261015 import rollback_checks
+                    from backend.scripts.migrations.evidence.migration_mumbai_booking_20261015 import (
+                        rollback_checks,
+                    )
                     results.extend(await rollback_checks(api, app, session, headers_by_role))
             finally:
                 for headers in headers_by_role.values():
@@ -149,6 +151,6 @@ async def run(*, api_benchmarks=False):
 if __name__ == "__main__":
     try:
         asyncio.run(run())
-    except Exception as exc:  # noqa: BLE001 -- CLI boundary must redact remote credentials.
+    except Exception as exc:
         print(json.dumps({"status": "failed", "error_type": type(exc).__name__}))
         raise SystemExit(1) from None

@@ -7,10 +7,9 @@ import json
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from backend.scripts.migrations.evidence import migration_mumbai_runtime_20261015 as runtime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-import migration_mumbai_runtime_20261015 as runtime
 
 
 async def erasure_probe(api, connection, ids, payload, first_booking, actors):
@@ -104,7 +103,7 @@ if __name__ == "__main__":
     with contextlib.redirect_stdout(captured):
         try:
             asyncio.run(runtime.main(probe_hook=erasure_probe, fastapi_only=True))
-        except Exception as exc:  # noqa: BLE001 -- redact all SQL/parameters/credentials.
+        except Exception as exc:
             failure = {"type": type(exc).__name__,
                        "sqlstate": getattr(getattr(exc, "orig", exc), "sqlstate", None)}
     if failure:

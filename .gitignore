@@ -54,6 +54,7 @@ logs/
 # Repository boundaries
 frontend/
 changes-log.txt
+supabase-schema-backup/
 
 # Local test manifests, reports and UI artifacts
 backend/.artifacts/

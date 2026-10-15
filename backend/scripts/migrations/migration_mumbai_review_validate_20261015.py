@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[3]
 BUNDLE = ROOT / "backend/migrations/reviews/migration-mumbai-review-2026-10-15"
 
 

@@ -11,9 +11,12 @@ Used for:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 from urllib.parse import urlsplit
@@ -29,7 +32,21 @@ _IDEMPOTENCY_TTL_SECONDS = 60   # 1 minute
 _READ_EPOCH = "read-model:epoch:v1"
 _READ_PREFIXES = ("salon:", "catalog:", "walkin:qr:")
 _LIVE_PREFIXES = ("availability:", "slot:", "slots:", "booking:", "bookings:")
-_read_versions: ContextVar[dict[str, str] | None] = ContextVar("cache_read_versions", default=None)
+_read_versions: ContextVar[dict[str, tuple[str, str]] | None] = ContextVar("cache_read_versions", default=None)
+SnapshotReader = Callable[[], Awaitable[str | None]]
+_snapshot_reader: ContextVar[SnapshotReader | None] = ContextVar("cache_snapshot_reader", default=None)
+
+
+@contextmanager
+def validated_cache_reads(reader: SnapshotReader) -> Iterator[None]:
+    """Bind validation to the request's existing READ COMMITTED database session."""
+    reader_token = _snapshot_reader.set(reader)
+    versions_token = _read_versions.set(None)
+    try:
+        yield
+    finally:
+        _read_versions.reset(versions_token)
+        _snapshot_reader.reset(reader_token)
 
 
 def _redacted_target(redis_url: str) -> str:
@@ -47,7 +64,7 @@ class RedisCache(CacheGateway):
         self._client = client
         self._read_cache_safe = True
 
-    async def invalidate_read_models(self) -> None:
+    async def invalidate_read_models(self) -> bool:
         """After DB commit, retire every public read snapshot without deleting replay keys.
 
         Broad invalidation also covers worker/admin/closure mutations. Versioned
@@ -55,20 +72,29 @@ class RedisCache(CacheGateway):
         Old generations expire with their existing bounded TTL.
         """
         if self._client is None:
-            return
+            return True
         try:
             await self._client.set(_READ_EPOCH, uuid4().hex)
             self._read_cache_safe = True
             # One atomic namespace change invalidates logical read keys. Do not
             # SCAN the keyspace on every commit. Explicit erasure delete_prefix
             # still removes payloads from every generation, not just the pointer.
+            return True
         except Exception:
             self._read_cache_safe = False
-            logger.warning("Read cache invalidation failed; this process will bypass payload caching")
+            logger.warning("Read cache invalidation failed; retry pending, payload cache unsafe")
+            return False
+
+    def _mark_unsafe(self) -> None:
+        self._read_cache_safe = False
+
+    async def _recover(self) -> bool:
+        """Retry a failed epoch change before trusting a reconnected Redis client."""
+        return self._read_cache_safe or await self.invalidate_read_models()
 
     @classmethod
     async def create(cls, redis_url: str | None) -> RedisCache:
-        """Attempt to connect to Redis; return a no-op instance on failure."""
+        """Retain configured clients across outages so recovery can be retried."""
         if not redis_url:
             logger.info("REDIS_URL not set — cache disabled")
             return cls(None)
@@ -81,7 +107,11 @@ class RedisCache(CacheGateway):
                 socket_connect_timeout=2.0,
                 socket_timeout=2.0,
             )
-            await client.ping()
+            # Keep the client on startup failure so later requests can reconnect.
+            cache = cls(client)
+            if not await cache.ping():
+                logger.warning("Redis unavailable at %s; reconnect pending", _redacted_target(redis_url))
+                return cache
             logger.info("Redis cache connected at %s", _redacted_target(redis_url))
             return cls(client)
         except Exception as exc:
@@ -90,7 +120,7 @@ class RedisCache(CacheGateway):
 
     @property
     def available(self) -> bool:
-        """True when a live Redis connection exists."""
+        """True when configured; ping checks reachability and retries recovery."""
         return self._client is not None
 
     async def ping(self) -> bool:
@@ -98,8 +128,9 @@ class RedisCache(CacheGateway):
         if self._client is None:
             return False
         try:
-            return bool(await self._client.ping())
+            return bool(await self._client.ping()) and await self._recover()
         except Exception:
+            self._mark_unsafe()
             return False
 
     async def get(self, key: str) -> Any | None:
@@ -108,24 +139,46 @@ class RedisCache(CacheGateway):
             return None
         if key.startswith(_LIVE_PREFIXES):
             return None
+        snapshot = None
+        if key.startswith(_READ_PREFIXES):
+            # Never use a Redis-only epoch: a partitioned writer cannot update it.
+            versions = dict(_read_versions.get() or {})
+            versions.pop(key, None)
+            _read_versions.set(versions)
+            reader = _snapshot_reader.get()
+            if reader is None:
+                return None
+            try:
+                snapshot = await reader()
+            except Exception:
+                logger.warning("Read cache database validation failed; bypassing payload")
+                return None
+            if snapshot is None:
+                return None
+            snapshot = hashlib.sha256(snapshot.encode()).hexdigest()
         started = time.perf_counter()
         current = metrics.get()
         if current is not None:
             current.cache_reads += 1
         try:
             if key.startswith(_READ_PREFIXES):
-                if not self._read_cache_safe:
+                if not await self._recover():
                     return None
-                version = await self._client.get(_READ_EPOCH) or "initial"
+                epoch = await self._client.get(_READ_EPOCH) or "initial"
+                version = f"{snapshot}:{epoch}"
                 versions = dict(_read_versions.get() or {})
-                versions[key] = version
+                versions[key] = (version, epoch)
                 _read_versions.set(versions)
-                key = f"read-model:v1:{version}:{key}"
+                key = f"read-model:v2:{version}:{key}"
             raw = await self._client.get(key)
             if raw and current is not None:
                 current.cache_hits += 1
             return json.loads(raw) if raw else None
         except Exception as exc:
+            self._mark_unsafe()
+            versions = dict(_read_versions.get() or {})
+            versions.pop(key, None)
+            _read_versions.set(versions)
             logger.debug("Redis GET error for key %s: %s", key, exc)
             return None
         finally:
@@ -140,18 +193,20 @@ class RedisCache(CacheGateway):
             return
         try:
             if key.startswith(_READ_PREFIXES):
-                version = (_read_versions.get() or {}).get(key)
-                if not self._read_cache_safe or version is None:
+                captured = (_read_versions.get() or {}).get(key)
+                if not self._read_cache_safe or captured is None:
                     return
-                key = f"read-model:v1:{version}:{key}"
+                version, epoch = captured
+                key = f"read-model:v2:{version}:{key}"
                 await self._client.eval(
                     "if (redis.call('GET', KEYS[1]) or 'initial') == ARGV[1] then "
                     "return redis.call('SETEX', KEYS[2], ARGV[2], ARGV[3]) end return nil",
-                    2, _READ_EPOCH, key, version, ttl, json.dumps(value, default=str),
+                    2, _READ_EPOCH, key, epoch, ttl, json.dumps(value, default=str),
                 )
                 return
             await self._client.setex(key, ttl, json.dumps(value, default=str))
         except Exception as exc:
+            self._mark_unsafe()
             logger.debug("Redis SET error for key %s: %s", key, exc)
 
     async def delete(self, key: str) -> None:
@@ -163,8 +218,9 @@ class RedisCache(CacheGateway):
             if key.startswith(_READ_PREFIXES):
                 # Existing explicit invalidations remain useful during a rolling upgrade.
                 await self._client.set(_READ_EPOCH, uuid4().hex)
-        except Exception as exc:
-            logger.debug("Redis DEL error for key %s: %s", key, exc)
+        except Exception:
+            self._mark_unsafe()
+            logger.warning("Redis DEL failed for %s; invalidation retry pending", key)
 
     async def delete_prefix(self, prefix: str, *, strict: bool = False) -> None:
         """Remove all keys matching a prefix (e.g. invalidating a catalog subset).
@@ -180,14 +236,16 @@ class RedisCache(CacheGateway):
             async for matched_key in self._client.scan_iter(match=f"{prefix}*"):
                 keys.append(matched_key)
             if any(prefix.startswith(root) or root.startswith(prefix) for root in _READ_PREFIXES):
-                async for matched_key in self._client.scan_iter(match=f"read-model:v1:*:{prefix}*"):
-                    keys.append(matched_key)
+                for generation in ("v1", "v2"):
+                    async for matched_key in self._client.scan_iter(match=f"read-model:{generation}:*:{prefix}*"):
+                        keys.append(matched_key)
             if keys:
                 await self._client.delete(*keys)
-        except Exception as exc:
+        except Exception:
+            self._mark_unsafe()
             if strict:
                 raise
-            logger.debug("Redis DEL prefix error for %s: %s", prefix, exc)
+            logger.warning("Redis DEL prefix failed for %s; invalidation retry pending", prefix)
 
     async def set_idempotency(self, key: str, value: Any) -> None:
         """Store an idempotency response with the booking-creation TTL."""
@@ -213,6 +271,7 @@ class RedisCache(CacheGateway):
                 return False, 0
             return True, max(0, limit - current)
         except Exception as exc:
+            self._mark_unsafe()
             logger.debug("Redis rate limit error for %s: %s", key, exc)
             return True, limit
 

@@ -29,26 +29,31 @@ REDIS = "redis://127.0.0.1:16391/0"
 CA_URL = "https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt"
 
 
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
 def validate(values):
-    assert values.get("SUPABASE_URL", "").rstrip("/") == BASE, "Auth target mismatch"
-    assert values.get("SUPABASE_JWKS_URL", "").rstrip("/") == BASE + "/auth/v1/.well-known/jwks.json", "JWKS target mismatch"
+    require(values.get("SUPABASE_URL", "").rstrip("/") == BASE, "Auth target mismatch")
+    require(values.get("SUPABASE_JWKS_URL", "").rstrip("/") == BASE + "/auth/v1/.well-known/jwks.json", "JWKS target mismatch")
     db = urlsplit(values.get("DATABASE_URL", ""))
     direct = db.hostname == f"db.{REF}.supabase.co" and db.username == "postgres"
     pooled = db.hostname in {"aws-0-ap-south-1.pooler.supabase.com", "aws-1-ap-south-1.pooler.supabase.com"} and unquote(db.username or "") == f"postgres.{REF}"
-    assert direct or pooled, "Database target mismatch"
+    require(direct or pooled, "Database target mismatch")
     key = values.get("SUPABASE_SERVICE_ROLE_KEY", "")
     payload = key.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    assert claims.get("ref") == REF and claims.get("role") == "service_role", "Service key claims mismatch"
+    require(claims.get("ref") == REF and claims.get("role") == "service_role", "Service key claims mismatch")
     return db
 
 
 def prepare(source):
     source = Path(source).resolve()
-    assert source != STAGE, "Source must differ from staging output"
+    require(source != STAGE, "Source must differ from staging output")
     values = dotenv_values(source, interpolate=False)
     validate(values)
-    assert not STAGE.exists(), "Staging file exists; inspect it instead of overwriting"
+    require(not STAGE.exists(), "Staging file exists; inspect it instead of overwriting")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     ca = httpx.get(CA_URL, timeout=20)
     ca.raise_for_status()
@@ -76,18 +81,21 @@ def prepare(source):
 
 
 def bind():
-    assert STAGE.is_file(), "Prepare explicit staging configuration first"
+    require(STAGE.is_file(), "Prepare explicit staging configuration first")
+    require(STAGE.resolve() != (BACKEND / ".env").resolve(), "Normal .env cannot be the staging file")
     values = dotenv_values(STAGE, interpolate=False)
     db = validate(values)
     from sqlalchemy.engine import make_url
     values["DATABASE_URL"] = make_url(values["DATABASE_URL"]).set(drivername="postgresql+asyncpg").render_as_string(hide_password=False)
-    assert values.get("REDIS_URL") == REDIS, "Redis must be the isolated loopback instance"
-    assert values.get("ENVIRONMENT") == "staging", "Environment mismatch"
-    assert values.get("PAYMENT_PROVIDER") == values.get("SUBSCRIPTION_PROVIDER") == "none", "Providers must be disabled"
+    require(values.get("REDIS_URL") == REDIS, "Redis must be the isolated loopback instance")
+    require(values.get("ENVIRONMENT") == "staging", "Environment mismatch")
+    require(values.get("PAYMENT_PROVIDER") == values.get("SUBSCRIPTION_PROVIDER") == "none", "Providers must be disabled")
     # Explicit file values win over inherited process configuration.
     os.environ.update({key: value for key, value in values.items() if value is not None})
     os.environ["SALON_ENV_FILE"] = str(STAGE)
     os.environ["DB_SSL_STRICT"] = "false"
+    os.environ["PUBLIC_API_BASE_URL"] = "http://127.0.0.1:8056"
+    os.environ["WALKIN_BASE_URL"] = "http://localhost:8081"
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
     return {"project": REF, "database_host": db.hostname,

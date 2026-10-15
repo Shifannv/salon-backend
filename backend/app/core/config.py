@@ -197,6 +197,17 @@ class Settings(BaseSettings):
     db_pool_recycle_seconds: int = Field(default=1800, ge=60, le=86400)
     db_connect_timeout_seconds: float = Field(default=10, gt=0, le=120)
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def database_url_uses_asyncpg(cls, value: object) -> object:
+        """Supabase hands out ``postgresql://``; this app only ships the asyncpg driver."""
+
+        if isinstance(value, str):
+            for plain in ("postgresql://", "postgres://"):
+                if value.startswith(plain):
+                    return "postgresql+asyncpg://" + value[len(plain):]
+        return value
+
     @field_validator("account_deletion_secret", mode="before")
     @classmethod
     def blank_account_deletion_secret_is_unset(cls, value: object) -> object:

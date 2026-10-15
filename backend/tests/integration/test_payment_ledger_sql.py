@@ -40,7 +40,7 @@ def _alembic(url: str, *args: str) -> str:
     return result.stdout
 
 
-async def _build(database: str) -> None:
+async def _build(database: str, *, revision: str = "head") -> None:
     admin_url = make_url(TEST_DB)
     assert admin_url.host in {"localhost", "127.0.0.1", "::1"}
     admin = await asyncpg.connect(admin_url.set(drivername="postgresql").render_as_string(hide_password=False))
@@ -68,7 +68,7 @@ async def _build(database: str) -> None:
         await conn.execute("alter table staff drop column experience")
         await conn.execute(await asyncio.to_thread(
             _alembic, url, "upgrade", "0004_service_duration_slot_steps:0014_repair_cancel_reason", "--sql"))
-        await asyncio.to_thread(_alembic, url, "upgrade", "head")
+        await asyncio.to_thread(_alembic, url, "upgrade", revision)
     finally:
         await conn.close()
 

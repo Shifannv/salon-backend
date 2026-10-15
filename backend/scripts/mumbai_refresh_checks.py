@@ -21,7 +21,7 @@ import httpx
 from mumbai_local import ARTIFACTS, BASE, REF, bind, percentiles
 
 
-async def main(browser=False):
+async def main(browser=False, acceptance=False):
     targets = bind()
     from sqlalchemy import event, text
     from sqlalchemy.engine import make_url
@@ -76,6 +76,14 @@ async def main(browser=False):
                     raise RuntimeError("Synthetic Auth login failed")
                 sessions[role] = login.json()
             passed("real_supabase_synthetic_auth", count=3)
+            phase = "direct_client_table_denial"
+            for role in ("owner", "customer"):
+                denied = await auth.get("/rest/v1/bookings?select=id&limit=1", headers={
+                    "apikey": os.environ["SUPABASE_ANON_KEY"],
+                    "Authorization": "Bearer " + sessions[role]["access_token"],
+                })
+                assert denied.status_code in {401, 403} and denied.json().get("code") == "42501"
+            passed("customer_owner_direct_application_table_reads_denied")
             phase = "rollback_business_fixtures"
             connection = await engine.connect()
             outer = await connection.begin()
@@ -92,7 +100,7 @@ async def main(browser=False):
                 await connection.execute(text("update public.profiles set role=cast(:role as user_role),full_name=:name,phone=:phone,phone_verified=true where id=:id"),
                     {"role": "owner" if role == "owner" else "customer", "name": f"Synthetic {role}",
                      "phone": f"+1555555010{list(users).index(role)}", "id": user})
-            hours = {day: {"open": "09:00", "close": "18:00"} for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")}
+            hours = {day: {"open": "00:00", "close": "23:59"} for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")}
             await connection.execute(text("""insert into public.salons
                 (id,owner_id,name,profile_completed,approval_status,approval_mode,timezone,working_hours)
                 values(:salon,:owner,'Mumbai synthetic refresh salon',true,'approved','auto','Asia/Kolkata',cast(:hours as jsonb))"""),
@@ -157,6 +165,19 @@ async def main(browser=False):
                 hidden = await request("GET", f"/v1/bookings/{booking}", "outsider")
                 assert hidden.status_code in {403, 404}
                 passed("cross_customer_booking_isolation")
+                phase = "salon_local_booking_day_boundary"
+                midnight = await api.post("/v1/bookings", json={
+                    **payload, "start_datetime": start.replace(hour=0).isoformat(),
+                    "customer_name": "Synthetic midnight customer",
+                }, headers={**headers["owner"], "Idempotency-Key": str(uuid4())})
+                assert midnight.status_code == 201
+                date_filter = {"date_from": start.date().isoformat(), "date_to": start.date().isoformat()}
+                owner_day = await request("GET", "/v1/bookings", "owner", params=date_filter)
+                assert owner_day.status_code == 200 and any(row["id"] == midnight.json()["id"] for row in owner_day.json())
+                previous = (start.date() - timedelta(days=1)).isoformat()
+                previous_day = await request("GET", "/v1/bookings", "owner", params={"date_from": previous, "date_to": previous})
+                assert previous_day.status_code == 200 and not any(row["id"] == midnight.json()["id"] for row in previous_day.json())
+                passed("midnight_booking_uses_salon_local_calendar_day")
                 phase = "owner_availability_mutation"
                 pause = await request("PATCH", "/v1/salons/me/settings", "owner", json={"accepting_bookings": False})
                 assert pause.status_code == 200
@@ -186,6 +207,15 @@ async def main(browser=False):
                     child = await asyncio.create_subprocess_exec("node", str(__import__('pathlib').Path(__file__).with_name("mumbai_browser.cjs")), cwd=str(ARTIFACTS))
                     assert await child.wait() == 0
                     passed("playwright_local_flow")
+                if acceptance:
+                    from mumbai_acceptance_checks import lifecycle_checks
+                    await lifecycle_checks(api, connection, ids, headers, payload, booking, report)
+                    from mumbai_redis_outage_checks import main as redis_outage_checks
+                    coherent = await redis_outage_checks()
+                    report["checks"].append({"check": "multi_process_redis_outage_cache_coherence",
+                        "status": "passed" if coherent else "failed",
+                        "scope": "two real runtime-cache processes; dropped TCP commands; no DB mutation",
+                        "evidence": "multi-process-redis-outage.json"})
         except Exception as error:
             report["checks"].append({"check": phase, "status": "failed", "error_type": type(error).__name__,
                 "sqlstate": getattr(getattr(error, "orig", None), "sqlstate", None)})
@@ -214,6 +244,8 @@ async def main(browser=False):
             await get_redis_cache().close()
             await engine.dispose()
             report["latency_ms"] = {path: {"samples": len(values), **percentiles(values)} for path, values in durations.items()}
+            report["acceptance_gate_passed"] = all(item["status"] == "passed" for item in report["checks"])
+            report["acceptance_note"] = "Migrations remain held; a blocked check is not an acceptance pass."
             (ARTIFACTS / "staging-checks.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
             print(json.dumps(report, indent=2))
     return not any(item["status"] == "failed" for item in report["checks"])
@@ -221,7 +253,7 @@ async def main(browser=False):
 
 if __name__ == "__main__":
     try:
-        success = asyncio.run(main("--browser" in sys.argv))
+        success = asyncio.run(main("--browser" in sys.argv, "--acceptance" in sys.argv))
     except Exception as error:
         print(json.dumps({"status": "blocked", "error_type": type(error).__name__}))
         success = False

@@ -25,8 +25,8 @@ Each backup directory includes verification.json and SHA256SUMS. Both normalized
 Local scripts:
 
 ```powershell
-backend/.venv/Scripts/python.exe backend/scripts/migrations/mumbai/migration_mumbai_execution_preflight_20261015.py
-backend/.venv/Scripts/python.exe backend/scripts/migrations/mumbai/migration_mumbai_sql_preflight_20261015.py
+backend/.venv/Scripts/python.exe -m backend.scripts.migrations.migration_mumbai_execution_preflight_20261015
+backend/.venv/Scripts/python.exe -m backend.scripts.migrations.migration_mumbai_sql_preflight_20261015
 ```
 
 The scripts invoke the following native operations with guarded Mumbai target and process-only credentials:

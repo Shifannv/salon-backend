@@ -12,8 +12,13 @@ import subprocess
 from pathlib import Path
 from urllib.parse import unquote
 
-from migration_mumbai_reference_20261015 import CATALOG
-from migration_mumbai_staging_20261015 import HOST, REF, ROOT, config_values
+from backend.scripts.migrations.migration_mumbai_reference_20261015 import CATALOG
+from backend.scripts.migrations.migration_mumbai_staging_20261015 import (
+    HOST,
+    REF,
+    ROOT,
+    config_values,
+)
 
 PSQL = Path("C:/Program Files/PostgreSQL/18/bin/psql.exe")
 FILES = [ROOT / "backend/migrations/sql" / name for name in (
@@ -97,7 +102,7 @@ def main():
 if __name__ == "__main__":
     try:
         ok = main()
-    except Exception as exc:  # noqa: BLE001 -- no secret-bearing exception strings.
+    except Exception as exc:
         print(json.dumps({"status": "preflight_failed", "error_type": type(exc).__name__}))
         raise SystemExit(1) from None
     raise SystemExit(0 if ok else 1)

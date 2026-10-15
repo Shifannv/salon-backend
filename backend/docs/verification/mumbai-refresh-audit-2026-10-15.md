@@ -1,5 +1,7 @@
 # Mumbai customer and owner refresh audit
 
+Implementation follow-up: [Mumbai local refresh results](mumbai-local-refresh-results-2026-10-15.md). The findings below describe the pre-implementation audit; use that report for current implementation and acceptance limits.
+
 Status: review only; compatible API refresh behavior must be verified first. The latest user instruction holds 0038–0040 and specifically prohibits applying 0040 before customer and owner refresh passes staging tests. No frontend source, settings, grants, publication, or infrastructure changed during this audit.
 
 Revalidation on 2026-10-15: the working tree started clean on branch `shifan`, and all six 0038–0040 Python/SQL migration files were already tracked in HEAD. Thus the earlier claim that these files are Git-uncommitted is stale. This audit makes no commits, rewrites no history and changes no migration files. Database non-application is supported by the recorded rollback/history evidence, not a fresh live database query in this revalidation.

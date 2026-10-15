@@ -88,4 +88,4 @@ Check, in this order:
 | Slow query or endpoint | `performance-analyst` |
 | Workers, Compose, CI, deploy | `workers-and-deploy` |
 | Memory and session notes | `agent-memory`, `/start`, `/checkpoint`, `/wrap` |
-| Mumbai migration tooling | `backend/scripts/migrations/mumbai/README.md` |
+| Mumbai migration tooling | `backend/scripts/migrations/README.md` |
