@@ -58,3 +58,6 @@ changes-log.txt
 # Local test manifests, reports and UI artifacts
 backend/.artifacts/
 backend/.pytest_tmp/
+
+# Claude Code local settings
+.claude/settings.local.json

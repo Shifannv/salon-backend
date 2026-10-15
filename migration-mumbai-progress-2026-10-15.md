@@ -22,7 +22,7 @@ work; it is not evidence of actions taken in this run.
 | 10. Non-personal seeds | Complete for known repository seeds | Listed in chat before insertion; six languages and six plans inserted from baseline/revision 0031. Categories/subcategories remain empty pending a content decision. |
 | 11. Project configuration | Partial | Required extensions and Realtime publication membership verified. User reports Google configuration updated; public Auth settings independently confirm Google and email enabled, signup enabled, email confirmation required. Site URL/redirect allowlist, actual Google login, Supabase Resend SMTP and delivery are unverified. Local Resend variables do not prove Supabase SMTP configuration. Storage API returns zero buckets; repository media uses R2. No arbitrary bucket/policy or R2 change made. |
 | 12. Fresh accounts | Complete with fixture caveat | Two controlled Gmail aliases created through Mumbai Auth admin API, confirmed for password tests. Both received profiles. Owner profile initially defaulted to customer despite trusted Auth owner metadata; only that fresh test profile was provisioned to owner using guarded SQL and actor context. Owner-access API behavior remains untested. |
-| 13. API/RLS/Auth/Storage/booking/Playwright | API/Auth/booking/RLS tests passed; remaining integrations blocked | Pooler unblocked real API/database tests using process-only configuration. Actual booking creation, replay, duplicate rejection, party-scoped reads and RLS ownership/negative reads passed with rolled-back synthetic fixtures. Auth login/JWKS/refresh/logout passed. Storage bucket-list API passed; uploads/policies untested. 878 pytest tests passed, 62 opt-in tests skipped; Ruff passed. No staging frontend URL supplied, so Playwright remains unrun. |
+| 13. API/RLS/Auth/Storage/booking/Playwright | API/Auth/booking/RLS tests passed; browser entry checked, full frontend flow blocked | Pooler unblocked real API/database tests using process-only configuration. Booking creation/replay/duplicate rejection/party reads and rollback RLS tests passed. 878 pytest tests passed, 62 skipped; Ruff passed. Playwright checked the supplied Vercel URL: /s is 404, root is 200. A complete Mumbai QR route and verified deployed API target are still needed. Storage uploads/policies and full frontend flows remain untested. |
 | 14. Windows latency | Auth HTTPS and DB round trips measured | Auth JWKS median 168.407 ms across 10 HTTP 200 responses. Verified-TLS Session pooler SELECT 1 median 83.746 ms across 10 samples; setup 334.623 ms. API timings recorded separately, with cold/session/auth overhead; no production/load/Sydney-comparison claim. |
 | 15. Stop before production changes | Respected | No deployment, production environment change, container restart, GCP access or traffic switch. |
 
@@ -211,5 +211,35 @@ Remaining: persistent client-grant allowlist, staging Site URL/redirect allowlis
 Google login, Supabase Resend SMTP/delivery, any explicitly required Storage bucket/policy
 and upload tests (the backend uses R2), Realtime subscriber testing, staging frontend URL
 and Playwright flows. Python Playwright is not installed in this backend venv; this does
-not prove it is unavailable elsewhere. No browser test was claimed. Production remains
-untouched and cutover remains unapproved.
+not prove it is unavailable elsewhere. At that checkpoint no browser test had run.
+Production remains untouched and cutover remains unapproved.
+
+## Customer Vercel browser continuation
+
+The user supplied `https://salon-customer-webpage.vercel.app/s` for customer testing.
+Read-only HTTP and actual Chromium/Playwright checks established:
+
+- `/s` returns HTTP 404 and renders: "Page not found" with an instruction to scan a
+  valid salon QR code. This is an application 404, not a missing Vercel deployment.
+- `/` returns HTTP 200 and renders the Salon Bro walk-in booking homepage.
+  Its booking link points to `/scan`; the copy describes starting from a salon QR.
+- Eleven same-origin public JavaScript files were inspected without finding a concrete
+  Supabase project or backend API base URL. This does not establish the deployed server's
+  environment or prove that it targets Mumbai.
+- The Playwright context blocked fetch/XHR, cross-origin requests, service workers and
+  non-allowlisted resources. No login, token, profile, booking or database request was
+  initiated by the browser test. Next image-optimizer requests and prefetches were also
+  blocked, so the root screenshot is not an unrestricted visual-quality test.
+- The backend venv had no Python Playwright; offline npx had no cached package metadata.
+  The existing adjacent frontend's playwright-core dependency and installed Chromium
+  were reused without installing anything or modifying frontend source/configuration.
+
+Artifacts: `migration-mumbai-customer-browser-2026-10-15.cjs`, its JSON evidence,
+`migration-mumbai-customer-s-2026-10-15.png` and root screenshot. The browser was closed.
+No environment, deployment, Sydney project, GCP or Docker changes were made.
+
+Full customer frontend/Auth/booking tests remain blocked on a complete Mumbai test QR
+URL and verification of the API base URL configured for this Vercel deployment. The
+user has been asked for those non-secret details. No claim of Mumbai frontend staging
+success is made from the homepage/404 checks. Prior Mumbai API/database test results and
+the Alembic stamping block remain unchanged.
