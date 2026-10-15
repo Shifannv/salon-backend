@@ -1,0 +1,156 @@
+{
+  "target": "https://salon-customer-webpage.vercel.app",
+  "mode": "Read-only; browser API and cross-origin requests blocked",
+  "results": [
+    {
+      "pathname": "/s",
+      "status": 404,
+      "title": "Salon Bro — Walk-in Booking",
+      "visibleText": "Page not found\n\nThe page you're looking for doesn't exist. Scan a valid QR code at the salon to get started.\n\n← Return to home",
+      "links": [
+        {
+          "text": "← Return to home",
+          "href": "/"
+        }
+      ]
+    },
+    {
+      "pathname": "/",
+      "status": 200,
+      "title": "Salon Bro — Walk-in Booking",
+      "visibleText": "SALON BRO\nEXPERIENCE\nSERVICES\nABOUT\nCONTACT\nBook Appointment\nNO APP DOWNLOAD REQUIRED\nBecoming\nyour best\n\naesthetic.\n\nDiscover a more personal salon experience, designed around you.\n\nScan a salon QR to book\nHow it works\nCustomers: scan the QR code at your salon, pick a service and a time, and book from your phone. No app needed.\nSalon owners: the owner app is coming soon. Download links will appear here.\nOpen Times\n\nStraight from the salon\n\nEasy Booking\n\nChoose your slot\n\n02 — THE PROBLEM\n\nWaiting shouldn’t be\npart of the salon experience.\n\nTraditional queue management creates uncertainty for customers\nand unnecessary chaos for salons.\n\n01\nYou arrive.\n\nYou don’t know\nhow long you’ll wait.\n\n02\nYou wait.\n\nYour time becomes\ndependent on\nthe queue.\n\n03\nYou stay.\n\nYou can’t really leave\nbecause your turn\nmay come.\n\n04\nStaff manage\nthe queue.\n\nManual coordination\ncreates confusion\nand errors.\n\n05\nEveryone loses.\n\nCustomers get frustrated.\nTime is wasted.\nExperience is compromised.\n\n03 — WHAT WE DO\n\nWe make waiting\nfeel different.\n\nA smarter slot booking system for salons — so customers book their time, and salons run on time.\n\nFOR CUSTOMERS\n\nBook your slot\n\nChoose your service, date and time.\n\nInstant confirmation\n\nKnow your booking is confirmed.\n\nStay on track\n\nGet reminders before your appointment.\n\nSALON DASHBOARD\n\nToday's bookings\nSalon Bro\n\n12\n\nTODAY\n\n08\n\nUPCOMING\n\n03\n\nCOMPLETED\n\n01\n\nCANCELLED\n\nSCHEDULE\n\nSample data\n\n10:30\n\nLow Fade\n\nJulian Thorne\n\nCONFIRMED\n\n12:00\n\nBuzz Cut\n\nElena Rossi\n\nUPCOMING\n\n13:45\n\nTaper Fade\n\nMarcus Vance\n\nCOMPLETED\n\n16:30\n\nBeard Trim & Styling\n\nJulian Thorne\n\nCANCELLED\n\nFOR SALONS\n\nOrganized schedule\n\nEvery booking in one place.\n\nBetter planning\n\nManage services and time slots.\n\nHappier customers\n\nBetter timing, better experience.\n\nSmarter bookings. Happier customers. Better salons.\n\nOur Founders\n\nTHE VISIONARIES BEHIND SALON BRO\n\nZiyavul Haq\n\nCHIEF CREATIVE OFFICER (CCO)\n\n“The Vision: Drives our overarching creative direction and company growth strategy.”\nShifan NV\n\nCHIEF PRODUCT OFFICER (CPO)\n\n“The Engine: Builds our core digital platform and designs our user-facing media content.”\nShuhail\n\nCHIEF MARKETING OFFICER (CMO)\n\n“The Growth: Leads user acquisition, market expansion, and community engagement.”\n\n04 — OUR STORY\n\nIt started with a\nsimple observation.\n\nA salon visit should feel easy. But the experience around it often isn't.\nCustomers call to ask about availability, wait for a response, adjust their plans, and sometimes spend more time coordinating an appointment than actually enjoying it.\n\nOn the other side, salon teams are constantly balancing bookings, schedules, customers, and the day's unexpected changes.\n\nWe wanted to make that experience simpler. So we started building a system where a customer can choose a service, find a suitable slot, and book their appointment without the back-and-forth — while salons get a clearer, more organized way to manage their day.\n\nWhat began as an idea is now a growing product, shaped by real people and real salons. We're still refining, listening, and building with the belief that a better salon experience starts long before the chair.\n\nCHOOSE\nBOOK\nARRIVE\n1.\nBuilt for both sides.\n\nWe connect customers and salons in one smooth experience.\n\n2.\nDesigned with care.\n\nEvery detail is crafted to feel natural, calm and effortless.\n\n3.\nGrowing together.\n\nWe listen to feedback, improve continuously and grow with our community.\n\nBuilt to make every appointment feel a little simpl",
+      "links": [
+        {
+          "text": "SALON BRO",
+          "href": "/"
+        },
+        {
+          "text": "Experience",
+          "href": "/"
+        },
+        {
+          "text": "Services",
+          "href": "/"
+        },
+        {
+          "text": "About",
+          "href": "/"
+        },
+        {
+          "text": "Contact",
+          "href": "/"
+        },
+        {
+          "text": "Book Appointment",
+          "href": "/scan"
+        },
+        {
+          "text": "Scan a salon QR to book",
+          "href": "/scan"
+        },
+        {
+          "text": "How it works",
+          "href": "/"
+        },
+        {
+          "text": "Get in touch",
+          "href": "7alonbooking@gmail.com"
+        },
+        {
+          "text": "EMAIL7alonbooking@gmail.com",
+          "href": "7alonbooking@gmail.com"
+        },
+        {
+          "text": "ABOUT",
+          "href": "/"
+        },
+        {
+          "text": "SERVICES",
+          "href": "/"
+        },
+        {
+          "text": "EXPERIENCE",
+          "href": "/"
+        },
+        {
+          "text": "CONTACT",
+          "href": "/"
+        },
+        {
+          "text": "PRIVACY",
+          "href": "/privacy"
+        },
+        {
+          "text": "TERMS",
+          "href": "/terms"
+        },
+        {
+          "text": "DELETE ACCOUNT",
+          "href": "/account-deletion"
+        }
+      ]
+    }
+  ],
+  "blockedRequests": [
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/_next/image",
+      "type": "image"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/",
+      "type": "fetch"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/scan",
+      "type": "fetch"
+    },
+    {
+      "origin": "https://salon-customer-webpage.vercel.app",
+      "pathname": "/afb73d0c99ab82fb/script.js",
+      "type": "script"
+    }
+  ]
+}

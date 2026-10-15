@@ -1,0 +1,215 @@
+{
+  "status": "PROPOSAL ONLY; schema application rejected by automatic approval review",
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "changes": [
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"account_deletion_challenges\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"account_deletion_challenges\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"account_deletion_challenges\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"account_deletion_challenges\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"account_deletion_requests\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"account_deletion_requests\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"account_deletion_requests\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"account_deletion_requests\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"alembic_version\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"alembic_version\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"alembic_version\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"alembic_version\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"blocked_slots\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"blocked_slots\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"blocked_slots\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"blocked_slots\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"booking_services\" TO \"anon\";",
+      "after": "REVOKE ALL ON TABLE \"public\".\"booking_services\" FROM \"anon\";"
+    },
+    {
+      "before": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"booking_services\" TO \"authenticated\";",
+      "after": "GRANT SELECT ON TABLE \"public\".\"booking_services\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"bookings\" TO \"anon\";",
+      "after": "REVOKE ALL ON TABLE \"public\".\"bookings\" FROM \"anon\";"
+    },
+    {
+      "before": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"bookings\" TO \"authenticated\";",
+      "after": "GRANT SELECT ON TABLE \"public\".\"bookings\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"device_tokens\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"device_tokens\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"device_tokens\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"device_tokens\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"languages\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"languages\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"languages\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"languages\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"notification_deliveries\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"notification_deliveries\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"notification_deliveries\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"notification_deliveries\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"notifications\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"notifications\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"notifications\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"notifications\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"profiles\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"profiles\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"profiles\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"profiles\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salon_holidays\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salon_holidays\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salon_holidays\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salon_holidays\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salon_images\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salon_images\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salon_images\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salon_images\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salon_subscriptions\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salon_subscriptions\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salon_subscriptions\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salon_subscriptions\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salons\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salons\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"salons\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"salons\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"service_categories\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"service_categories\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"service_categories\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"service_categories\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"service_subcategories\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"service_subcategories\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"service_subcategories\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"service_subcategories\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"services\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"services\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"services\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"services\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"staff\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"staff\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"staff\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"staff\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"staff_service_languages\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"staff_service_languages\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"staff_service_languages\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"staff_service_languages\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"staff_services\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"staff_services\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"staff_services\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"staff_services\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"subscription_events\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"subscription_events\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"subscription_events\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"subscription_events\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"subscription_plans\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"subscription_plans\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"subscription_plans\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"subscription_plans\" TO \"authenticated\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"subscription_provider_accounts\" TO \"anon\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"subscription_provider_accounts\" TO \"anon\";"
+    },
+    {
+      "before": "GRANT ALL ON TABLE \"public\".\"subscription_provider_accounts\" TO \"authenticated\";",
+      "after": "GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE \"public\".\"subscription_provider_accounts\" TO \"authenticated\";"
+    },
+    {
+      "before": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" GRANT ALL ON FUNCTIONS TO \"anon\";",
+      "after": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" REVOKE ALL ON FUNCTIONS FROM \"anon\";"
+    },
+    {
+      "before": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" GRANT ALL ON FUNCTIONS TO \"authenticated\";",
+      "after": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" REVOKE ALL ON FUNCTIONS FROM \"authenticated\";"
+    },
+    {
+      "before": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" GRANT ALL ON TABLES TO \"anon\";",
+      "after": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" REVOKE ALL ON TABLES FROM \"anon\";"
+    },
+    {
+      "before": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" GRANT ALL ON TABLES TO \"authenticated\";",
+      "after": "ALTER DEFAULT PRIVILEGES FOR ROLE \"postgres\" IN SCHEMA \"public\" REVOKE ALL ON TABLES FROM \"authenticated\";"
+    }
+  ],
+  "additional": "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC"
+}
