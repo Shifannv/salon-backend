@@ -1,0 +1,23 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "accounts": [
+    {
+      "role": "customer",
+      "generate_status": 200,
+      "verify_status": 200,
+      "refresh_status": 200,
+      "logout_status": 204
+    },
+    {
+      "role": "owner",
+      "generate_status": 200,
+      "verify_status": 200,
+      "refresh_status": 200,
+      "logout_status": 204
+    }
+  ],
+  "password_recovery_http_status": 429,
+  "password_recovery_error_code": "over_email_send_rate_limit",
+  "mailbox_delivery_verified": false,
+  "recovery_redirect_verified_for_web_staging": false
+}

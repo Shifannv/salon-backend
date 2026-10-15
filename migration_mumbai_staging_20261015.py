@@ -39,7 +39,7 @@ def config_values():
     return values, parts
 
 
-async def run():
+async def run(*, api_benchmarks=False):
     logging.disable(logging.CRITICAL)
     values, parts = config_values()
     ca = await asyncio.to_thread(httpx.get, CA_URL, timeout=15)
@@ -129,6 +129,18 @@ async def run():
                         "apikey": values["SUPABASE_PUBLISHABLE_KEY"], **headers})
         response = await api.get("/v1/auth/me", headers={"Authorization": "Bearer invalid"})
         results.append({"path": "/v1/auth/me", "invalid_token_status": response.status_code})
+        if api_benchmarks:
+            import statistics
+            for path in ("/health/db", "/v1/salons"):
+                samples = []
+                for _ in range(10):
+                    started = time.perf_counter()
+                    response = await api.get(path)
+                    assert response.status_code == 200
+                    samples.append(round((time.perf_counter() - started)*1000, 3))
+                results.append({"check": "ten_request_API_latency", "path": path,
+                                "samples_ms": samples, "median_ms": round(statistics.median(samples), 3),
+                                "p95_nearest_rank_ms": max(samples), "transport": "in-process ASGI"})
     await session.engine.dispose()
     print(json.dumps({"results": results, "payments_enabled": False,
                       "test_transport": "in-process ASGI; real Mumbai Auth and database"}, indent=2))

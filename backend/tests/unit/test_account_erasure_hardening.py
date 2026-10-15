@@ -127,7 +127,7 @@ def cascade_tables_in_migrations() -> dict[str, str]:
     """table -> file, for every FK to salons(id) declared ``on delete cascade``."""
 
     found: dict[str, str] = {}
-    sources = [ROOT / "migrations/001_supabase_schema.sql", *sorted(VERSIONS.glob("0*.py"))]
+    sources = [ROOT / "migrations/sql/001_supabase_schema.sql", *sorted(VERSIONS.glob("0*.py"))]
     for path in sources:
         sql = path.read_text(encoding="utf-8")
         for match in _CASCADE.finditer(sql):

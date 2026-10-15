@@ -1,0 +1,14 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "method": "Mumbai-scoped MCP SELECT after rollback",
+  "salons": 0,
+  "bookings": 0,
+  "profiles": 2,
+  "auth_users": 2,
+  "alembic_rows": 0,
+  "audit_events": 0,
+  "email_events": 0,
+  "booking_payments": 0,
+  "client_application_function_execute": 0,
+  "client_application_table_privileges": 0
+}

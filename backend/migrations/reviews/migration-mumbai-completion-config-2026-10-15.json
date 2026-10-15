@@ -1,0 +1,17 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "configured_database_host": "db.wqjlgpnbiapcrlkxumcp.supabase.co",
+  "configured_database_port": 5432,
+  "configured_database_username": "postgres",
+  "configured_database_name": "postgres",
+  "test_pooler_override_used": true,
+  "app_and_env_files_modified": false,
+  "backend_public_key_accepted_by_mumbai": true,
+  "backend_public_key_payload_ref_matches": true,
+  "backend_server_only_key_accepted_by_mumbai": true,
+  "backend_server_only_key_payload_ref_matches": true,
+  "jwks_used": "https://wqjlgpnbiapcrlkxumcp.supabase.co/auth/v1/.well-known/jwks.json",
+  "api_base_url": "http://mumbai-local-test",
+  "transport": "in-process ASGI; not a deployed URL",
+  "sydney_requests": "No Sydney targets used by the executed test paths; deployed GCP/client settings not inspected"
+}

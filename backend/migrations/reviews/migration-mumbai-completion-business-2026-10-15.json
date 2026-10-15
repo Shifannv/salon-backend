@@ -1,0 +1,364 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "api_base_url": "http://mumbai-local-test",
+  "transport": "in-process ASGI, real Mumbai Auth/Postgres",
+  "status": "completed",
+  "error_type": null,
+  "migrations_run": false,
+  "stamp_run": false,
+  "temporary_permission_grants": false,
+  "results": [
+    {
+      "path": "/health",
+      "status": 200,
+      "elapsed_ms": 3.313
+    },
+    {
+      "path": "/health/db",
+      "status": 200,
+      "elapsed_ms": 801.197
+    },
+    {
+      "path": "/health/redis",
+      "status": 200,
+      "elapsed_ms": 18.124
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "elapsed_ms": 127.747
+    },
+    {
+      "path": "/v1/salons",
+      "status": 200,
+      "elapsed_ms": 541.574
+    },
+    {
+      "role": "customer",
+      "path": "/v1/auth/me",
+      "status": 200,
+      "elapsed_ms": 735.821,
+      "resolved_profile_role": "customer",
+      "expected_status": 200
+    },
+    {
+      "role": "customer",
+      "path": "/v1/bookings",
+      "status": 200,
+      "elapsed_ms": 590.229,
+      "expected_status": 200
+    },
+    {
+      "role": "owner",
+      "path": "/v1/auth/me",
+      "status": 200,
+      "elapsed_ms": 216.187,
+      "resolved_profile_role": "owner",
+      "expected_status": 200
+    },
+    {
+      "role": "owner",
+      "path": "/v1/bookings",
+      "status": 403,
+      "elapsed_ms": 563.776,
+      "expected_status": 403
+    },
+    {
+      "check": "create_salon_via_owner_onboarding_api",
+      "status": 200
+    },
+    {
+      "check": "availability_before_booking",
+      "status": 200,
+      "slots": 18
+    },
+    {
+      "check": "create_booking_via_api",
+      "status": 201
+    },
+    {
+      "check": "idempotent_booking_replay",
+      "status": 201,
+      "same_booking": true
+    },
+    {
+      "check": "duplicate_booking_rejected",
+      "status": 409
+    },
+    {
+      "check": "booking_visible_to_party",
+      "role": "customer",
+      "status": 200,
+      "found": true
+    },
+    {
+      "check": "booking_visible_to_party",
+      "role": "owner",
+      "status": 200,
+      "found": true
+    },
+    {
+      "check": "openapi_contract",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 2127.558
+    },
+    {
+      "check": "owner_access_api",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 491.491
+    },
+    {
+      "check": "create_owner_service_via_api",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 942.891
+    },
+    {
+      "check": "create_owner_staff_via_api",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 712.228
+    },
+    {
+      "check": "public_synthetic_salon",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 280.898
+    },
+    {
+      "check": "public_service_listing",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 391.211
+    },
+    {
+      "check": "public_staff_listing",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 367.359
+    },
+    {
+      "check": "server_quote_with_online_disabled",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 800.245
+    },
+    {
+      "check": "pay_at_salon_daily_limit",
+      "status": 409,
+      "expected": 409,
+      "elapsed_ms": 755.673,
+      "error_code": "pay_at_salon_daily_limit"
+    },
+    {
+      "check": "customer_cannot_collect",
+      "status": 403,
+      "expected": 403,
+      "elapsed_ms": 494.184,
+      "error_code": "forbidden"
+    },
+    {
+      "check": "completion_requires_collection",
+      "status": 409,
+      "expected": 409,
+      "elapsed_ms": 733.018,
+      "error_code": "payment_collection_required"
+    },
+    {
+      "check": "owner_cash_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1835.039
+    },
+    {
+      "check": "complete_after_cash_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 949.938
+    },
+    {
+      "check": "new_booking_after_completed_frees_daily_limit",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 923.846
+    },
+    {
+      "check": "owner_upi_direct_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1181.555
+    },
+    {
+      "check": "complete_after_upi_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 852.527
+    },
+    {
+      "check": "cancellable_future_booking",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 919.648
+    },
+    {
+      "check": "customer_cancellation_before_cutoff",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1104.71
+    },
+    {
+      "check": "no_show_fixture_booking",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 960.895
+    },
+    {
+      "check": "no_show_before_appointment_rejected",
+      "status": 422,
+      "expected": 422,
+      "elapsed_ms": 682.601,
+      "error_code": "validation_error"
+    },
+    {
+      "check": "owner_marks_past_appointment_no_show",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 841.146
+    },
+    {
+      "check": "no_show_fixture_booking",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 908.759
+    },
+    {
+      "check": "owner_marks_past_appointment_no_show",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 825.579
+    },
+    {
+      "check": "repeated_no_shows_block_pay_at_salon",
+      "status": 409,
+      "expected": 409,
+      "elapsed_ms": 754.831,
+      "error_code": "pay_at_salon_temporarily_blocked"
+    },
+    {
+      "check": "support_ticket_create",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 1043.407
+    },
+    {
+      "check": "owner_support_reply",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1202.831
+    },
+    {
+      "check": "foreign_salon_support_fixture",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 856.347
+    },
+    {
+      "check": "owner_cannot_read_foreign_salon_ticket",
+      "status": 404,
+      "expected": 404,
+      "elapsed_ms": 323.356,
+      "error_code": "not_found"
+    },
+    {
+      "check": "email_worker_database_claim_and_ack",
+      "sent_rows": 1,
+      "external_provider": "fake",
+      "actual_delivery_verified": false
+    },
+    {
+      "check": "notification_worker_database_drain",
+      "events_attempted": 4,
+      "external_provider": "fake"
+    },
+    {
+      "check": "audit_and_collection_snapshots",
+      "audit_rows": 12,
+      "methods": [
+        {
+          "method": "UPI_DIRECT",
+          "rows": 1
+        },
+        {
+          "method": "CASH",
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "check": "expired_trial_hidden_from_public_discovery",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 280.779
+    },
+    {
+      "check": "expired_trial_has_no_slots",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 456.768
+    },
+    {
+      "check": "existing_history_readable_after_trial_expiry",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 333.623
+    },
+    {
+      "check": "subscription_database_sweep",
+      "status": "completed in rollback transaction"
+    },
+    {
+      "path": "/v1/auth/me",
+      "invalid_token_status": 401
+    },
+    {
+      "check": "ten_request_API_latency",
+      "path": "/health/db",
+      "samples_ms": [
+        186.996,
+        190.088,
+        141.149,
+        134.26,
+        138.485,
+        142.901,
+        133.995,
+        133.188,
+        138.573,
+        133.888
+      ],
+      "median_ms": 138.529,
+      "p95_nearest_rank_ms": 190.088,
+      "transport": "in-process ASGI"
+    },
+    {
+      "check": "ten_request_API_latency",
+      "path": "/v1/salons",
+      "samples_ms": [
+        474.206,
+        276.51,
+        241.954,
+        228.947,
+        232.109,
+        231.447,
+        237.741,
+        235.506,
+        226.82,
+        230.747
+      ],
+      "median_ms": 233.808,
+      "p95_nearest_rank_ms": 474.206,
+      "transport": "in-process ASGI"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "status": "verified_schema_only_backup",
+  "scope": "all schemas visible to Mumbai postgres role; pg_dump schema-only, owners/ACLs retained",
+  "schema_file": "supabase-schema-backup\\mumbai-pre-0038-0040-20261015T130916Z\\schema.sql",
+  "bytes": 661227,
+  "sha256": "61f5ab35537a97cf5aa1cbdcad5779b1a0ea2b6f6b8e8ef15df5667bd4abe0d8",
+  "top_level_statements": 2502,
+  "data_statements": [],
+  "TLS": "libpq verify-full with public Supabase CA",
+  "password_output": false,
+  "command_redacted": "pg_dump --schema-only --no-password --quote-all-identifiers --lock-wait-timeout=5s --host <Mumbai pooler> --port 5432 --username <Mumbai project user> --dbname postgres --file <backup/schema.sql>"
+}

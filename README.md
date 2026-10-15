@@ -48,6 +48,8 @@ Stop the API and Redis:
 docker compose stop api redis
 run the backend local : 
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+
 ```
 
 Migrations are an explicit deployment step and are not run by the container startup
@@ -58,4 +60,4 @@ command.
 - [Project docs](docs/README.md)
 - [Backend runbook](backend/docs/RUNBOOK.md)
 - [Docker deployment](backend/docs/DOCKER_DEPLOYMENT.md)
-- [Database migrations](backend/migrations/README.md)
+- [Database migrations](backend/docs/migrations/README.md)

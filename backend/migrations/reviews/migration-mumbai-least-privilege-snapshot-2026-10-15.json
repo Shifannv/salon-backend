@@ -1,0 +1,1380 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "method": "Mumbai-scoped MCP SELECT only",
+  "tables": [
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_payout_accounts",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "account_deletion_challenges",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "account_deletion_requests",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "alembic_version",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "api_rate_limits",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "blocked_slots",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "booking_action_requests",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "booking_audit_events",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "booking_payments",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "booking_services",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "bookings",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "customer_booking_restrictions",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "device_tokens",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "email_events",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "languages",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "notification_deliveries",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "notification_outbox",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "notifications",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "payment_anomalies",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "payment_idempotency_keys",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "payment_provider_account_audit",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "payment_provider_accounts",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "payment_refunds",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "payment_webhook_events",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "profiles",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_access",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_holidays",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_images",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_payout_account_history",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_reports",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salon_subscriptions",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "salons",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "service_categories",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "service_subcategories",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "services",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "staff",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "staff_service_languages",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "staff_services",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "subscription_billing_records",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "subscription_events",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "subscription_plans",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "subscription_provider_accounts",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "support_messages",
+      "owner": "postgres"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "support_tickets",
+      "owner": "postgres"
+    }
+  ],
+  "alembic": [],
+  "defaults": [
+    {
+      "acl": [
+        "postgres=X/postgres"
+      ],
+      "type": "f",
+      "owner": "postgres",
+      "schema": null
+    },
+    {
+      "acl": [
+        "postgres=rwU/postgres",
+        "service_role=rwU/postgres"
+      ],
+      "type": "S",
+      "owner": "postgres",
+      "schema": "public"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "type": "f",
+      "owner": "postgres",
+      "schema": "public"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "type": "r",
+      "owner": "postgres",
+      "schema": "public"
+    },
+    {
+      "acl": [
+        "postgres=rwU/postgres",
+        "anon=rwU/postgres",
+        "authenticated=rwU/postgres",
+        "service_role=rwU/postgres"
+      ],
+      "type": "S",
+      "owner": "postgres",
+      "schema": "storage"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "type": "f",
+      "owner": "postgres",
+      "schema": "storage"
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "anon=arwdDxtm/postgres",
+        "authenticated=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "type": "r",
+      "owner": "postgres",
+      "schema": "storage"
+    }
+  ],
+  "functions": [
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "app_role",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "user_role",
+      "body_md5": "9443df2104374cf0d4671d6344e23d4a",
+      "identity": "",
+      "signature": "app_role()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "apply_subscription_billing_record",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "text",
+      "body_md5": "9568876e29910339c65cec3dba46ffbd",
+      "identity": "p_record_id uuid, p_grace_days integer",
+      "signature": "apply_subscription_billing_record(uuid,integer)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "booking_append_audit",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "0003e46ccc331aab087f1f6a106b2068",
+      "identity": "",
+      "signature": "booking_append_audit()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "cancel_salon_subscription_renewal",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "text",
+      "body_md5": "9b43863c0df6706e59758e7a5de2ea78",
+      "identity": "p_salon_id uuid",
+      "signature": "cancel_salon_subscription_renewal(uuid)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "create_booking",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "uuid",
+      "body_md5": "0f606b2c918124e3788c1a7200e37323",
+      "identity": "p_salon_id uuid, p_staff_id uuid, p_service_ids uuid[], p_start timestamp with time zone, p_customer_name text, p_customer_phone text, p_source booking_source, p_notes text",
+      "signature": "create_booking(uuid,uuid,uuid[],timestamp with time zone,text,text,booking_source,text)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "deactivate_device_token",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "void",
+      "body_md5": "d61553e6f23f72f62c26ed03c476ab21",
+      "identity": "p_token text",
+      "signature": "deactivate_device_token(text)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "demote_other_main_images",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "5f936dd7e5bdccf4109f98efa87adc6e",
+      "identity": "",
+      "signature": "demote_other_main_images()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "effective_duration",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "integer",
+      "body_md5": "afa38657dfb0701ebae9c011ddb64d02",
+      "identity": "p_staff_id uuid, p_service_id uuid",
+      "signature": "effective_duration(uuid,uuid)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "enqueue_booking_email",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "3c8fb43738c90175af86551f7d62f351",
+      "identity": "",
+      "signature": "enqueue_booking_email()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "enqueue_verified_payment_receipt",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "872569ebdbabc0563f8d8ec6cefe9547",
+      "identity": "",
+      "signature": "enqueue_verified_payment_receipt()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "erase_profile_references",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "integer",
+      "body_md5": "878e071a29ddf60dc126bf1a1cc8371e",
+      "identity": "p_user uuid",
+      "signature": "erase_profile_references(uuid)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "get_active_tokens",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "TABLE(token text, platform text)",
+      "body_md5": "0281bcaac8b71e3f8ad25fad23fa4c8f",
+      "identity": "p_user_id uuid",
+      "signature": "get_active_tokens(uuid)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "get_available_slots",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "TABLE(slot_start timestamp with time zone, slot_end timestamp with time zone)",
+      "body_md5": "7ce5915d5b5e5f91e51b03692d90e6c2",
+      "identity": "p_staff_id uuid, p_date date, p_duration_minutes integer",
+      "signature": "get_available_slots(uuid,date,integer)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "get_salon_by_qr",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "TABLE(id uuid, name text, description text, city text, timezone text, approval_mode approval_mode)",
+      "body_md5": "9a12d77d9b4c49d13e5aad5457252ec6",
+      "identity": "p_qr_token text",
+      "signature": "get_salon_by_qr(text)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_audit_immutable",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "167f952d032e241f8e17d900bdf87c56",
+      "identity": "",
+      "signature": "guard_audit_immutable()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_booking_against_closure",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "a87af6907eb5b66f3b8d44e423af423d",
+      "identity": "",
+      "signature": "guard_booking_against_closure()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_booking_checkout",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "ce28a9711ef50ca61a64e4b4fc426f38",
+      "identity": "",
+      "signature": "guard_booking_checkout()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_booking_payment_columns",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "e68f7865cf436177cc64b69b2835521d",
+      "identity": "",
+      "signature": "guard_booking_payment_columns()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_booking_salon_approval",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "a521994a039fa605e33da63deec3ad84",
+      "identity": "",
+      "signature": "guard_booking_salon_approval()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_collection_snapshot",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "e917af9e02d68217fce6ab2e3b5ec5c6",
+      "identity": "",
+      "signature": "guard_collection_snapshot()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_media_reference",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog"
+      ],
+      "result": "trigger",
+      "body_md5": "b06a93e0b284e7a890c2b4def57777e1",
+      "identity": "",
+      "signature": "guard_media_reference()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_salon_approval",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "581c796e251baf3637990c7d6354fa37",
+      "identity": "",
+      "signature": "guard_salon_approval()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_salon_discovery_placement",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "232f0d3283f203edabae228bf3e73bac",
+      "identity": "",
+      "signature": "guard_salon_discovery_placement()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_salon_display_priority",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "e4eaeba0d41fd06fc7e28f9febf689f2",
+      "identity": "",
+      "signature": "guard_salon_display_priority()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "guard_subscription_admin",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "bae43e7ed7570742ad7c555a9fb4b235",
+      "identity": "",
+      "signature": "guard_subscription_admin()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "handle_new_user",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "bbc4006b3b60009d8f7ff6cdd89f71df",
+      "identity": "",
+      "signature": "handle_new_user()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "is_subscription_promotion_active",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "boolean",
+      "body_md5": "e977f43166d03210fd29af099daaf16f",
+      "identity": "p_status subscription_status, p_current_start timestamp with time zone, p_current_end timestamp with time zone, p_grace_end timestamp with time zone, p_now timestamp with time zone",
+      "signature": "is_subscription_promotion_active(subscription_status,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "is_super_admin",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "boolean",
+      "body_md5": "e159e5cf9f91c9c322e154973d532c2b",
+      "identity": "",
+      "signature": "is_super_admin()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "owns_salon",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "boolean",
+      "body_md5": "a8ac033dc8a091af0d1c474ce0b4bd81",
+      "identity": "p_salon_id uuid",
+      "signature": "owns_salon(uuid)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "payment_append_audit",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "d593ba5e94b599a586bcb130265152e3",
+      "identity": "",
+      "signature": "payment_append_audit()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "payout_account_snapshot",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "jsonb",
+      "body_md5": "e60e1e831970837897a8aeb96032374e",
+      "identity": "r salon_payout_accounts",
+      "signature": "payout_account_snapshot(salon_payout_accounts)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "recompute_booking_payment_state",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "void",
+      "body_md5": "d2366361f587293e3fc6b2a709395227",
+      "identity": "p_booking_id uuid",
+      "signature": "recompute_booking_payment_state(uuid)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "recompute_salon_trial",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "void",
+      "body_md5": "fb4d6fcc3895370bb8f2d9a1b7b2c0bd",
+      "identity": "p_salon_id uuid",
+      "signature": "recompute_salon_trial(uuid)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "register_device_token",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "uuid",
+      "body_md5": "cf73f5c97c1e5450f661d6ed52696ee2",
+      "identity": "p_token text, p_platform text, p_device_name text",
+      "signature": "register_device_token(text,text,text)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "salon_booking_eligible",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "boolean",
+      "body_md5": "6a06456f0acb56dc15a68352cddd0e5a",
+      "identity": "p_salon uuid",
+      "signature": "salon_booking_eligible(uuid)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "salon_payout_account_masked",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "TABLE(account_holder_name text, upi_id text, bank_name text, bank_account_last4 text, ifsc text, created_at timestamp with time zone, updated_at timestamp with time zone)",
+      "body_md5": "82ac77ecd19bb60a4a15b86f0f04b162",
+      "identity": "p_salon_id uuid",
+      "signature": "salon_payout_account_masked(uuid)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "salon_trial_setting",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "integer",
+      "body_md5": "91371b226aa770ed1639bde28dbac078",
+      "identity": "p_name text, p_default integer, p_min integer, p_max integer",
+      "signature": "salon_trial_setting(text,integer,integer,integer)",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "set_audit_actor",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "515fe9684cdc6fc8b086609f4cac1a1f",
+      "identity": "",
+      "signature": "set_audit_actor()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "set_updated_at",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "2087ee763cae5a840d5f9851ac4e1eb8",
+      "identity": "",
+      "signature": "set_updated_at()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "stamp_booking_lifecycle",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "9cbe69ec31a08b0d4ec1208ae4b68b76",
+      "identity": "",
+      "signature": "stamp_booking_lifecycle()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "stamp_checkout_policy",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "a21ee50f8f5ce231df55684a2c061762",
+      "identity": "",
+      "signature": "stamp_checkout_policy()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "stamp_notification_read_at",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "cc57248d86e350c4780048d420bb4804",
+      "identity": "",
+      "signature": "stamp_notification_read_at()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "start_salon_trial",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "void",
+      "body_md5": "df8dca5b1cda5e4fe7c08027af8558c0",
+      "identity": "p_salon_id uuid, p_at timestamp with time zone",
+      "signature": "start_salon_trial(uuid,timestamp with time zone)",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "sweep_lapsed_subscriptions",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "integer",
+      "body_md5": "1b1da19b4945367458c1bbceb5370426",
+      "identity": "",
+      "signature": "sweep_lapsed_subscriptions()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_booking_payments_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "354f6695d4224cec514072cf75c94185",
+      "identity": "",
+      "signature": "tg_booking_payments_guard()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_booking_payments_recompute",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "66687e96aa3c4267663dddea1078874a",
+      "identity": "",
+      "signature": "tg_booking_payments_recompute()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_bookings_recompute_trial",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "e28afdfea8f7b345432db57a1add1c13",
+      "identity": "",
+      "signature": "tg_bookings_recompute_trial()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_payment_refunds_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "eabc5db893259f08b54553e1442c408f",
+      "identity": "",
+      "signature": "tg_payment_refunds_guard()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_payment_refunds_recompute",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "c727993876ecec8956799b31154da11a",
+      "identity": "",
+      "signature": "tg_payment_refunds_recompute()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_salon_payout_account_history",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "a062765c38fa5f753630ef2daa8712e5",
+      "identity": "",
+      "signature": "tg_salon_payout_account_history()",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_salons_access_row",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "3c20c581062986b896e53e61c0600ede",
+      "identity": "",
+      "signature": "tg_salons_access_row()",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "tg_subscription_billing_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "body_md5": "52f27b0657288a97b776224de0e73e8c",
+      "identity": "",
+      "signature": "tg_subscription_billing_guard()",
+      "security_definer": false
+    }
+  ],
+  "signup_trigger": [
+    {
+      "name": "t_on_auth_user_created",
+      "type": 5,
+      "enabled": "O",
+      "args_hex": "",
+      "function": "handle_new_user()",
+      "constraint": "0",
+      "definition": "CREATE TRIGGER t_on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user()"
+    }
+  ],
+  "supabase_history": [
+    {
+      "name": "mumbai_roles_compatible_restore_20261015",
+      "version": "20261015100439"
+    },
+    {
+      "name": "mumbai_schema_only_restricted_restore_20261015",
+      "version": "20261015100737"
+    },
+    {
+      "name": "mumbai_reviewed_auth_signup_trigger_20261015",
+      "version": "20261015100828"
+    },
+    {
+      "name": "mumbai_reconcile_0024_function_search_path_20261015",
+      "version": "20261015101623"
+    }
+  ]
+}

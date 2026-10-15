@@ -113,7 +113,7 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
     try:
         await conn.execute(f'create schema "{schema}"')
         await conn.execute(f'set local search_path = "{schema}", public, extensions')
-        baseline = (MIGRATIONS / "001_supabase_schema.sql").read_text(encoding="utf-8")
+        baseline = (MIGRATIONS / "sql" / "001_supabase_schema.sql").read_text(encoding="utf-8")
         # Auth is shared: remove the FK and registration trigger in this fixture only.
         baseline = baseline.replace("references auth.users(id) on delete cascade", "")
         baseline = re.sub(r"create extension[^;]+;", "", baseline, flags=re.IGNORECASE)

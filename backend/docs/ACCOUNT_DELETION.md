@@ -100,6 +100,15 @@ new sign-up with the same email or phone creates a brand-new identity (new UUID,
 profile, no link to prior history). The anonymized booking records do not re-associate.
 No re-registration block is enforced; this is the expected product behaviour.
 
+Prepared Mumbai reconciliation (not migrated/deployed): revision 0038 adopts the legacy
+`bookings.cancellation_reason_code` and `cancellation_reason_text` nullable text columns.
+Both are potentially personal content and are cleared to NULL on customer deletion
+(their bookings) and owner deletion (all bookings in their salons), before profile
+references detach. No arbitrary value is retained as a legal/audit code. Booking records
+and amounts remain. The adapter change requires these columns before deployment.
+See [forward reconciliation](migrations/MUMBAI_FORWARD_RECONCILIATION.md) for source/runtime proof,
+non-destructive rollback and the separate execution/stamp gates.
+
 **Confirm idempotency**: If the network swallows the 202 and the client retries, the
 account is already locked so `get_current_actor` returns 401 before the route handler
 runs. The app treats that 401 as confirmation that deletion was accepted and the response

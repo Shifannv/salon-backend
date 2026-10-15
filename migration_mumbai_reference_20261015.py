@@ -121,7 +121,7 @@ async def compare(port):
                 "destination_postgres": "17", "normalization": "whitespace only",
                 "acl_comparison": "excluded; restricted destination ACLs are intentional and separately reviewed",
                 "differences": differences}
-    path = ROOT / "migration-mumbai-head-comparison-2026-10-15.json"
+    path = ROOT / "backend/migrations/reviews/migration-mumbai-head-comparison-2026-10-15.json"
     path.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
     print(json.dumps({"head": head, "differences": {k: {"missing": len(v['missing']),
         "extra": len(v['extra']), "changed": len(v['changed'])} for k,v in differences.items()},

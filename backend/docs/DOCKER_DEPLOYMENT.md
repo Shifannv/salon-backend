@@ -86,7 +86,7 @@ curl --fail http://127.0.0.1:8000/health/redis
 ```
 
 Stop if a migration fails. A new VM can still connect to an existing database; if its
-schema was installed without Alembic tracking, follow the [migration guide](../migrations/README.md)
+schema was installed without Alembic tracking, follow the [migration guide](migrations/README.md)
 before applying migrations. Changes must remain compatible with any old services
 while migrations run. Neither container startup nor the VM deploy script runs migrations.
 Health checks confirm service connectivity; they do not verify the Alembic revision.

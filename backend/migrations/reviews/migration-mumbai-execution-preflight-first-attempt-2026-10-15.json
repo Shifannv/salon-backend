@@ -1,0 +1,18 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "status": "failed",
+  "committed_migrations": false,
+  "stamp_executed": false,
+  "backup_sha256": "61f5ab35537a97cf5aa1cbdcad5779b1a0ea2b6f6b8e8ef15df5667bd4abe0d8",
+  "script": "supabase-schema-backup\\mumbai-pre-0038-0040-20261015T130916Z\\rollback-preflight.sql",
+  "exit_code": 3,
+  "rollback_verified": false,
+  "SQL_labels_seen": [
+    "0038_cancellation_compatibility",
+    "0039_promotion_search_path",
+    "0040_fastapi_only_access"
+  ],
+  "TLS": "libpq verify-full",
+  "command": "psql --no-psqlrc --no-password --host <Mumbai pooler> --port 5432 --username <Mumbai project user> --dbname postgres --file <verified backup/rollback-preflight.sql>",
+  "diagnostic_class": "SQL_or_connection_error"
+}

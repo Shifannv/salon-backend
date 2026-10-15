@@ -61,7 +61,7 @@ Backend repository (`D:/salon/salon-backend`):
 - Application use cases: `backend/app/application/use_cases/admin.py`, `media.py`, `platform.py`, `media_publication.py`, `media_cleanup.py`.
 - Infrastructure/config: `backend/app/core/config.py`; `backend/app/infrastructure/db/repositories/platform_repository.py`; `backend/app/infrastructure/media/pillow_processor.py`, `cleanup_worker.py`; `backend/app/infrastructure/r2/storage.py`.
 - Operations: `backend/.env.example`, `backend/.env.gcp.example`, `backend/docker-compose.yml`, `backend/scripts/gcp-vm-deploy.sh`.
-- Migration: `backend/migrations/versions/0020_media_reference_guards.py`, `backend/migrations/README.md`.
+- Migration: `backend/migrations/versions/0020_media_reference_guards.py`, `backend/docs/migrations/README.md`.
 - Tests: `backend/tests/conftest.py`; `backend/tests/unit/test_image_processing.py`, `test_image_upload_replay.py`, `test_owner_use_cases.py`, `test_service_presentation.py`, `test_media_publication_safety.py`, `test_media_guard_migration.py`; `backend/tests/integration/test_media_reference_locking.py`, `test_service_presentation_migration.py`.
 - Documentation: `backend/docs/DOCKER_DEPLOYMENT.md`, `IMAGE_MEDIA.md`, `IMAGE_INTEGRATION_REPORT.md`; `docs/database-plan.md`, `docs/Customer-App-Backend-API-Document.md`, `docs/Salon-Owner-App-Backend-API-Document.md`.
 

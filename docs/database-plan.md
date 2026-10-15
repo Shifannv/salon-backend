@@ -1,5 +1,11 @@
 # Database plan
 
+Prepared for review, not migrated/deployed: 0038–0040 document two legacy cancellation
+text columns, preserve promotion search_path hardening and codify FastAPI-only client
+access. The deletion adapter clears both legacy fields to NULL; transaction-rollback
+tests cover customer/owner isolation and idempotence. Mumbai history remains empty;
+no stamp is authorized. See [forward reconciliation](../backend/docs/migrations/MUMBAI_FORWARD_RECONCILIATION.md).
+
 Local implementation now includes migrations 0034–0037, tested locally, for checked-in/no-show
 states, trial/daily/no-show booking guards, immutable audits, support/email outbox and processing
 charge snapshots. They have only been applied to disposable local databases; deployment requires
@@ -9,7 +15,7 @@ human review and staging validation. The v3 raw SQL baseline remains unchanged. 
 Supabase Postgres stores profiles, salons, catalog data, staff, bookings,
 notifications, device tokens, blocked slots, holidays, images, and salon reports.
 
-The schema starts with `backend/migrations/001_supabase_schema.sql`. Alembic revision
+The schema starts with `backend/migrations/sql/001_supabase_schema.sql`. Alembic revision
 `0001_baseline` applies that file, and later revisions apply required incremental
 changes. Existing migration history must not be deleted or rewritten after deployment.
 
@@ -44,7 +50,7 @@ Rules:
   triggers receive the verified actor ID.
 - Never expose raw database errors, SQL, or constraint names through HTTP responses.
 
-See [the migration guide](../backend/migrations/README.md) for safe commands.
+See [the migration guide](../backend/docs/migrations/README.md) for safe commands.
 
 ## Account deletion (revision `0021_account_deletion`)
 

@@ -10,11 +10,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
-async def rollback_checks(api, app, database, headers_by_role):
+async def rollback_checks(api, app, database, headers_by_role, *, completion=False,
+                          actors=None, runtime_setup=None, runtime_probe=None):
     from app.infrastructure.db.session import get_session
 
     owner = "cd974685-f3ba-43f6-b00e-cd103935fc28"
     customer = "81163183-2757-464e-8f92-b7f5dafe61fa"
+    if actors:
+        owner, customer = actors["owner"], actors["customer"]
     ids = {name: str(uuid4()) for name in ("salon", "staff", "category", "subcategory", "service")}
     hours = {day: {"open": "09:00", "close": "18:00"}
              for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")}
@@ -26,12 +29,30 @@ async def rollback_checks(api, app, database, headers_by_role):
         factory = async_sessionmaker(bind=connection, class_=AsyncSession,
             expire_on_commit=False, join_transaction_mode="create_savepoint")
         try:
+            if runtime_setup:
+                results.extend(await runtime_setup(connection))
+            if completion:
+                async def onboarding_session():
+                    async with factory() as session:
+                        yield session
+                app.dependency_overrides[get_session] = onboarding_session
+                created_salon = await api.post("/v1/salons/me/complete-profile", headers=headers_by_role["owner"],
+                    json={"name": "Mumbai rollback test salon", "address": "Synthetic staging fixture",
+                          "city": "Mumbai", "lat": 19.076, "lng": 72.8777,
+                          "timezone": "Asia/Kolkata", "working_hours": hours, "approval_mode": "auto"})
+                results.append({"check": "create_salon_via_owner_onboarding_api", "status": created_salon.status_code})
+                assert created_salon.status_code == 200
+                ids["salon"] = created_salon.json()["id"]
             async with factory() as session:
                 await session.execute(text("select set_config('request.jwt.claims','{}',true),set_config('request.jwt.claim.sub','',true)"))
-                await session.execute(text("""insert into public.salons
-                    (id,owner_id,name,profile_completed,approval_status,approval_mode,timezone,working_hours)
-                    values(:salon,:owner,'Mumbai rollback test salon',true,'approved','auto','Asia/Kolkata',cast(:hours as jsonb))"""),
-                    {**ids, "owner": owner, "hours": json.dumps(hours)})
+                if completion:
+                    # Approval is a trusted fixture operation; no admin identity is created.
+                    await session.execute(text("update public.salons set approval_status='approved' where id=:salon"), ids)
+                else:
+                    await session.execute(text("""insert into public.salons
+                        (id,owner_id,name,profile_completed,approval_status,approval_mode,timezone,working_hours)
+                        values(:salon,:owner,'Mumbai rollback test salon',true,'approved','auto','Asia/Kolkata',cast(:hours as jsonb))"""),
+                        {**ids, "owner": owner, "hours": json.dumps(hours)})
                 await session.execute(text("insert into public.staff(id,salon_id,name) values(:staff,:salon,'Rollback test staff')"), ids)
                 await session.execute(text("insert into public.service_categories(id,name,slug) values(:category,'Rollback test category',:slug)"), {**ids, "slug": ids["category"]})
                 await session.execute(text("insert into public.service_subcategories(id,category_id,name,slug) values(:subcategory,:category,'Rollback test subcategory',:slug)"), {**ids, "slug": ids["subcategory"]})
@@ -83,6 +104,17 @@ async def rollback_checks(api, app, database, headers_by_role):
                                 "status": response.status_code,
                                 "found": any(row["id"] == booking_id for row in response.json()) if response.status_code == 200 else False})
                 assert response.status_code == 200 and any(row["id"] == booking_id for row in response.json())
+
+            if completion:
+                from migration_mumbai_completion_business_20261015 import (
+                    business_checks,
+                )
+                if runtime_probe:
+                    results.extend(await runtime_probe(connection, ids, payload, booking_id))
+                with patch("app.infrastructure.push.outbox_worker.enqueue_and_deliver_notification", new=AsyncMock()):
+                    results.extend(await business_checks(api, factory, headers_by_role, ids, payload, booking_id,
+                                                          customer_id=customer))
+                return results
 
             # Test grants are uncommitted and roll back with the outer transaction.
             # They allow RLS ownership tests without changing persistent client ACLs.

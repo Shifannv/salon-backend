@@ -1,0 +1,377 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "results": [
+    {
+      "check": "schema_only_target_readonly_assertions",
+      "status": "passed",
+      "extra_columns_preserved": true
+    },
+    {
+      "check": "function_search_path_verification",
+      "status": "passed",
+      "function_count": 52
+    },
+    {
+      "check": "security_definer_fixed_configuration",
+      "status": "passed",
+      "unsafe_count": 0,
+      "security_definer_count": 21
+    },
+    {
+      "check": "security_target_effective_ACL_readonly_assertions",
+      "status": "passed",
+      "client_table_rights": 0,
+      "client_app_execute": 0,
+      "service_booking": true,
+      "service_slots": true
+    },
+    {
+      "check": "alembic_history_unchanged_empty",
+      "status": "passed",
+      "rows": 0
+    },
+    {
+      "check": "signup_trigger_synthetic_sql_insert",
+      "status": "passed",
+      "created_profiles": 3,
+      "auth_http_signup_tested": false
+    },
+    {
+      "check": "customer_direct_client_denied",
+      "status": "passed",
+      "expected_sqlstate": "42501"
+    },
+    {
+      "check": "customer_scoped_RLS_row_filter",
+      "status": "not_applicable",
+      "reason": "FastAPI-only architecture; direct client 42501 is expected. No grants added."
+    },
+    {
+      "check": "owner_direct_client_denied",
+      "status": "passed",
+      "expected_sqlstate": "42501"
+    },
+    {
+      "check": "owner_scoped_RLS_row_filter",
+      "status": "not_applicable",
+      "reason": "FastAPI-only architecture; direct client 42501 is expected. No grants added."
+    },
+    {
+      "check": "service_role_availability",
+      "status": "passed",
+      "slot_count": 17
+    },
+    {
+      "check": "service_role_create_booking",
+      "status": "passed",
+      "role_verified": true
+    },
+    {
+      "check": "FastAPI_customer_and_two_owner_booking_isolation",
+      "status": "passed",
+      "negative_reads": 4,
+      "expected_status": 404
+    },
+    {
+      "check": "customer_account_deletion_cancellation_fields_erased",
+      "status": "passed",
+      "fields_cleared": 2,
+      "booking_and_amount_retained": true,
+      "unrelated_salon_booking_unchanged": true,
+      "profile_removed_inside_rollback": true,
+      "repeat_idempotent": true,
+      "auth_http_delete": false
+    },
+    {
+      "check": "owner_account_deletion_cancellation_fields_erased",
+      "status": "passed",
+      "fields_cleared": 2,
+      "booking_and_amount_retained": true,
+      "unrelated_salon_booking_unchanged": true,
+      "profile_removed_inside_rollback": true,
+      "repeat_idempotent": true,
+      "auth_http_delete": false
+    },
+    {
+      "check": "create_salon_via_owner_onboarding_api",
+      "status": 200
+    },
+    {
+      "check": "availability_before_booking",
+      "status": 200,
+      "slots": 18
+    },
+    {
+      "check": "create_booking_via_api",
+      "status": 201
+    },
+    {
+      "check": "idempotent_booking_replay",
+      "status": 201,
+      "same_booking": true
+    },
+    {
+      "check": "duplicate_booking_rejected",
+      "status": 409
+    },
+    {
+      "check": "booking_visible_to_party",
+      "role": "customer",
+      "status": 200,
+      "found": true
+    },
+    {
+      "check": "booking_visible_to_party",
+      "role": "owner",
+      "status": 200,
+      "found": true
+    },
+    {
+      "check": "openapi_contract",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 348.434
+    },
+    {
+      "check": "owner_access_api",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 483.428
+    },
+    {
+      "check": "create_owner_service_via_api",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 851.909
+    },
+    {
+      "check": "create_owner_staff_via_api",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 605.459
+    },
+    {
+      "check": "public_synthetic_salon",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 280.611
+    },
+    {
+      "check": "public_service_listing",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 396.13
+    },
+    {
+      "check": "public_staff_listing",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 398.506
+    },
+    {
+      "check": "server_quote_with_online_disabled",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 799.967
+    },
+    {
+      "check": "pay_at_salon_daily_limit",
+      "status": 409,
+      "expected": 409,
+      "elapsed_ms": 948.744,
+      "error_code": "pay_at_salon_daily_limit"
+    },
+    {
+      "check": "customer_cannot_collect",
+      "status": 403,
+      "expected": 403,
+      "elapsed_ms": 496.383,
+      "error_code": "forbidden"
+    },
+    {
+      "check": "completion_requires_collection",
+      "status": 409,
+      "expected": 409,
+      "elapsed_ms": 693.66,
+      "error_code": "payment_collection_required"
+    },
+    {
+      "check": "owner_cash_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1664.404
+    },
+    {
+      "check": "complete_after_cash_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 915.648
+    },
+    {
+      "check": "new_booking_after_completed_frees_daily_limit",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 926.087
+    },
+    {
+      "check": "owner_upi_direct_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1188.392
+    },
+    {
+      "check": "complete_after_upi_collection",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 841.653
+    },
+    {
+      "check": "cancellable_future_booking",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 902.128
+    },
+    {
+      "check": "customer_cancellation_before_cutoff",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1064.441
+    },
+    {
+      "check": "no_show_fixture_booking",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 920.953
+    },
+    {
+      "check": "no_show_before_appointment_rejected",
+      "status": 422,
+      "expected": 422,
+      "elapsed_ms": 765.045,
+      "error_code": "validation_error"
+    },
+    {
+      "check": "owner_marks_past_appointment_no_show",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 892.723
+    },
+    {
+      "check": "no_show_fixture_booking",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 911.228
+    },
+    {
+      "check": "owner_marks_past_appointment_no_show",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 860.59
+    },
+    {
+      "check": "repeated_no_shows_block_pay_at_salon",
+      "status": 409,
+      "expected": 409,
+      "elapsed_ms": 793.289,
+      "error_code": "pay_at_salon_temporarily_blocked"
+    },
+    {
+      "check": "support_ticket_create",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 1140.548
+    },
+    {
+      "check": "owner_support_reply",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 1114.06
+    },
+    {
+      "check": "foreign_salon_support_fixture",
+      "status": 201,
+      "expected": 201,
+      "elapsed_ms": 833.463
+    },
+    {
+      "check": "owner_cannot_read_foreign_salon_ticket",
+      "status": 404,
+      "expected": 404,
+      "elapsed_ms": 304.984,
+      "error_code": "not_found"
+    },
+    {
+      "check": "email_worker_database_claim_and_ack",
+      "sent_rows": 1,
+      "external_provider": "fake",
+      "actual_delivery_verified": false
+    },
+    {
+      "check": "notification_worker_database_drain",
+      "events_attempted": 4,
+      "external_provider": "fake"
+    },
+    {
+      "check": "audit_and_collection_snapshots",
+      "audit_rows": 13,
+      "methods": [
+        {
+          "method": "UPI_DIRECT",
+          "rows": 1
+        },
+        {
+          "method": "CASH",
+          "rows": 1
+        }
+      ]
+    },
+    {
+      "check": "expired_trial_hidden_from_public_discovery",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 279.675
+    },
+    {
+      "check": "expired_trial_has_no_slots",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 444.967
+    },
+    {
+      "check": "existing_history_readable_after_trial_expiry",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 300.379
+    },
+    {
+      "check": "subscription_database_sweep",
+      "status": "completed in rollback transaction"
+    },
+    {
+      "check": "schema_function_ACL_memberships_defaults_and_all_table_counts_unchanged",
+      "status": "passed"
+    },
+    {
+      "check": "transaction_rollback_synthetic_users_and_profiles",
+      "status": "passed",
+      "remaining": 0
+    }
+  ],
+  "failure": null,
+  "sql_errors": [
+    {
+      "test": "customer_direct_booking_read",
+      "sqlstate": "42501",
+      "expected": true,
+      "meaning": "insufficient_privilege"
+    },
+    {
+      "test": "owner_direct_booking_read",
+      "sqlstate": "42501",
+      "expected": true,
+      "meaning": "insufficient_privilege"
+    }
+  ],
+  "migrations_or_DDL_or_grants_or_stamp_executed": false,
+  "providers": "disabled/fake; API identity injected, JWT not tested"
+}

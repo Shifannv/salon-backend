@@ -1,0 +1,16 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "method": "project-scoped Mumbai Supabase MCP read-only SELECT",
+  "alembic_rows": 0,
+  "profiles": 2,
+  "salons": 0,
+  "bookings": 0,
+  "storage_buckets": 0,
+  "storage_objects": 0,
+  "explicit_public_column_acls": 0,
+  "extension_member_public_relations": 0,
+  "service_tables_missing_dml": 0,
+  "service_app_functions_missing_execute": 0,
+  "reconciliation_sql_executed": false,
+  "stamp_executed": false
+}
