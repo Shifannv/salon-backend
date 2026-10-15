@@ -143,7 +143,7 @@ stamping. No execution action is requested or taken by this report.
 - [First SQL attempt](migration-mumbai-runtime-first-attempt-2026-10-15.json)
 - [Second SQL attempt](migration-mumbai-runtime-second-attempt-2026-10-15.json)
 - [Least-privilege reconciliation plan](migration-mumbai-reconciliation-plan-2026-10-15.md)
-- [Runtime runner](../../../migration_mumbai_runtime_20261015.py)
+- [Runtime runner](../../scripts/migrations/mumbai/migration_mumbai_runtime_20261015.py)
 
 Focused Ruff and static bundle validation pass. No unrelated backend/full-suite rerun
 was needed: backend code, tests and real revision files were unchanged by this task.
