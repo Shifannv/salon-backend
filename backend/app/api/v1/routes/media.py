@@ -36,7 +36,7 @@ async def upload_avatar(
         PlatformRepository(session), storage, PillowImageProcessor(settings.image_max_pixels),
         ImagePolicy(settings.image_avatar_dimension, settings.image_avatar_max_bytes),
     ).execute(
-        actor, data, image.content_type or "", settings.r2_bucket or "salon-images",
+        actor, data, image.content_type or "", settings.media_bucket,
     )
     return AvatarResponse(avatar_url=url)
 

@@ -7,6 +7,8 @@ in separate repositories and consume this API through environment-configured bas
 Do not pull frontend app code into this repository unless the team explicitly changes to
 a monorepo.
 
+Before anything else in a new chat, read `.claude/skills/senior-backend-engineer/SKILL.md`. It is the binding working standard for investigating errors, improving code, cleaning up and reporting results.
+
 Before making code changes, read the project documentation in this order:
 
 1. `docs/README.md`

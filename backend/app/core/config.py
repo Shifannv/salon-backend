@@ -338,6 +338,11 @@ class Settings(BaseSettings):
         return self
 
     @property
+    def media_bucket(self) -> str:
+        """R2 bucket for uploaded media, defaulting to the standard bucket name."""
+        return self.r2_bucket or "salon-images"
+
+    @property
     def booking_payments_enabled(self) -> bool:
         return self.payment_provider != "none" and (
             self.payment_provider != "cashfree" or self.cashfree_enabled

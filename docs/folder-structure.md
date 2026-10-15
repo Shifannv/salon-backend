@@ -9,6 +9,9 @@ salon-backend/
       domain/           pure business types and rules
       infrastructure/   database and external-service adapters
     migrations/         SQL baseline and Alembic revisions
+      reviews/          sealed migration review evidence (never edited, not in the image)
+    scripts/            deploy and ops scripts
+      migrations/       one-off migration tooling, see scripts/migrations/mumbai/README.md
     tests/              automated tests
     docs/               backend technical and operational notes
     Dockerfile

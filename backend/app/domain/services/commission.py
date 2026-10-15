@@ -6,16 +6,12 @@ recomputed. A refund reverses the snapshot proportionally. Provider processing f
 are a different quantity and never enter this module.
 """
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from app.domain.entities.payment import CommissionBase
+from app.domain.value_objects.money import round_money
 
-_CENT = Decimal("0.01")
 _HUNDRED = Decimal(100)
-
-
-def _money(value: Decimal) -> Decimal:
-    return value.quantize(_CENT, ROUND_HALF_UP)
 
 
 def compute_commission(
@@ -40,11 +36,11 @@ def compute_commission(
         raise ValueError("commission rate must be between 0 and 100")
     base = CommissionBase(base)
     if base is CommissionBase.online_amount:
-        raw = _money(payment_amount * rate_percent / _HUNDRED)
+        raw = round_money(payment_amount * rate_percent / _HUNDRED)
     else:
-        whole = _money(booking_total * rate_percent / _HUNDRED)
+        whole = round_money(booking_total * rate_percent / _HUNDRED)
         raw = max(whole - already_allocated, Decimal(0))
-    return min(raw, _money(payment_amount))
+    return min(raw, round_money(payment_amount))
 
 
 def commission_reversal(
@@ -67,5 +63,5 @@ def commission_reversal(
     if outstanding <= 0:
         return Decimal("0.00")
     if already_refunded + refund_amount >= payment_amount:
-        return _money(outstanding)
-    return min(_money(commission * refund_amount / payment_amount), _money(outstanding))
+        return round_money(outstanding)
+    return min(round_money(commission * refund_amount / payment_amount), round_money(outstanding))

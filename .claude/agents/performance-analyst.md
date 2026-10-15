@@ -13,7 +13,7 @@ Bash only for read-only commands. Do not change code.
 
 - N+1 queries and lazy loads in async SQLAlchemy 2.
 - Missing indexes on hot filters: `salon_id`, `status`, booking start time, nearby-search geo columns. Check `backend/migrations/versions/`.
-- Unbounded list endpoints and missing pagination (`core/pagination.py`).
+- Unbounded list endpoints and missing pagination (no shared helper exists; check each route for bounded `limit`/`offset`).
 - Blocking calls (sync I/O, CPU work, image processing) inside async paths.
 - Redis caching opportunities and their invalidation (`salon:{id}:*`, `walkin:qr:{token}`); cache hits must still revalidate publication.
 - Connection pool sizing and behavior behind the Supabase pooler with asyncpg (prepared statements, held connections during throttle/auth).

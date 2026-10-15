@@ -16,14 +16,11 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import IdempotencyInProgressError, IdempotencyKeyReuseError
+from app.infrastructure.db.json_utils import decode_json
 from app.infrastructure.db.session import set_actor_context
 
 _SETTLED = "('captured', 'partially_refunded', 'refunded')"
 _OPEN = "('created', 'authorized')"
-
-
-def _json(value: Any) -> Any:
-    return json.loads(value) if isinstance(value, str) else value
 
 
 class PaymentRepository:
@@ -109,7 +106,7 @@ class PaymentRepository:
             raise IdempotencyKeyReuseError(
                 "Idempotency-Key was already used for a different request"
             )
-        body = _json(existing["response_body"])
+        body = decode_json(existing["response_body"])
         if body is None:
             raise IdempotencyInProgressError("The original request is still being processed")
         return body
@@ -835,7 +832,7 @@ class PaymentRepository:
         if row is None:
             return None
         data = dict(row)
-        data["normalized"] = _json(data["normalized"])
+        data["normalized"] = decode_json(data["normalized"])
         return data
 
     async def list_due_webhook_event_ids(
@@ -1053,7 +1050,7 @@ class PaymentRepository:
         if row is None:
             return None
         data = dict(row)
-        data["requirements"] = _json(data["requirements"]) or []
+        data["requirements"] = decode_json(data["requirements"]) or []
         return data
 
     async def upsert_provider_account(

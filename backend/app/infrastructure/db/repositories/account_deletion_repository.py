@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.ports.account_deletion_repository import AccountDeletionRepository
 from app.core.exceptions import DeletionBlockedError, InvalidVerificationCodeError, NotFoundError
 from app.core.tokens import digests_match
+from app.infrastructure.db.json_utils import decode_json
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )
@@ -49,10 +50,6 @@ CLOSURE_NOTICE_ONLINE = " Any online payment you made will be refunded to your o
 CLOSURE_NOTICE_MANUAL = (
     " A payment you made directly to the salon is not refunded by the platform."
 )
-
-
-def _json(value: Any) -> Any:
-    return json.loads(value) if isinstance(value, str) else value
 
 
 class SQLAccountDeletionRepository(AccountDeletionRepository):
@@ -407,7 +404,7 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         if row is None:
             return None
         data = dict(row)
-        data["step_state"] = _json(data["step_state"]) or {}
+        data["step_state"] = decode_json(data["step_state"]) or {}
         return data
 
     async def list_requests(self, limit: int, offset: int) -> list[dict[str, Any]]:
@@ -445,8 +442,8 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         if row is None:
             return None
         data = dict(row)
-        data["step_state"] = _json(data["step_state"]) or {}
-        data["media_keys"] = _json(data["media_keys"]) or []
+        data["step_state"] = decode_json(data["step_state"]) or {}
+        data["media_keys"] = decode_json(data["media_keys"]) or []
         return data
 
     async def record_step(self, request_id: str, step: str) -> None:

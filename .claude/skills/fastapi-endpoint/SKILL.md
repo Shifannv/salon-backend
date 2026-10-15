@@ -25,7 +25,7 @@ Work inward-to-outward so dependencies always point inward. Paths are under `bac
 - [ ] Role dependency and use-case ownership check both present
 - [ ] Queries scoped by actor or `salon_id`; public reads use the approved+active+profile_completed gate
 - [ ] No raw DB error text can reach a response
-- [ ] List endpoints are paginated (`core/pagination.py`) and bounded
+- [ ] List endpoints take bounded `limit`/`offset` (`Query(..., ge=, le=)`) and have a deterministic `ORDER BY`
 - [ ] Mutations on cached data (`salon:{id}:*`, `walkin:qr:{token}`) invalidate the cache
 - [ ] Soft delete via `is_active`; no hard delete
 - [ ] Tests: success, validation error, each denied role, other owner's resource, 404/409 paths

@@ -15,7 +15,7 @@ Follow the `agent-memory` skill. Task from the user (may be empty): $ARGUMENTS
 
 ## Steps
 
-1. Read `docs/agent-memory/shared/README.md`, then `architecture.md` and `gotchas.md`. Read other shared files only if the task needs them (domain-rules for booking/payment/auth, conventions for endpoints/tests, commands for running things).
+1. Read `.claude/skills/senior-backend-engineer/SKILL.md` first and follow it for the whole session. Then read `docs/agent-memory/shared/README.md`, then `architecture.md` and `gotchas.md`. Read other shared files only if the task needs them (domain-rules for booking/payment/auth, conventions for endpoints/tests, commands for running things).
 2. Branch slug = branch name with `/` replaced by `-`. Look for `docs/agent-memory/progress/{slug}.md`.
    - If the branch is `main` (the base branch), say so and ask for the task and a branch name. Do not create a progress file.
    - If the file is missing, create it from `progress/TEMPLATE.md` with the branch name and the task as Goal.
