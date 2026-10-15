@@ -59,8 +59,9 @@ class RedisCache(CacheGateway):
         try:
             await self._client.set(_READ_EPOCH, uuid4().hex)
             self._read_cache_safe = True
-            for prefix in (*_READ_PREFIXES, *_LIVE_PREFIXES):
-                await self.delete_prefix(prefix, strict=True)
+            # One atomic namespace change invalidates logical read keys. Do not
+            # SCAN the keyspace on every commit. Explicit erasure delete_prefix
+            # still removes payloads from every generation, not just the pointer.
         except Exception:
             self._read_cache_safe = False
             logger.warning("Read cache invalidation failed; this process will bypass payload caching")
