@@ -82,7 +82,7 @@ infrastructure -> domain/application ports
 
 - Do not modify the database schema through application code.
 - Schema changes must be reviewed Alembic migrations.
-- Keep the v3 SQL baseline in `backend/migrations/001_supabase_schema.sql` as the schema source of truth.
+- Keep the v3 SQL baseline in `backend/migrations/sql/001_supabase_schema.sql` as the schema source of truth.
 - Do not hand-translate the baseline SQL into ORM migrations.
 - Bookings must be created only through the Postgres `create_booking` function.
 - Availability must come only from the Postgres `get_available_slots` function.

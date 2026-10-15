@@ -1,0 +1,55 @@
+{
+  "status": "prepared not executed",
+  "files_sha256": {
+    "backend/migrations/versions/0038_cancellation_compatibility.py": "3238c2dd43ab22b60cb266cbf163ba57dbbabefbe7bba37e787522cdd3a2fe1b",
+    "backend/migrations/versions/0039_promotion_search_path.py": "87d9e55b49789b7a70935258e9dc21aff4d496701bec968660e86f9f036dca61",
+    "backend/migrations/versions/0040_fastapi_only_access.py": "ea1a0c896aa3f56c8b418df2294a73e39c36d5cb067a4e7bc4866a9ccaa24275",
+    "backend/migrations/sql/0038_cancellation_compatibility.sql": "e4dd34877cb1205a434646f2b94076c19a79841fc9d82be7602c337f55e4d43a",
+    "backend/migrations/sql/0039_promotion_search_path.sql": "8e5806ba55cbf69874e754f7b16ebc27522e4e9fe80654504ea94a8e32ac4433",
+    "backend/migrations/sql/0040_fastapi_only_access.sql": "88e20b414442267b1f5e2b22f4f50fd4278257db04afa9ce05bed71ffd68b96e",
+    "backend/app/infrastructure/db/repositories/account_deletion_repository.py": "59eef8e0037db6bc21aa30598a4d871a133d9c3ea0edbede748c620c97e07816",
+    "backend/tests/unit/test_mumbai_forward_reconciliation.py": "c73541234a4774f720cb2c13de1b790d35b60303e31a7ec4a6b0bfea5bdc5e39",
+    "backend/tests/integration/test_account_deletion_sql.py": "d2364178ea696ed3a504d6dea3c605ef326857ef331c7ecc9c000f464380b956",
+    "backend/docs/verification/mumbai-forward-privileges-2026-10-15.csv": "640260b15fe54d7fc5537f7a975123bed32c6af5194f52608cc6d7d6d117eb83"
+  },
+  "layout_restructure": {
+    "reason": "migrations/ split into versions/, sql/ and reviews/; SQL content not edited",
+    "superseded": {
+      "backend/migrations/versions/0038_cancellation_compatibility.py": {
+        "sha256": "c5316d063761168eb4d29b3c6f45c009f60b5f997859041a19c63457c6dcb920",
+        "now": "backend/migrations/versions/0038_cancellation_compatibility.py",
+        "reason": "only change: sidecar path segment '/ \"sql\" /' in the revision/test"
+      },
+      "backend/migrations/versions/0039_promotion_search_path.py": {
+        "sha256": "7302387936332b90e1afb94e8d5f94f22ba2c2b165dc0b7e907ded222cdee3d9",
+        "now": "backend/migrations/versions/0039_promotion_search_path.py",
+        "reason": "only change: sidecar path segment '/ \"sql\" /' in the revision/test"
+      },
+      "backend/migrations/versions/0040_fastapi_only_access.py": {
+        "sha256": "524ba6497c3407a4d08ca2ab3e650479745206b06bd9e2e3461d380d60de54d8",
+        "now": "backend/migrations/versions/0040_fastapi_only_access.py",
+        "reason": "only change: sidecar path segment '/ \"sql\" /' in the revision/test"
+      },
+      "backend/migrations/0038_cancellation_compatibility.sql": {
+        "sha256": "e4dd34877cb1205a434646f2b94076c19a79841fc9d82be7602c337f55e4d43a",
+        "now": "backend/migrations/sql/0038_cancellation_compatibility.sql",
+        "reason": "sql content hash unchanged; path moved"
+      },
+      "backend/migrations/0039_promotion_search_path.sql": {
+        "sha256": "8e5806ba55cbf69874e754f7b16ebc27522e4e9fe80654504ea94a8e32ac4433",
+        "now": "backend/migrations/sql/0039_promotion_search_path.sql",
+        "reason": "sql content hash unchanged; path moved"
+      },
+      "backend/migrations/0040_fastapi_only_access.sql": {
+        "sha256": "88e20b414442267b1f5e2b22f4f50fd4278257db04afa9ce05bed71ffd68b96e",
+        "now": "backend/migrations/sql/0040_fastapi_only_access.sql",
+        "reason": "sql content hash unchanged; path moved"
+      },
+      "backend/tests/unit/test_mumbai_forward_reconciliation.py": {
+        "sha256": "7107f94bb71863e9b73d0c68d7415e62a5e3b96f9619106a75718f6481d337f3",
+        "now": "backend/tests/unit/test_mumbai_forward_reconciliation.py",
+        "reason": "only change: sidecar path segment '/ \"sql\" /' in the revision/test"
+      }
+    }
+  }
+}

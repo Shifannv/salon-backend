@@ -1,0 +1,1375 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "head": "0037_customer_processing_charge",
+  "prepared_repository_head_not_applied": "0040_fastapi_only_access",
+  "revision_count": 37,
+  "revisions": [
+    {
+      "revision": "0001_baseline",
+      "source_sha256": "cad5a6a9af2600fd0bee97103ed40dedbe33d99ef7f2c55084e86835bfb36b21",
+      "summary": "Apply the v3 Supabase schema baseline.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "profiles",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "salons",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "staff",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "services",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "bookings",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "booking_services",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "blocked_slots",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [
+        {
+          "file": "backend/migrations/sql/001_supabase_schema.sql",
+          "sha256": "6dcdea0b7e152cc45ba612878beae71279e949309c09bc79c9ff2aaff65cbe36"
+        }
+      ],
+      "notes": "Consolidated baseline overlap documented; compare final objects, not a replay recipe."
+    },
+    {
+      "revision": "0002_notifications_read_at",
+      "source_sha256": "4a6a253e900b1811ee1246bb7060ec8cba25e6ba22e0dcc6b92135c379b11ba6",
+      "summary": "Add read_at timestamp to notifications.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "notifications.read_at",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "stamp_notification_read_at",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0003_google_oauth_profile_metadata",
+      "source_sha256": "cf2469be47eabd21717bc081b5a731f2d4685e57998e08f4556959d4ccdfcfda",
+      "summary": "Capture Google OAuth metadata in new profiles.",
+      "checks": [
+        {
+          "category": "functions",
+          "object": "handle_new_user",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final signup body is superseded/hardened by 0024; user metadata is display-only."
+    },
+    {
+      "revision": "0004_service_duration_slot_steps",
+      "source_sha256": "3f9d770a52c558bf33b333df1e02e93087e4f60b8989fb23d211a59b407f4dc3",
+      "summary": "Generate availability slots by service duration.",
+      "checks": [
+        {
+          "category": "functions",
+          "object": "get_available_slots",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0005_staff_experience",
+      "source_sha256": "c5964105fb93ac92651f2522553daba42405582d0a16e28bc911f382ee7c8935",
+      "summary": "Add staff experience.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "staff.experience",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0006_enable_realtime",
+      "source_sha256": "b8242055e1b4a54ae676d22e0803703e3d46de736437de365f92b68911505874",
+      "summary": "Enable Supabase Realtime on bookings and blocked_slots.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "bookings",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "blocked_slots",
+          "present": true
+        },
+        {
+          "category": "replica_identity",
+          "object": "bookings",
+          "present": true
+        },
+        {
+          "category": "replica_identity",
+          "object": "blocked_slots",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Replica FULL checked; current publication membership separately refreshed by scoped MCP."
+    },
+    {
+      "revision": "0007_salon_qr_image_url",
+      "source_sha256": "d1cd26d67f0a04139ed37bc5da957d2a3928d55a6b8e88ab26f41e24e6aebdc2",
+      "summary": "Add qr_image_url to salons table.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salons.qr_image_url",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0008_salon_images_soft_delete",
+      "source_sha256": "0b791a2ee65f6fdef7fe39c47258fe7896b71dc056d201bc527c1f3b88eb903f",
+      "summary": "Add is_active soft-delete column to salon_images.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salon_images.is_active",
+          "present": true
+        },
+        {
+          "category": "indexes",
+          "object": "idx_salon_images_active",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0009_booking_cancellation_reason",
+      "source_sha256": "7572bc70f69b743dfc35b83e992b8b601487131b3dc12a11d444f670059e53d2",
+      "summary": "Add cancellation_reason column to bookings.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "bookings.cancellation_reason",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "0014 repeats repair idempotently; two extra reason_code/reason_text columns are not this migration's cancellation_reason."
+    },
+    {
+      "revision": "0010_salon_reports",
+      "source_sha256": "01e1166046ebc19963814cc7b03857ea3133c1a1c64f4166d9b296a797acf1d3",
+      "summary": "Persist customer reports with self-read RLS and soft deletion.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "salon_reports",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0011_holiday_soft_delete",
+      "source_sha256": "9464ef09ccfa2acd36cf40bc549c7b1aa9e21863f571ac1574f41d9a7b92637c",
+      "summary": "Add soft deletion for salon holidays.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salon_holidays.is_active",
+          "present": true
+        },
+        {
+          "category": "indexes",
+          "object": "uq_salon_holidays_active_date",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0012_booking_delay",
+      "source_sha256": "cc1cc71efd8385e9d3a6f4314248e9e2cf2b09cf5096c23a29ac21df90aab280",
+      "summary": "Store owner-entered booking delay estimates.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "bookings.estimated_end_datetime",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0013_booking_action_requests",
+      "source_sha256": "e095dfed2636c82d4809cd0b04a7e0a1a8294c6141b0d89e92b00e86b994368c",
+      "summary": "Add booking action requests, payment preference, and notification outbox.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "booking_action_requests",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "notification_outbox",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "bookings.payment_preference",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0014_repair_cancel_reason",
+      "source_sha256": "4efa15fcc86cbee028503b0b72e6dcd4cc641ecf68af1e2220832dd65cf97ceb",
+      "summary": "Repair the booking cancellation reason column on drifted databases.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "bookings.cancellation_reason",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0015_salon_admin_approval",
+      "source_sha256": "ebb4b9fdf54a12348d9f8e3a627f517cdc1b666152693363b80c9c1fd8a4c8dc",
+      "summary": "Require super admin approval before salon publication or daily business.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salons.approval_status",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "salons.approved_at",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "salons.approved_by",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "salons.rejection_reason",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_salon_approval",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_booking_salon_approval",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0016_service_presentation",
+      "source_sha256": "6898832d26d18e2886eed2a6b9842c084fbd939730b21b78c2385016ead7e3d8",
+      "summary": "Add salon-specific service names and photos without changing the catalog.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "services.category_name",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "services.subcategory_name",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "services.photo_url",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0017_salon_display_priority",
+      "source_sha256": "6bb1a6823e62ce67e549224b32df81c7ac927ea9db820a4433321d3979607a0a",
+      "summary": "Add super-admin controlled salon display priority for public discovery.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salons.display_priority",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_salon_display_priority",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0018_subscription_foundation",
+      "source_sha256": "25595d876835d9a6d184989b90839809b8dfa3493b8cbf00b4f6784bc674d6ce",
+      "summary": "Provider-agnostic subscription and salon-promotion foundation.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "subscription_plans",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "subscription_provider_accounts",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "salon_subscriptions",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "subscription_events",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_subscription_admin",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "is_subscription_promotion_active",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Function replaced by 0030; compare final body, not obsolete intermediate body."
+    },
+    {
+      "revision": "0019_discovery_placement",
+      "source_sha256": "74c7a79b9d29ce8a93470566e631974972559cff67de56f17e18f48447917a05",
+      "summary": "Super-admin discovery visibility and home placement controls.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salons.discovery_visibility",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "salons.home_placement",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_salon_discovery_placement",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0020_media_reference_guards",
+      "source_sha256": "4d740bf4765c794b97a6a31230279022bbf5b0bc7a47191cdff39929466fc3d3",
+      "summary": "Serialize all media references with cleanup and block client URL bypasses.",
+      "checks": [
+        {
+          "category": "functions",
+          "object": "guard_media_reference",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0021_account_deletion",
+      "source_sha256": "0ef0452d04c64f9311d9026b6d610eab5cee374ec74b4b3e1cb1a13ece11bb76",
+      "summary": "Account deletion: verification challenges, durable erasure ledger, erasure helper.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "account_deletion_challenges",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "account_deletion_requests",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "erase_profile_references",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Erasure function superseded by 0028. No destructive erasure job executed."
+    },
+    {
+      "revision": "0022_salon_accepting_bookings",
+      "source_sha256": "af7fb190c91f7a3604f888ce030f5b8ad345f6135b80ff17eb2c3780386db960",
+      "summary": "Let a salon owner pause new bookings without touching existing ones.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "salons.accepting_bookings",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0023_notification_data",
+      "source_sha256": "121255a0967e381640397ac5427e7c72a581635463bc5cf86ff93acb4acffc11",
+      "summary": "Let a notification carry structured push metadata (e.g. salon approval status/reason).",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "notifications.data",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0024_secure_new_user_role",
+      "source_sha256": "6d519ea518d49b914ea28e41907ffde03b1e70ee032180a5c430f36e5548ee4a",
+      "summary": "Harden trusted role assignment and the browser-facing database surface.",
+      "checks": [
+        {
+          "category": "functions",
+          "object": "handle_new_user",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "get_active_tokens",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "create_booking",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "register_device_token",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "deactivate_device_token",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Destination denies client register/deactivate EXECUTE despite historical authenticated grants. Promotion function search_path retained beyond 0030. Not an exact ACL match."
+    },
+    {
+      "revision": "0025_salon_payout_accounts",
+      "source_sha256": "6760a5ef8833557baff9c0246e802121e590e9892b5d6ab2f639a5193fe9804f",
+      "summary": "Add owner-only salon payout accounts (UPI / bank) in a private table.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "salon_payout_accounts",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [
+        {
+          "file": "backend/migrations/sql/001_supabase_schema.sql",
+          "sha256": "6dcdea0b7e152cc45ba612878beae71279e949309c09bc79c9ff2aaff65cbe36"
+        }
+      ],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0026_booking_payments",
+      "source_sha256": "7bd561c97017150031f7b75ee268309c033194e89fa8f4e7e59b9510e4054af1",
+      "summary": "Payment-collection foundation: ledger, refunds, webhook intake, idempotency.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "booking_payments",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "payment_refunds",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "payment_webhook_events",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "payment_idempotency_keys",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "payment_provider_accounts",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "recompute_booking_payment_state",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Ledger function/guards subsequently replaced by 0029,0033,0035,0037; final-state comparison applies."
+    },
+    {
+      "revision": "0027_payout_account_audit",
+      "source_sha256": "be494b3c9a5432cda2a1109dd67da5d36a467d59994cd525fb52e1b7aa0a305e",
+      "summary": "Payout-account hardening: audit trail, SQL masking, bank-triple CHECK.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "salon_payout_account_history",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "salon_payout_account_masked",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "tg_salon_payout_account_history",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0028_account_erasure_hardening",
+      "source_sha256": "f8e2faffeb4a0a25faa8d9eb20ace370d02478535c09d1a131466d9114a347ad",
+      "summary": "Account erasure hardening.",
+      "checks": [
+        {
+          "category": "functions",
+          "object": "erase_profile_references",
+          "present": true
+        },
+        {
+          "category": "indexes",
+          "object": "idx_account_deletion_requests_open_age",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0029_payment_monetary_policy",
+      "source_sha256": "0b57c1ad6fb740c49f1d07ae8cb4c7a602f09e2bcfdfe0bd0b35beb639c73c1c",
+      "summary": "Payment monetary policy: commission snapshot, overcollection, anomalies, audit.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "payment_anomalies",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "payment_provider_account_audit",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "booking_payments.platform_commission_amount",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "booking_payments.overcollected_amount",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "payment_refunds.commission_reversal_amount",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Historical data backfill execution cannot be inferred from schema. No production rows imported."
+    },
+    {
+      "revision": "0030_subscription_billing",
+      "source_sha256": "25f08b3dd7de0795ee5d3eb825617aa74cbdecdc31af580da030d3cafc322fa8",
+      "summary": "Owner subscription billing: purchase ledger and atomic, idempotent activation.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "subscription_billing_records",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "apply_subscription_billing_record",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "cancel_salon_subscription_renewal",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "sweep_lapsed_subscriptions",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Promotion function body matches final head; Mumbai search_path hardening differs. Provider lifecycle not exercised."
+    },
+    {
+      "revision": "0031_seed_subscription_plans",
+      "source_sha256": "91b2856f7454cc07c70ede5cf38edf8acb38afd30f67008177d59fce0c250311",
+      "summary": "Seed the Growth and Premium subscription plans (1 / 6 / 12 months).",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "subscription_plans",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Six non-personal seed plan codes checked separately; this is not historical execution proof."
+    },
+    {
+      "revision": "0032_salon_access_state",
+      "source_sha256": "c6953f8c75b43f95bd8b12a6022e5fb86a073d6a5d0d2cf9eb5d1b80359df4c2",
+      "summary": "Salon access state: backend-only trial facts and booking counting.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "salon_access",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "start_salon_trial",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "recompute_salon_trial",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "salon_booking_eligible",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0033_payment_fee_snapshot",
+      "source_sha256": "29afafee467a9453a451eb72efd014cf2931f403f87c2329700f4d91c679b476",
+      "summary": "Gateway-fee snapshot on payments and cancellation facts on refunds.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "booking_payments.gateway_fee_percent",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "booking_payments.gateway_fee_amount",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "payment_refunds.kind",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "payment_refunds.deduction_amount",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "payment_refunds.attempts",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0034_booking_lifecycle_states",
+      "source_sha256": "96313479ecc633f511456e8fbba5c71d7a55f6d601588985cb9c6df6572d7d27",
+      "summary": "Prepare booking lifecycle enum values before transactional guards use them.",
+      "checks": [
+        {
+          "category": "enums",
+          "object": "booking_status",
+          "present": true
+        },
+        {
+          "category": "enum_value",
+          "object": "checked_in",
+          "present": true
+        },
+        {
+          "category": "enum_value",
+          "object": "no_show",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "checked_in and no_show must exist in booking_status."
+    },
+    {
+      "revision": "0035_booking_checkout_safety",
+      "source_sha256": "911cadef7dbf43c6dd0d992d2fd5a816dddb31f0942551768d0a68dc6e10ec5f",
+      "summary": "Transactional trial, checkout, collection and append-only audit enforcement.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "booking_audit_events",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "customer_booking_restrictions",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_booking_checkout",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "stamp_booking_lifecycle",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_collection_snapshot",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [
+        {
+          "file": "backend/migrations/sql/0035_booking_checkout_safety.sql",
+          "sha256": "ef1c9b994c7e43646d526186d8a4ab14dc5b0c5122bf294d7053d04f7be9b079"
+        }
+      ],
+      "notes": "Compare referenced 0035 SQL as well as revision Python; 0037 replaces some financial guards."
+    },
+    {
+      "revision": "0036_support_email_outbox",
+      "source_sha256": "79ddadf88f12e81eb58884fcf17997fafa886aaaad2e4d0ab46faae7d3ac2370",
+      "summary": "Backend-only support messages, durable email outbox and rate-limit counters.",
+      "checks": [
+        {
+          "category": "tables",
+          "object": "support_messages",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "email_events",
+          "present": true
+        },
+        {
+          "category": "tables",
+          "object": "api_rate_limits",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "enqueue_booking_email",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "enqueue_verified_payment_receipt",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [],
+      "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
+    },
+    {
+      "revision": "0037_customer_processing_charge",
+      "source_sha256": "eacc93772add5506a15151fe58e270e1f4183cd8aae7de4f41624c7627b5c997",
+      "summary": "Immutable customer processing-charge snapshots on the existing ledger.",
+      "checks": [
+        {
+          "category": "columns",
+          "object": "bookings.checkout_policy_version",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "booking_payments.service_amount",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "booking_payments.online_processing_charge",
+          "present": true
+        },
+        {
+          "category": "columns",
+          "object": "booking_payments.provider_session_id",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "stamp_checkout_policy",
+          "present": true
+        },
+        {
+          "category": "functions",
+          "object": "guard_collection_snapshot",
+          "present": true
+        }
+      ],
+      "status": "selected final-state requirements present",
+      "external_SQL_sources": [
+        {
+          "file": "backend/migrations/sql/0037_customer_processing_charge.sql",
+          "sha256": "2721b33ceba5079d7cad5ec4fd75f4a8b1811ce17c8915e69eda5418ec6a677f"
+        }
+      ],
+      "notes": "Compare referenced 0037 SQL plus columns/final guard body. Checkout/collection tested via API."
+    }
+  ],
+  "fresh_catalog_drift_since_prior_audit": {
+    "enums": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "tables": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "columns": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "indexes": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "policies": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "triggers": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "functions": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    },
+    "constraints": {
+      "missing": [],
+      "extra": [],
+      "changed": []
+    }
+  },
+  "known_head_differences": {
+    "enums": {
+      "missing": [],
+      "extra": [],
+      "changed": {}
+    },
+    "tables": {
+      "missing": [],
+      "extra": [],
+      "changed": {}
+    },
+    "columns": {
+      "missing": [],
+      "extra": [
+        "bookings.cancellation_reason_code",
+        "bookings.cancellation_reason_text"
+      ],
+      "changed": {}
+    },
+    "indexes": {
+      "missing": [],
+      "extra": [],
+      "changed": {}
+    },
+    "policies": {
+      "missing": [],
+      "extra": [],
+      "changed": {}
+    },
+    "triggers": {
+      "missing": [],
+      "extra": [],
+      "changed": {}
+    },
+    "functions": {
+      "missing": [],
+      "extra": [],
+      "changed": {
+        "is_subscription_promotion_active(p_status subscription_status, p_current_start timestamp with time zone, p_current_end timestamp with time zone, p_grace_end timestamp with time zone, p_now timestamp with time zone)": {
+          "head": {
+            "body": "\r\nbegin\r\n  if p_status in ('active', 'trialing') then\r\n    if p_current_start is not null and p_current_end is not null\r\n       and p_now >= p_current_start and p_now < p_current_end then\r\n      return true;\r\n    end if;\r\n    -- A paid period stores its grace window; just-ended periods keep the benefit until then.\r\n    return p_current_end is not null and p_grace_end is not null\r\n       and p_now >= p_current_end and p_now < p_grace_end;\r\n  end if;\r\n  if p_status = 'cancelled' then\r\n    return p_current_end is not null\r\n       and p_now < p_current_end;\r\n  end if;\r\n  if p_status = 'past_due' then\r\n    return p_grace_end is not null\r\n       and p_now < p_grace_end;\r\n  end if;\r\n  return false;\r\nend ",
+            "config": null,
+            "result": "boolean",
+            "language": "plpgsql",
+            "volatility": "i",
+            "security_definer": false
+          },
+          "mumbai": {
+            "body": "\nbegin\n  if p_status in ('active', 'trialing') then\n    if p_current_start is not null and p_current_end is not null\n       and p_now >= p_current_start and p_now < p_current_end then\n      return true;\n    end if;\n    -- A paid period stores its grace window; just-ended periods keep the benefit until then.\n    return p_current_end is not null and p_grace_end is not null\n       and p_now >= p_current_end and p_now < p_grace_end;\n  end if;\n  if p_status = 'cancelled' then\n    return p_current_end is not null\n       and p_now < p_current_end;\n  end if;\n  if p_status = 'past_due' then\n    return p_grace_end is not null\n       and p_now < p_grace_end;\n  end if;\n  return false;\nend ",
+            "config": [
+              "search_path=public"
+            ],
+            "result": "boolean",
+            "language": "plpgsql",
+            "volatility": "i",
+            "security_definer": false
+          }
+        }
+      }
+    },
+    "constraints": {
+      "missing": [
+        "account_deletion_challenges.account_deletion_challenges_attempts_not_null",
+        "account_deletion_challenges.account_deletion_challenges_channel_not_null",
+        "account_deletion_challenges.account_deletion_challenges_contact_hash_not_null",
+        "account_deletion_challenges.account_deletion_challenges_created_at_not_null",
+        "account_deletion_challenges.account_deletion_challenges_expires_at_not_null",
+        "account_deletion_challenges.account_deletion_challenges_id_not_null",
+        "account_deletion_challenges.account_deletion_challenges_last_sent_at_not_null",
+        "account_deletion_challenges.account_deletion_challenges_max_attempts_not_null",
+        "account_deletion_challenges.account_deletion_challenges_purpose_not_null",
+        "account_deletion_challenges.account_deletion_challenges_resend_count_not_null",
+        "account_deletion_challenges.account_deletion_challenges_status_not_null",
+        "account_deletion_challenges.account_deletion_challenges_user_id_not_null",
+        "account_deletion_requests.account_deletion_requests_attempts_not_null",
+        "account_deletion_requests.account_deletion_requests_id_not_null",
+        "account_deletion_requests.account_deletion_requests_media_keys_not_null",
+        "account_deletion_requests.account_deletion_requests_next_attempt_at_not_null",
+        "account_deletion_requests.account_deletion_requests_requested_at_not_null",
+        "account_deletion_requests.account_deletion_requests_role_not_null",
+        "account_deletion_requests.account_deletion_requests_status_not_null",
+        "account_deletion_requests.account_deletion_requests_step_state_not_null",
+        "account_deletion_requests.account_deletion_requests_updated_at_not_null",
+        "alembic_version.alembic_version_version_num_not_null",
+        "api_rate_limits.api_rate_limits_attempts_not_null",
+        "api_rate_limits.api_rate_limits_bucket_hash_not_null",
+        "api_rate_limits.api_rate_limits_window_start_not_null",
+        "blocked_slots.blocked_slots_block_type_not_null",
+        "blocked_slots.blocked_slots_created_at_not_null",
+        "blocked_slots.blocked_slots_end_datetime_not_null",
+        "blocked_slots.blocked_slots_id_not_null",
+        "blocked_slots.blocked_slots_is_full_day_not_null",
+        "blocked_slots.blocked_slots_is_recurring_not_null",
+        "blocked_slots.blocked_slots_start_datetime_not_null",
+        "blocked_slots.blocked_slots_updated_at_not_null",
+        "booking_action_requests.booking_action_requests_booking_id_not_null",
+        "booking_action_requests.booking_action_requests_created_at_not_null",
+        "booking_action_requests.booking_action_requests_id_not_null",
+        "booking_action_requests.booking_action_requests_kind_not_null",
+        "booking_action_requests.booking_action_requests_status_not_null",
+        "booking_action_requests.booking_action_requests_updated_at_not_null",
+        "booking_audit_events.booking_audit_events_booking_id_not_null",
+        "booking_audit_events.booking_audit_events_created_at_not_null",
+        "booking_audit_events.booking_audit_events_event_type_not_null",
+        "booking_audit_events.booking_audit_events_id_not_null",
+        "booking_payments.booking_payments_amount_not_null",
+        "booking_payments.booking_payments_booking_id_not_null",
+        "booking_payments.booking_payments_channel_not_null",
+        "booking_payments.booking_payments_collected_by_owner_not_null",
+        "booking_payments.booking_payments_created_at_not_null",
+        "booking_payments.booking_payments_currency_not_null",
+        "booking_payments.booking_payments_gateway_fee_amount_not_null",
+        "booking_payments.booking_payments_id_not_null",
+        "booking_payments.booking_payments_intent_reference_not_null",
+        "booking_payments.booking_payments_online_processing_charge_not_null",
+        "booking_payments.booking_payments_overcollected_amount_not_null",
+        "booking_payments.booking_payments_platform_commission_amount_not_null",
+        "booking_payments.booking_payments_platform_fee_amount_not_null",
+        "booking_payments.booking_payments_purpose_not_null",
+        "booking_payments.booking_payments_salon_id_not_null",
+        "booking_payments.booking_payments_settlement_model_not_null",
+        "booking_payments.booking_payments_status_not_null",
+        "booking_payments.booking_payments_updated_at_not_null",
+        "booking_services.booking_services_booking_id_not_null",
+        "booking_services.booking_services_duration_minutes_not_null",
+        "booking_services.booking_services_price_not_null",
+        "booking_services.booking_services_service_id_not_null",
+        "booking_services.booking_services_service_name_not_null",
+        "bookings.bookings_checkout_policy_version_not_null",
+        "bookings.bookings_created_at_not_null",
+        "bookings.bookings_currency_not_null",
+        "bookings.bookings_customer_name_not_null",
+        "bookings.bookings_end_datetime_not_null",
+        "bookings.bookings_id_not_null",
+        "bookings.bookings_paid_amount_not_null",
+        "bookings.bookings_payment_status_not_null",
+        "bookings.bookings_phone_verified_not_null",
+        "bookings.bookings_refunded_amount_not_null",
+        "bookings.bookings_salon_id_not_null",
+        "bookings.bookings_source_not_null",
+        "bookings.bookings_staff_id_not_null",
+        "bookings.bookings_start_datetime_not_null",
+        "bookings.bookings_status_not_null",
+        "bookings.bookings_total_duration_minutes_not_null",
+        "bookings.bookings_total_price_not_null",
+        "bookings.bookings_updated_at_not_null",
+        "customer_booking_restrictions.customer_booking_restrictions_customer_id_not_null",
+        "customer_booking_restrictions.customer_booking_restrictions_no_show_count_not_null",
+        "device_tokens.device_tokens_created_at_not_null",
+        "device_tokens.device_tokens_id_not_null",
+        "device_tokens.device_tokens_is_active_not_null",
+        "device_tokens.device_tokens_last_seen_at_not_null",
+        "device_tokens.device_tokens_token_not_null",
+        "device_tokens.device_tokens_user_id_not_null",
+        "email_events.email_events_attempts_not_null",
+        "email_events.email_events_body_not_null",
+        "email_events.email_events_created_at_not_null",
+        "email_events.email_events_event_key_not_null",
+        "email_events.email_events_event_type_not_null",
+        "email_events.email_events_id_not_null",
+        "email_events.email_events_next_attempt_at_not_null",
+        "email_events.email_events_recipient_not_null",
+        "email_events.email_events_status_not_null",
+        "email_events.email_events_subject_not_null",
+        "languages.languages_code_not_null",
+        "languages.languages_name_not_null",
+        "notification_deliveries.notification_deliveries_attempted_at_not_null",
+        "notification_deliveries.notification_deliveries_delivered_not_null",
+        "notification_deliveries.notification_deliveries_device_token_id_not_null",
+        "notification_deliveries.notification_deliveries_id_not_null",
+        "notification_deliveries.notification_deliveries_notification_id_not_null",
+        "notification_outbox.notification_outbox_attempts_not_null",
+        "notification_outbox.notification_outbox_created_at_not_null",
+        "notification_outbox.notification_outbox_id_not_null",
+        "notification_outbox.notification_outbox_next_attempt_at_not_null",
+        "notification_outbox.notification_outbox_notification_id_not_null",
+        "notification_outbox.notification_outbox_status_not_null",
+        "notification_outbox.notification_outbox_updated_at_not_null",
+        "notification_outbox.notification_outbox_user_id_not_null",
+        "notifications.notifications_created_at_not_null",
+        "notifications.notifications_id_not_null",
+        "notifications.notifications_read_not_null",
+        "notifications.notifications_title_not_null",
+        "notifications.notifications_user_id_not_null",
+        "payment_anomalies.payment_anomalies_created_at_not_null",
+        "payment_anomalies.payment_anomalies_id_not_null",
+        "payment_anomalies.payment_anomalies_kind_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_actor_id_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_created_at_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_expires_at_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_id_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_idempotency_key_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_request_fingerprint_not_null",
+        "payment_idempotency_keys.payment_idempotency_keys_scope_not_null",
+        "payment_provider_account_audit.payment_provider_account_audit_action_not_null",
+        "payment_provider_account_audit.payment_provider_account_audit_created_at_not_null",
+        "payment_provider_account_audit.payment_provider_account_audit_id_not_null",
+        "payment_provider_account_audit.payment_provider_account_audit_provider_not_null",
+        "payment_provider_account_audit.payment_provider_account_audit_salon_id_not_null",
+        "payment_provider_accounts.payment_provider_accounts_created_at_not_null",
+        "payment_provider_accounts.payment_provider_accounts_id_not_null",
+        "payment_provider_accounts.payment_provider_accounts_onboarding_status_not_null",
+        "payment_provider_accounts.payment_provider_accounts_provider_not_null",
+        "payment_provider_accounts.payment_provider_accounts_registration_generation_not_null",
+        "payment_provider_accounts.payment_provider_accounts_requirements_not_null",
+        "payment_provider_accounts.payment_provider_accounts_salon_id_not_null",
+        "payment_provider_accounts.payment_provider_accounts_updated_at_not_null",
+        "payment_refunds.payment_refunds_amount_not_null",
+        "payment_refunds.payment_refunds_applies_to_excess_not_null",
+        "payment_refunds.payment_refunds_attempts_not_null",
+        "payment_refunds.payment_refunds_booking_id_not_null",
+        "payment_refunds.payment_refunds_commission_reversal_amount_not_null",
+        "payment_refunds.payment_refunds_created_at_not_null",
+        "payment_refunds.payment_refunds_deduction_amount_not_null",
+        "payment_refunds.payment_refunds_id_not_null",
+        "payment_refunds.payment_refunds_idempotency_key_not_null",
+        "payment_refunds.payment_refunds_kind_not_null",
+        "payment_refunds.payment_refunds_payment_id_not_null",
+        "payment_refunds.payment_refunds_status_not_null",
+        "payment_refunds.payment_refunds_updated_at_not_null",
+        "payment_webhook_events.payment_webhook_events_attempts_not_null",
+        "payment_webhook_events.payment_webhook_events_event_type_not_null",
+        "payment_webhook_events.payment_webhook_events_id_not_null",
+        "payment_webhook_events.payment_webhook_events_next_attempt_at_not_null",
+        "payment_webhook_events.payment_webhook_events_normalized_not_null",
+        "payment_webhook_events.payment_webhook_events_payload_hash_not_null",
+        "payment_webhook_events.payment_webhook_events_processing_status_not_null",
+        "payment_webhook_events.payment_webhook_events_provider_event_reference_not_null",
+        "payment_webhook_events.payment_webhook_events_provider_name_not_null",
+        "payment_webhook_events.payment_webhook_events_received_at_not_null",
+        "profiles.profiles_created_at_not_null",
+        "profiles.profiles_id_not_null",
+        "profiles.profiles_is_active_not_null",
+        "profiles.profiles_phone_verified_not_null",
+        "profiles.profiles_role_not_null",
+        "profiles.profiles_updated_at_not_null",
+        "salon_access.salon_access_bookings_counted_not_null",
+        "salon_access.salon_access_created_at_not_null",
+        "salon_access.salon_access_salon_id_not_null",
+        "salon_access.salon_access_trial_booking_limit_not_null",
+        "salon_access.salon_access_updated_at_not_null",
+        "salon_holidays.salon_holidays_created_at_not_null",
+        "salon_holidays.salon_holidays_holiday_date_not_null",
+        "salon_holidays.salon_holidays_id_not_null",
+        "salon_holidays.salon_holidays_is_active_not_null",
+        "salon_holidays.salon_holidays_is_recurring_not_null",
+        "salon_holidays.salon_holidays_salon_id_not_null",
+        "salon_holidays.salon_holidays_updated_at_not_null",
+        "salon_images.salon_images_created_at_not_null",
+        "salon_images.salon_images_id_not_null",
+        "salon_images.salon_images_is_active_not_null",
+        "salon_images.salon_images_is_main_not_null",
+        "salon_images.salon_images_salon_id_not_null",
+        "salon_images.salon_images_sort_order_not_null",
+        "salon_images.salon_images_updated_at_not_null",
+        "salon_images.salon_images_url_not_null",
+        "salon_payout_account_history.salon_payout_account_history_action_not_null",
+        "salon_payout_account_history.salon_payout_account_history_after_state_not_null",
+        "salon_payout_account_history.salon_payout_account_history_changed_at_not_null",
+        "salon_payout_account_history.salon_payout_account_history_changed_fields_not_null",
+        "salon_payout_account_history.salon_payout_account_history_id_not_null",
+        "salon_payout_account_history.salon_payout_account_history_salon_id_not_null",
+        "salon_payout_accounts.salon_payout_accounts_account_holder_name_not_null",
+        "salon_payout_accounts.salon_payout_accounts_created_at_not_null",
+        "salon_payout_accounts.salon_payout_accounts_salon_id_not_null",
+        "salon_payout_accounts.salon_payout_accounts_updated_at_not_null",
+        "salon_reports.salon_reports_created_at_not_null",
+        "salon_reports.salon_reports_details_not_null",
+        "salon_reports.salon_reports_id_not_null",
+        "salon_reports.salon_reports_is_active_not_null",
+        "salon_reports.salon_reports_reason_not_null",
+        "salon_reports.salon_reports_reporter_id_not_null",
+        "salon_reports.salon_reports_salon_id_not_null",
+        "salon_reports.salon_reports_status_not_null",
+        "salon_subscriptions.salon_subscriptions_created_at_not_null",
+        "salon_subscriptions.salon_subscriptions_id_not_null",
+        "salon_subscriptions.salon_subscriptions_plan_id_not_null",
+        "salon_subscriptions.salon_subscriptions_salon_id_not_null",
+        "salon_subscriptions.salon_subscriptions_status_not_null",
+        "salon_subscriptions.salon_subscriptions_updated_at_not_null",
+        "salons.salons_accepting_bookings_not_null",
+        "salons.salons_approval_mode_not_null",
+        "salons.salons_approval_status_not_null",
+        "salons.salons_created_at_not_null",
+        "salons.salons_discovery_visibility_not_null",
+        "salons.salons_display_priority_not_null",
+        "salons.salons_home_placement_not_null",
+        "salons.salons_id_not_null",
+        "salons.salons_is_active_not_null",
+        "salons.salons_name_not_null",
+        "salons.salons_profile_completed_not_null",
+        "salons.salons_qr_token_not_null",
+        "salons.salons_slot_interval_minutes_not_null",
+        "salons.salons_timezone_not_null",
+        "salons.salons_updated_at_not_null",
+        "salons.salons_working_hours_not_null",
+        "service_categories.service_categories_created_at_not_null",
+        "service_categories.service_categories_id_not_null",
+        "service_categories.service_categories_is_active_not_null",
+        "service_categories.service_categories_name_not_null",
+        "service_categories.service_categories_slug_not_null",
+        "service_categories.service_categories_sort_order_not_null",
+        "service_categories.service_categories_updated_at_not_null",
+        "service_subcategories.service_subcategories_category_id_not_null",
+        "service_subcategories.service_subcategories_created_at_not_null",
+        "service_subcategories.service_subcategories_id_not_null",
+        "service_subcategories.service_subcategories_is_active_not_null",
+        "service_subcategories.service_subcategories_name_not_null",
+        "service_subcategories.service_subcategories_slug_not_null",
+        "service_subcategories.service_subcategories_sort_order_not_null",
+        "service_subcategories.service_subcategories_updated_at_not_null",
+        "services.services_created_at_not_null",
+        "services.services_duration_minutes_not_null",
+        "services.services_id_not_null",
+        "services.services_is_active_not_null",
+        "services.services_name_not_null",
+        "services.services_price_not_null",
+        "services.services_salon_id_not_null",
+        "services.services_subcategory_id_not_null",
+        "services.services_updated_at_not_null",
+        "staff.staff_created_at_not_null",
+        "staff.staff_id_not_null",
+        "staff.staff_is_active_not_null",
+        "staff.staff_name_not_null",
+        "staff.staff_salon_id_not_null",
+        "staff.staff_updated_at_not_null",
+        "staff_service_languages.staff_service_languages_language_code_not_null",
+        "staff_service_languages.staff_service_languages_staff_service_id_not_null",
+        "staff_services.staff_services_created_at_not_null",
+        "staff_services.staff_services_id_not_null",
+        "staff_services.staff_services_is_active_not_null",
+        "staff_services.staff_services_service_id_not_null",
+        "staff_services.staff_services_staff_id_not_null",
+        "staff_services.staff_services_updated_at_not_null",
+        "subscription_billing_records.subscription_billing_records_amount_not_null",
+        "subscription_billing_records.subscription_billing_records_benefits_not_null",
+        "subscription_billing_records.subscription_billing_records_billing_interval_not_null",
+        "subscription_billing_records.subscription_billing_records_created_at_not_null",
+        "subscription_billing_records.subscription_billing_records_currency_not_null",
+        "subscription_billing_records.subscription_billing_records_expires_at_not_null",
+        "subscription_billing_records.subscription_billing_records_id_not_null",
+        "subscription_billing_records.subscription_billing_records_plan_code_not_null",
+        "subscription_billing_records.subscription_billing_records_plan_id_not_null",
+        "subscription_billing_records.subscription_billing_records_provider_not_null",
+        "subscription_billing_records.subscription_billing_records_receipt_not_null",
+        "subscription_billing_records.subscription_billing_records_refunded_amount_not_null",
+        "subscription_billing_records.subscription_billing_records_salon_id_not_null",
+        "subscription_billing_records.subscription_billing_records_status_not_null",
+        "subscription_billing_records.subscription_billing_records_updated_at_not_null",
+        "subscription_events.subscription_events_event_type_not_null",
+        "subscription_events.subscription_events_id_not_null",
+        "subscription_events.subscription_events_processing_status_not_null",
+        "subscription_events.subscription_events_received_at_not_null",
+        "subscription_plans.subscription_plans_billing_interval_not_null",
+        "subscription_plans.subscription_plans_code_not_null",
+        "subscription_plans.subscription_plans_created_at_not_null",
+        "subscription_plans.subscription_plans_currency_not_null",
+        "subscription_plans.subscription_plans_features_not_null",
+        "subscription_plans.subscription_plans_id_not_null",
+        "subscription_plans.subscription_plans_is_active_not_null",
+        "subscription_plans.subscription_plans_name_not_null",
+        "subscription_plans.subscription_plans_price_amount_not_null",
+        "subscription_plans.subscription_plans_ranking_weight_not_null",
+        "subscription_plans.subscription_plans_tier_not_null",
+        "subscription_plans.subscription_plans_updated_at_not_null",
+        "subscription_provider_accounts.subscription_provider_accounts_created_at_not_null",
+        "subscription_provider_accounts.subscription_provider_accounts_id_not_null",
+        "subscription_provider_accounts.subscription_provider_accounts_salon_id_not_null",
+        "subscription_provider_accounts.subscription_provider_accounts_updated_at_not_null",
+        "support_messages.support_messages_body_not_null",
+        "support_messages.support_messages_created_at_not_null",
+        "support_messages.support_messages_id_not_null",
+        "support_messages.support_messages_ticket_id_not_null",
+        "support_tickets.support_tickets_created_at_not_null",
+        "support_tickets.support_tickets_customer_id_not_null",
+        "support_tickets.support_tickets_id_not_null",
+        "support_tickets.support_tickets_status_not_null",
+        "support_tickets.support_tickets_subject_not_null",
+        "support_tickets.support_tickets_updated_at_not_null"
+      ],
+      "extra": [],
+      "changed": {
+        "subscription_plans.ck_subscription_plans_interval": {
+          "head": "CHECK (((billing_interval)::text = ANY ((ARRAY['monthly'::character varying, 'quarterly'::character varying, 'semiannual'::character varying, 'yearly'::character varying])::text[])))",
+          "mumbai": "CHECK (((billing_interval)::text = ANY (ARRAY[('monthly'::character varying)::text, ('quarterly'::character varying)::text, ('semiannual'::character varying)::text, ('yearly'::character varying)::text])))"
+        }
+      }
+    }
+  },
+  "limitations": "All revisions inventoried with selected final-state assertions and full current catalog bridge. Does not prove intermediate revision execution, arbitrary historical backfills, or reproduce effective clean-head ACLs. No revision imported/executed."
+}

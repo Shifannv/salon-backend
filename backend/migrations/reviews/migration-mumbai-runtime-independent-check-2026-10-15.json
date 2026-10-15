@@ -1,0 +1,522 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "method": "independent scoped MCP SELECT after runtime rollback",
+  "columns": [
+    {
+      "name": "cancellation_reason_code",
+      "domain": null,
+      "default": null,
+      "identity": "NO",
+      "nullable": "YES",
+      "collation": null,
+      "data_type": "text",
+      "generated": "NEVER"
+    },
+    {
+      "name": "cancellation_reason_text",
+      "domain": null,
+      "default": null,
+      "identity": "NO",
+      "nullable": "YES",
+      "collation": null,
+      "data_type": "text",
+      "generated": "NEVER"
+    }
+  ],
+  "realtime": [
+    "blocked_slots",
+    "booking_action_requests",
+    "bookings"
+  ],
+  "alembic_rows": 0,
+  "signup_trigger": [
+    {
+      "name": "t_on_auth_user_created",
+      "type": 5,
+      "enabled": "O",
+      "function": "handle_new_user()"
+    }
+  ],
+  "seed_plan_codes": [
+    "growth_12m",
+    "growth_1m",
+    "growth_6m",
+    "premium_12m",
+    "premium_1m",
+    "premium_6m"
+  ],
+  "remaining_salons": 0,
+  "function_security": [
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "9443df2104374cf0d4671d6344e23d4a",
+      "signature": "app_role()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "9568876e29910339c65cec3dba46ffbd",
+      "signature": "apply_subscription_billing_record(uuid,integer)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "0003e46ccc331aab087f1f6a106b2068",
+      "signature": "booking_append_audit()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "9b43863c0df6706e59758e7a5de2ea78",
+      "signature": "cancel_salon_subscription_renewal(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "0f606b2c918124e3788c1a7200e37323",
+      "signature": "create_booking(uuid,uuid,uuid[],timestamp with time zone,text,text,booking_source,text)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "d61553e6f23f72f62c26ed03c476ab21",
+      "signature": "deactivate_device_token(text)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "5f936dd7e5bdccf4109f98efa87adc6e",
+      "signature": "demote_other_main_images()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "afa38657dfb0701ebae9c011ddb64d02",
+      "signature": "effective_duration(uuid,uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "3c8fb43738c90175af86551f7d62f351",
+      "signature": "enqueue_booking_email()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "872569ebdbabc0563f8d8ec6cefe9547",
+      "signature": "enqueue_verified_payment_receipt()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "definer": false,
+      "body_md5": "878e071a29ddf60dc126bf1a1cc8371e",
+      "signature": "erase_profile_references(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "0281bcaac8b71e3f8ad25fad23fa4c8f",
+      "signature": "get_active_tokens(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "7ce5915d5b5e5f91e51b03692d90e6c2",
+      "signature": "get_available_slots(uuid,date,integer)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "9a12d77d9b4c49d13e5aad5457252ec6",
+      "signature": "get_salon_by_qr(text)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "167f952d032e241f8e17d900bdf87c56",
+      "signature": "guard_audit_immutable()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "a87af6907eb5b66f3b8d44e423af423d",
+      "signature": "guard_booking_against_closure()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "ce28a9711ef50ca61a64e4b4fc426f38",
+      "signature": "guard_booking_checkout()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "e68f7865cf436177cc64b69b2835521d",
+      "signature": "guard_booking_payment_columns()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "a521994a039fa605e33da63deec3ad84",
+      "signature": "guard_booking_salon_approval()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "e917af9e02d68217fce6ab2e3b5ec5c6",
+      "signature": "guard_collection_snapshot()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog"
+      ],
+      "definer": false,
+      "body_md5": "b06a93e0b284e7a890c2b4def57777e1",
+      "signature": "guard_media_reference()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "581c796e251baf3637990c7d6354fa37",
+      "signature": "guard_salon_approval()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "232f0d3283f203edabae228bf3e73bac",
+      "signature": "guard_salon_discovery_placement()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "e4eaeba0d41fd06fc7e28f9febf689f2",
+      "signature": "guard_salon_display_priority()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "bae43e7ed7570742ad7c555a9fb4b235",
+      "signature": "guard_subscription_admin()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "bbc4006b3b60009d8f7ff6cdd89f71df",
+      "signature": "handle_new_user()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "e977f43166d03210fd29af099daaf16f",
+      "signature": "is_subscription_promotion_active(subscription_status,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "e159e5cf9f91c9c322e154973d532c2b",
+      "signature": "is_super_admin()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "a8ac033dc8a091af0d1c474ce0b4bd81",
+      "signature": "owns_salon(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "d593ba5e94b599a586bcb130265152e3",
+      "signature": "payment_append_audit()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "e60e1e831970837897a8aeb96032374e",
+      "signature": "payout_account_snapshot(salon_payout_accounts)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "d2366361f587293e3fc6b2a709395227",
+      "signature": "recompute_booking_payment_state(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "fb4d6fcc3895370bb8f2d9a1b7b2c0bd",
+      "signature": "recompute_salon_trial(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "cf73f5c97c1e5450f661d6ed52696ee2",
+      "signature": "register_device_token(text,text,text)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "6a06456f0acb56dc15a68352cddd0e5a",
+      "signature": "salon_booking_eligible(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "82ac77ecd19bb60a4a15b86f0f04b162",
+      "signature": "salon_payout_account_masked(uuid)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "91371b226aa770ed1639bde28dbac078",
+      "signature": "salon_trial_setting(text,integer,integer,integer)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "515fe9684cdc6fc8b086609f4cac1a1f",
+      "signature": "set_audit_actor()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "2087ee763cae5a840d5f9851ac4e1eb8",
+      "signature": "set_updated_at()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "9cbe69ec31a08b0d4ec1208ae4b68b76",
+      "signature": "stamp_booking_lifecycle()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "a21ee50f8f5ce231df55684a2c061762",
+      "signature": "stamp_checkout_policy()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "cc57248d86e350c4780048d420bb4804",
+      "signature": "stamp_notification_read_at()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "df8dca5b1cda5e4fe7c08027af8558c0",
+      "signature": "start_salon_trial(uuid,timestamp with time zone)"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "1b1da19b4945367458c1bbceb5370426",
+      "signature": "sweep_lapsed_subscriptions()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "354f6695d4224cec514072cf75c94185",
+      "signature": "tg_booking_payments_guard()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "66687e96aa3c4267663dddea1078874a",
+      "signature": "tg_booking_payments_recompute()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "e28afdfea8f7b345432db57a1add1c13",
+      "signature": "tg_bookings_recompute_trial()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "eabc5db893259f08b54553e1442c408f",
+      "signature": "tg_payment_refunds_guard()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "c727993876ecec8956799b31154da11a",
+      "signature": "tg_payment_refunds_recompute()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "a062765c38fa5f753630ef2daa8712e5",
+      "signature": "tg_salon_payout_account_history()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": true,
+      "body_md5": "3c20c581062986b896e53e61c0600ede",
+      "signature": "tg_salons_access_row()"
+    },
+    {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "definer": false,
+      "body_md5": "52f27b0657288a97b776224de0e73e8c",
+      "signature": "tg_subscription_billing_guard()"
+    }
+  ],
+  "remaining_bookings": 0,
+  "remaining_profiles": 2,
+  "seed_language_count": 6
+}

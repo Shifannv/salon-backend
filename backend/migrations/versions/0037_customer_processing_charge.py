@@ -15,7 +15,7 @@ depends_on = None
 
 
 def upgrade():
-    sql = (Path(__file__).parents[1] / "0037_customer_processing_charge.sql").read_text(encoding="utf-8")
+    sql = (Path(__file__).parents[1] / "sql" / "0037_customer_processing_charge.sql").read_text(encoding="utf-8")
     for statement in sql.split("\n-- statement --\n"):
         if statement.strip():
             op.execute(statement)

@@ -1,0 +1,26 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "secrets_output": false,
+  "auth_settings_status": 200,
+  "providers": {
+    "google": true,
+    "email": true,
+    "phone": false
+  },
+  "signup_disabled": false,
+  "email_autoconfirm": false,
+  "google_authorize_status": 302,
+  "google_redirect_host": "accounts.google.com",
+  "oauth_callback_targets_mumbai": true,
+  "admin_generate_link_status": 200,
+  "default_auth_link_redirect": "http://localhost:8081/",
+  "full_redirect_allowlist": "Not exposed by connected tools or public Auth settings",
+  "storage_admin_list_status": 200,
+  "bucket_count": 0,
+  "local_resend_domain_verified_flag": false,
+  "local_sender_domain": "resend.dev",
+  "resend_domain_list_status": 401,
+  "supabase_smtp_configuration": "Unavailable through existing connector; local Resend values do not prove Supabase SMTP config",
+  "actual_email_delivery_tested": false,
+  "actual_google_login_tested": false
+}

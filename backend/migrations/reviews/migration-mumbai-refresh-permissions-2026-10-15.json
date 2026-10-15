@@ -1,0 +1,214 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "committed_migrations_this_turn": false,
+  "salons": 0,
+  "columns": [
+    {
+      "name": "cancellation_reason_code",
+      "type": "text",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "name": "cancellation_reason_text",
+      "type": "text",
+      "default": null,
+      "nullable": "YES"
+    }
+  ],
+  "bookings": 0,
+  "policies": [
+    {
+      "name": "blocked_owner_write",
+      "check": "(((staff_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM staff s\n  WHERE ((s.id = blocked_slots.staff_id) AND owns_salon(s.salon_id))))) OR ((salon_id IS NOT NULL) AND owns_salon(salon_id)))",
+      "roles": [
+        "public"
+      ],
+      "table": "blocked_slots",
+      "using": "(((staff_id IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM staff s\n  WHERE ((s.id = blocked_slots.staff_id) AND owns_salon(s.salon_id))))) OR ((salon_id IS NOT NULL) AND owns_salon(salon_id)))",
+      "command": "ALL",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "blocked_read",
+      "check": null,
+      "roles": [
+        "public"
+      ],
+      "table": "blocked_slots",
+      "using": "true",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "bookings_customer_cancel",
+      "check": "(customer_id = auth.uid())",
+      "roles": [
+        "public"
+      ],
+      "table": "bookings",
+      "using": "(customer_id = auth.uid())",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "bookings_owner_update",
+      "check": "owns_salon(salon_id)",
+      "roles": [
+        "public"
+      ],
+      "table": "bookings",
+      "using": "owns_salon(salon_id)",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "bookings_read",
+      "check": null,
+      "roles": [
+        "public"
+      ],
+      "table": "bookings",
+      "using": "((customer_id = auth.uid()) OR owns_salon(salon_id) OR is_super_admin())",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "bookings_staff_read",
+      "check": null,
+      "roles": [
+        "authenticated"
+      ],
+      "table": "bookings",
+      "using": "(EXISTS ( SELECT 1\n   FROM staff access_staff\n  WHERE ((access_staff.salon_id = bookings.salon_id) AND (access_staff.profile_id = auth.uid()) AND access_staff.is_active)))",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "notifications_own",
+      "check": "(user_id = auth.uid())",
+      "roles": [
+        "public"
+      ],
+      "table": "notifications",
+      "using": "(user_id = auth.uid())",
+      "command": "ALL",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "salons_owner_update",
+      "check": "((owner_id = auth.uid()) AND (is_active = ( SELECT s.is_active\n   FROM salons s\n  WHERE (s.id = salons.id))))",
+      "roles": [
+        "public"
+      ],
+      "table": "salons",
+      "using": "(owner_id = auth.uid())",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "salons_public_read",
+      "check": null,
+      "roles": [
+        "public"
+      ],
+      "table": "salons",
+      "using": "((is_active AND profile_completed AND (approval_status = 'approved'::salon_approval_status)) OR (owner_id = auth.uid()) OR is_super_admin())",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "staff_approval_read",
+      "check": null,
+      "roles": [
+        "public"
+      ],
+      "table": "staff",
+      "using": "(EXISTS ( SELECT 1\n   FROM salons sl\n  WHERE ((sl.id = staff.salon_id) AND ((sl.is_active AND sl.profile_completed AND (sl.approval_status = 'approved'::salon_approval_status)) OR (sl.owner_id = auth.uid()) OR is_super_admin()))))",
+      "command": "SELECT",
+      "permissive": "RESTRICTIVE"
+    },
+    {
+      "name": "staff_owner_write",
+      "check": "owns_salon(salon_id)",
+      "roles": [
+        "public"
+      ],
+      "table": "staff",
+      "using": "owns_salon(salon_id)",
+      "command": "ALL",
+      "permissive": "PERMISSIVE"
+    },
+    {
+      "name": "staff_public_read",
+      "check": null,
+      "roles": [
+        "public"
+      ],
+      "table": "staff",
+      "using": "(is_active OR owns_salon(salon_id) OR is_super_admin())",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE"
+    }
+  ],
+  "profiles": 2,
+  "publication": [
+    "blocked_slots",
+    "booking_action_requests",
+    "bookings"
+  ],
+  "alembic_rows": 0,
+  "table_rights": [
+    {
+      "table": "bookings",
+      "select": false,
+      "grantee": "anon"
+    },
+    {
+      "table": "bookings",
+      "select": false,
+      "grantee": "authenticated"
+    },
+    {
+      "table": "blocked_slots",
+      "select": false,
+      "grantee": "anon"
+    },
+    {
+      "table": "blocked_slots",
+      "select": false,
+      "grantee": "authenticated"
+    },
+    {
+      "table": "notifications",
+      "select": false,
+      "grantee": "anon"
+    },
+    {
+      "table": "notifications",
+      "select": false,
+      "grantee": "authenticated"
+    },
+    {
+      "table": "salons",
+      "select": false,
+      "grantee": "anon"
+    },
+    {
+      "table": "salons",
+      "select": false,
+      "grantee": "authenticated"
+    },
+    {
+      "table": "staff",
+      "select": false,
+      "grantee": "anon"
+    },
+    {
+      "table": "staff",
+      "select": false,
+      "grantee": "authenticated"
+    }
+  ],
+  "supabase_migration_count": 4
+}

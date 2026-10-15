@@ -1,0 +1,532 @@
+[
+  {
+    "backup_line": 4766,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"app_role\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 4767,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"app_role\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 4807,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"deactivate_device_token\"(\"p_token\" \"text\") TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 4812,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"demote_other_main_images\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 4813,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"demote_other_main_images\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 4818,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"effective_duration\"(\"p_staff_id\" \"uuid\", \"p_service_id\" \"uuid\") TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 4819,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"effective_duration\"(\"p_staff_id\" \"uuid\", \"p_service_id\" \"uuid\") TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6006,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"get_available_slots\"(\"p_staff_id\" \"uuid\", \"p_date\" \"date\", \"p_duration_minutes\" integer) TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6007,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"get_available_slots\"(\"p_staff_id\" \"uuid\", \"p_date\" \"date\", \"p_duration_minutes\" integer) TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6012,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"get_salon_by_qr\"(\"p_qr_token\" \"text\") TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6013,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"get_salon_by_qr\"(\"p_qr_token\" \"text\") TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6023,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_booking_against_closure\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6024,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_booking_against_closure\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6034,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_booking_payment_columns\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6035,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_booking_payment_columns\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6040,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_booking_salon_approval\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6041,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_booking_salon_approval\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6051,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_media_reference\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6052,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_media_reference\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6057,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_salon_approval\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6058,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_salon_approval\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6063,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_salon_discovery_placement\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6064,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_salon_discovery_placement\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6069,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_salon_display_priority\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6070,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_salon_display_priority\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6075,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_subscription_admin\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6076,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"guard_subscription_admin\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6114,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"is_subscription_promotion_active\"(\"p_status\" \"public\".\"subscription_status\", \"p_current_start\" timestamp with time zone, \"p_current_end\" timestamp with time zone, \"p_grace_end\" timestamp with time zone, \"p_now\" timestamp with time zone) TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6115,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"is_subscription_promotion_active\"(\"p_status\" \"public\".\"subscription_status\", \"p_current_start\" timestamp with time zone, \"p_current_end\" timestamp with time zone, \"p_grace_end\" timestamp with time zone, \"p_now\" timestamp with time zone) TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6120,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"is_super_admin\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6121,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"is_super_admin\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6133,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"owns_salon\"(\"p_salon_id\" \"uuid\") TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6134,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"owns_salon\"(\"p_salon_id\" \"uuid\") TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6148,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"payout_account_snapshot\"(\"r\" \"public\".\"salon_payout_accounts\") TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6149,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"payout_account_snapshot\"(\"r\" \"public\".\"salon_payout_accounts\") TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6165,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"register_device_token\"(\"p_token\" \"text\", \"p_platform\" \"text\", \"p_device_name\" \"text\") TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6185,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"set_audit_actor\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6186,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"set_audit_actor\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6191,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"set_updated_at\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6192,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"set_updated_at\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6197,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"stamp_booking_lifecycle\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6198,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"stamp_booking_lifecycle\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6208,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"stamp_notification_read_at\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6209,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"stamp_notification_read_at\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6224,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_booking_payments_guard\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6225,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_booking_payments_guard\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6230,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_booking_payments_recompute\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6231,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_booking_payments_recompute\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6241,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_payment_refunds_guard\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6242,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_payment_refunds_guard\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6247,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_payment_refunds_recompute\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6248,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_payment_refunds_recompute\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6253,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_salon_payout_account_history\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6254,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_salon_payout_account_history\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6264,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_subscription_billing_guard\"() TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6265,
+    "source_grant": "GRANT ALL ON FUNCTION \"public\".\"tg_subscription_billing_guard\"() TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6306,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"account_deletion_challenges\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6307,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"account_deletion_challenges\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6312,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"account_deletion_requests\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6313,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"account_deletion_requests\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6318,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"alembic_version\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6319,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"alembic_version\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6328,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"blocked_slots\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6329,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"blocked_slots\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6335,
+    "source_grant": "GRANT SELECT ON TABLE \"public\".\"booking_action_requests\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6347,
+    "source_grant": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"booking_services\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6348,
+    "source_grant": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"booking_services\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6353,
+    "source_grant": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"bookings\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6354,
+    "source_grant": "GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE \"public\".\"bookings\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6363,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"device_tokens\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6364,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"device_tokens\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6373,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"languages\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6374,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"languages\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6379,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"notification_deliveries\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6380,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"notification_deliveries\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6389,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"notifications\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6390,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"notifications\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6419,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"profiles\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6420,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"profiles\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6429,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salon_holidays\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6430,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salon_holidays\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6435,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salon_images\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6436,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salon_images\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6446,
+    "source_grant": "GRANT SELECT ON TABLE \"public\".\"salon_reports\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6450,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salon_subscriptions\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6451,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salon_subscriptions\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6456,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salons\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6457,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"salons\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6462,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"service_categories\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6463,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"service_categories\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6468,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"service_subcategories\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6469,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"service_subcategories\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6474,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"services\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6475,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"services\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6480,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"staff\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6481,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"staff\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6486,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"staff_service_languages\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6487,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"staff_service_languages\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6492,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"staff_services\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6493,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"staff_services\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6502,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"subscription_events\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6503,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"subscription_events\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6508,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"subscription_plans\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6509,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"subscription_plans\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6514,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"subscription_provider_accounts\" TO \"anon\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  },
+  {
+    "backup_line": 6515,
+    "source_grant": "GRANT ALL ON TABLE \"public\".\"subscription_provider_accounts\" TO \"authenticated\";",
+    "destination": "absent; intentionally not proposed for restoration"
+  }
+]

@@ -18,7 +18,7 @@ depends_on = None
 def upgrade() -> None:
     """Execute the checked-in v3 SQL schema verbatim."""
 
-    schema_path = Path(__file__).resolve().parents[1] / "001_supabase_schema.sql"
+    schema_path = Path(__file__).resolve().parents[1] / "sql" / "001_supabase_schema.sql"
     op.execute(schema_path.read_text(encoding="utf-8"))
 
 

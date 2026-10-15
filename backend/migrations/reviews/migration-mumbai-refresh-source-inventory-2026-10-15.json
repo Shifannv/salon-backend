@@ -1,0 +1,94 @@
+{
+  "customer": {
+    "actual_path": "D:\\salon\\Salon-Customer-APP\\customer-app",
+    "source_files": {
+      "src/services/supabase/realtime.service.ts": {
+        "sha256": "ac2a2a52e542cb7e171fd5eba8b93a52b61efd766d59aef0c0e93cbfb679a288",
+        "lines": 110
+      },
+      "src/server-state/bookings.ts": {
+        "sha256": "844db397060472ed7e426c516f43748ef0b5998a4ca13bd55d237b39a3f876e4",
+        "lines": 127
+      },
+      "src/server-state/queryClient.ts": {
+        "sha256": "dfc550e5e8cf70f422c1d417ccee5aa8d79789dca2b64e508fa26227c265db78",
+        "lines": 49
+      },
+      "src/screens/appointments/AppointmentListScreen.tsx": {
+        "sha256": "c5da7efae78252a5f8b67b7b7fd0f5cb2e9fb72942a8d4685f4c440894b1d6c8",
+        "lines": 653
+      },
+      "src/screens/booking/SelectDateTimeScreen.tsx": {
+        "sha256": "dc5773dcea2431109b98f8b2b3c041cba0400b8b62fdce6d34ea91994769be1b",
+        "lines": 352
+      },
+      "src/hooks/useSalonOpenStatus.ts": {
+        "sha256": "9071cd4cf62fb3cfd6be1a0bbc2e2c92261216c7464c6abdc7e6ad14df032459",
+        "lines": 44
+      },
+      "src/application/providers/NotificationProvider.tsx": {
+        "sha256": "c265d6ea51f0aac300e1acf49d688a3d2b089eb6261a1374db8c57fa8a42146e",
+        "lines": 484
+      }
+    },
+    "deployed_staging_commit_verified": false,
+    "commit": "unavailable",
+    "branch": "unavailable"
+  },
+  "owner": {
+    "actual_path": "D:\\salon\\salon-owner-APP",
+    "source_files": {
+      "src/hooks/useRealtimeSync.ts": {
+        "sha256": "e4d1d5115ef31158a7cea2222b049671eea987bb683b51e7f7394e92b13febf1",
+        "lines": 118
+      },
+      "src/lib/operational-polling.ts": {
+        "sha256": "06bb07046ef38c0aed52c6bc68cb3618ee4482ef35908f5afa30a579c15c3098",
+        "lines": 22
+      },
+      "src/hooks/useQueryLifecycle.ts": {
+        "sha256": "00214f0c022075e96ddefee3ec59b22ddf5e0b21e560804538886a3d5c90bb0c",
+        "lines": 33
+      },
+      "src/hooks/useBookings.ts": {
+        "sha256": "b59a7dba61ad3ff9de1a0e49b40b25d3b9c687ead2bdf3cd15dc05ecbf566861",
+        "lines": 242
+      },
+      "src/hooks/useWalkin.ts": {
+        "sha256": "d56dd8490a84cff4f940450cf4f4726792bd34e51343a9a3d5b1dfd8d71f8c0e",
+        "lines": 115
+      },
+      "src/hooks/useHolidays.ts": {
+        "sha256": "15ad98731f69d4e761454ebdee5d18f101a67122ec87d5e3d3708097163d3919",
+        "lines": 152
+      },
+      "src/hooks/useNotifications.ts": {
+        "sha256": "f9d1fd8f80725fec0c581dd69aa106b7169eff2da41a1ccaeac0eb92fb850475",
+        "lines": 121
+      },
+      "app/_layout.tsx": {
+        "sha256": "d070496ea87d2a3f6a1f6c8fafa3f92dd014a8defcf20ba979fccd092c0ef993",
+        "lines": 171
+      }
+    },
+    "deployed_staging_commit_verified": false,
+    "commit": "unavailable",
+    "branch": "unavailable"
+  },
+  "website_admin": {
+    "actual_path": "D:\\salon\\salon-QR-Walking-Web\\walking-customer-web",
+    "source_files": {
+      "lib/qr/queries.ts": {
+        "sha256": "9fe10d993a699d831cfac4121de4d9ec40ca13e1c451d6e47b14518e698d44b3",
+        "lines": 126
+      },
+      "lib/api/admin.ts": {
+        "sha256": "2dc5d21fc2dffe038ec9485b44ce3fe20548530f23bf7f5cf9d4358c6da116f0",
+        "lines": 106
+      }
+    },
+    "deployed_staging_commit_verified": false,
+    "commit": "unavailable",
+    "branch": "unavailable"
+  }
+}

@@ -785,6 +785,7 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             text("""
                 update bookings
                 set customer_name = 'Deleted customer', customer_phone = null, notes = null,
+                    cancellation_reason_code = null, cancellation_reason_text = null,
                     rejection_reason = case when status = 'rejected' then :removed end,
                     cancellation_reason = case when cancellation_reason = :closed
                                                then cancellation_reason end
@@ -897,10 +898,12 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             text(f"""
                 update bookings
                 set rejection_reason = case when status = 'rejected' then :removed end,
+                    cancellation_reason_code = null, cancellation_reason_text = null,
                     cancellation_reason = case when cancellation_reason = :closed
                                                then cancellation_reason end
                 where salon_id in {owned}
-                  and (rejection_reason is distinct from case when status = 'rejected' then :removed end
+                  and (cancellation_reason_code is not null or cancellation_reason_text is not null
+                       or rejection_reason is distinct from case when status = 'rejected' then :removed end
                        or cancellation_reason is distinct from case when cancellation_reason = :closed
                                                                     then cancellation_reason end)
             """),

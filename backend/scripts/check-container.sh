@@ -18,7 +18,7 @@ for ((attempt = 0; attempt < 60; attempt++)); do
   health="$(docker inspect --format '{{.State.Health.Status}}' "$container")"
   if [[ "$health" == "healthy" ]]; then
     docker exec "$container" python -c \
-      "import importlib, os, pathlib; assert os.getuid() != 0; assert pathlib.Path('migrations/001_supabase_schema.sql').is_file(); [importlib.import_module(module) for module in ('app.infrastructure.push.outbox_worker', 'app.infrastructure.media.cleanup_worker', 'app.infrastructure.account_deletion.worker', 'app.infrastructure.account_deletion.health', 'app.infrastructure.payments.webhook_worker')]"
+      "import importlib, os, pathlib; assert os.getuid() != 0; assert pathlib.Path('migrations/sql/001_supabase_schema.sql').is_file(); [importlib.import_module(module) for module in ('app.infrastructure.push.outbox_worker', 'app.infrastructure.media.cleanup_worker', 'app.infrastructure.account_deletion.worker', 'app.infrastructure.account_deletion.health', 'app.infrastructure.payments.webhook_worker')]"
     docker exec "$container" alembic heads
     echo "Image passed: non-root API on PORT=8080, /health, all worker imports, migration files."
     exit 0

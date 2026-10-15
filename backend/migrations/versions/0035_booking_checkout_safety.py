@@ -16,7 +16,7 @@ depends_on = None
 
 def upgrade() -> None:
     # Explicit boundaries: one statement per asyncpg prepared execution.
-    sql = (Path(__file__).parents[1] / "0035_booking_checkout_safety.sql").read_text(encoding="utf-8")
+    sql = (Path(__file__).parents[1] / "sql" / "0035_booking_checkout_safety.sql").read_text(encoding="utf-8")
     for statement in sql.split("\n-- statement --\n"):
         if statement.strip():
             op.execute(statement)

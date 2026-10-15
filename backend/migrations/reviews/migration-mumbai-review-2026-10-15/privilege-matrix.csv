@@ -1,0 +1,1215 @@
+operation,object,grantee,privilege,reason,existing_objects_only,future_objects_receive_privilege,observed_delta
+REVOKE,public.account_deletion_challenges,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_challenges,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.account_deletion_requests,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.alembic_version,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.api_rate_limits,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.blocked_slots,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_action_requests,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_audit_events,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_payments,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_services,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.bookings,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.customer_booking_restrictions,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.device_tokens,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.email_events,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.languages,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_deliveries,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notification_outbox,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.notifications,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_anomalies,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_idempotency_keys,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_account_audit,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_provider_accounts,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_refunds,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_webhook_events,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.profiles,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_access,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_holidays,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_images,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_history,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_accounts,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_reports,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_subscriptions,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salons,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_categories,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.service_subcategories,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.services,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_service_languages,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.staff_services,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_billing_records,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_events,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_plans,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.subscription_provider_accounts,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_messages,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,PUBLIC,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,anon,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,SELECT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,INSERT,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,UPDATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,DELETE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,TRUNCATE,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,REFERENCES,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,TRIGGER,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.support_tickets,authenticated,MAINTAIN,FastAPI owns data access; deny direct client table access,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.app_role(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.app_role(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.app_role(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.apply_subscription_billing_record(uuid,integer)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.apply_subscription_billing_record(uuid,integer)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.apply_subscription_billing_record(uuid,integer)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_append_audit(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_append_audit(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.booking_append_audit(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.cancel_salon_subscription_renewal(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.cancel_salon_subscription_renewal(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.cancel_salon_subscription_renewal(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.create_booking(uuid,uuid,uuid[],timestamp with time zone,text,text,public.booking_source,text)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.create_booking(uuid,uuid,uuid[],timestamp with time zone,text,text,public.booking_source,text)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.create_booking(uuid,uuid,uuid[],timestamp with time zone,text,text,public.booking_source,text)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.deactivate_device_token(text),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.deactivate_device_token(text),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.deactivate_device_token(text),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.demote_other_main_images(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.demote_other_main_images(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.demote_other_main_images(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.effective_duration(uuid,uuid)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.effective_duration(uuid,uuid)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.effective_duration(uuid,uuid)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.enqueue_booking_email(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.enqueue_booking_email(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.enqueue_booking_email(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.enqueue_verified_payment_receipt(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.enqueue_verified_payment_receipt(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.enqueue_verified_payment_receipt(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.erase_profile_references(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.erase_profile_references(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.erase_profile_references(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.get_active_tokens(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.get_active_tokens(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.get_active_tokens(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.get_available_slots(uuid,date,integer)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.get_available_slots(uuid,date,integer)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.get_available_slots(uuid,date,integer)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.get_salon_by_qr(text),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.get_salon_by_qr(text),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.get_salon_by_qr(text),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_audit_immutable(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_audit_immutable(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_audit_immutable(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_against_closure(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_against_closure(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_against_closure(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_checkout(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_checkout(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_checkout(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_payment_columns(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_payment_columns(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_payment_columns(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_salon_approval(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_salon_approval(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_booking_salon_approval(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_collection_snapshot(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_collection_snapshot(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_collection_snapshot(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_media_reference(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_media_reference(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_media_reference(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_approval(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_approval(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_approval(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_discovery_placement(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_discovery_placement(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_discovery_placement(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_display_priority(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_display_priority(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_salon_display_priority(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_subscription_admin(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_subscription_admin(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.guard_subscription_admin(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.handle_new_user(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.handle_new_user(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.handle_new_user(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.is_subscription_promotion_active(public.subscription_status,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.is_subscription_promotion_active(public.subscription_status,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.is_subscription_promotion_active(public.subscription_status,timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.is_super_admin(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.is_super_admin(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.is_super_admin(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.owns_salon(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.owns_salon(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.owns_salon(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_append_audit(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_append_audit(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payment_append_audit(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payout_account_snapshot(public.salon_payout_accounts),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payout_account_snapshot(public.salon_payout_accounts),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.payout_account_snapshot(public.salon_payout_accounts),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.recompute_booking_payment_state(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.recompute_booking_payment_state(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.recompute_booking_payment_state(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.recompute_salon_trial(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.recompute_salon_trial(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.recompute_salon_trial(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.register_device_token(text,text,text)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.register_device_token(text,text,text)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.register_device_token(text,text,text)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_booking_eligible(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_booking_eligible(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_booking_eligible(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_masked(uuid),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_masked(uuid),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.salon_payout_account_masked(uuid),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.salon_trial_setting(text,integer,integer,integer)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.salon_trial_setting(text,integer,integer,integer)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.salon_trial_setting(text,integer,integer,integer)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.set_audit_actor(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.set_audit_actor(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.set_audit_actor(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.set_updated_at(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.set_updated_at(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.set_updated_at(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_booking_lifecycle(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_booking_lifecycle(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_booking_lifecycle(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_checkout_policy(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_checkout_policy(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_checkout_policy(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_notification_read_at(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_notification_read_at(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.stamp_notification_read_at(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.start_salon_trial(uuid,timestamp with time zone)",PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.start_salon_trial(uuid,timestamp with time zone)",anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,"public.start_salon_trial(uuid,timestamp with time zone)",authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.sweep_lapsed_subscriptions(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.sweep_lapsed_subscriptions(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.sweep_lapsed_subscriptions(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_booking_payments_guard(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_booking_payments_guard(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_booking_payments_guard(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_booking_payments_recompute(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_booking_payments_recompute(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_booking_payments_recompute(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_bookings_recompute_trial(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_bookings_recompute_trial(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_bookings_recompute_trial(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_payment_refunds_guard(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_payment_refunds_guard(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_payment_refunds_guard(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_payment_refunds_recompute(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_payment_refunds_recompute(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_payment_refunds_recompute(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_salon_payout_account_history(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_salon_payout_account_history(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_salon_payout_account_history(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_salons_access_row(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_salons_access_row(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_salons_access_row(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_subscription_billing_guard(),PUBLIC,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_subscription_billing_guard(),anon,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+REVOKE,public.tg_subscription_billing_guard(),authenticated,EXECUTE,Prevent direct client RPC; preserve server/trigger execution,yes,no,already absent in observed Mumbai ACL
+GRANT,"public.create_booking(uuid,uuid,uuid[],timestamp with time zone,text,text,public.booking_source,text)",service_role,EXECUTE,Preserve explicit server-only booking RPC contract from revision 0024,yes,no,already granted; no new authority on observed Mumbai
+GRANT,"public.get_available_slots(uuid,date,integer)",service_role,EXECUTE,Preserve explicit server-only availability RPC contract,yes,no,already granted; no new authority on observed Mumbai

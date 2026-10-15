@@ -42,7 +42,7 @@ Changed implementation files:
 - `migrations/versions/0016_service_presentation.py`
 - `tests/unit/test_service_presentation.py`
 - `tests/integration/test_service_presentation_migration.py`
-- `docs/SERVICE_PRESENTATION.md`, `migrations/README.md`
+- `docs/SERVICE_PRESENTATION.md`, `docs/migrations/README.md`
 - Repository-level `docs/frontend-integration.md`
 
 Pre-existing committed merge markers prevented backend imports and test collection.

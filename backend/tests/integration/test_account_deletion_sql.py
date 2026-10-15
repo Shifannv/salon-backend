@@ -77,6 +77,7 @@ COLUMN_TREATMENT: dict[str, str] = {
     "booking_services.service_name": N,
     "bookings.customer_phone": S, "bookings.rejection_reason": S, "bookings.notes": S,
     "bookings.cancellation_reason": S, "bookings.payment_preference": N,
+    "bookings.cancellation_reason_code": S, "bookings.cancellation_reason_text": S,
     "bookings.customer_name": S, "bookings.currency": N,
     "device_tokens.token": D, "device_tokens.platform": D, "device_tokens.device_name": D,
     "languages.code": N, "languages.name": N,
@@ -354,6 +355,14 @@ async def seed_world(engine) -> dict:
                       "request_fingerprint, response_body, expires_at) values "
                       "(:a, 'intent:x', :k, 'fp', cast(:r as jsonb), now() + interval '1 day')",
               a=w["cust_a"], k="a" * 12, r=f'{{"payer": "{ca}"}}')
+    # Exercise both compatibility fields as arbitrary personal text, not trusted codes.
+    # Existing customer/owner erasure tests below also retry and sweep residual markers.
+    for key, booking_id in w.items():
+        if key.startswith("b_"):
+            marker = w["ca"] if key.startswith("b_alice") else w["own"]
+            await run(engine, "update bookings set cancellation_reason_code=:code, "
+                              "cancellation_reason_text=:reason where id=:id",
+                      code=f"{marker}_reason", reason=f"{marker} private cancellation text", id=booking_id)
     return w
 
 
@@ -542,6 +551,10 @@ async def test_owner_erasure_leaves_no_residual_personal_data_anywhere(engine):
     payments = await run(engine, "select amount, recorded_by, payer_id, payment_ref from booking_payments "
                                  "where salon_id = :s order by amount", s=w["salon"])
     assert len(payments) == 3 and all(p["recorded_by"] is None for p in payments)
+    legacy = await run(engine, "select cancellation_reason_code,cancellation_reason_text "
+                               "from bookings where salon_id=:s", s=w["salon"])
+    assert legacy and all(r["cancellation_reason_code"] is None
+                          and r["cancellation_reason_text"] is None for r in legacy)
     assert {str(p["payer_id"]) for p in payments if p["payer_id"]} == {w["cust_b"], w["cust_a"]}
     assert (await one(engine, "select reason, details from salon_reports where salon_id = :s", s=w["salon"])
             ) == {"reason": "misleading", "details": ""}
@@ -575,6 +588,13 @@ async def test_customer_erasure_leaves_no_residual_personal_data_anywhere(engine
             await SQLAccountDeletionRepository(session).erase_database(w["cust_a"], "customer")
     await finish_ledger(engine, request["id"])
     hits = await residual_hits(engine, [w["ca"]], [w["cust_a"]])
+    erased = await one(engine, "select cancellation_reason_code,cancellation_reason_text "
+                              "from bookings where id=:id", id=w["b_alice"])
+    assert erased == {"cancellation_reason_code": None, "cancellation_reason_text": None}
+    unrelated = await one(engine, "select cancellation_reason_code,cancellation_reason_text "
+                                 "from bookings where id=:id", id=w["b_done"])
+    assert unrelated["cancellation_reason_code"] == f"{w['own']}_reason"
+    assert unrelated["cancellation_reason_text"] == f"{w['own']} private cancellation text"
     assert hits == [], f"residual personal data: {hits}"
     kept = await one(engine, "select customer_name, customer_phone, notes, rejection_reason "
                              "from bookings where id = :b", b=w["b_alice"])

@@ -1,0 +1,7 @@
+{
+  "reason": "Parenthesize CASE expression so PL/pgSQL IF parser does not stop at its internal THEN",
+  "object": "0040_fastapi_only_access",
+  "privilege_semantics_changed": false,
+  "before": "b48332de1592cc248a4800814da123dd1ea04b5f4031f189183eea91669b736b",
+  "after": "88e20b414442267b1f5e2b22f4f50fd4278257db04afa9ce05bed71ffd68b96e"
+}

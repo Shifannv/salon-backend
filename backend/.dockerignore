@@ -27,3 +27,6 @@ test-results.xml
 *firebase-adminsdk*.json
 firebase-key.json
 service-account*.json
+
+# Review reports and evidence are not runtime inputs
+migrations/reviews/

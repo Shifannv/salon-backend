@@ -1,0 +1,148 @@
+{
+  "destination": "wqjlgpnbiapcrlkxumcp",
+  "results": [
+    {
+      "check": "schema_only_target_readonly_assertions",
+      "status": "passed",
+      "extra_columns_preserved": true
+    },
+    {
+      "check": "function_search_path_verification",
+      "status": "passed",
+      "function_count": 52
+    },
+    {
+      "check": "security_target_effective_ACL_readonly_assertions",
+      "status": "passed",
+      "client_table_rights": 0,
+      "client_app_execute": 0,
+      "service_booking": true,
+      "service_slots": true
+    },
+    {
+      "check": "alembic_history_unchanged_empty",
+      "status": "passed",
+      "rows": 0
+    },
+    {
+      "check": "signup_trigger_synthetic_sql_insert",
+      "status": "passed",
+      "created_profiles": 3,
+      "auth_http_signup_tested": false
+    },
+    {
+      "check": "customer_direct_client_denied",
+      "status": "passed",
+      "expected_sqlstate": "42501"
+    },
+    {
+      "check": "customer_scoped_RLS_row_filter",
+      "status": "blocked",
+      "reason": "Table access denied; no temporary grants authorized. API ownership tested separately."
+    },
+    {
+      "check": "owner_direct_client_denied",
+      "status": "passed",
+      "expected_sqlstate": "42501"
+    },
+    {
+      "check": "owner_scoped_RLS_row_filter",
+      "status": "blocked",
+      "reason": "Table access denied; no temporary grants authorized. API ownership tested separately."
+    },
+    {
+      "check": "service_role_availability",
+      "status": "passed",
+      "slot_count": 17
+    },
+    {
+      "check": "service_role_create_booking",
+      "status": "passed",
+      "role_verified": true
+    },
+    {
+      "check": "schema_function_ACL_memberships_defaults_and_all_table_counts_unchanged",
+      "status": "passed"
+    },
+    {
+      "check": "transaction_rollback_synthetic_users_and_profiles",
+      "status": "passed",
+      "remaining": 0
+    },
+    {
+      "check": "openapi_contract",
+      "status": 200,
+      "expected": 200,
+      "elapsed_ms": 337.304
+    },
+    {
+      "check": "owner_access_api",
+      "status": 500,
+      "expected": 200,
+      "elapsed_ms": 502.68,
+      "error_code": "internal_error"
+    },
+    {
+      "check": "create_salon_via_owner_onboarding_api",
+      "status": 200
+    },
+    {
+      "check": "availability_before_booking",
+      "status": 200,
+      "slots": 18
+    },
+    {
+      "check": "create_booking_via_api",
+      "status": 201
+    },
+    {
+      "check": "idempotent_booking_replay",
+      "status": 201,
+      "same_booking": true
+    },
+    {
+      "check": "duplicate_booking_rejected",
+      "status": 409
+    },
+    {
+      "check": "booking_visible_to_party",
+      "role": "customer",
+      "status": 200,
+      "found": true
+    },
+    {
+      "check": "booking_visible_to_party",
+      "role": "owner",
+      "status": 200,
+      "found": true
+    }
+  ],
+  "sql_errors": [
+    {
+      "test": "customer_direct_booking_read",
+      "sqlstate": "42501",
+      "expected": true,
+      "meaning": "insufficient_privilege"
+    },
+    {
+      "test": "owner_direct_booking_read",
+      "sqlstate": "42501",
+      "expected": true,
+      "meaning": "insufficient_privilege"
+    },
+    {
+      "test": "runtime_runner",
+      "type": "RuntimeError",
+      "sqlstate": null,
+      "expected": false
+    }
+  ],
+  "failure_type": "RuntimeError",
+  "migrations_executed": false,
+  "schema_or_grant_sql_executed": false,
+  "stamp_executed": false,
+  "auth_http_mutations": false,
+  "api_identity": "injected synthetic actor; JWT verification not tested",
+  "api_base": "http://mumbai-rollback-runtime (in-process ASGI)",
+  "TLS": "CA/hostname verified; previously disclosed strict-X509 compatibility exception retained"
+}
