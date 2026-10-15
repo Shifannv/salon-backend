@@ -43,6 +43,7 @@ Run `/start` first and `/wrap` last. `/checkpoint` saves mid-session. Memory liv
 
 ## Skills (`.claude/skills/`)
 
+- `senior-backend-engineer`: **read first in every new chat**, and again on any error, bug, review, refactor or cleanup. Strict working standard.
 - `karpathy-guidelines`: always apply when writing or reviewing code.
 - `agent-memory`: when reading or writing docs/agent-memory.
 - `fastapi-endpoint`: adding or changing an endpoint.

@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.infrastructure.db.json_utils import decode_json
 from app.infrastructure.db.repositories.payment_repository import PaymentRepository
 
 _BILLING_COLUMNS = """
@@ -25,16 +26,12 @@ _BILLING_COLUMNS = """
 """
 
 
-def _json(value: Any) -> Any:
-    return json.loads(value) if isinstance(value, str) else value
-
-
 def _row(mapping: Any) -> dict[str, Any]:
     row = dict(mapping)
     if "benefits" in row:
-        row["benefits"] = _json(row["benefits"])
+        row["benefits"] = decode_json(row["benefits"])
     if "features" in row:
-        row["features"] = _json(row["features"])
+        row["features"] = decode_json(row["features"])
     return row
 
 

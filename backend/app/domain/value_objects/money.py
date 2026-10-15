@@ -7,6 +7,11 @@ _ZERO = Decimal("0.00")
 _CENT = Decimal("0.01")
 
 
+def round_money(value: Decimal | int | str) -> Decimal:
+    """Quantize to whole paise (two places), ROUND_HALF_UP; the sign is not restricted."""
+    return Decimal(value).quantize(_CENT, ROUND_HALF_UP)
+
+
 @dataclass(frozen=True, slots=True)
 class Money:
     """An immutable monetary amount — always Decimal, never float.

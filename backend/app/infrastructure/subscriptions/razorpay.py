@@ -47,6 +47,7 @@ from app.application.ports.subscription_provider import (
 from app.core.config import Settings
 from app.core.exceptions import PaymentOutcomeUnknownError, PaymentProviderError
 from app.domain.value_objects.money import Money
+from app.infrastructure.webhook_signing import header, hex_hmac
 
 logger = logging.getLogger(__name__)
 
@@ -80,17 +81,6 @@ def to_paise(amount: Money) -> int:
 
 def from_paise(paise: int | str | Decimal) -> Money:
     return Money((Decimal(paise) / 100).quantize(Decimal("0.01"), ROUND_HALF_UP))
-
-
-def _hex_hmac(secret: str, message: bytes) -> str:
-    return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
-
-
-def _header(headers: Mapping[str, str], name: str) -> str | None:
-    for key, value in headers.items():
-        if key.lower() == name:
-            return value
-    return None
 
 
 class RazorpaySubscriptionProvider(SubscriptionProvider):
@@ -259,14 +249,14 @@ class RazorpaySubscriptionProvider(SubscriptionProvider):
 
     # ------------------------------------------------------------- verification
     def verify_client_callback(self, order_ref: str, payment_ref: str, signature: str) -> bool:
-        expected = _hex_hmac(self._key_secret, f"{order_ref}|{payment_ref}".encode())
+        expected = hex_hmac(self._key_secret, f"{order_ref}|{payment_ref}".encode())
         return hmac.compare_digest(expected, signature or "")
 
     def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
-        signature = _header(headers, "x-razorpay-signature")
+        signature = header(headers, "x-razorpay-signature")
         if not signature or not self._webhook_secret:
             return False
-        return hmac.compare_digest(_hex_hmac(self._webhook_secret, raw_body), signature)
+        return hmac.compare_digest(hex_hmac(self._webhook_secret, raw_body), signature)
 
     def parse_event(
         self, raw_body: bytes, headers: Mapping[str, str]
@@ -276,7 +266,7 @@ class RazorpaySubscriptionProvider(SubscriptionProvider):
             raw_type = str(document["event"])
         except (ValueError, KeyError, TypeError) as exc:
             raise ValueError("Unparseable webhook body") from exc
-        event_id = _header(headers, "x-razorpay-event-id") or hashlib.sha256(raw_body).hexdigest()
+        event_id = header(headers, "x-razorpay-event-id") or hashlib.sha256(raw_body).hexdigest()
         kind = _EVENT_KINDS.get(raw_type)
         if kind is None:
             return ProviderSubscriptionEvent(

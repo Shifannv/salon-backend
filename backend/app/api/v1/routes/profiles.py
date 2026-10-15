@@ -19,11 +19,6 @@ from app.infrastructure.db.repositories.platform_repository import PlatformRepos
 router = APIRouter()
 
 
-def _bucket() -> str:
-    """Return the configured R2 bucket name, falling back to the default."""
-    return settings.r2_bucket or "salon-images"
-
-
 @router.get(
     "/me",
     response_model=ProfileResponse,
@@ -66,7 +61,7 @@ async def update_my_profile(
     updated = await CustomerUseCases(repo, storage_gateway=storage_gateway).update_profile(
         actor,
         payload.model_dump(exclude_unset=True),
-        bucket=_bucket(),
+        bucket=settings.media_bucket,
         r2_public_base=settings.r2_public_url or "",
     )
     return ProfileResponse(**updated)
@@ -99,6 +94,6 @@ async def get_avatar_upload_url(
         actor,
         content_type=payload.content_type,
         filename=payload.filename,
-        bucket=_bucket(),
+        bucket=settings.media_bucket,
     )
     return ImageUploadUrlResponse(**result)

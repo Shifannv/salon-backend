@@ -67,6 +67,7 @@ from app.domain.entities.payment import (
     SettlementModel,
 )
 from app.domain.value_objects.money import Money
+from app.infrastructure.webhook_signing import header
 
 logger = logging.getLogger(__name__)
 
@@ -180,13 +181,6 @@ def dumps_json(body: Mapping[str, Any]) -> bytes:
 
 def _uuid_for(namespace: str, value: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"salon-platform:{namespace}:{value}"))
-
-
-def _header(headers: Mapping[str, str], name: str) -> str | None:
-    for key, value in headers.items():
-        if key.lower() == name:
-            return value
-    return None
 
 
 def _decimal(value: Any) -> Decimal:
@@ -411,8 +405,8 @@ class CashfreeGateway(PaymentGateway):
         return False  # the SDK callback carries no signature and is never proof
 
     def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
-        signature = _header(headers, "x-webhook-signature")
-        timestamp = _header(headers, "x-webhook-timestamp")
+        signature = header(headers, "x-webhook-signature")
+        timestamp = header(headers, "x-webhook-timestamp")
         if not signature or not timestamp or not self._secret:
             return False
         try:
@@ -436,7 +430,7 @@ class CashfreeGateway(PaymentGateway):
         except (ValueError, KeyError, TypeError) as exc:
             raise ValueError("Unparseable webhook body") from exc
         digest = hashlib.sha256(raw_body).hexdigest()
-        version = _header(headers, "x-webhook-version")
+        version = header(headers, "x-webhook-version")
         if version and version != self._webhook_version:
             logger.warning("Cashfree webhook version %s differs from configured", version[:20])
 

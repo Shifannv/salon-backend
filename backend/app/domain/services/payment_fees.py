@@ -7,15 +7,12 @@
   salon-initiated cancellations never deduct.
 """
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
-_CENT = Decimal("0.01")
+from app.domain.value_objects.money import round_money
+
 _HUNDRED = Decimal(100)
 _ZERO = Decimal("0.00")
-
-
-def _money(value: Decimal) -> Decimal:
-    return Decimal(value).quantize(_CENT, ROUND_HALF_UP)
 
 
 def gateway_fee_amount(amount: Decimal, percent: Decimal) -> Decimal:
@@ -24,7 +21,7 @@ def gateway_fee_amount(amount: Decimal, percent: Decimal) -> Decimal:
     amount, percent = Decimal(amount), Decimal(percent)
     if amount < 0 or percent < 0:
         raise ValueError("amount and percent must not be negative")
-    return min(_money(amount * percent / _HUNDRED), _money(amount))
+    return min(round_money(amount * percent / _HUNDRED), round_money(amount))
 
 
 def payee_share(amount: Decimal, commission: Decimal, gateway_fee: Decimal) -> Decimal:
@@ -33,7 +30,7 @@ def payee_share(amount: Decimal, commission: Decimal, gateway_fee: Decimal) -> D
     The platform keeps the remainder, which pays the provider's fee.
     """
 
-    share = _money(Decimal(amount)) - _money(Decimal(commission)) - _money(Decimal(gateway_fee))
+    share = round_money(Decimal(amount)) - round_money(Decimal(commission)) - round_money(Decimal(gateway_fee))
     return max(share, _ZERO)
 
 
@@ -44,11 +41,11 @@ def cancellation_deduction(amount_paid: Decimal, rule_type: str, rule_value: Dec
     Never negative and never above the amount paid.
     """
 
-    paid, value = _money(Decimal(amount_paid)), Decimal(rule_value)
+    paid, value = round_money(Decimal(amount_paid)), Decimal(rule_value)
     if rule_type == "percent":
-        raw = _money(paid * value / _HUNDRED)
+        raw = round_money(paid * value / _HUNDRED)
     elif rule_type == "flat":
-        raw = _money(value)
+        raw = round_money(value)
     else:
         raise ValueError("cancellation deduction type must be 'percent' or 'flat'")
     return max(_ZERO, min(raw, paid))

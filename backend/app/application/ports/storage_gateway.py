@@ -24,7 +24,6 @@ class StorageGateway(ABC):
 
     The infrastructure layer implements this for each storage backend:
     - R2StorageGateway  (validated backend upload gateway, Cloudflare R2 storage)
-    - SupabaseStorageGateway  (legacy, kept for reference)
     """
 
     @abstractmethod

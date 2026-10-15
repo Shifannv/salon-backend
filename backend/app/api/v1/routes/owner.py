@@ -61,11 +61,6 @@ def _use_cases(
     )
 
 
-def _bucket() -> str:
-    """Return the configured R2 bucket name, falling back to the default."""
-    return settings.r2_bucket or "salon-images"
-
-
 # ── Salon profile ─────────────────────────────────────────────────────────────
 
 
@@ -315,7 +310,7 @@ async def get_image_upload_url(
         actor,
         content_type=payload.content_type,
         filename=payload.filename,
-        bucket=_bucket(),
+        bucket=settings.media_bucket,
     )
     return ImageUploadUrlResponse(**result)
 
@@ -392,7 +387,7 @@ async def delete_image(
     await _use_cases(session, storage_gateway).delete_image(
         actor,
         image_id=image_id,
-        bucket=_bucket(),
+        bucket=settings.media_bucket,
         r2_public_base=settings.r2_public_url or "",
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -669,7 +664,7 @@ async def get_staff_photo_upload_url(
         staff_id=staff_id,
         content_type=payload.content_type,
         filename=payload.filename,
-        bucket=_bucket(),
+        bucket=settings.media_bucket,
     )
     return ImageUploadUrlResponse(**result)
 
