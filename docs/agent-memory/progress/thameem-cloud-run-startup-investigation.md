@@ -15,7 +15,8 @@ in progress — wrap recorded; natural sampling still running
 
 ## In progress
 - Natural study targets ten independently cold first requests for each of /health and /health/db. Require active and idle counts both zero plus instance termination evidence. Match request arrival and instance startup on the server clock.
-- Tool execution session 33017 owns the natural runner. Read JSON status for current counts; completed samples are not a full distribution until each endpoint reaches ten.
+- Tool execution session 25211 owns the resumed natural runner. Fourteen natural samples (7 per endpoint) were preserved after one control-plane read RuntimeError; Cloud Run/Monitoring read access was independently rechecked. Original session 33017 exited. Read JSON for current counts; completed samples are not a full distribution until each endpoint reaches ten.
+- Read-only ownership/cost audit added in backend/docs/verification/infrastructure-ownership-cost-2026-10-16.md. Production DNS points to running VM 35.254.254.227 in us-central1-a; separate Mumbai staging Cloud Run remains IAM protected. No VM SSH or mutations. VM proxy internals and Upstash provider account metadata remain unverified.
 
 ## Next steps
 1. Monitor natural-results.json; preserve all completed, rejected and pending observations. Do not trigger keep-alive requests or change the service during this phase.
