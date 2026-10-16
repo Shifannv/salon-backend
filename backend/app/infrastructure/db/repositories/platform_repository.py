@@ -1437,9 +1437,10 @@ class PlatformRepository:
 
         try:
             key = values.get("_idempotency_key")
-            replay = await self.begin_booking_operation(values.get("actor_id", ""), "booking:create", key, values)
+            scope = values.get("_idempotency_scope", "booking:create")
+            replay = await self.begin_booking_operation(values.get("actor_id", ""), scope, key, values)
             if replay is not None:
-                return replay
+                return {**replay, "_idempotency_replay": True}
             await self.session.execute(
                 text("select set_config('app.payment_preference', :preference, true)"),
                 {"preference": values.get("payment_preference") or "pay_at_salon"},
@@ -1494,7 +1495,7 @@ class PlatformRepository:
             booking = await self.get_booking(str(booking_id), values.get("actor_id"))
             if booking is None:
                 raise NotFoundError("Booking not found")
-            await self.finish_booking_operation(values.get("actor_id", ""), "booking:create", key, booking, 201)
+            await self.finish_booking_operation(values.get("actor_id", ""), scope, key, booking, 201)
             await self.session.commit()
         except Exception as exc:
             await self.session.rollback()

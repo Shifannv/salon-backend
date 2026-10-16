@@ -68,3 +68,6 @@ async def test_booking_context_rejects_cross_salon_and_keeps_qr_source():
     repo.create_booking.assert_not_awaited()
     await uc.create_walkin_booking(make_profile(), "qr-a", {"salon_id": "salon-a", "source": "app"})
     assert repo.create_booking.call_args.args[0]["source"] == "qr_walkin"
+    first_scope = repo.create_booking.call_args.args[0]["_idempotency_scope"]
+    await uc.create_walkin_booking(make_profile(), "qr-b", {"salon_id": "salon-a"})
+    assert repo.create_booking.call_args.args[0]["_idempotency_scope"] != first_scope

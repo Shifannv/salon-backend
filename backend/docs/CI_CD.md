@@ -2,15 +2,15 @@
 
 The workflow in [backend.yml](../../.github/workflows/backend.yml) tests all branch pushes
 and pull requests.
-A push to `main` (including a merged PR), or a manual Actions run on `main`, also
-deploys production after the checks pass. Other branches cannot deploy. Review
-database migrations before merging: that merge authorizes the explicit Alembic
-upgrade step in the deployment. Migrations are never part of container startup.
+Pushes and PRs test and build; they no longer authorize migrations or deployment.
+Deployment requires a manual request, reviewed explicit target/approval and protected
+environment approval. Current production/Sydney execution is held by the target policy.
+Migrations are never part of container startup. See [migration policy](migrations/MIGRATION_POLICY.md).
 
 ## What runs
 
 1. Python 3.12 dependency validation, Ruff, shell syntax checks and pytest.
-   A disposable PostgreSQL 18 service runs the real `0014`-to-current-head migration
+   A disposable PostgreSQL 18 service runs the real `0014`-to-0037 portable migration
    regression, including downgrade/re-upgrade. Other integration tests that require
    their own explicitly configured database remain skipped.
 2. Build a Linux amd64 image from `backend/`, validate Compose using the committed
@@ -24,7 +24,7 @@ upgrade step in the deployment. Migrations are never part of container startup.
    The image IDs include the configuration digest used by classic Docker and the
    equivalent manifest digest used by Docker's containerd store. CI checks that
    the archive matches the tested image and that each manifest references its configuration.
-5. Load and verify the image; explicitly run `alembic current`, `upgrade head`, and
+5. After separate approval, load and verify the image; run `alembic current`, the explicitly reviewed policy/revision, and
    `current`; update the API, Redis and all workers using `gcp-vm-deploy.sh
    --local-image`. Verify API/database/Redis health, then mark the release current.
 6. Check `https://apiv1.mudassirmhd.in/health` from the runner, through Nginx/TLS.
@@ -76,7 +76,8 @@ trust a new host key during deployment.
 ## GitHub configuration
 
 In this repository's **Settings → Environments**, create `production`. Allow only
-`main` to deploy and optionally require a reviewer if your GitHub plan supports it.
+`main` to deploy and require a reviewer. If the plan cannot enforce that rule, keep
+deployment held. Mumbai read-only validation uses its own reviewed environment.
 Add these secrets to that environment (or repository Actions secrets if environment
 secrets are unavailable):
 

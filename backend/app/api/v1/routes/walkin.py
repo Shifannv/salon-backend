@@ -1,7 +1,5 @@
 """Walk-in QR API routes — public (unauthenticated) and customer-authenticated."""
 
-import hashlib
-
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +18,7 @@ from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.platform import BookingUseCases
 from app.application.use_cases.walkin import WalkInUseCases
 from app.core.config import settings
-from app.core.exceptions import ConflictError, TooManyRequestsError
+from app.core.exceptions import TooManyRequestsError
 from app.core.qr import make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
@@ -175,24 +173,13 @@ async def create_walkin_booking(
     """Create a qr_walkin booking for the authenticated customer."""
 
     await _use_cases(session).validate_booking_context(actor, qr_token, payload.model_dump())
-    fingerprint = hashlib.sha256(payload.model_dump_json().encode()).hexdigest()
-    if idempotency_key:
-        cache_key = f"idempotency:walkin:v2:{actor.id}:{qr_token}:{idempotency_key}"
-        cached = await cache.get_idempotency(cache_key)
-        if cached:
-            if cached["fingerprint"] != fingerprint:
-                raise ConflictError("Idempotency key was used for a different booking request")
-            return BookingResponse(**cached["booking"])
-
     repository = PlatformRepository(session)
     row = await WalkInUseCases(repository).create_walkin_booking(
-        actor, qr_token, payload.model_dump()
+        actor, qr_token, {**payload.model_dump(), "_idempotency_key": idempotency_key}
     )
-    background_tasks.add_task(
-        BookingUseCases(repository).notify_new_booking_owner, row
-    )
-
-    if idempotency_key:
-        await cache.set_idempotency(cache_key, {"fingerprint": fingerprint, "booking": row})
+    if not row.pop("_idempotency_replay", False):
+        background_tasks.add_task(
+            BookingUseCases(repository).notify_new_booking_owner, row
+        )
 
     return BookingResponse(**row)

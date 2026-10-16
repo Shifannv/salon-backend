@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_authenticated_session, get_cache, get_current_actor, get_session
 from app.api.v1.schemas.admin import AdminSalonResponse
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.main import app
 from tests.conftest import make_booking, make_profile
@@ -93,7 +93,7 @@ def test_invalid_qr_cannot_send_otp(qr_client):
     gateway.send_phone_otp.assert_not_awaited()
 
 
-def test_qr_idempotency_is_token_scoped_and_payload_bound(qr_client):
+def test_qr_route_forwards_retries_to_database_idempotency(qr_client):
     client, cache, _ = qr_client
     payload = {"salon_id": "salon-a", "staff_id": "staff-a", "service_ids": ["service-a"],
                "start_datetime": datetime.now(UTC).isoformat(), "customer_name": "Customer"}
@@ -103,14 +103,18 @@ def test_qr_idempotency_is_token_scoped_and_payload_bound(qr_client):
     with patch("app.api.v1.routes.walkin.WalkInUseCases", return_value=use_cases):
         assert client.post("/v1/walkin/qr-a/bookings", json=payload, headers=headers).status_code == 201
         assert client.post("/v1/walkin/qr-a/bookings", json=payload, headers=headers).status_code == 201
-        assert use_cases.create_walkin_booking.await_count == 1
+        assert use_cases.create_walkin_booking.await_count == 2
+        assert all(call.args[2]["_idempotency_key"] == "same-attempt"
+                   for call in use_cases.create_walkin_booking.await_args_list)
         changed = {**payload, "customer_name": "Changed"}
+        use_cases.create_walkin_booking.side_effect = ConflictError("Idempotency key reused")
         assert client.post("/v1/walkin/qr-a/bookings", json=changed, headers=headers).status_code == 409
+        use_cases.create_walkin_booking.side_effect = None
         assert client.post("/v1/walkin/qr-b/bookings", json=payload, headers=headers).status_code == 422
         use_cases.create_walkin_booking.return_value = make_booking(salon_id="salon-b")
         assert client.post("/v1/walkin/qr-b/bookings", json={**payload, "salon_id": "salon-b"},
                            headers=headers).status_code == 201
-    assert len([key for key in cache._store if key.startswith("idempotency:")]) == 2
+    assert not any(key.startswith("idempotency:") for key in cache._store)
 
 
 def test_qr_replay_revalidates_publication(qr_client):

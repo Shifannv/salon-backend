@@ -9,7 +9,7 @@ python -m venv .venv
 # Activate .venv for your shell.
 python -m pip install -r requirements-dev.txt
 cp .env.example .env
-alembic upgrade head
+alembic -x migration_policy=portable-ci upgrade 0037_customer_processing_charge
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 

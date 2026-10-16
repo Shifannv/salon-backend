@@ -186,20 +186,19 @@ async def main(browser=False, acceptance=False):
                 assert (await request("GET", f"/v1/salons/{ids['salon']}")).json()["accepting_bookings"] is False
                 passed("owner_mutation_refreshes_customer_and_owner_availability_and_salon")
                 await request("PATCH", "/v1/salons/me/settings", "owner", json={"accepting_bookings": True})
-                phase = "redis_races"
+                phase = "rollback_fixture_cache_safety"
                 cache = get_redis_cache()
                 cache_key = f"salon:{ids['salon']}:race"
                 assert await cache.get(cache_key) is None
                 await cache.invalidate_read_models()
                 await cache.set(cache_key, {"outdated": True})
                 assert await cache.get(cache_key) is None
-                await cache.set(cache_key, {"current": True})
-                assert await cache.get(cache_key) == {"current": True}
                 await cache.set_idempotency("idempotency:synthetic-refresh", {"booking": booking})
                 await cache.invalidate_read_models()
                 assert await cache.get(cache_key) is None
                 assert (await cache.get_idempotency("idempotency:synthetic-refresh"))["booking"] == booking
-                passed("real_redis_late_fill_rejected_and_replay_key_preserved")
+                passed("unvalidated_payload_cache_bypassed_and_replay_namespace_preserved",
+                    limitation="Own-XID rollback fixture cannot validate shared payloads; late-fill and two-process coverage runs separately against disposable committed data")
                 report["checks"].append({"check": "independent_connection_concurrent_booking", "status": "blocked", "reason": "Rollback fixture serializes one database connection; committed booking audits are immutable and cannot be cleaned without changing protections."})
                 if browser:
                     phase = "browser"
@@ -210,12 +209,8 @@ async def main(browser=False, acceptance=False):
                 if acceptance:
                     from mumbai_acceptance_checks import lifecycle_checks
                     await lifecycle_checks(api, connection, ids, headers, payload, booking, report)
-                    from mumbai_redis_outage_checks import main as redis_outage_checks
-                    coherent = await redis_outage_checks()
-                    report["checks"].append({"check": "multi_process_redis_outage_cache_coherence",
-                        "status": "passed" if coherent else "failed",
-                        "scope": "two real runtime-cache processes; dropped TCP commands; no DB mutation",
-                        "evidence": "multi-process-redis-outage.json"})
+                    report["separate_verification"] = {
+                        "redis_recovery": "Run scripts/mumbai_redis_outage_checks.py against disposable local services; do not confuse it with live Mumbai evidence"}
         except Exception as error:
             report["checks"].append({"check": phase, "status": "failed", "error_type": type(error).__name__,
                 "sqlstate": getattr(getattr(error, "orig", None), "sqlstate", None)})
@@ -248,7 +243,7 @@ async def main(browser=False, acceptance=False):
             report["acceptance_note"] = "Migrations remain held; a blocked check is not an acceptance pass."
             (ARTIFACTS / "staging-checks.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
             print(json.dumps(report, indent=2))
-    return not any(item["status"] == "failed" for item in report["checks"])
+    return report["acceptance_gate_passed"]
 
 
 if __name__ == "__main__":

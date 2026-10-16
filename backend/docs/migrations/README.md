@@ -1,5 +1,9 @@
 # Database migrations
 
+Current execution rules: [explicit migration policy](MIGRATION_POLICY.md). The portable
+CI target is 0037; the true prepared Mumbai head is 0040. Implicit head and stamp are
+refused. Historical revision/source evidence remains unchanged.
+
 Prepared only: revisions 0038–0040 reconcile legacy cancellation columns, promotion
 search_path and FastAPI-only application privileges. They have not been executed.
 For the schema-restored Mumbai destination, do not use the baseline stamp/upgrade
@@ -50,17 +54,15 @@ For a new empty database, run only:
 
 ```bash
 cd backend
-alembic upgrade head
+alembic -x migration_policy=portable-ci upgrade 0037_customer_processing_charge
 ```
 
 Do not paste the baseline into Supabase and then run revision `0001`; that would apply
 the same schema twice. If a database was created manually from the baseline before
-Alembic tracking was introduced, verify its schema, then use:
+Alembic tracking was introduced, stop for a separately reviewed reconciliation plan:
 
-```bash
-alembic stamp 0001_baseline
-alembic upgrade head
-```
+Do not run a stamp or replay the baseline. The migration guard refuses history writes
+through stamp; resolve restored-history differences and approval separately.
 
 Useful commands:
 
@@ -69,8 +71,7 @@ alembic current
 alembic history
 alembic heads
 alembic revision -m "describe_change"
-alembic upgrade head
-alembic downgrade -1
+# Mutations require the explicit policy/revision described in MIGRATION_POLICY.md.
 ```
 
 Never edit or delete a revision already applied to a shared environment. Add a new,

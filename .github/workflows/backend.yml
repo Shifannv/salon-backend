@@ -4,13 +4,32 @@ on:
   pull_request:
   push:
   workflow_dispatch:
+    inputs:
+      approve_deployment:
+        description: 'Explicitly request production deployment (separate protected-environment approval required)'
+        type: boolean
+        default: false
+      migration_approval_id:
+        description: 'Reviewed migration approval reference; no default approval'
+        type: string
+      migration_target:
+        description: 'Explicit reviewed revision; none refuses deployment'
+        type: choice
+        options: ['none', '0040_fastapi_only_access']
+        default: 'none'
+      mumbai_project_confirmation:
+        description: 'Required only for Mumbai; enter the exact reviewed project reference'
+        type: string
+      approval_manifest_on_vm:
+        description: 'Mumbai approved manifest under /home/<user>/salon-backend/approvals/<review>/manifest.json'
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Lint and tests
+    name: Portable CI through 0037
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
@@ -24,8 +43,11 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      ENVIRONMENT: local
+      ENVIRONMENT: test
+      SALON_ENV_FILE: /nonexistent/salon-ci-env
+      DATABASE_URL: postgresql+asyncpg://postgres:ci-only-password@127.0.0.1:5432/postgres
       MIGRATION_TEST_DB: postgresql://postgres:ci-only-password@127.0.0.1:5432/postgres
+      PORTABLE_CI_TARGET: 0037_customer_processing_charge
     defaults:
       run:
         working-directory: backend
@@ -38,9 +60,17 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip check
+      - name: Verify explicit portable migration policy (no prepared Mumbai execution)
+        run: python -m pytest -q tests/unit/test_migration_policy.py
       - run: python -m ruff check app tests migrations scripts/docker_image_ids.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
-      - run: python -m pytest -q
+      - run: python -m pytest -q --junitxml=test-results.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: portable-ci-test-results
+          path: backend/test-results.xml
+          if-no-files-found: error
 
   image:
     name: Build and smoke test image
@@ -82,7 +112,7 @@ jobs:
   deploy:
     name: Deploy production VM
     needs: image
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.approve_deployment
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
@@ -141,8 +171,28 @@ jobs:
           echo "RELEASE_ID=$release_id" >> "$GITHUB_ENV"
           ssh production-vm "mkdir -p ~/salon-backend/releases/$release_id"
           scp -r release/. "production-vm:salon-backend/releases/$release_id/"
-      - name: Apply reviewed migrations and deploy services
-        run: ssh production-vm "bash ~/salon-backend/releases/$RELEASE_ID/scripts/gcp-vm-release.sh"
+      - name: Apply explicitly selected reviewed migrations and deploy services
+        env:
+          APPROVAL_ID: ${{ inputs.migration_approval_id }}
+          MIGRATION_TARGET: ${{ inputs.migration_target }}
+          MUMBAI_CONFIRMATION: ${{ inputs.mumbai_project_confirmation }}
+          APPROVAL_MANIFEST: ${{ inputs.approval_manifest_on_vm }}
+        run: |
+          [[ "$APPROVAL_ID" =~ ^[a-zA-Z0-9_.:-]+$ ]] || { echo 'Explicit migration approval reference is required'; exit 1; }
+          case "$MIGRATION_TARGET" in
+            0040_fastapi_only_access)
+              policy=mumbai
+              [[ "$MUMBAI_CONFIRMATION" == wqjlgpnbiapcrlkxumcp ]]
+              [[ "$APPROVAL_MANIFEST" =~ ^/home/[a-z_][a-z0-9_-]*/salon-backend/approvals/[a-zA-Z0-9_-]+/manifest.json$ ]]
+              ;;
+            *) echo 'An explicit reviewed migration target is required; head is refused'; exit 1 ;;
+          esac
+          ssh production-vm bash -s -- "$RELEASE_ID" "$policy" "$MIGRATION_TARGET" "$APPROVAL_ID" "$MUMBAI_CONFIRMATION" "$APPROVAL_MANIFEST" <<'REMOTE'
+          set -euo pipefail
+          export SALON_MIGRATION_POLICY="$2" SALON_MIGRATION_REVISION="$3" SALON_MIGRATION_APPROVAL_ID="$4"
+          export SALON_MUMBAI_PROJECT="$5" SALON_MIGRATION_MANIFEST="$6"
+          exec bash "$HOME/salon-backend/releases/$1/scripts/gcp-vm-release.sh"
+          REMOTE
       - name: Verify public HTTPS health
         run: |
           curl --fail --silent --show-error --retry 5 --retry-delay 5 \

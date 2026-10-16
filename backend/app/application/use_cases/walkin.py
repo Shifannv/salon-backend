@@ -1,5 +1,6 @@
 """Walk-in QR use cases."""
 
+import hashlib
 from typing import Any
 
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
@@ -55,5 +56,6 @@ class WalkInUseCases:
                 "salon_id": salon_id,
                 "source": "qr_walkin",
                 "actor_id": actor.id,
+                "_idempotency_scope": "booking:qr:" + hashlib.sha256(qr_token.encode()).hexdigest(),
             }
         )
