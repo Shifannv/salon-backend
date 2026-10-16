@@ -10,7 +10,7 @@ class CacheGateway(ABC):
     @property
     @abstractmethod
     def available(self) -> bool:
-        """True when a live cache backend connection exists."""
+        """True when a backend client is configured; ping verifies reachability."""
 
     @abstractmethod
     async def get(self, key: str) -> Any | None:

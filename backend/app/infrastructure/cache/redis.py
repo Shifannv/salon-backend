@@ -73,6 +73,7 @@ class RedisCache(CacheGateway):
         """
         if self._client is None:
             return True
+        started = time.perf_counter()
         try:
             await self._client.set(_READ_EPOCH, uuid4().hex)
             self._read_cache_safe = True
@@ -84,6 +85,9 @@ class RedisCache(CacheGateway):
             self._read_cache_safe = False
             logger.warning("Read cache invalidation failed; retry pending, payload cache unsafe")
             return False
+        finally:
+            if (current := metrics.get()) is not None:
+                current.redis_duration_ms += (time.perf_counter() - started) * 1000
 
     def _mark_unsafe(self) -> None:
         self._read_cache_safe = False
@@ -139,11 +143,12 @@ class RedisCache(CacheGateway):
             return None
         if key.startswith(_LIVE_PREFIXES):
             return None
+        logical_key = key
         snapshot = None
         if key.startswith(_READ_PREFIXES):
             # Never use a Redis-only epoch: a partitioned writer cannot update it.
             versions = dict(_read_versions.get() or {})
-            versions.pop(key, None)
+            versions.pop(logical_key, None)
             _read_versions.set(versions)
             reader = _snapshot_reader.get()
             if reader is None:
@@ -156,14 +161,14 @@ class RedisCache(CacheGateway):
             if snapshot is None:
                 return None
             snapshot = hashlib.sha256(snapshot.encode()).hexdigest()
+            if not await self._recover():
+                return None
         started = time.perf_counter()
         current = metrics.get()
         if current is not None:
             current.cache_reads += 1
         try:
             if key.startswith(_READ_PREFIXES):
-                if not await self._recover():
-                    return None
                 epoch = await self._client.get(_READ_EPOCH) or "initial"
                 version = f"{snapshot}:{epoch}"
                 versions = dict(_read_versions.get() or {})
@@ -177,7 +182,7 @@ class RedisCache(CacheGateway):
         except Exception as exc:
             self._mark_unsafe()
             versions = dict(_read_versions.get() or {})
-            versions.pop(key, None)
+            versions.pop(logical_key, None)
             _read_versions.set(versions)
             logger.debug("Redis GET error for key %s: %s", key, exc)
             return None

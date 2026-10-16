@@ -6,13 +6,16 @@ See [CI/CD setup](CI_CD.md) for the required GitHub secrets and VM configuration
 
 Use `backend/` as the Docker build context.
 Use Docker Compose v2 with `up --wait` and `--wait-timeout` support.
+The [migration policy](migrations/MIGRATION_POLICY.md) supersedes older implicit-head
+instructions. Portable CI stops explicitly at 0037; Mumbai 0038-0040 need separate
+target/evidence/approval and remain unapplied. No production/Sydney execution is authorized.
 
 ## Local
 
 ```bash
 cp .env.example .env
 docker compose build
-docker compose run --rm api alembic upgrade head
+# Run only the explicit reviewed policy/revision; implicit head is refused.
 docker compose up -d --wait --wait-timeout 120
 docker compose ps
 curl http://127.0.0.1:8000/health
@@ -75,7 +78,7 @@ set -e
 cd ~/salon-backend/backend
 docker compose build
 docker compose run --rm --no-deps api alembic current
-docker compose run --rm --no-deps api alembic upgrade head
+# Migration execution is held until a target-specific approval is supplied (see policy).
 docker compose run --rm --no-deps api alembic current
 bash scripts/gcp-vm-deploy.sh
 docker compose ps
@@ -97,7 +100,7 @@ image, and retry the explicit upgrade. Do not stamp past the failed revision. Th
 `0018` and `0021` corrections preserve their revision IDs and SQL schema; databases
 already at those revisions do not rerun them.
 
-To test the `0014`-to-head deployment path locally, set `MIGRATION_TEST_DB` to an
+To test the `0014`-to-0037 portable path locally, set `MIGRATION_TEST_DB` to an
 explicitly disposable localhost PostgreSQL admin URL with database/role creation
 permissions, then run `python -m pytest tests/integration/test_deployment_migration_chain.py`.
 The test creates and removes its own database, supplies minimal Supabase Auth

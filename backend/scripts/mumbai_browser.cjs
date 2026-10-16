@@ -43,11 +43,10 @@ const record = (name, facts = {}) => {
    owner.goto('http://localhost:8082/bookings', {waitUntil:'domcontentloaded',timeout:120_000})
   ]);
   await owner.bringToFront();
+  phase = 'owner_calendar_date';
   await owner.getByText('Choose date',{exact:true}).first().click();
   const chosenDate = new Date(data.params.date+'T12:00:00Z');
-  const dateLabel = chosenDate.toLocaleDateString('en-GB',{weekday:'long',timeZone:'UTC'}) + ', ' +
-    chosenDate.toLocaleDateString('en-GB',{day:'numeric',month:'long',timeZone:'UTC'});
-  await owner.getByLabel(dateLabel,{exact:true}).click();
+  await owner.getByTestId('bookings-calendar-day-'+data.params.date).click();
   await owner.getByTestId('bookings-calendar-confirm').click();
   await owner.getByText('Synthetic customer',{exact:false}).first().waitFor({timeout:45_000});
   record('owner_real_app_renders_customer_booking');
@@ -146,7 +145,8 @@ const record = (name, facts = {}) => {
   await customer.screenshot({path:path.join(root,'customer-local.png')});
   await owner.screenshot({path:path.join(root,'owner-local.png')});
  } catch(error) {
-  checks.push({check:phase,status:'failed',error_type:error.name});
+  checks.push({check:phase,status:'failed',error_type:error.name,
+    message:error.message.split('\n')[0].slice(0,240)});
   for(const [i,context] of browser.contexts().entries()) for(const page of context.pages()) {
    await page.screenshot({path:path.join(root,`browser-failure-${i}.png`)}).catch(()=>{});
    fs.writeFileSync(path.join(root,`browser-body-${i}.txt`),await page.locator('body').innerText().catch(()=>''));

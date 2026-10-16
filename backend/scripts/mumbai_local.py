@@ -111,7 +111,7 @@ def percentiles(samples):
             for p in (50, 95, 99)}
 
 
-async def probe(targets, samples):
+async def probe(targets, samples, performance=False):
     from sqlalchemy import text
 
     from app.infrastructure.db.session import AsyncSessionLocal, engine
@@ -148,6 +148,46 @@ async def probe(targets, samples):
                     assert response.headers.get("x-request-id") == "mumbai-refresh-probe", "Request ID missing"
                     assert "server-timing" in response.headers, "Timing header missing"
                 result["checks"][path] = {"status": response.json(), "latency_ms": percentiles(timings)}
+            if performance:
+                from sqlalchemy.ext.asyncio import async_sessionmaker
+
+                from app.core.config import settings
+                from app.infrastructure.db.session import (
+                    MeasuredAsyncSession,
+                    build_engines,
+                    get_probe_session,
+                )
+                warm_sql = []
+                async with AsyncSessionLocal() as session:
+                    await session.execute(text("select 1"))
+                    for _ in range(samples):
+                        started = time.perf_counter()
+                        await session.execute(text("select 1"))
+                        warm_sql.append((time.perf_counter() - started) * 1000)
+                cold_api = []
+                for _ in range(samples):
+                    base, _business = build_engines(settings)
+                    factory = async_sessionmaker(base, class_=MeasuredAsyncSession)
+                    async def cold_session(session_factory=factory):
+                        async with session_factory() as session:
+                            yield session
+                    app.dependency_overrides[get_probe_session] = cold_session
+                    try:
+                        started = time.perf_counter()
+                        response = await client.get("/health/db", headers={"X-Request-ID": "mumbai-cold-pool"})
+                        cold_api.append((time.perf_counter() - started) * 1000)
+                        assert response.status_code == 200
+                        assert response.headers["x-request-id"] == "mumbai-cold-pool"
+                    finally:
+                        app.dependency_overrides.pop(get_probe_session, None)
+                        await base.dispose()
+                result["performance"] = {
+                    "scope": "Local FastAPI against real Mumbai Supabase; not deployed API or Cloud Run latency",
+                    "samples_each": samples,
+                    "warm_mumbai_sql_select_1_ms": percentiles(warm_sql),
+                    "cold_pool_fastapi_health_db_ms": percentiles(cold_api),
+                    "cold_definition": "New pool/TLS/database connection per request; excludes Python process startup",
+                }
     await engine.dispose()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / "configuration-probe.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -161,6 +201,7 @@ def main():
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--pooler", action="store_true", help="Use the Mumbai session pooler when direct IPv6 DNS is unavailable")
     parser.add_argument("--samples", type=int, default=30)
+    parser.add_argument("--performance", action="store_true", help="Measure real Mumbai SQL and FastAPI requests with fresh database pools")
     args = parser.parse_args()
     try:
         if args.prepare_from:
@@ -177,7 +218,7 @@ def main():
         if args.probe:
             # Silence third-party exception logging: report only exception types below.
             logging.disable(logging.CRITICAL)
-            asyncio.run(probe(targets, max(1, min(args.samples, 100))))
+            asyncio.run(probe(targets, max(1, min(args.samples, 100)), args.performance))
         else:
             import uvicorn
             print(json.dumps({"targets": targets}))

@@ -105,9 +105,7 @@ async def run_forever() -> None:
     cache = await init_redis_cache(settings.redis_url)
     while True:
         try:
-            if settings.redis_url and not cache.available:
-                cache = await init_redis_cache(settings.redis_url)  # Redis may have come back
-            if settings.redis_url and not cache.available:
+            if settings.redis_url and not await cache.ping():
                 # Do not start a destructive step the cache step could not finish: accounts
                 # stay locked and intact, the heartbeat goes stale and the container alarms.
                 logger.error("Redis is configured but unreachable; account erasure is paused")

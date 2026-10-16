@@ -773,7 +773,8 @@ class BookingUseCases:
             raise ConflictError("Online payment coming soon.")
         await self.repository.get_public_salon(str(values["salon_id"]))
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
-        if background_tasks is not None and values.get("source") != "manual_walkin":
+        replayed = booking.pop("_idempotency_replay", False)
+        if not replayed and background_tasks is not None and values.get("source") != "manual_walkin":
             background_tasks.add_task(self.notify_new_booking_owner, booking)
             background_tasks.add_task(self.notify_new_booking_customer, booking)
         return booking

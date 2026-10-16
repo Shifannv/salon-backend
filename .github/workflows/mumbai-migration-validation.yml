@@ -1,0 +1,54 @@
+name: Approved Mumbai migration validation (read only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_project:
+        description: 'Enter the exact Mumbai Supabase project reference'
+        required: true
+        type: string
+      approval_id:
+        description: 'Explicit human review/validation approval reference'
+        required: true
+        type: string
+      approval_manifest:
+        description: 'Repository-relative approved manifest with review/preflight and source hashes'
+        required: true
+        type: string
+      ca_file:
+        description: 'Repository-relative reviewed Supabase CA certificate file'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  mumbai-validation:
+    if: github.event_name == 'workflow_dispatch'
+    environment: mumbai-migration-validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: staging
+      SALON_ENV_FILE: /nonexistent/salon-mumbai-validation-env
+      DATABASE_URL: ${{ secrets.MUMBAI_VALIDATION_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Validate approved Mumbai target without migration execution
+        env:
+          CONFIRM_PROJECT: ${{ inputs.confirm_project }}
+          APPROVAL_ID: ${{ inputs.approval_id }}
+          APPROVAL_MANIFEST: ${{ inputs.approval_manifest }}
+          CA_FILE: ${{ inputs.ca_file }}
+        run: |
+          python -m scripts.validate_mumbai_migrations --confirm-project "$CONFIRM_PROJECT" \
+            --approval-id "$APPROVAL_ID" --approval-manifest "$GITHUB_WORKSPACE/$APPROVAL_MANIFEST" \
+            --ca-file "$GITHUB_WORKSPACE/$CA_FILE"

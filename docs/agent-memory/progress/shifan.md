@@ -3,10 +3,18 @@
 ## Goal
 Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory system. This session also did the migration-folder restructure (see Done); the Mumbai reconciliation itself is tracked in progress/mumbai-forward-reconciliation.md.
 
+Current continuation: explicit CI migration policy, fresh staging acceptance and local DB
+health recovery. Keep all changes uncommitted; prepared 0038-0040 and stamp remain held.
+
 ## Status
 in progress
 
 ## Done
+- 2026-10-16: explicit portable0037 policy and manual Mumbai validation prepared; final CI-equivalent run 1031 passed / 34 skipped, zero collection/setup errors; separate recovery suite 20 passed. See [CI verification](../../../backend/docs/verification/ci-migration-policy-2026-10-16.md).
+- Fresh synthetic customer/owner run: all 11 browser assertions pass; 18 API checks pass, two broader gates blocked and runner exits nonzero. Cleanup verified. Real Mumbai DB latency measured; deployed API latency remains unmeasured.
+- Approved local API fix applied: Mumbai Session Pooler 5432, verified TLS/read-only CA mount; stale duplicate host Uvicorn stopped. IPv4 health passes three times. Original image missing, so preserved running runtime in a private local recovery image. See [health evidence](../../../backend/docs/verification/local-mumbai-db-health-2026-10-16.md).
+- 2026-10-16: reviewed committed snapshot validation and closed remaining QR durable-replay, duplicate-notification, erasure-worker reachability, cache context cleanup and timing gaps. Twenty dedicated disposable SQL/TCP/browser tests pass; see [recovery verification](../../../backend/docs/verification/mumbai-redis-recovery-2026-10-16.md).
+- Final continuation checks: 948 passed / 82 skipped, zero failures; 20 opt-in recovery tests separately passed. Ruff and diff whitespace checks pass; one existing deprecation warning remains.
 - 2026-10-16: Fixed CI/CD — 4 test failures + 46 setup errors caused by Mumbai migrations (0038–0040) having production-specific review guards that fail on a fresh CI postgres. Added `_TEST_HEAD = "0037_customer_processing_charge"` constant to integration tests; replaced all `alembic upgrade head` calls with `_TEST_HEAD`. Ruff clean, 921 passed / 62 skipped / 18 pre-existing errors. Committed as 9a1eccf.
 - 2026-10-16: Fixed local backend startup crash (`No module named 'psycopg2'`). Added `database_url_uses_asyncpg` validator to `Settings` that rewrites `postgresql://` → `postgresql+asyncpg://`. Added regression test `test_database_url_scheme.py`.
 - 2026-10-15: authorized local cleanup verified; 14 backups preserved/untracked, 13 runners relocated, exact test image removed; compile/Ruff/path/link checks pass.
@@ -19,22 +27,24 @@ in progress
 - Test comparison HEAD vs changed tree: 862 vs 871 passed, same 16 setup errors (test_docker_image_ids, test_vm_release). No new failures. Ruff clean. Docker image build, alembic heads/history inside it match local.
 
 ## In progress
-- backend/app/core/config.py has a new `database_url_uses_asyncpg` validator (uncommitted alongside other config changes from earlier sessions). Working tree was clean as of this session (changes from 9a1eccf already pushed).
+- Redis recovery continuation is uncommitted. The checkout was clean at continuation start; previously recorded config/CI fixes were already committed. No migrations, stamp, grants or remote mutations executed.
 
 ## Next steps
-1. Resolve the reproduced cache-coherence failure in `backend/app/infrastructure/cache/redis.py` with durable/shared invalidation recovery (see progress/mumbai-forward-reconciliation.md for remaining Mumbai gates).
-2. Provide cleanup-safe isolated data for independent-connection booking concurrency; the current overlapping HTTP requests yield 201/409 and one row but serialize DB sessions.
-3. Configure synthetic provider sandbox resources for actual payment failure/refund settlement. Native flow needs a real attached device/emulator.
-4. Keep migrations 0038–0040 unapplied until every required gate passes; review the uncommitted cleanup separately. Do not rewrite Git history.
-5. Investigate and fix the 18 pre-existing setup errors in `test_docker_image_ids.py`, `test_vm_release.py`, `test_migration_tool_paths.py` (need Docker socket; pre-exist on main).
+1. Review uncommitted policy/Redis changes and verification reports; do not commit without approval.
+2. Configure protected Mumbai validation environment reviewers and approved hashed evidence separately; keep migrations held.
+3. Verify independent committed-session concurrency on live staging, provider sandbox settlement and deployed Mumbai API warm/cold latency before closing broader acceptance.
+4. Keep the ignored local CA override for subsequent API recreations; do not run duplicate host Uvicorn on Docker port 8000.
+5. Review the existing customer HomeScreen console warning in its frontend repository.
 
 ## Decisions
+- 2026-10-16: PostgreSQL snapshot validation closes the lost-invalidation window without a new schema. It costs a database query per eligible hit and conservatively misses after unrelated writes; retry state is process-local but crash safety does not depend on it. All legacy readers must be replaced together.
 - 2026-10-15: per-branch progress files, because they mirror one-branch-one-PR and avoid teammate merge conflicts.
 - 2026-10-15: old paths inside sealed evidence JSON are kept as `layout_restructure.superseded` records, not rewritten, because evidence must stay auditable.
 - 2026-10-15: no psycopg2 dependency added; it is not declared and the repo driver is asyncpg.
 - 2026-10-16: integration tests stop at `0037_customer_processing_charge` (not `head`) because 0038–0040 are prepared-only Mumbai migrations requiring Supabase-managed pre-conditions; tested separately when the gates pass.
 
 ## Files touched
+- Redis continuation: runtime cache, QR/app booking use cases, durable booking-operation scope, erasure-worker ping gate, dedicated recovery runner and SQL/browser/unit regressions; full list in the recovery verification report.
 - CLAUDE.md, .claude/**, docs/agent-memory/**, .gitignore
 - backend/migrations/{sql,reviews,versions}/**, backend/docs/migrations/**, backend/scripts/migrations/reseal_layout_evidence.py, backend/.dockerignore, backend/scripts/check-container.sh, affected tests and docs links
 - backend/tests/integration/test_payment_ledger_sql.py (added _TEST_HEAD constant, changed _build default)
@@ -44,9 +54,11 @@ in progress
 - backend/tests/unit/test_database_url_scheme.py (new regression test)
 
 ## Blockers and open questions
-- 18 pre-existing setup errors: test_docker_image_ids, test_vm_release, test_migration_tool_paths — need Docker socket (same on main).
-- Mumbai release gate: reproduced cross-process cache-coherence failure, independent-connection concurrency unproven, and provider settlement sandbox unavailable.
-- Migrations 0038–0040 held; do not apply or stamp.
+- Current CI-equivalent collection/setup errors: zero. Historic 18 setup errors were temporary-file/archive/fake-release cases, not Docker-socket prerequisites; the earlier claim below was inaccurate. Exact historic trace unavailable.
+- Hosted CI has not run because changes remain uncommitted. Thirty-four explicitly reported skips are not passes; twenty recovery cases ran separately.
+- Live committed-session concurrency, provider settlement sandbox and deployed Mumbai API latency remain incomplete. Fresh application assertions passed, but the broader acceptance gate correctly exits nonzero.
+- Local health is repaired. Historical request-linked underlying exception was not retained; matching old Docker startup/reproduction failed direct-host DNS. No assertion that Supabase itself was down.
+- Prepared migrations 0038-0040 remain held and unapplied; no stamp, grants, sealed evidence edits or production/Sydney changes.
 
 ## Review findings
 - [open] low, backend/migrations/reviews/migration-inspection-2026-10-15.md:363, historical report still names backend/migrations/README.md; left as written.
@@ -57,3 +69,6 @@ in progress
 - 2026-10-15: session started
 - 2026-10-15: executed authorized backup/index/runner/image cleanup; verified final Mumbai lifecycle, Redis-off replay and 11 browser checks; reproduced cross-process cache failure, cleaned synthetic records and held migration readiness.
 - 2026-10-16: diagnosed and fixed CI failures (4 failures + 46 errors from Mumbai migration guards in tests); fixed local backend startup psycopg2 crash; verified ruff clean, 921 passed.
+- 2026-10-16: completed local Redis recovery continuation; real two-process TCP faults, independent committed booking sessions and fixture Playwright refresh verified; migrations held and changes left uncommitted.
+
+- 2026-10-16: completed explicit CI policy and clean local verification; fresh synthetic apps/cleanup and qualified Mumbai latency measured; approved local DB health fix verified, migrations held and all changes uncommitted.

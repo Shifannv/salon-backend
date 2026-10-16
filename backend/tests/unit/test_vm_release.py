@@ -39,7 +39,7 @@ if [[ "$*" == 'image inspect --format'* ]]; then
 fi
 case "${FAIL_STAGE:-}" in
   load) [[ "$1" != load ]] || exit 1 ;;
-  migrate) [[ "$*" != *'alembic upgrade head'* ]] || exit 1 ;;
+  migrate) [[ "$*" != *'upgrade 0037_customer_processing_charge'* ]] || exit 1 ;;
   up) [[ "$*" != *' up -d '* ]] || exit 1 ;;
   health) [[ "$*" != *' exec -T api '* ]] || exit 1 ;;
 esac
@@ -56,6 +56,9 @@ esac
         SALON_DEPLOY_ROOT=root.as_posix(),
         DEPLOY_TEST_LOG=(tmp_path / "docker.log").as_posix(),
         PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
+        SALON_MIGRATION_POLICY="portable-ci",
+        SALON_MIGRATION_REVISION="0037_customer_processing_charge",
+        SALON_MIGRATION_APPROVAL_ID="synthetic-test-approval",
     )
     return root, target, env
 
@@ -71,7 +74,8 @@ def run_release(release, fail_stage=""):
         timeout=30,
         check=False,
     )
-    log = Path(env["DEPLOY_TEST_LOG"]).read_text()
+    path = Path(env["DEPLOY_TEST_LOG"])
+    log = path.read_text() if path.exists() else ""
     return result, log, root / "releases" / "current"
 
 
@@ -87,7 +91,7 @@ def test_pre_deploy_failure_never_replaces_services(release, stage):
 def test_failed_readiness_does_not_promote_release(release, stage):
     result, log, current = run_release(release, stage)
     assert result.returncode != 0
-    assert "alembic upgrade head" in log
+    assert "upgrade 0037_customer_processing_charge" in log
     assert " up -d " in log
     assert not current.exists()
 
@@ -122,7 +126,7 @@ def test_containerd_manifest_id_is_accepted_from_verified_allowlist(release):
 def test_success_migrates_exact_image_then_promotes_healthy_release(release):
     result, log, current = run_release(release)
     assert result.returncode == 0, result.stderr
-    assert log.index("alembic upgrade head") < log.index(" up -d ")
+    assert log.index("upgrade 0037_customer_processing_charge") < log.index(" up -d ")
     assert log.count(" exec -T api ") == 3
     assert " build " not in log
     assert " pull redis" in log
@@ -131,3 +135,18 @@ def test_success_migrates_exact_image_then_promotes_healthy_release(release):
         if line.startswith("compose "):
             assert "|backend|" in line
             assert "/backend/.env|salon-platform-api:sha-" in line
+
+
+@pytest.mark.parametrize("missing", ["SALON_MIGRATION_POLICY", "SALON_MIGRATION_REVISION", "SALON_MIGRATION_APPROVAL_ID"])
+def test_release_requires_explicit_migration_selection_and_approval(release, missing):
+    release[2].pop(missing)
+    result, log, current = run_release(release)
+    assert result.returncode != 0
+    assert not log and not current.exists()
+
+
+def test_release_rejects_implicit_head_before_any_docker_operation(release):
+    release[2]["SALON_MIGRATION_REVISION"] = "head"
+    result, log, current = run_release(release)
+    assert result.returncode != 0 and "head is refused" in result.stderr
+    assert not log and not current.exists()

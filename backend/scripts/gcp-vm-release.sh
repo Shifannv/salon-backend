@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# No implicit head or environment-derived approval. Reviewed operator input is required.
+: "${SALON_MIGRATION_POLICY:?Set explicit migration policy after review; no automatic upgrade head}"
+: "${SALON_MIGRATION_REVISION:?Set an explicit reviewed revision; head is refused}"
+: "${SALON_MIGRATION_APPROVAL_ID:?Explicit migration/deployment approval is required}"
+case "$SALON_MIGRATION_POLICY:$SALON_MIGRATION_REVISION" in
+  portable-ci:0037_customer_processing_charge) ;;
+  mumbai:0040_fastapi_only_access)
+    : "${SALON_MUMBAI_PROJECT:?Confirm the Mumbai Supabase project}"
+    : "${SALON_MIGRATION_MANIFEST:?Provide the approved review/preflight manifest}"
+    [[ "$SALON_MUMBAI_PROJECT" == wqjlgpnbiapcrlkxumcp && -f "$SALON_MIGRATION_MANIFEST" ]] || {
+      echo "Mumbai confirmation or approved evidence manifest missing; migrations refused." >&2
+      exit 1
+    }
+    ;;
+  *) echo "Unreviewed migration target; portable CI is 0037, prepared Mumbai is 0040 with explicit approval. head is refused." >&2; exit 1 ;;
+esac
+
 release_dir="$(cd "$(dirname "$0")/.." && pwd -P)"
 releases_dir="$(cd "${SALON_DEPLOY_ROOT:-$HOME/salon-backend}/releases" && pwd -P)"
 if [[ "$release_dir" != "$releases_dir/"* || ! -f "$release_dir/image.tar.gz" ]]; then
@@ -18,9 +35,18 @@ compose=(bash scripts/gcp-vm-release-compose.sh)
 
 # Explicit deploy step. Review migrations before merging a release into main.
 # Failure here leaves the running services and current-release pointer untouched.
-echo "Applying reviewed database migrations from the tested release image."
+echo "Applying explicitly selected reviewed migration target: $SALON_MIGRATION_REVISION"
 "${compose[@]}" run --rm --no-deps api alembic current
-"${compose[@]}" run --rm --no-deps api alembic upgrade head
+if [[ "$SALON_MIGRATION_POLICY" == mumbai ]]; then
+  manifest_dir="$(cd "$(dirname "$SALON_MIGRATION_MANIFEST")" && pwd -P)"
+  manifest_name="$(basename "$SALON_MIGRATION_MANIFEST")"
+  "${compose[@]}" run --rm --no-deps -v "$manifest_dir:/migration-approval:ro" api \
+    alembic -x migration_policy=mumbai -x "mumbai_project=$SALON_MUMBAI_PROJECT" \
+    -x "approval_id=$SALON_MIGRATION_APPROVAL_ID" \
+    -x "approval_manifest=/migration-approval/$manifest_name" upgrade "$SALON_MIGRATION_REVISION"
+else
+  "${compose[@]}" run --rm --no-deps api alembic -x migration_policy=portable-ci upgrade "$SALON_MIGRATION_REVISION"
+fi
 "${compose[@]}" run --rm --no-deps api alembic current
 
 "${compose[@]}" --deploy

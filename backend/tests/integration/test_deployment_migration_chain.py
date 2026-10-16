@@ -13,8 +13,9 @@ from uuid import uuid4
 
 import asyncpg
 import pytest
-from alembic.script import ScriptDirectory
 from sqlalchemy.engine import make_url
+
+from app.core.migration_policy import PORTABLE_CI_REVISION
 
 TEST_DB = os.environ.get("MIGRATION_TEST_DB")
 BACKEND = Path(__file__).resolve().parents[2]
@@ -24,15 +25,14 @@ pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local P
 # (Supabase-managed privileges that do not exist on a fresh CI postgres).
 # The deployable head for automated tests stops here; Mumbai migrations are validated
 # separately against a server with the correct pre-conditions.
-_TEST_HEAD = "0037_customer_processing_charge"
-MIGRATION_HEAD = ScriptDirectory(str(BACKEND / "migrations")).get_current_head()
 
 
 async def alembic(url, *args):
-    env = dict(os.environ, DATABASE_URL=url, ENVIRONMENT="local", PYTHONIOENCODING="utf-8")
+    env = dict(os.environ, DATABASE_URL=url, ENVIRONMENT="test", PYTHONIOENCODING="utf-8",
+        SALON_ENV_FILE=str(BACKEND / "tests/no-test-env-file"))
     result = await asyncio.to_thread(
         subprocess.run,
-        [sys.executable, "-m", "alembic", *args],
+        [sys.executable, "-m", "alembic", "-x", "migration_policy=portable-ci", *args],
         cwd=BACKEND,
         env=env,
         capture_output=True,
@@ -45,7 +45,7 @@ async def alembic(url, *args):
 
 
 @pytest.mark.asyncio
-async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
+async def test_upgrade_from_0014_to_portable_0037_and_account_deletion_downgrade():
     admin_url = make_url(TEST_DB)
     assert admin_url.host in {"localhost", "127.0.0.1", "::1"}
     database = "migration_chain_" + uuid4().hex
@@ -102,8 +102,8 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
             "insert into auth.users (id, email) values ($1, 'migration@example.test')", user_id
         )
 
-        await alembic(url.render_as_string(hide_password=False), "upgrade", _TEST_HEAD)
-        assert await conn.fetchval("select version_num from alembic_version") == _TEST_HEAD
+        await alembic(url.render_as_string(hide_password=False), "upgrade", PORTABLE_CI_REVISION)
+        assert await conn.fetchval("select version_num from alembic_version") == PORTABLE_CI_REVISION
         assert await conn.fetchval("select email from profiles where id=$1", user_id) == (
             "migration@example.test"
         )
@@ -156,7 +156,7 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
 
         # A repeat deploy is a no-op. A rollback without erased data restores the
         # previous schema; reapplying must work with the same online driver too.
-        await alembic(url.render_as_string(hide_password=False), "upgrade", _TEST_HEAD)
+        await alembic(url.render_as_string(hide_password=False), "upgrade", PORTABLE_CI_REVISION)
         await alembic(
             url.render_as_string(hide_password=False), "downgrade", "0020_media_reference_guards"
         )
@@ -168,8 +168,8 @@ async def test_upgrade_from_0014_to_head_and_account_deletion_downgrade():
         """)
             == "NO"
         )
-        await alembic(url.render_as_string(hide_password=False), "upgrade", _TEST_HEAD)
-        assert await conn.fetchval("select version_num from alembic_version") == _TEST_HEAD
+        await alembic(url.render_as_string(hide_password=False), "upgrade", PORTABLE_CI_REVISION)
+        assert await conn.fetchval("select version_num from alembic_version") == PORTABLE_CI_REVISION
     finally:
         if conn is not None:
             await conn.close()
