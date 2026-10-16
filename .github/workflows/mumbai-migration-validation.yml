@@ -26,7 +26,6 @@ permissions:
 jobs:
   mumbai-validation:
     if: github.event_name == 'workflow_dispatch'
-    environment: mumbai-migration-validation
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
