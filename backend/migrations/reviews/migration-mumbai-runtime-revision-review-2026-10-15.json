@@ -6,7 +6,7 @@
   "revisions": [
     {
       "revision": "0001_baseline",
-      "source_sha256": "cad5a6a9af2600fd0bee97103ed40dedbe33d99ef7f2c55084e86835bfb36b21",
+      "source_sha256": "9e84f06a58949982bdc5499a116f9c7d701c2f9fb3e11485cff6ca1b9f2d6993",
       "summary": "Apply the v3 Supabase schema baseline.",
       "checks": [
         {
@@ -49,14 +49,14 @@
       "external_SQL_sources": [
         {
           "file": "backend/migrations/sql/001_supabase_schema.sql",
-          "sha256": "6dcdea0b7e152cc45ba612878beae71279e949309c09bc79c9ff2aaff65cbe36"
+          "sha256": "89c68abc3b0abebe630feafd77199580af039f66cbeea260a0de112c185dbd81"
         }
       ],
       "notes": "Consolidated baseline overlap documented; compare final objects, not a replay recipe."
     },
     {
       "revision": "0002_notifications_read_at",
-      "source_sha256": "4a6a253e900b1811ee1246bb7060ec8cba25e6ba22e0dcc6b92135c379b11ba6",
+      "source_sha256": "7f169a6e3703f606a4f19a07200267bfc20235d1d80822d1121c30c90788d4f0",
       "summary": "Add read_at timestamp to notifications.",
       "checks": [
         {
@@ -76,7 +76,7 @@
     },
     {
       "revision": "0003_google_oauth_profile_metadata",
-      "source_sha256": "cf2469be47eabd21717bc081b5a731f2d4685e57998e08f4556959d4ccdfcfda",
+      "source_sha256": "a3f9a312591c876556804e52ad0fe4f42c5872552aa41b65d88fd39fb0df7e28",
       "summary": "Capture Google OAuth metadata in new profiles.",
       "checks": [
         {
@@ -91,7 +91,7 @@
     },
     {
       "revision": "0004_service_duration_slot_steps",
-      "source_sha256": "3f9d770a52c558bf33b333df1e02e93087e4f60b8989fb23d211a59b407f4dc3",
+      "source_sha256": "8f8763de9991b5e4e8952a4ae2dc85fc2008a294b63560beaa4ef273bd622092",
       "summary": "Generate availability slots by service duration.",
       "checks": [
         {
@@ -106,7 +106,7 @@
     },
     {
       "revision": "0005_staff_experience",
-      "source_sha256": "c5964105fb93ac92651f2522553daba42405582d0a16e28bc911f382ee7c8935",
+      "source_sha256": "9e4ff9d295d596ba2a6b3dc2895a702a3ef01abc436e6e362b773e6d0f9cd9de",
       "summary": "Add staff experience.",
       "checks": [
         {
@@ -121,7 +121,7 @@
     },
     {
       "revision": "0006_enable_realtime",
-      "source_sha256": "b8242055e1b4a54ae676d22e0803703e3d46de736437de365f92b68911505874",
+      "source_sha256": "26b4108c61bab46702b99fcd44ab5df52097d348122a5908603c40b063e59c59",
       "summary": "Enable Supabase Realtime on bookings and blocked_slots.",
       "checks": [
         {
@@ -201,7 +201,7 @@
     },
     {
       "revision": "0010_salon_reports",
-      "source_sha256": "01e1166046ebc19963814cc7b03857ea3133c1a1c64f4166d9b296a797acf1d3",
+      "source_sha256": "71ef05b23af0ab7ecbe687b3becd7683de7b6bdac2a72680436a082747961466",
       "summary": "Persist customer reports with self-read RLS and soft deletion.",
       "checks": [
         {
@@ -216,7 +216,7 @@
     },
     {
       "revision": "0011_holiday_soft_delete",
-      "source_sha256": "9464ef09ccfa2acd36cf40bc549c7b1aa9e21863f571ac1574f41d9a7b92637c",
+      "source_sha256": "cde6e1ef19a4d16c7789e03821b0cd64dd9863a7f7bd240a71815670630927c9",
       "summary": "Add soft deletion for salon holidays.",
       "checks": [
         {
@@ -236,7 +236,7 @@
     },
     {
       "revision": "0012_booking_delay",
-      "source_sha256": "cc1cc71efd8385e9d3a6f4314248e9e2cf2b09cf5096c23a29ac21df90aab280",
+      "source_sha256": "61b9272f7d063486dc61d3c324a03bd05a4cdba6c8c2dcfb6073e79feda9c603",
       "summary": "Store owner-entered booking delay estimates.",
       "checks": [
         {
@@ -251,7 +251,7 @@
     },
     {
       "revision": "0013_booking_action_requests",
-      "source_sha256": "e095dfed2636c82d4809cd0b04a7e0a1a8294c6141b0d89e92b00e86b994368c",
+      "source_sha256": "77128774a8b5507dc1e9ac75b668195ea8b29b3a2adf3de27bfb9edb1c8679b6",
       "summary": "Add booking action requests, payment preference, and notification outbox.",
       "checks": [
         {
@@ -276,7 +276,7 @@
     },
     {
       "revision": "0014_repair_cancel_reason",
-      "source_sha256": "4efa15fcc86cbee028503b0b72e6dcd4cc641ecf68af1e2220832dd65cf97ceb",
+      "source_sha256": "bb7cef8a0ce37225e064d32ba919f1afa6712e67e7d0d7848e200aae9bf53213",
       "summary": "Repair the booking cancellation reason column on drifted databases.",
       "checks": [
         {
@@ -291,7 +291,7 @@
     },
     {
       "revision": "0015_salon_admin_approval",
-      "source_sha256": "ebb4b9fdf54a12348d9f8e3a627f517cdc1b666152693363b80c9c1fd8a4c8dc",
+      "source_sha256": "702f199d83997746b07c04a3e75cd06a7fd8674c5cb09bb4dd88c04778326ece",
       "summary": "Require super admin approval before salon publication or daily business.",
       "checks": [
         {
@@ -331,7 +331,7 @@
     },
     {
       "revision": "0016_service_presentation",
-      "source_sha256": "6898832d26d18e2886eed2a6b9842c084fbd939730b21b78c2385016ead7e3d8",
+      "source_sha256": "5264a884215dd480b16df1f83b86068c764770e536db23162fb2224394081598",
       "summary": "Add salon-specific service names and photos without changing the catalog.",
       "checks": [
         {
@@ -356,7 +356,7 @@
     },
     {
       "revision": "0017_salon_display_priority",
-      "source_sha256": "6bb1a6823e62ce67e549224b32df81c7ac927ea9db820a4433321d3979607a0a",
+      "source_sha256": "24527ddfc6bb22b23f067f4b530c1cd31679e92ecc38573ee4d8f7a1f084ffac",
       "summary": "Add super-admin controlled salon display priority for public discovery.",
       "checks": [
         {
@@ -376,7 +376,7 @@
     },
     {
       "revision": "0018_subscription_foundation",
-      "source_sha256": "25595d876835d9a6d184989b90839809b8dfa3493b8cbf00b4f6784bc674d6ce",
+      "source_sha256": "df7d460ae7b5605becaffb98dd5567a01556e8fd2e17a943a15777a65dfd60a2",
       "summary": "Provider-agnostic subscription and salon-promotion foundation.",
       "checks": [
         {
@@ -416,7 +416,7 @@
     },
     {
       "revision": "0019_discovery_placement",
-      "source_sha256": "74c7a79b9d29ce8a93470566e631974972559cff67de56f17e18f48447917a05",
+      "source_sha256": "f4b9a6adfebcf9cf8db9d34169cf38000a1cf0136e5bc5e8dd670731353d5296",
       "summary": "Super-admin discovery visibility and home placement controls.",
       "checks": [
         {
@@ -441,7 +441,7 @@
     },
     {
       "revision": "0020_media_reference_guards",
-      "source_sha256": "4d740bf4765c794b97a6a31230279022bbf5b0bc7a47191cdff39929466fc3d3",
+      "source_sha256": "0d844ab65809129245055eb074ababaa97c7a542cd8849f94286aa7659dd3e66",
       "summary": "Serialize all media references with cleanup and block client URL bypasses.",
       "checks": [
         {
@@ -456,7 +456,7 @@
     },
     {
       "revision": "0021_account_deletion",
-      "source_sha256": "0ef0452d04c64f9311d9026b6d610eab5cee374ec74b4b3e1cb1a13ece11bb76",
+      "source_sha256": "9b1796930809b93e1dd5a7066c7427031f7db294a258612ede9f5ff10901ef86",
       "summary": "Account deletion: verification challenges, durable erasure ledger, erasure helper.",
       "checks": [
         {
@@ -481,7 +481,7 @@
     },
     {
       "revision": "0022_salon_accepting_bookings",
-      "source_sha256": "af7fb190c91f7a3604f888ce030f5b8ad345f6135b80ff17eb2c3780386db960",
+      "source_sha256": "128d95714949418d27cf695a48fc5187f8fd6140322bae567ee28e3bdc787e1a",
       "summary": "Let a salon owner pause new bookings without touching existing ones.",
       "checks": [
         {
@@ -496,7 +496,7 @@
     },
     {
       "revision": "0023_notification_data",
-      "source_sha256": "121255a0967e381640397ac5427e7c72a581635463bc5cf86ff93acb4acffc11",
+      "source_sha256": "754fe16324c2dcdd07c6840473bc533c8bf5dc499c2bcf818b72c44a41aa8d0d",
       "summary": "Let a notification carry structured push metadata (e.g. salon approval status/reason).",
       "checks": [
         {
@@ -511,7 +511,7 @@
     },
     {
       "revision": "0024_secure_new_user_role",
-      "source_sha256": "6d519ea518d49b914ea28e41907ffde03b1e70ee032180a5c430f36e5548ee4a",
+      "source_sha256": "19e88150796bcba4c52fbe68c00a39ce37385c8ac136c58fc02f30a8a257dddd",
       "summary": "Harden trusted role assignment and the browser-facing database surface.",
       "checks": [
         {
@@ -546,7 +546,7 @@
     },
     {
       "revision": "0025_salon_payout_accounts",
-      "source_sha256": "6760a5ef8833557baff9c0246e802121e590e9892b5d6ab2f639a5193fe9804f",
+      "source_sha256": "4f949191b4aaf96b9e3c79a871f5315fef2ebcf9d9213c85da4fd830e056a844",
       "summary": "Add owner-only salon payout accounts (UPI / bank) in a private table.",
       "checks": [
         {
@@ -559,14 +559,14 @@
       "external_SQL_sources": [
         {
           "file": "backend/migrations/sql/001_supabase_schema.sql",
-          "sha256": "6dcdea0b7e152cc45ba612878beae71279e949309c09bc79c9ff2aaff65cbe36"
+          "sha256": "89c68abc3b0abebe630feafd77199580af039f66cbeea260a0de112c185dbd81"
         }
       ],
       "notes": "Final structural effect covered by catalog/head comparison; execution history not inferred."
     },
     {
       "revision": "0026_booking_payments",
-      "source_sha256": "7bd561c97017150031f7b75ee268309c033194e89fa8f4e7e59b9510e4054af1",
+      "source_sha256": "0190842b5f6fc6a151c27ff5d0a36337d51a68005d888e78cadfbbc83edec4a6",
       "summary": "Payment-collection foundation: ledger, refunds, webhook intake, idempotency.",
       "checks": [
         {
@@ -606,7 +606,7 @@
     },
     {
       "revision": "0027_payout_account_audit",
-      "source_sha256": "be494b3c9a5432cda2a1109dd67da5d36a467d59994cd525fb52e1b7aa0a305e",
+      "source_sha256": "6be6df56e1de8738606105e2ba1e5932e44209fa5df243d64266fa370e8aaa1a",
       "summary": "Payout-account hardening: audit trail, SQL masking, bank-triple CHECK.",
       "checks": [
         {
@@ -631,7 +631,7 @@
     },
     {
       "revision": "0028_account_erasure_hardening",
-      "source_sha256": "f8e2faffeb4a0a25faa8d9eb20ace370d02478535c09d1a131466d9114a347ad",
+      "source_sha256": "255d341615e910b4e467b2a35c5317ea16872f9c639a83df38113415b471e256",
       "summary": "Account erasure hardening.",
       "checks": [
         {
@@ -651,7 +651,7 @@
     },
     {
       "revision": "0029_payment_monetary_policy",
-      "source_sha256": "0b57c1ad6fb740c49f1d07ae8cb4c7a602f09e2bcfdfe0bd0b35beb639c73c1c",
+      "source_sha256": "531eb0a0f7480f0296e7d2fbfb8faad50be057aadb3d4788d25d0975a95181ef",
       "summary": "Payment monetary policy: commission snapshot, overcollection, anomalies, audit.",
       "checks": [
         {
@@ -686,7 +686,7 @@
     },
     {
       "revision": "0030_subscription_billing",
-      "source_sha256": "25f08b3dd7de0795ee5d3eb825617aa74cbdecdc31af580da030d3cafc322fa8",
+      "source_sha256": "ad1679a200a482e9fce28c28245c2b3696af0d69ad4c1e26f49a9b944179ae4e",
       "summary": "Owner subscription billing: purchase ledger and atomic, idempotent activation.",
       "checks": [
         {
@@ -716,7 +716,7 @@
     },
     {
       "revision": "0031_seed_subscription_plans",
-      "source_sha256": "91b2856f7454cc07c70ede5cf38edf8acb38afd30f67008177d59fce0c250311",
+      "source_sha256": "29a772f4004d370c0654c2a454a93152bb64caecb1e3f270aa118b0397e52e3c",
       "summary": "Seed the Growth and Premium subscription plans (1 / 6 / 12 months).",
       "checks": [
         {
@@ -731,7 +731,7 @@
     },
     {
       "revision": "0032_salon_access_state",
-      "source_sha256": "c6953f8c75b43f95bd8b12a6022e5fb86a073d6a5d0d2cf9eb5d1b80359df4c2",
+      "source_sha256": "ecf54572b6ff76d79d9e85320c905fd7a4cdbe90737d542010eaf693a7a175da",
       "summary": "Salon access state: backend-only trial facts and booking counting.",
       "checks": [
         {
@@ -761,7 +761,7 @@
     },
     {
       "revision": "0033_payment_fee_snapshot",
-      "source_sha256": "29afafee467a9453a451eb72efd014cf2931f403f87c2329700f4d91c679b476",
+      "source_sha256": "9e75266aa53d715e136dd746b109b676a1f10f617c41cc7844cbd982beb55da0",
       "summary": "Gateway-fee snapshot on payments and cancellation facts on refunds.",
       "checks": [
         {
@@ -796,7 +796,7 @@
     },
     {
       "revision": "0034_booking_lifecycle_states",
-      "source_sha256": "96313479ecc633f511456e8fbba5c71d7a55f6d601588985cb9c6df6572d7d27",
+      "source_sha256": "2bd9caeabfe45b9ba48f1aadb3e1bff71cdddee4cbd053dd1622819f120255d1",
       "summary": "Prepare booking lifecycle enum values before transactional guards use them.",
       "checks": [
         {
@@ -821,7 +821,7 @@
     },
     {
       "revision": "0035_booking_checkout_safety",
-      "source_sha256": "911cadef7dbf43c6dd0d992d2fd5a816dddb31f0942551768d0a68dc6e10ec5f",
+      "source_sha256": "745b39d6597506468a98ac3b79404496292f218f85a51b8ebebf4971a41fc64b",
       "summary": "Transactional trial, checkout, collection and append-only audit enforcement.",
       "checks": [
         {
@@ -854,14 +854,14 @@
       "external_SQL_sources": [
         {
           "file": "backend/migrations/sql/0035_booking_checkout_safety.sql",
-          "sha256": "ef1c9b994c7e43646d526186d8a4ab14dc5b0c5122bf294d7053d04f7be9b079"
+          "sha256": "d5aa03078bb6a05d7faf5fe4a2858ce34c73abdf6e3e10137cd21770aeb01c5f"
         }
       ],
       "notes": "Compare referenced 0035 SQL as well as revision Python; 0037 replaces some financial guards."
     },
     {
       "revision": "0036_support_email_outbox",
-      "source_sha256": "79ddadf88f12e81eb58884fcf17997fafa886aaaad2e4d0ab46faae7d3ac2370",
+      "source_sha256": "d11556b95515bd7a051647df2207ab74602f871e6c06f1544311d140ee465f2c",
       "summary": "Backend-only support messages, durable email outbox and rate-limit counters.",
       "checks": [
         {
@@ -896,7 +896,7 @@
     },
     {
       "revision": "0037_customer_processing_charge",
-      "source_sha256": "eacc93772add5506a15151fe58e270e1f4183cd8aae7de4f41624c7627b5c997",
+      "source_sha256": "1fd0ac40b9b017e1960f4035301a5bce9ee616d0bd429764eba752fca5888a70",
       "summary": "Immutable customer processing-charge snapshots on the existing ledger.",
       "checks": [
         {
@@ -934,7 +934,7 @@
       "external_SQL_sources": [
         {
           "file": "backend/migrations/sql/0037_customer_processing_charge.sql",
-          "sha256": "2721b33ceba5079d7cad5ec4fd75f4a8b1811ce17c8915e69eda5418ec6a677f"
+          "sha256": "e6e59e61afee6fcec897fb9a185d82fed2d94ae37e0acab4c207962fff71d329"
         }
       ],
       "notes": "Compare referenced 0037 SQL plus columns/final guard body. Checkout/collection tested via API."
