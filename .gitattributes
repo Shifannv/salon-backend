@@ -3,3 +3,4 @@
 *.yaml text eol=lf
 Dockerfile text eol=lf
 *.dockerignore text eol=lf
+backend/migrations/reviews/migration-mumbai-review-2026-10-15/privilege-matrix.csv text eol=lf

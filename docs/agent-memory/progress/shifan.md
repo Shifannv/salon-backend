@@ -10,6 +10,7 @@ health recovery. Keep all changes uncommitted; prepared 0038-0040 and stamp rema
 in progress
 
 ## Done
+- 2026-10-17: Twenty unchanged-revision natural Cloud Run cold starts verified (10 health, 10 DB-first); p50/p95/p99 ms: health 8384.88/9429.90/9429.90, DB 7422.67/9818.18/9818.18. All 260 measured requests and final three health checks passed. Read-only ownership audit verifies running production-entry VM/DNS, separate Mumbai staging and cost/cleanup scope. See backend/docs/verification/cloud-run-startup-investigation-2026-10-16.md and infrastructure-ownership-cost-2026-10-16.md. Fresh-revision DB-first and exact platform/import split remain unavailable without prohibited configuration changes; no application, VM, cloud configuration, billing, Supabase or DNS mutation. Existing broader business/concurrency gates remain separate.
 - 2026-10-16: explicit portable0037 policy and manual Mumbai validation prepared; final CI-equivalent run 1031 passed / 34 skipped, zero collection/setup errors; separate recovery suite 20 passed. See [CI verification](../../../backend/docs/verification/ci-migration-policy-2026-10-16.md).
 - Fresh synthetic customer/owner run: all 11 browser assertions pass; 18 API checks pass, two broader gates blocked and runner exits nonzero. Cleanup verified. Real Mumbai DB latency measured; deployed API latency remains unmeasured.
 - Approved local API fix applied: Mumbai Session Pooler 5432, verified TLS/read-only CA mount; stale duplicate host Uvicorn stopped. IPv4 health passes three times. Original image missing, so preserved running runtime in a private local recovery image. See [health evidence](../../../backend/docs/verification/local-mumbai-db-health-2026-10-16.md).
@@ -72,3 +73,5 @@ in progress
 - 2026-10-16: completed local Redis recovery continuation; real two-process TCP faults, independent committed booking sessions and fixture Playwright refresh verified; migrations held and changes left uncommitted.
 
 - 2026-10-16: completed explicit CI policy and clean local verification; fresh synthetic apps/cleanup and qualified Mumbai latency measured; approved local DB health fix verified, migrations held and all changes uncommitted.
+
+- 2026-10-17: completed read-only Cloud Run natural baseline and infrastructure/cost audit; JSON/CSV preserved in ignored backend/.artifacts/cold-start-investigation; no benchmark process remains running and no cleanup commands executed.

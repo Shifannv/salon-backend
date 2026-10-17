@@ -75,6 +75,10 @@ def normalized(value):
     return value
 
 
+def canonical_sha256(path):
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def main():
     current = json.loads((ROOT / "backend/migrations/reviews/migration-mumbai-forward-catalog-2026-10-15.json").read_text())
     previous = json.loads((ROOT / "backend/migrations/reviews/migration-mumbai-completion-audit-2026-10-15.json").read_text())["catalog"]
@@ -109,8 +113,8 @@ def main():
         for sql_path in (ROOT / "backend/migrations/sql").glob("*.sql"):
             if sql_path.name in path.read_text(encoding="utf-8"):
                 external.append({"file": sql_path.relative_to(ROOT).as_posix(),
-                                 "sha256": hashlib.sha256(sql_path.read_bytes()).hexdigest()})
-        rows.append({"revision": path.stem, "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                                 "sha256": canonical_sha256(sql_path)})
+        rows.append({"revision": path.stem, "source_sha256": canonical_sha256(path),
             "summary": (ast.get_docstring(tree) or "").splitlines()[0], "checks": checks,
             "status": "selected final-state requirements present" if all(c["present"] for c in checks) else "missing selected requirement",
             "external_SQL_sources": external, "notes": NOTES.get(number, "Final structural effect covered by catalog/head comparison; execution history not inferred.")})
