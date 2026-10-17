@@ -1,9 +1,6 @@
-# Mumbai staging startup investigation — 16 October 2026
+# Mumbai staging startup investigation — 16–17 October 2026 (IST)
 
-Status: investigation in progress. Cloud Run configuration has not been changed in this
-investigation. Natural measurements run on the existing serving revision and save progress
-after every observation. Final natural percentiles require ten verified cold first requests
-per endpoint; a single response is not a completed distribution.
+Status: twenty natural cold starts complete; startup inspection and read-only infrastructure audit complete. Fresh-revision DB-first measurements remain unavailable under the no-configuration-change constraint. No application or Cloud Run configuration change was made.
 
 ## Findings before any configuration change
 
@@ -97,43 +94,151 @@ One ordinary `-X importtime` diagnostic reported cumulative FastAPI imports 467 
 module imports 776 ms and SQLAlchemy 134 ms. These overlap. The R2/Pillow module path was
 25 ms locally; stripping that integration is not supported as a multi-second improvement.
 
-## Separate measurement scenarios
+## Completed cold-start results
 
-| Scenario | `/health` cold-first status | `/health/db` cold-first status |
-| --- | --- | --- |
-| A: fresh revision | Existing 10 verified samples: p50 8386.97 ms, p95/p99 13815.61 ms | Not measured as the first cold endpoint; earlier DB probes followed `/health` and must not be relabeled. New trials require revision/tag changes prohibited by the latest user instruction. |
-| B: natural idle scale-to-zero | 5/10 accepted; study running | 5/10 accepted; study running |
+Twenty natural cold starts completed on **twenty distinct instances**, ten per
+external first endpoint, with zero excluded HTTP trials. All 260 measured HTTP
+requests (20 cold-first, 40 first follow-ups, 200 warm) returned 200 with status
+`ok`. The existing `/health` startup probe remained enabled for both endpoint
+scenarios. Dependency warm-up still happens in lifespan before external readiness.
 
-At the 50% milestone, all ten accepted natural trials returned HTTP 200, with
-individual cold-first durations from 6425.54 to 9818.18 ms. Final endpoint
-percentiles are pending. The separate read-only
-[infrastructure/cost audit](infrastructure-ownership-cost-2026-10-16.md) verifies
-the running VM and current production DNS target without assuming a Cloud Run
-cutover.
+| Scenario / endpoint | Samples | p50 ms | p95 ms | p99 ms |
+| --- | ---: | ---: | ---: | ---: |
+| A: fresh revision, `/health` | 10 | 8386.97 | 13815.61 | 13815.61 |
+| B: natural zero, `/health` | 10 | 8384.88 | 9429.90 | 9429.90 |
+| B: natural zero, `/health/db` | 10 | 7422.67 | 9818.18 | 9818.18 |
+| Warm after natural starts, `/health` | 100 | 59.18 | 172.68 | 292.29 |
+| Warm after natural starts, `/health/db` | 100 | 71.72 | 105.74 | 221.80 |
 
-The original ten fresh samples were additionally checked against Cloud Run HTTP-request
-arrival timestamps and instance-start events on the **same server clock**. This avoids
-assuming workstation UTC and server UTC are identical. The client duration remains measured
-with a monotonic clock. Previously excluded prestarted trials remain excluded.
+Natural first requests ran from **16 October 2026, 17:54:17 IST** to completion at
+**17 October 2026, 00:15:13 IST**. Most elapsed study time was waiting for genuine
+idle shutdown, not executing HTTP requests. No forced shutdown or redeployment
+was used. One read-access RuntimeError interrupted the observer at 22:29 IST;
+read access was independently rechecked and the same saved study resumed around
+22:30 IST. Its original detailed cause was not retained. No measured HTTP request
+failed, and no saved measurement was discarded or reset.
 
-The natural runner sends no HTTP requests during idle waits. It requires both active and idle
-instance counts to be explicitly zero, plus logged termination of all known instances of the
-serving revision, before requesting a new start. Monitoring alone can lag or momentarily
-understate a live instance; zero active instances is particularly not sufficient.
-Monitoring is sampled every 60 seconds and can appear up to 120 seconds later.
-[Metric timing and state definitions](https://docs.cloud.google.com/monitoring/api/metrics_gcp_p_z).
+The p50 is the median; p95/p99 use nearest rank. With only ten cold samples per
+endpoint, both tail estimates equal the observed maximum and are not precise
+estimates of a production p99. Warm samples are clustered within twenty instances
+and use a persistent HTTP client within each trial. Client latency includes local
+transport/TLS/IAM/platform overhead as well as application work. No improvement
+is claimed: the configuration/image were unchanged and these are different
+startup scenarios, not an optimization A/B.
 
-Natural trials alternate which endpoint is first. Each accepted trial must match a new instance
-ID and an AUTOSCALING event inside its server-clock HTTP request interval. Prestarted, failed
-or unverified observations are retained and excluded with a reason. Identity tokens remain
-in memory. Server-Timing, first responses and five subsequent warm calls per endpoint are
-saved separately. Ten cold-first trials per endpoint require twenty independent shutdowns;
-Cloud Run may retain idle instances for up to fifteen minutes.
-[Autoscaling lifecycle](https://docs.cloud.google.com/run/docs/about-instance-autoscaling).
+**A: fresh revision with `/health/db` as the first external endpoint remains
+unmeasured.** Earlier DB probes followed `/health`; they are not cold-first DB
+results. New fresh-revision/tag trials would change resources/configuration and
+are prohibited by the latest read-only/no-configuration-change instruction.
+The existing ten fresh `/health` samples were reverified on the server clock;
+previously excluded prestarted fresh-revision attempts remain excluded.
+
+## Natural startup phase measurements
+
+These are paired timestamps from each accepted instance, all on the server clock.
+
+| Natural startup span | Samples | p50 ms | p95 ms | p99 ms |
+| --- | ---: | ---: | ---: | ---: |
+| Request arrival → instance-start event | 20 | 24.51 | 32.89 | 38.55 |
+| Instance-start event → server-process log (combined pre-lifespan) | 20 | 6410.54 | 7465.06 | 7937.37 |
+| Application lifespan startup | 20 | 561.68 | 632.28 | 740.87 |
+| Startup DB warm-up, upper span | 20 | 118.33 | 133.75 | 150.70 |
+| Startup Redis initialization, upper span | 20 | 442.33 | 514.66 | 606.83 |
+| Lifespan complete → successful startup probe | 20 | 510.95 | 987.96 | 993.81 |
+| Instance-start event → readiness probe succeeds | 20 | 7621.24 | 8128.72 | 9118.44 |
+
+The dominant observed span remains **pre-lifespan: median 6410.54 ms naturally**,
+versus 6997.98 ms in the existing fresh cohort. That combines platform/internal
+container provisioning and scheduling with Python/Uvicorn imports and application
+construction. Pure platform startup, interpreter imports, app factory and route
+registration are not individually observable in the deployed logs. The 24.51 ms
+request-arrival-to-instance-event median measures only that initial marker gap;
+it is not the entire platform startup cost. Readiness takes median 7621.24 ms from
+the instance-start marker across both natural endpoint cohorts. Spans overlap;
+do not add medians or subtract percentiles to invent a missing component.
+
+All twenty accepted instances have an independently verified successful Redis
+connection log. Initial DB acquisition/TLS/SELECT/cleanup is inside the 118.33 ms
+DB warm-up upper span; initial Redis import/DNS/TLS/auth/PING is inside the
+442.33 ms Redis upper span. Existing telemetry cannot separate each sub-operation.
+
+| Request-level Server-Timing, p50 | App ms | DB acquisition ms | DB query ms |
+| --- | ---: | ---: | ---: |
+| Cold-first external `/health` | 0.275 | 0.000 | 0.000 |
+| Cold-first external `/health/db` | 14.850 | 9.000 | 4.475 |
+| Warm `/health` | 0.290 | 0.000 | 0.000 |
+| Warm `/health/db` | 14.350 | 9.015 | 4.410 |
+
+Request-level DB acquisition is measured **after lifespan warmed the pool**;
+the 9 ms result is not the first TLS/database connection time. `/health` does
+not issue DB/Redis queries. Server-Timing does not attribute all external latency;
+warm client tails must not be interpreted as equally slow database queries.
+
+The observer sent no HTTP requests during idle intervals. Before each trial it
+required explicit active=0 **and** idle=0 observations; termination logs were
+also checked. Final lifecycle revalidation confirms every prior known instance
+had finished before each accepted new external request. Cloud Monitoring samples
+can lag, so active=0 by itself was never accepted as proof of shutdown.
+Each accepted request maps to a new AUTOSCALING event inside its trace-correlated
+server HTTP arrival/response interval; first-trial evidence was independently
+revalidated from its unique instance/request. No cross-clock subtraction was used.
+[Metric timing/state definitions](https://docs.cloud.google.com/monitoring/api/metrics_gcp_p_z).
+
+## Individual natural cold requests
+
+All values below are milliseconds. Ready is instance-start event → startup probe
+success; it overlaps the preceding phase columns. Full request-level timings
+are also saved as JSON and CSV.
+
+| Trial | External first endpoint | First HTTP | Pre-lifespan | Lifespan | DB warm-up | Redis init | Ready |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | `/health` | 8382.75 | 6584.99 | 525.59 | 118.64 | 406.82 | 8104.42 |
+| 2 | `/health/db` | 8348.61 | 6972.50 | 559.25 | 117.67 | 441.34 | 8095.40 |
+| 3 | `/health` | 8387.02 | 7117.80 | 632.28 | 150.70 | 481.18 | 8128.72 |
+| 4 | `/health/db` | 7343.36 | 5740.22 | 502.63 | 125.38 | 376.64 | 7106.30 |
+| 5 | `/health` | 8335.50 | 6741.24 | 589.98 | 118.02 | 471.81 | 8114.85 |
+| 6 | `/health/db` | 9818.18 | 7465.06 | 592.73 | 120.59 | 471.93 | 8114.59 |
+| 7 | `/health` | 8418.12 | 7312.87 | 603.36 | 119.80 | 483.51 | 8115.93 |
+| 8 | `/health/db` | 7427.10 | 5628.69 | 513.51 | 111.40 | 401.94 | 7126.48 |
+| 9 | `/health` | 7783.12 | 6252.68 | 574.12 | 114.52 | 459.57 | 7103.53 |
+| 10 | `/health/db` | 6425.54 | 5507.50 | 477.19 | 96.31 | 380.65 | 6127.80 |
+| 11 | `/health` | 7435.82 | 6180.07 | 624.29 | 129.71 | 494.09 | 7123.37 |
+| 12 | `/health/db` | 7445.79 | 5886.69 | 606.87 | 115.92 | 490.78 | 7147.08 |
+| 13 | `/health` | 8486.71 | 6568.41 | 564.11 | 120.64 | 443.31 | 8120.50 |
+| 14 | `/health/db` | 8455.75 | 6594.87 | 540.78 | 125.94 | 414.20 | 8113.76 |
+| 15 | `/health` | 8391.56 | 6739.25 | 498.75 | 124.56 | 374.00 | 8110.97 |
+| 16 | `/health/db` | 7418.23 | 6026.88 | 630.47 | 115.60 | 514.66 | 7115.65 |
+| 17 | `/health` | 7555.82 | 5686.48 | 532.70 | 117.64 | 415.03 | 7135.78 |
+| 18 | `/health/db` | 6415.94 | 5536.30 | 500.24 | 112.28 | 387.80 | 6105.88 |
+| 19 | `/health` | 9429.90 | 7937.37 | 740.87 | 133.75 | 606.83 | 9118.44 |
+| 20 | `/health/db` | 6395.72 | 5353.44 | 494.15 | 97.52 | 396.56 | 6112.16 |
+
+## Final verification and infrastructure separation
+
+Configuration fingerprint remained unchanged:
+`613b4bea84a9946c701a72ea31f5e006b0f8dfbbfea6e2dc80b8adb9ad2f26a2`.
+The serving revision remains `salon-api-mumbai-staging-cold19-20261016`, 100%
+traffic, min 0/max 1, 1 vCPU/512 MiB, concurrency 8, request billing, CPU boost off.
+
+Post-study IAM-authenticated health checks below were warm verification requests
+using a new client, not extra cold samples:
+
+| Endpoint | HTTP | Status | Client ms |
+| --- | ---: | --- | ---: |
+| `/health` | 200 | ok | 174.48 |
+| `/health/db` | 200 | ok | 63.22 |
+| `/health/redis` | 200 | ok | 54.18 |
+
+The separate [ownership/cost audit](infrastructure-ownership-cost-2026-10-16.md)
+records the still-running production VM, production DNS → VM IP, staging-only
+Cloud Run entry, free allowances, estimated ongoing costs and exact proposed
+cleanup commands. Nothing was deleted. VM proxy internals and Upstash account
+plan metadata remain explicitly unverified; Cloud Run was not assumed to replace
+the VM. No business API/customer data was exercised.
 
 ## Recommendations reported before any Cloud Run change
 
-1. **Keep the baseline unchanged while natural sampling completes.** Retain min 0/max 1,
+1. **Keep the measured baseline unchanged until a separate optimization experiment is authorized.** Retain min 0/max 1,
    1 vCPU/512 MiB, concurrency 8, boost disabled and all health/security checks.
 2. **Add low-overhead staging startup markers before changing performance behavior.** Exact
    files: `backend/app/main.py`, new `backend/app/core/startup_timing.py`, and, for a process-entry
@@ -187,8 +292,12 @@ Ignored local evidence is under `backend/.artifacts/cold-start-investigation/`:
 - [Fresh server-clock revalidation](../../.artifacts/cold-start-investigation/fresh-server-clock-audit.json)
 - [Local ordinary imports](../../.artifacts/cold-start-investigation/local-profiles.json)
 - [Low-overhead local factory profiles](../../.artifacts/cold-start-investigation/local-factory-profiles.json)
-- [Incremental natural results/status](../../.artifacts/cold-start-investigation/natural-results.json)
-- [Incremental natural CSV](../../.artifacts/cold-start-investigation/natural-results.csv)
+- [Completed natural results/status](../../.artifacts/cold-start-investigation/natural-results.json)
+- [Completed natural CSV](../../.artifacts/cold-start-investigation/natural-results.csv)
+
+Additional evidence: [phase/request analysis](../../.artifacts/cold-start-investigation/natural-analysis.json), [all measured requests CSV](../../.artifacts/cold-start-investigation/natural-requests.csv), [final verification](../../.artifacts/cold-start-investigation/final-verification.json).
+
+Verification covered 20 unique cold instances, both-zero snapshots, all prior terminations, trace/request linkage, 260 successful measured requests and the final three health checks. Only documentation/local measurement helpers changed; no application behavior was modified. Full application/migration tests were not run as part of this read-only study.
 
 No improvement is claimed. No production, VM, Sydney, DNS, frontend URL, migration, stamp,
 payment, worker or Cloud Run resource/configuration change was made in this investigation.

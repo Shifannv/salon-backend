@@ -1,8 +1,8 @@
-# Infrastructure ownership and cost audit — 16 October 2026
+# Infrastructure ownership and cost audit — 16–17 October 2026 (IST)
 
 Read-only infrastructure inspection of `saloon-505509`, captured at approximately
-21:03 IST (15:33 UTC). The natural cold-start study continues separately without
-changing Cloud Run configuration. No cleanup command below has been executed.
+00:16 IST on 17 October 2026 (refreshed after study completion). The natural
+cold-start study completed twenty trials without changing Cloud Run configuration. No cleanup command below has been executed.
 
 ## What the current work is doing
 
@@ -81,7 +81,7 @@ another actor made no changes inside the guest over SSH.
 complete production application flow were not inspected or asserted healthy.
 
 Cloud Run has no observed production domain mapping or load-balancer forwarding
-rule. Its 488 returned HTTP log entries in the inspected 24-hour window contain
+rule. Its 634 returned HTTP log entries in the inspected 24-hour window contain
 only `/health`, `/health/db`, `/health/redis`, `/`, and `/favicon.ico`; no business
 API path was observed. This supports the staging-only interpretation. It does
 not prove every caller's intent or inspect external frontend configurations.
@@ -95,7 +95,8 @@ cannot be ruled out solely from DNS. No production request was sent for this aud
 
 The existing database is user-identified as `salon-mumbai-staging`, Free,
 Mumbai / `ap-south-1`, TLS enabled. Current Cloud Run startup logs show successful
-Redis connections, including the latest completed natural trial. Earlier scoped
+Redis connections, including all twenty accepted natural trials. Final IAM checks of `/health`,
+`/health/db` and `/health/redis` all returned 200 with status `ok`. Earlier scoped
 validation covered TLS, authentication, PING, synthetic command compatibility,
 expiry, idempotency and invalidation. This audit does not repeat writes.
 
