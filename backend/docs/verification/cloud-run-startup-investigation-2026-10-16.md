@@ -102,7 +102,14 @@ module imports 776 ms and SQLAlchemy 134 ms. These overlap. The R2/Pillow module
 | Scenario | `/health` cold-first status | `/health/db` cold-first status |
 | --- | --- | --- |
 | A: fresh revision | Existing 10 verified samples: p50 8386.97 ms, p95/p99 13815.61 ms | Not measured as the first cold endpoint; earlier DB probes followed `/health` and must not be relabeled. New trials require revision/tag changes prohibited by the latest user instruction. |
-| B: natural idle scale-to-zero | Running toward 10 samples; first verified response 8382.75 ms | Running toward 10 samples; not yet a completed distribution |
+| B: natural idle scale-to-zero | 5/10 accepted; study running | 5/10 accepted; study running |
+
+At the 50% milestone, all ten accepted natural trials returned HTTP 200, with
+individual cold-first durations from 6425.54 to 9818.18 ms. Final endpoint
+percentiles are pending. The separate read-only
+[infrastructure/cost audit](infrastructure-ownership-cost-2026-10-16.md) verifies
+the running VM and current production DNS target without assuming a Cloud Run
+cutover.
 
 The original ten fresh samples were additionally checked against Cloud Run HTTP-request
 arrival timestamps and instance-start events on the **same server clock**. This avoids
