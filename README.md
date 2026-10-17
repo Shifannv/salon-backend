@@ -17,11 +17,26 @@ python -m pip install -r requirements-dev.txt
 cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
+
+or 
+Set-Location D:\salon\salon-backend
+.\.venv\Scripts\Activate.ps1
+Set-Location backend
 ```
 
 Set the real values in `backend/.env`; never commit that file. Swagger UI is available
 at `http://127.0.0.1:8000/docs` and the health endpoint is `/health`.
 
+Run policy tests:
+```bash 
+$runTemp = Join-Path (Get-Location) (".pytest-tmp-" + [guid]::NewGuid().ToString("N"))
+
+python -m pytest -q tests/unit/test_migration_policy.py `
+  --basetemp $runTemp `
+  -p no:cacheprovider
+
+Remove-Item -LiteralPath $runTemp -Recurse -Force
+```
 ## Checks
 
 ```bash
