@@ -198,7 +198,7 @@ ALTER FUNCTION public.is_subscription_promotion_active(
     security += "END\n$review$;\nCOMMIT;\n"
     write("02-security-grants.sql", security)
     with (OUT / "privilege-matrix.csv").open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.writer(stream)
+        writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(["operation", "object", "grantee", "privilege", "reason",
                          "existing_objects_only", "future_objects_receive_privilege", "observed_delta"])
         writer.writerows(rows)
