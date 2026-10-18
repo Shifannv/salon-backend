@@ -1,5 +1,15 @@
 # Payments
 
+## Provider-independent continuation (2026-10-18)
+
+The [mock implementation report](verification/provider-agnostic-mock-results-2026-10-18.md)
+describes the five provider ports, isolated `FakeProvider`, separate fee/reference
+observations and remaining account-dependent verification. Cashfree is unavailable
+until an account exists and its capabilities are verified; mock results never
+verify settlement. The [current specification](verification/payment-subscription-booking-spec.md)
+distinguishes approved targets from pending policy decisions and supersedes
+conflicting historical assumptions below. No migration or provider is enabled.
+
 Customer payment collection foundation. **Provider-agnostic core, dormant by default.**
 `PAYMENT_PROVIDER=none` ships as the default: no money moves, no webhook route exists, and
 choosing a provider later means adding credentials and (for a provider other than the
