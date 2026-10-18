@@ -53,6 +53,33 @@ Run `/start` first and `/wrap` last. `/checkpoint` saves mid-session. Memory liv
 - `pytest-testing`: writing or fixing tests.
 - `workers-and-deploy`: workers, Compose, CI or deploy.
 
+### Founder skills (feature building and planning)
+
+Whenever building a new feature or planning anything new, apply the founder skills before writing code or a plan. Technical rules above still win on any conflict.
+
+- `founder-board`: always first on a new feature idea (verdict: fund, conditions, pass).
+- `founder-competitors`: what rivals offer and the gap we can own.
+- `founder-consumer`: would salon customers/owners actually use it.
+- `founder-offer` and `founder-pricing`: what to include and what to charge (plans, fees, commissions).
+- `founder-cfo`: unit economics and break-even of the feature.
+- `founder-marketing`, `founder-brand`, `founder-launch`: positioning, naming and rollout.
+- `founder-ops`: how it runs day to day (support, staffing, risk).
+- `founder-plan`: compile the above into one plan with a computed verdict.
+
+Skip the ones that clearly don't apply (e.g. a pure refactor or bug fix needs none).
+
+### Replica skills (feature building and planning)
+
+When building a new feature that exists in another app, or planning one, also apply the replica skills. They rebuild what an app does, never its code, logo, copy or content. They write to a `replica/` folder. Their stack and backend suggestions are advisory: this repo's layer map, key rules and `AGENTS.md` always win (e.g. bookings only via `create_booking()`, role from `profiles`).
+
+- `replica-recon`: reverse-engineer the reference app's screens, flows and data model.
+- `replica-architect`: plan the stack, schema and API (feeds `fastapi-endpoint` and `alembic-migration`).
+- `replica-design`, `replica-build`: design tokens and screen-by-screen build for the client apps.
+- `replica-backend`: auth, database, payments and integrations checklist.
+- `replica-test`, `replica-diff`: bug testing and parity score against the original.
+- `replica-entrepreneur`: turn real user complaints about the original into fixes.
+- `replica-brand`, `replica-launch`, `replica-deploy`: naming, listing and shipping.
+
 ## Agents (`.claude/agents/`)
 
 - `code-refactorer`: review and harden code on the branch before commit.
