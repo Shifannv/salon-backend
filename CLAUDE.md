@@ -52,6 +52,12 @@ Run `/start` first and `/wrap` last. `/checkpoint` saves mid-session. Memory liv
 - `booking-and-payments`: booking, availability, payment or webhook work.
 - `pytest-testing`: writing or fixing tests.
 - `workers-and-deploy`: workers, Compose, CI or deploy.
+- `supabase`: Supabase queries, RLS, storage, auth integration.
+- `supabase-postgres-best-practices`: Postgres schema design, indexing, query patterns.
+- `interview`: when requirements are unclear or a new feature needs scoping before planning.
+- `mcp-builder`: building or modifying MCP servers (`.mcp.json` is in this project).
+- `ste`: writing technical documentation, comments, or explanations that need clarity.
+- `webapp-testing`: testing API endpoints via HTTP/browser, or writing Playwright tests.
 
 ### Founder skills (feature building and planning)
 
@@ -68,27 +74,42 @@ Whenever building a new feature or planning anything new, apply the founder skil
 
 Skip the ones that clearly don't apply (e.g. a pure refactor or bug fix needs none).
 
-### Replica skills (feature building and planning)
-
-When building a new feature that exists in another app, or planning one, also apply the replica skills. They rebuild what an app does, never its code, logo, copy or content. They write to a `replica/` folder. Their stack and backend suggestions are advisory: this repo's layer map, key rules and `AGENTS.md` always win (e.g. bookings only via `create_booking()`, role from `profiles`).
-
-- `replica-recon`: reverse-engineer the reference app's screens, flows and data model.
-- `replica-architect`: plan the stack, schema and API (feeds `fastapi-endpoint` and `alembic-migration`).
-- `replica-design`, `replica-build`: design tokens and screen-by-screen build for the client apps.
-- `replica-backend`: auth, database, payments and integrations checklist.
-- `replica-test`, `replica-diff`: bug testing and parity score against the original.
-- `replica-entrepreneur`: turn real user complaints about the original into fixes.
-- `replica-brand`, `replica-launch`, `replica-deploy`: naming, listing and shipping.
-
 ## Agents (`.claude/agents/`)
 
+### Core backend agents
 - `code-refactorer`: review and harden code on the branch before commit.
 - `refactorer`: behavior-preserving refactor under tests.
 - `code-reviewer`: diff review against the key rules.
+- `python-reviewer`: Python-specific review (PEP 8, type hints, idioms) — use alongside `code-reviewer` for all Python changes.
 - `security-reviewer`: auth, IDOR, leaks, secrets, webhooks.
 - `performance-analyst`: queries, indexes, caching, pooling.
 - `migration-reviewer`: any new Alembic revision.
+- `database-reviewer`: SQL queries, schema design, Postgres/Supabase optimization.
 - `test-writer`: add tests to existing code.
+- `tdd-guide`: write new features test-first (tests before implementation).
 - `debugger`: reproduce and fix a failing behavior.
+
+### Planning and architecture agents
+- `architect`: system design, scalability decisions, cross-service architecture.
+- `planner`: complex multi-step feature planning before coding starts.
+- `code-architect`: design a new feature's file/module structure before writing code.
+- `code-explorer`: trace an unfamiliar execution path or map a codebase area.
+
+### Maintenance agents
+- `doc-updater`: update architecture docs and codemaps after a feature is complete.
+
+### Meta / situational agents
+- `agent-sdk-verifier-py`: verify a Python Agent SDK app after building or modifying it.
+- `harness-optimizer`: tune Claude agent config for reliability and cost.
+- `loop-operator`: manage and monitor autonomous agent loops.
+
+### Optional / non-backend agents
+
+Files exist in `.claude/agents/` but are built for JS/TS, browser or non-backend work. Use them only when the task really fits; for this Python backend prefer `debugger`, `python-reviewer`, `code-refactorer` and `ruff`.
+
+- `build-error-resolver`: TypeScript-oriented build and type-error fixer (optional).
+- `refactor-cleaner`: dead-code cleanup built around JS tools (knip, depcheck, ts-prune) (optional).
+- `e2e-runner`: browser end-to-end tests via Vercel Agent Browser or Playwright (optional, mostly for the separate frontends).
+- `chief-of-staff`: email/Slack communication triage, not backend work (optional).
 
 Commands: `/start`, `/wrap`, `/checkpoint`, `/review`, `/new-endpoint`, `/new-migration`, `/check`.
