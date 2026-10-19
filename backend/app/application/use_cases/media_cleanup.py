@@ -8,14 +8,22 @@ from app.core.exceptions import ValidationError
 async def retire_unreferenced_media(
     references: MediaReferences, storage: StorageGateway, bucket: str, path: str,
 ) -> bool:
-    url = storage.get_public_url(bucket, path)
-    await references.lock_media_url(url)
     # Fail closed for legacy/unmarked objects, missing objects and HEAD failures.
     try:
-        await storage.validate_media_reference(url, path.rsplit("/", 1)[0] + "/")
+        lock_paths = await storage.retirement_lock_paths(path)
     except ValidationError:
         return False
-    if await references.media_url_is_referenced(url):
+    for key in lock_paths:
+        await references.lock_media_url(storage.get_public_url(bucket, key))
+    # Inventory aliases AFTER taking member locks. Any concurrent publication
+    # must wait for these locks and revalidate the whole family after acquisition.
+    paths = await storage.retirement_paths(path)
+    if not await storage.retirement_ready(paths):
         return False
-    await storage.delete_object(bucket, path)
+    for key in paths:
+        if await references.media_url_is_referenced(storage.get_public_url(bucket, key)):
+            return False
+    # No eager deletion on upload/save errors. Only the retirement path owns deletes.
+    for key in [key for key in paths if key != path] + [path]:
+        await storage.delete_object(bucket, key)
     return True

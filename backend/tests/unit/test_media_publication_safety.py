@@ -17,6 +17,7 @@ from app.core.exceptions import ValidationError
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.media.pillow_processor import PillowImageProcessor
 from tests.conftest import make_owner, make_profile
+from tests.unit.media_r2_fake import FakeR2Client
 from tests.unit.test_image_processing import gateway, photo, photo_data
 
 
@@ -102,14 +103,13 @@ async def test_url_saving_calls_gateway_before_database_write(feature):
 
 async def test_identical_put_retry_succeeds_without_overwriting_or_deleting():
     gw = gateway()
+    gw._client = FakeR2Client()
     path = "avatars/user-001/photo.jpg"
     token = (await gw.get_upload_url("images", path, "image/jpeg")).rsplit("/", 1)[-1]
     await gw.accept_upload(token, photo_data, "image/jpeg")
-    written = gw._client.put_object.call_args.kwargs
-    gw._client.head_object.return_value = {"Metadata": written["Metadata"],
-                                          "ContentType": "image/jpeg", "ContentLength": len(written["Body"])}
-    gw._client.put_object.side_effect = RuntimeError("Already exists")
+    stored = {key: dict(value) for key, value in gw._client.objects.items()}
     await gw.accept_upload(token, photo_data, "image/jpeg")
+    assert gw._client.objects == stored
     other = BytesIO()
     Image.new("RGB", (64, 64), "green").save(other, "JPEG")
     with pytest.raises(ValidationError):
@@ -184,7 +184,10 @@ def test_only_exact_server_outputs_skip_reencoding_and_policies_still_apply():
 
 async def test_avatar_replacement_and_failed_replacement_never_eagerly_delete_shared_media():
     repo, storage = AsyncMock(), AsyncMock()
-    storage.upload_bytes.return_value = "https://cdn.test/avatars/user-001/new.jpg"
+    storage.upload_processed_family.return_value = {
+        "public_url": "https://cdn.test/avatars/user-001/new.webp", "variants": {},
+        "family_id": "test-family", "policy_version": "webp-v2",
+    }
     use_case = UploadAvatar(repo, storage, PillowImageProcessor())
     await use_case.execute(make_profile(), photo_data, "image/jpeg", "images")
     repo.update_profile.side_effect = RuntimeError("Commit outcome unknown")
@@ -212,6 +215,7 @@ async def test_signed_workflow_processes_http_bytes_then_validates_saved_referen
     from app.api.v1.routes.media import router
 
     repo, gw = AsyncMock(), gateway()
+    gw._client = FakeR2Client()
     repo.get_owner_salon.return_value = {"id": "salon"}
     repo.list_owner_staff.return_value = [{"id": "staff", "photo_url": None}]
     actor = make_owner()
@@ -237,17 +241,18 @@ async def test_signed_workflow_processes_http_bytes_then_validates_saved_referen
         assert image.height == edge
         assert image.height > image.width
         assert not image.getexif()
-    gw._client.head_object.return_value = {"Metadata": written["Metadata"],
-                                          "ContentType": written["ContentType"], "ContentLength": len(written["Body"])}
+    assert written["ContentType"] == "image/webp"
+    assert "processed-image-v2" in written["Metadata"]
+    gw._client.head_object.reset_mock()
     if kind == "avatar":
         await CustomerUseCases(repo, gw).update_profile(actor, {"avatar_url": grant["public_url"]})
     elif kind == "gallery":
         await owner.create_image(actor, {"url": grant["public_url"]})
     else:
         await owner.update_staff(actor, "staff", {"photo_url": grant["public_url"]})
-    gw._client.head_object.assert_called_once_with(Bucket="images", Key=written["Key"])
-    assert repo.lock_media_url.await_count >= 1
-    assert all(call.args == (grant["public_url"],) for call in repo.lock_media_url.await_args_list)
+    assert {call.kwargs["Key"] for call in gw._client.head_object.call_args_list} == set(gw._client.objects)
+    expected_urls = {gw.get_public_url("images", key) for key in gw._client.objects}
+    assert {call.args[0] for call in repo.lock_media_url.await_args_list} == expected_urls
 
 
 async def test_multipart_http_customer_avatar_stores_processed_pixels_and_proof(monkeypatch):
@@ -258,6 +263,8 @@ async def test_multipart_http_customer_avatar_stores_processed_pixels_and_proof(
     from app.api.v1.routes import media
 
     repo, gw = AsyncMock(), gateway()
+    gw._client = FakeR2Client()
+    monkeypatch.setattr(media.settings, "r2_bucket", "images")
     monkeypatch.setattr(media, "PlatformRepository", lambda session: repo)
     app = FastAPI()
     app.include_router(media.router, prefix="/v1")
@@ -272,7 +279,11 @@ async def test_multipart_http_customer_avatar_stores_processed_pixels_and_proof(
     assert written["Body"] != original
     with Image.open(BytesIO(written["Body"])) as image:
         assert image.size == (512, 288)
-    assert "processed-image-v1" in written["Metadata"]
+    assert written["ContentType"] == "image/webp"
+    assert "processed-image-v2" in written["Metadata"]
+    body = response.json()
+    assert body["policy_version"] == "webp-v2" and body["family_id"]
+    assert set(body["variants"]) == {"avatar"}
     repo.update_profile.assert_awaited_once_with("user-001", {"avatar_url": response.json()["avatar_url"]})
 
 

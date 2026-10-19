@@ -33,11 +33,15 @@ def client_for(router, prefix="/v1"):
 
 async def test_avatar_upload_persists_only_actor_profile():
     repo, storage = AsyncMock(), AsyncMock()
-    storage.upload_bytes.return_value = "https://cdn.example.test/avatar.png"
+    storage.upload_processed_family.return_value = {
+        "public_url": "https://cdn.example.test/avatar.webp", "variants": {},
+        "family_id": "test-family", "policy_version": "webp-v2",
+    }
     actor = make_profile()
     url = await UploadAvatar(repo, storage, PillowImageProcessor()).execute(actor, PNG, "image/png", "images")
     repo.update_profile.assert_awaited_once_with(actor.id, {"avatar_url": url})
-    assert storage.upload_bytes.call_args.args[1].startswith(f"avatars/{actor.id}/")
+    assert storage.upload_processed_family.call_args.args[1] == f"avatars/{actor.id}/"
+    assert storage.upload_processed_family.call_args.args[2].variants[0].mime == "image/webp"
 
 
 @pytest.mark.parametrize(
@@ -53,13 +57,13 @@ async def test_avatar_rejects_invalid_images_before_upload(data, mime):
     repo, storage = AsyncMock(), AsyncMock()
     with pytest.raises(ValidationError):
         await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), data, mime, "images")
-    storage.upload_bytes.assert_not_awaited()
+    storage.upload_processed_family.assert_not_awaited()
     repo.update_profile.assert_not_awaited()
 
 
 async def test_avatar_provider_failure_does_not_update_profile():
     repo, storage = AsyncMock(), AsyncMock()
-    storage.upload_bytes.side_effect = ValidationError("Provider unavailable")
+    storage.upload_processed_family.side_effect = ValidationError("Provider unavailable")
     with pytest.raises(ValidationError):
         await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), PNG, "image/png", "images")
     repo.update_profile.assert_not_awaited()
@@ -67,13 +71,19 @@ async def test_avatar_provider_failure_does_not_update_profile():
 
 def test_avatar_multipart_contract(monkeypatch):
     repo, storage = AsyncMock(), AsyncMock()
-    storage.upload_bytes.return_value = "https://cdn.example.test/avatar.png"
+    storage.upload_processed_family.return_value = {
+        "public_url": "https://cdn.example.test/avatar.webp", "variants": {},
+        "family_id": "test-family", "policy_version": "webp-v2",
+    }
     monkeypatch.setattr(media, "PlatformRepository", lambda session: repo)
     client = client_for(media.router)
     client.app.dependency_overrides[get_storage_gateway] = lambda: storage
     response = client.post("/v1/customer/profile/avatar", files={"image": ("a.png", PNG, "image/png")})
     assert response.status_code == 200
-    assert response.json() == {"avatar_url": "https://cdn.example.test/avatar.png"}
+    assert response.json() == {
+        "avatar_url": "https://cdn.example.test/avatar.webp", "variants": {},
+        "family_id": "test-family", "policy_version": "webp-v2",
+    }
 
 
 @pytest.mark.parametrize("fmt", ["url", "png", "svg"])

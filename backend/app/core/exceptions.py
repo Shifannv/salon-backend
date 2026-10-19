@@ -124,6 +124,21 @@ class TooManyRequestsError(AppError):
     code = "too_many_requests"
 
 
+class PayloadTooLargeError(AppError):
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
+    code = "payload_too_large"
+
+
+class UnsupportedMediaTypeError(AppError):
+    status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+    code = "unsupported_media_type"
+
+
+class RequestTimeoutError(AppError):
+    status_code = status.HTTP_408_REQUEST_TIMEOUT
+    code = "request_timeout"
+
+
 class PaymentProviderNotConfiguredError(AppError):
     """No payment provider is configured, so online payment is unavailable."""
 
@@ -222,6 +237,18 @@ def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str
     return {}
 
 
+def app_error_response(exc: AppError) -> JSONResponse:
+    """Shared application-error serialization for routes and early middleware."""
+    from app.core.telemetry import metrics
+
+    body: dict = {"code": exc.code, "message": exc.message}
+    if metrics.get() is not None:
+        metrics.get().error_code = exc.code
+    if exc.details is not None:
+        body["details"] = exc.details
+    return JSONResponse(status_code=exc.status_code, content={"error": body})
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register one HTTP translation point for application exceptions."""
 
@@ -281,16 +308,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
         # AppError is a named type → routed to ExceptionMiddleware (inside CORSMiddleware).
         # CORSMiddleware adds Access-Control-Allow-Origin automatically.
-        body: dict = {"code": exc.code, "message": exc.message}
-        from app.core.telemetry import metrics
-        if metrics.get() is not None:
-            metrics.get().error_code = exc.code
-        if exc.details is not None:
-            body["details"] = exc.details
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"error": body},
-        )
+        return app_error_response(exc)
 
     @app.exception_handler(SQLAlchemyError)
     async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:

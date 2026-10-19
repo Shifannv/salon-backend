@@ -1,5 +1,9 @@
 # Validated images and safe retirement
 
+New uploads now use [versioned WebP families](IMAGE_VARIANTS.md). That document is
+the current variant, metadata, API, admission and cleanup contract. The single-image
+encoding policy below describes the retained v1/legacy processing behavior.
+
 Client processing reduces network use; the backend remains the publication boundary.
 Customer multipart avatars and signed owner/profile/gallery/staff uploads use Pillow
 before R2. Owner services reuse gallery uploads. QR images are server-generated HTTP

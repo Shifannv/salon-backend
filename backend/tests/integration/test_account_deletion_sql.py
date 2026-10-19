@@ -459,6 +459,8 @@ def make_service(session, gateway, admin, *, refund_max_attempts=3):
     storage = MagicMock()
     storage.get_public_url = lambda bucket, path: f"https://media.example/{path}"
     storage.delete_object = AsyncMock()
+    storage.erasure_lock_paths = AsyncMock(side_effect=lambda path: [path])
+    storage.erasure_paths = AsyncMock(side_effect=lambda path: [path])
     cache = MagicMock()
     cache.delete_prefix = AsyncMock()
     cache.available = True

@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.infrastructure.r2.storage import R2StorageGateway
 from tests.conftest import make_owner, make_profile
+from tests.unit.media_r2_fake import FakeR2Client
 
 
 def gateway():
@@ -23,14 +24,18 @@ def gateway():
 
 async def test_upload_capability_cannot_overwrite_a_published_object():
     gw = gateway()
+    gw._client = FakeR2Client()
     token = (await gw.get_upload_url("images", "avatars/u/photo.jpg", "image/jpeg")).rsplit("/", 1)[-1]
     data = BytesIO()
     Image.new("RGB", (80, 40), "red").save(data, "JPEG")
     await gw.accept_upload(token, data.getvalue(), "image/jpeg")
     assert gw._client.put_object.call_args.kwargs["IfNoneMatch"] == "*"
-    gw._client.put_object.side_effect = RuntimeError("precondition failed")
+    original = {key: dict(value) for key, value in gw._client.objects.items()}
+    other = BytesIO()
+    Image.new("RGB", (80, 40), "blue").save(other, "JPEG")
     with pytest.raises(ValidationError):
-        await gw.accept_upload(token, data.getvalue(), "image/jpeg")
+        await gw.accept_upload(token, other.getvalue(), "image/jpeg")
+    assert all(gw._client.objects[key] == value for key, value in original.items())
     gw._client.delete_object.assert_not_called()
 
 

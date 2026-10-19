@@ -828,6 +828,7 @@ class ImageUploadUrlResponse(BaseModel):
     """
 
     upload_url: str = Field(description="Signed PUT URL. Client must PUT to this within expires_in seconds.")
+    result_url: str | None = Field(default=None, description="Read-only URL (cannot upload). GET it after PUT for WebP variant URLs and metadata.")
     public_url: str = Field(description="Permanent public URL of the uploaded object. Store this in the DB.")
     expires_in: int = Field(description="Upload URL TTL in seconds.")
 
