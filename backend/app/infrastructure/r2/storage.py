@@ -31,8 +31,6 @@ from functools import partial
 from io import BytesIO
 from typing import Any
 
-from PIL import Image
-
 from app.application.ports.image_processor import ImagePolicy
 from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
 from app.core.config import Settings
@@ -126,6 +124,8 @@ class R2StorageGateway(ImageFamilies, StorageGateway):
 
     def _processed_metadata(self, path: str, data: bytes, mime: str) -> dict[str, str]:
         self._policy(path, mime)
+        from PIL import Image  # on first upload, to keep Pillow out of cold start
+
         with Image.open(BytesIO(data)) as image:
             dimension, pixels = max(image.size), image.width * image.height
         payload = json.dumps({"bucket": self.settings.r2_bucket, "path": path, "mime": mime, "size": len(data),

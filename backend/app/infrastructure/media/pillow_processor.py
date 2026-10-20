@@ -1,5 +1,7 @@
 """Bounded, metadata-free image decoding and encoding."""
 
+from __future__ import annotations
+
 import asyncio
 import hashlib
 import threading
@@ -8,9 +10,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from io import BytesIO
-from typing import ClassVar
-
-from PIL import Image, ImageOps, UnidentifiedImageError
+from typing import Any, ClassVar
 
 from app.application.ports.image_processor import (
     IMAGE_POLICY_VERSION,
@@ -86,7 +86,9 @@ class PillowImageProcessor:
         finally:
             clean.close()
 
-    def _decode_clean(self, data: bytes, content_type: str) -> Image.Image:
+    def _decode_clean(self, data: bytes, content_type: str) -> Any:
+        from PIL import Image, ImageOps, UnidentifiedImageError
+
         if not data or len(data) > self.max_source_bytes:
             raise ValidationError("Image exceeds the upload byte limit")
         expected = SUPPORTED_FORMATS.get(content_type)
@@ -123,7 +125,9 @@ class PillowImageProcessor:
             raise ValidationError("Malformed or unsupported image") from exc
 
     @staticmethod
-    def _encode_variant(clean: Image.Image, name: str, policy: ImagePolicy) -> ProcessedVariant:
+    def _encode_variant(clean: Any, name: str, policy: ImagePolicy) -> ProcessedVariant:
+        from PIL import Image
+
         for attempt in range(5):
             edge = max(1, int(policy.max_dimension * 0.8 ** attempt))
             with clean.copy() as candidate:
@@ -146,6 +150,9 @@ class PillowImageProcessor:
             if key in self._approved_outputs:
                 self._approved_outputs.move_to_end(key)
                 return data
+        # Imported on first use to keep Pillow and its native libraries out of cold start.
+        from PIL import Image, ImageOps, UnidentifiedImageError
+
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
