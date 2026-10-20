@@ -32,6 +32,15 @@ def test_app_import_does_not_load_request_only_libraries() -> None:
     assert json.loads(result.stdout.strip().splitlines()[-1]) == []
 
 
+def test_app_import_leaves_garbage_collection_enabled() -> None:
+    code = "import gc, app.main; print(gc.isenabled(), gc.get_freeze_count() > 0)"
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=BACKEND, env=os.environ.copy(),
+        capture_output=True, text=True, timeout=120, check=True,
+    )
+    assert result.stdout.strip().splitlines()[-1] == "True True"
+
+
 async def test_lifespan_warms_database_and_cache_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
     running: set[str] = set()
     overlapped = asyncio.Event()

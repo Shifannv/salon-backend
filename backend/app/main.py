@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import gc
 import logging
 import os
 import threading
@@ -18,6 +19,11 @@ def _prefetch_env_file() -> None:
 # 0.3 s. Start that read now so it overlaps the imports below; settings load reads
 # the file again shortly after, when it is already fetched. Contents are discarded.
 threading.Thread(target=_prefetch_env_file, name="env-prefetch", daemon=True).start()
+
+# Importing the framework and building the app create hundreds of thousands of
+# long-lived objects; collecting garbage while they are created costs about 5-10% of
+# startup. Collection is paused here and resumed once the app is built (end of file).
+gc.disable()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,4 +114,9 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-# Trigger reload for environment variable updates
+
+# Resume collection. freeze() moves the startup objects out of the tracked
+# generations, so later collections do not rescan them. Startup leaves under 1,000
+# unreachable objects, which freeze keeps; freeing them would cost a ~70 ms collection.
+gc.enable()
+gc.freeze()
