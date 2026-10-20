@@ -245,6 +245,23 @@ That is 1.36 s from the image and code, and about 4.9 s (48%) faster than today'
 production configuration (10.19 s server). The fresh build also resolved current versions
 of the ranged requirements, which this comparison includes.
 
+### Garbage collection paused during startup (rc2)
+
+`app/main.py` now disables the cyclic garbage collector before the framework imports
+and re-enables it, with `gc.freeze()`, once the app is built. Locally that avoids about
+330 collections and cut in-process startup from 1.69 s to 1.57 s. Startup leaves 937
+unreachable objects, which freeze keeps; collecting them would cost about 73 ms.
+
+Cloud Run, TCP probe on gen1, 8 alternating cold trials each in one run:
+
+| Image | Server, median (p95) | Client, median | Fastest server |
+| --- | ---: | ---: | ---: |
+| rc `sha256:ad30704d…2512` | 6.03 s (7.95) | 6.43 s | 5.17 s |
+| rc2 `sha256:56cf8a78…fc1c` | **5.76 s** (6.90) | 6.33 s | **4.70 s** |
+
+The median gain (about 0.3 s) is smaller than the run-to-run variation: the same rc image
+measured 5.32 s in the earlier run and 6.03 s here. Compare images only within one run.
+
 ### Production configuration candidate
 
 Revision `salon-api-production-tcp-gen1-10201107` runs the production image with the TCP
