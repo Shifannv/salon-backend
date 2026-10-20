@@ -21,3 +21,11 @@ Ledger rows in `booking_payments`; a trigger recomputes `payment_status`, `paid_
 
 ## Account deletion
 Only customer and owner. Target is the JWT `sub`. Verification code, `DELETE` confirmation, immediate lockout, then durable background erasure by the account-deletion worker. Bookings are kept anonymized; an owner's salon becomes an inert "Closed salon" shell. Hard delete is allowed only here.
+
+## Cancellation, no-show and payout holds (owner-approved U06/U07, not yet implemented)
+Source of truth: `backend/docs/migrations/payment-subscription-booking-designs/APPROVAL_REGISTER.md` (U06, U07) and spec section 4.6.
+- Customer bands by remaining time (exact 48/12/4 h boundaries go to flat/5%/35%): >=48 h flat fee, 12-<48 h 5%, 4-<12 h 35%, <4 h zero refund. Penalty base is the captured amount before provider fees. `customer_refund = captured - penalty`; `retained_pool = penalty - nonrefundable_provider_costs`; positive pool splits 70% salon / 30% platform (platform share half-up in integer paise, residual to salon); costs above the pool give salon zero and the platform absorbs. Unknown provider fee keeps payout pending.
+- Confirmed no-show (after start plus 10-minute grace, owner/staff confirms with actor/time/reason, customer notified) is treated as under-4-hour. Owner/admin cancellation before check-in: full async refund, platform bears non-recoverable fees, no salon payout unless separately approved.
+- Reschedule: max two committed reschedules per booking, count never resets, secure new slot before releasing old, cancellation band uses the new start time.
+- Payout hold: customer cancellation `max(cancellation_time + 48 h, appointment_start)`; no-show `max(confirmation_time, start + 10 min) + 48 h`; blocked during dispute or fee uncertainty; admin cannot shorten it.
+- Still open: flat fee amount (configurable, no default), checked-in cancellation remedy, TA06, TA09, dispute scope, all Cashfree facts.
