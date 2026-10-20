@@ -21,8 +21,6 @@ from __future__ import annotations
 
 import io
 
-import segno
-
 
 def _build_walkin_url(qr_token: str, base_url: str) -> str:
     """Return the URL encoded into the QR code for the given ``qr_token``."""
@@ -51,6 +49,8 @@ def make_qr_png(
     border:
         Quiet-zone modules around the code.  QR spec requires ≥ 4.
     """
+    import segno  # on first QR request, to keep it out of cold start
+
     url = _build_walkin_url(qr_token, base_url)
     qr = segno.make_qr(url, error="M")
 
@@ -81,6 +81,8 @@ def make_qr_svg(
     border:
         Quiet-zone modules around the code.  QR spec requires ≥ 4.
     """
+    import segno  # on first QR request, to keep it out of cold start
+
     url = _build_walkin_url(qr_token, base_url)
     qr = segno.make_qr(url, error="M")
 

@@ -23,7 +23,6 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Any
 
-import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,6 +131,7 @@ class FCMGateway(PushGateway):
 
         delivered = False
         error_msg: str | None = None
+        import httpx  # on first use, to keep it out of cold start
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:

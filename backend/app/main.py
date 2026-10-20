@@ -1,8 +1,23 @@
 """FastAPI application factory."""
 
+import asyncio
+import contextlib
 import logging
+import os
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+
+
+def _prefetch_env_file() -> None:
+    with contextlib.suppress(OSError), open(os.environ.get("SALON_ENV_FILE", ".env"), "rb") as handle:
+        handle.read()
+
+
+# On Cloud Run the env file is a Secret Manager volume whose first read takes about
+# 0.3 s. Start that read now so it overlaps the imports below; settings load reads
+# the file again shortly after, when it is already fetched. Contents are discarded.
+threading.Thread(target=_prefetch_env_file, name="env-prefetch", daemon=True).start()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,20 +32,10 @@ from app.core.telemetry import TimingMiddleware, init_sentry
 _log = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage startup and graceful shutdown.
-
-    On startup: warm the remote database connection pool so the first customer
-    request does not pay the Supabase connection setup cost.
-    On shutdown: dispose the SQLAlchemy engine connection pool so no
-    in-flight connections are left dangling.
-    """
-
+async def _warm_database() -> None:
     from sqlalchemy import text
 
-    from app.infrastructure.cache.redis import close_redis_cache, init_redis_cache
-    from app.infrastructure.db.session import AsyncSessionLocal, engine
+    from app.infrastructure.db.session import AsyncSessionLocal
 
     try:
         async with AsyncSessionLocal() as session:
@@ -39,10 +44,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         _log.exception("Database warm-up failed")
 
+
+async def _init_cache() -> None:
+    from app.infrastructure.cache.redis import init_redis_cache
+
     try:
         await init_redis_cache(settings.redis_url)
     except Exception:
         _log.exception("Redis cache initialization failed")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage startup and graceful shutdown.
+
+    On startup: warm the remote database connection pool so the first customer
+    request does not pay the Supabase connection setup cost, and connect Redis.
+    The two are independent, so they run concurrently to shorten cold start; each
+    logs its own failure without stopping the other.
+    On shutdown: dispose the SQLAlchemy engine connection pool so no
+    in-flight connections are left dangling.
+    """
+
+    from app.infrastructure.cache.redis import close_redis_cache
+    from app.infrastructure.db.session import engine
+
+    await asyncio.gather(_warm_database(), _init_cache())
 
     yield  # Application runs here
 

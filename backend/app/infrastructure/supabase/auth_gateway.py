@@ -2,8 +2,6 @@
 
 from urllib.parse import urlencode
 
-import httpx
-
 from app.application.dto.auth import AuthTokens, RefreshInput
 from app.application.ports.auth_gateway import AuthGateway
 from app.core.config import Settings
@@ -53,6 +51,8 @@ class SupabaseAuthGateway(AuthGateway):
             "apikey": self.settings.supabase_anon_key,
             "Content-Type": "application/json",
         }
+        import httpx  # on first use, to keep it out of cold start
+
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
                 f"{base_url}/auth/v1/otp",
@@ -101,6 +101,8 @@ class SupabaseAuthGateway(AuthGateway):
             "apikey": self.settings.supabase_anon_key,
             "Content-Type": "application/json",
         }
+        import httpx  # on first use, to keep it out of cold start
+
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.post(f"{base_url}{path}", json=payload, headers=headers)
@@ -125,6 +127,8 @@ class SupabaseAuthGateway(AuthGateway):
             "apikey": self.settings.supabase_anon_key,
             "Authorization": f"Bearer {self.settings.supabase_anon_key}",
         }
+        import httpx  # on first use, to keep it out of cold start
+
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(f"{base_url}{path}", json=payload, headers=headers)
 
