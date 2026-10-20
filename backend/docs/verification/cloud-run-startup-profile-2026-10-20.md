@@ -262,6 +262,32 @@ Cloud Run, TCP probe on gen1, 8 alternating cold trials each in one run:
 The median gain (about 0.3 s) is smaller than the run-to-run variation: the same rc image
 measured 5.32 s in the earlier run and 6.03 s here. Compare images only within one run.
 
+### Why users already see under 1 s, and the chosen configuration
+
+Production keeps one warm instance (minimum 1). Over the 7 days to 20 October it served
+159 `/v1` requests: median 0.02 s, p95 0.46 s, p99 0.75 s, maximum 0.80 s, none over 3 s.
+Cloud Run started 6 extra instances for bursts, but requests kept going to the warm
+instance meanwhile. A 1–3 s start from zero is not reachable with this Python stack
+without a rewrite: uvicorn, FastAPI and Pydantic alone take about 2.5 s to import on one
+Cloud Run CPU.
+
+Chosen approach (Option A): never send users to a cold instance, and make burst
+instances rarer and faster.
+
+| Setting | Before | Option A |
+| --- | ---: | ---: |
+| Startup probe / runtime | HTTP every 5 s, gen2 | TCP, gen1 |
+| Concurrency per instance | 8 | 20 |
+| DB connections per instance (`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`) | 3 + 2 | 3 + 1 |
+| Minimum / maximum instances | 1 / 3 | 1 / 3 |
+
+The maximum API connection count drops from 15 (the session pooler's limit) to 12,
+leaving 3 for other clients. Revision `salon-api-production-optiona-10201220` (production
+image, 0% traffic) matched production on the same 19 checks. A burst of 60 `GET
+/v1/salons`, 20 at a time, went to 1 instance with no new instance starts and no errors:
+at most 4 connections in use, connection wait median 9 ms and maximum 49 ms, server time
+median 28 ms and maximum 114 ms. Moving traffic to it is a separate, approved step.
+
 ### Production configuration candidate
 
 Revision `salon-api-production-tcp-gen1-10201107` runs the production image with the TCP
