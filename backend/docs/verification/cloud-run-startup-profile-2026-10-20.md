@@ -229,6 +229,32 @@ Against current production (5 s HTTP probe, gen2, current code: 10.19 s server a
 6.37 s client: about 4.3 s, or 42%, faster. The 3–5 s target is still not met at the
 median. The fastest single trial was 5.12 s on the server.
 
+### Release candidate (full image, real startup command)
+
+The branch image was built from this Dockerfile (precompiled `app/` bytecode, uvicorn
+`--ws none`, the code change above) and ran with its normal `CMD`, without the profiler.
+It was compared with the production image's normal `CMD`, both with the TCP probe on
+gen1, 8 alternating cold trials each. Times come from Cloud Run's request logs.
+
+| Image | Server, median (p95) | Client, median (min–max) |
+| --- | ---: | ---: |
+| Production `sha256:e3893bd0…b9ea` | 6.68 s (7.94) | 7.15 s (6.00–8.85) |
+| Release candidate `sha256:ad30704d…2512` | **5.32 s** (6.69) | **5.76 s** (4.81–7.11) |
+
+That is 1.36 s from the image and code, and about 4.9 s (48%) faster than today's
+production configuration (10.19 s server). The fresh build also resolved current versions
+of the ranged requirements, which this comparison includes.
+
+### Production configuration candidate
+
+Revision `salon-api-production-tcp-gen1-10201107` runs the production image with the TCP
+probe and gen1, with normal deployment health checks, and 0% traffic. Through its tagged
+URL it gave the same status codes as production for 19 checks: the four health
+endpoints, `/openapi.json`, public discovery and config routes, an unknown QR token
+(404), and four protected routes with no token and with a malformed token (401). Its
+logs showed no errors, and both the database and Redis warmed up. Moving traffic to it
+is a separate, approved step.
+
 ### Cleanup
 
 The service template was reset to the production configuration after each round
