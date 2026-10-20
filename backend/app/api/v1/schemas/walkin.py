@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.api.v1.schemas.platform import CustomerAvailabilityResponse
+
 
 class WalkInStaffSummary(BaseModel):
     """Staff member summary for walk-in display."""
@@ -31,7 +33,7 @@ class WalkInServiceSummary(BaseModel):
     photo_url: str | None = None
 
 
-class WalkInSalonResponse(BaseModel):
+class WalkInSalonResponse(CustomerAvailabilityResponse):
     """Walk-in salon page — salon info + services + staff.
 
     Returned by GET /v1/walkin/{qr_token}.
@@ -48,7 +50,7 @@ class WalkInSalonResponse(BaseModel):
     city: str | None = None
     address: str | None = None      # for the mini-header location line
     image_url: str | None = None    # for the optional hero thumbnail
-    qr_token: str | None = None
+    qr_token: str | None = None     # echoes the route's own token; no other public response carries one
     timezone: str
     approval_mode: str
     accepting_bookings: bool = True  # False → show "Not accepting bookings right now"

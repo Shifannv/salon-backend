@@ -255,7 +255,7 @@ async def test_concurrent_http_booking_and_idempotent_retry_during_redis_outage(
                     id=winner.json()["id"]) == notifications_before
                 changed = await client.post(endpoint, json={**body, "customer_name": "Different synthetic name"},
                     headers={"Idempotency-Key": winner.request.headers["Idempotency-Key"]})
-                assert changed.status_code == 409 and changed.json()["error"]["code"] == "idempotency_key_reuse"
+                assert changed.status_code == 422 and changed.json()["error"]["code"] == "idempotency_key_reused"
                 assert not cache._read_cache_safe
                 gate.blocked = False
                 reconnect_started = time.perf_counter()

@@ -20,6 +20,18 @@ directly at that salon's service selection screen.  The web app then calls
 from __future__ import annotations
 
 import io
+import re
+
+# Tokens are issued by the database (``encode(gen_random_bytes(16), 'hex')``): 32 lowercase hex characters.
+# The check below is deliberately wider (URL-safe characters, 3-128 long) so a malformed value is rejected
+# before any database or cache work, without rejecting a legacy token. It is not a secret check.
+QR_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{3,128}")
+
+
+def is_valid_qr_token_format(value: str) -> bool:
+    """True when ``value`` can be a QR token (format only; existence is checked in Postgres)."""
+
+    return QR_TOKEN_PATTERN.fullmatch(value) is not None
 
 
 def _build_walkin_url(qr_token: str, base_url: str) -> str:

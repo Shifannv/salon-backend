@@ -88,10 +88,24 @@ class ProfileResponse(BaseModel):
 
 
 class CustomerAvailabilityResponse(BaseModel):
-    accepts_bookings: bool = True
-    payment_options: list[str] = Field(default_factory=lambda: ["PAY_AT_SALON"])
-    online_payment_available: bool = False
-    online_payment_unavailable_reason: str | None = "Online payment coming soon."
+    """Backend-owned booking and payment capability, computed on every response (never cached).
+
+    ``payment_options`` lists only the methods this salon can be booked with right now: empty while the salon
+    is not accepting bookings, ``PAY_AT_SALON`` otherwise, plus ``PAY_ONLINE`` only when the platform's online
+    payment gateway is enabled. A customer-specific block (``pay_at_salon_temporarily_blocked`` and similar)
+    is not salon-level, so it is reported as a 409 error code when booking, not here.
+    """
+
+    accepts_bookings: bool = Field(default=True, description="False while the salon is paused or not bookable.")
+    payment_options: list[Literal["PAY_AT_SALON", "PAY_ONLINE"]] = Field(
+        default_factory=lambda: ["PAY_AT_SALON"],
+        description="Payment methods currently permitted for a new booking at this salon.",
+    )
+    online_payment_available: bool = Field(default=False, description="True only when PAY_ONLINE is listed.")
+    online_payment_unavailable_reason: str | None = Field(
+        default="Online payment coming soon.",
+        description="Customer-facing reason online payment is not offered; null when it is available.",
+    )
 
     @model_validator(mode="after")
     def customer_availability(self) -> "CustomerAvailabilityResponse":
@@ -120,7 +134,6 @@ class SalonSummaryResponse(CustomerAvailabilityResponse):
     category: str | None = None
     address: str | None = None
     city: str | None = None
-    qr_token: str | None = None
     lat: float | None = None
     lng: float | None = None
     timezone: str
@@ -180,7 +193,6 @@ class SalonDetailResponse(CustomerAvailabilityResponse):
     category: str | None = None
     address: str | None = None
     city: str | None = None
-    qr_token: str | None = None
     lat: float | None = None
     lng: float | None = None
     timezone: str

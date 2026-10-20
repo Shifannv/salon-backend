@@ -1,6 +1,6 @@
 """Walk-in QR API routes — public (unauthenticated) and customer-authenticated."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Path, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,13 +18,25 @@ from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.platform import BookingUseCases
 from app.application.use_cases.walkin import WalkInUseCases
 from app.core.config import settings
-from app.core.exceptions import TooManyRequestsError
-from app.core.qr import make_qr_png, make_qr_svg
+from app.core.exceptions import QrCodeNotFoundError, TooManyRequestsError
+from app.core.qr import is_valid_qr_token_format, make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
+from app.infrastructure.payments.resolver import get_payment_resolver
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
 
-router = APIRouter()
+
+def require_qr_token_format(
+    qr_token: str = Path(description="Opaque salon QR token: 32 lowercase hex characters when issued."),
+) -> str:
+    """Reject a malformed token before any cache or database work, with the same 404 as an unknown one."""
+
+    if not is_valid_qr_token_format(qr_token):
+        raise QrCodeNotFoundError("Salon not found or not accepting walk-ins")
+    return qr_token
+
+
+router = APIRouter(dependencies=[Depends(require_qr_token_format)])
 
 
 def _use_cases(session: AsyncSession) -> WalkInUseCases:
@@ -174,7 +186,9 @@ async def create_walkin_booking(
 
     await _use_cases(session).validate_booking_context(actor, qr_token, payload.model_dump())
     repository = PlatformRepository(session)
-    row = await WalkInUseCases(repository).create_walkin_booking(
+    row = await WalkInUseCases(
+        repository, online_payments_enabled=get_payment_resolver().enabled
+    ).create_walkin_booking(
         actor, qr_token, {**payload.model_dump(), "_idempotency_key": idempotency_key}
     )
     if not row.pop("_idempotency_replay", False):

@@ -74,8 +74,24 @@ async def update_profile(
 async def list_salons(
     surface: Literal["home", "search", "all"] | None = None,
     shuffle_seed: str = Query(default="default", min_length=1, max_length=80),
-    search: str | None = None,
-    city: str | None = None,
+    search: str | None = Query(
+        default=None,
+        max_length=80,
+        description="Case-insensitive text matched against the salon name, city or address.",
+    ),
+    city: str | None = Query(
+        default=None,
+        max_length=80,
+        description="Exact city, ignoring case and surrounding spaces.",
+    ),
+    service: str | None = Query(
+        default=None,
+        max_length=80,
+        description=(
+            "Case-insensitive text matched against the name or subcategory of a service the salon "
+            "currently offers (active and assigned to active staff), e.g. 'haircut' or 'facial'."
+        ),
+    ),
     lat: float | None = None,
     lng: float | None = None,
     ids: list[str] | None = Query(default=None),
@@ -94,7 +110,8 @@ async def list_salons(
     """List active completed salons — public, no auth required.
 
     Services are NOT embedded. Call GET /salons/{salon_id}/services for service data.
-    Use `category` to filter by service category (e.g. ?category=Hair+Cutting).
+    Use `category` to filter by service category (e.g. ?category=Hair+Cutting) and `service` to search by
+    service name (e.g. ?service=haircut). `search` matches name, city or address.
     """
 
     rows = await _use_cases(session).list_salons(
@@ -104,6 +121,7 @@ async def list_salons(
         lng=lng,
         ids=ids,
         category=category,
+        service=service,
         surface=surface,
         shuffle_seed=shuffle_seed,
         limit=limit,
@@ -124,8 +142,24 @@ async def nearby_salons(
     lng: float | None = Query(default=None, alias="lng"),
     latitude: float | None = Query(default=None),
     longitude: float | None = Query(default=None),
-    search: str | None = None,
-    city: str | None = None,
+    search: str | None = Query(
+        default=None,
+        max_length=80,
+        description="Case-insensitive text matched against the salon name, city or address.",
+    ),
+    city: str | None = Query(
+        default=None,
+        max_length=80,
+        description="Exact city, ignoring case and surrounding spaces.",
+    ),
+    service: str | None = Query(
+        default=None,
+        max_length=80,
+        description=(
+            "Case-insensitive text matched against the name or subcategory of a service the salon "
+            "currently offers (active and assigned to active staff), e.g. 'haircut' or 'facial'."
+        ),
+    ),
     ids: list[str] | None = Query(default=None),
     category: str | None = Query(
         default=None,
@@ -142,7 +176,8 @@ async def nearby_salons(
     """List visible salons by display priority, then distance — public, no auth required.
 
     Services are NOT embedded. Call GET /salons/{salon_id}/services for service data.
-    Use `category` to filter by service category (e.g. ?category=Hair+Cutting).
+    Use `category` to filter by service category (e.g. ?category=Hair+Cutting) and `service` to search by
+    service name (e.g. ?service=haircut). `search` matches name, city or address.
     """
 
     resolved_lat = lat if lat is not None else latitude
@@ -154,6 +189,7 @@ async def nearby_salons(
         lng=resolved_lng,
         ids=ids,
         category=category,
+        service=service,
         surface="all",
         limit=limit,
         offset=offset,

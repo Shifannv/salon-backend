@@ -84,8 +84,8 @@ class Settings(BaseSettings):
     backend_cors_origins: list[str] = Field(default_factory=list)
 
     # Walk-in QR — URL prefix of the customer-facing web booking route.
-    # QR codes encode: <walkin_base_url>/<qr_token>
-    walkin_base_url: str = "http://localhost:3000"
+    # QR codes encode: <walkin_base_url>/<qr_token>, so the base must end in the web route, e.g. https://<site>/s
+    walkin_base_url: str = "http://localhost:3000/s"
 
     # Customer cancellation policy. Before this cutoff a customer cancellation
     # is immediate; inside the cutoff window it requires salon approval.

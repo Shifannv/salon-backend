@@ -12,7 +12,14 @@ from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGa
 from app.application.use_cases.media_publication import validate_media_reference
 from app.application.use_cases.workspace import assert_approved_workspace
 from app.core.config import settings
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from app.core.exceptions import (
+    BookingSourceNotAllowedError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    OnlinePaymentUnavailableError,
+    ValidationError,
+)
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.authorization import is_owner, is_owner_or_staff
 from app.domain.services.booking_policy import can_record_payment
@@ -117,6 +124,7 @@ class CustomerUseCases:
         offset: int,
         ids: list[str] | None = None,
         category: str | None = None,
+        service: str | None = None,
         surface: str | None = None,
         shuffle_seed: str = "default",
     ) -> list[dict[str, Any]]:
@@ -136,6 +144,7 @@ class CustomerUseCases:
             offset=offset,
             ids=ids,
             category=category,
+            service=service,
             surface=surface,
             shuffle_seed=shuffle_seed,
         )
@@ -757,8 +766,15 @@ class BookingUseCases:
         values: dict[str, Any],
         background_tasks: BackgroundTasks | None = None,
     ) -> dict[str, Any]:
-        """Create booking through the database function."""
+        """Create booking through the database function.
 
+        Price, duration and end time are computed by Postgres from the service ids; the request carries
+        no price. ``qr_walkin`` is set only by the QR route after it validates the token, so it cannot be
+        claimed here.
+        """
+
+        if values.get("source") == "qr_walkin":
+            raise BookingSourceNotAllowedError("Walk-in QR bookings are created through the QR route")
         if values.get("source") == "manual_walkin":
             await assert_approved_workspace(self.repository, actor)
         if values.get("source") == "manual_walkin" and actor.role not in {Role.owner, Role.staff}:
@@ -771,7 +787,7 @@ class BookingUseCases:
         if values.get("source") == "app" and actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer app bookings require customer or owner access")
         if values.get("payment_preference") in {"pay_full", "pay_advance"} and not self.online_payments_enabled:
-            raise ConflictError("Online payment coming soon.")
+            raise OnlinePaymentUnavailableError("Online payment coming soon.")
         await self.repository.get_public_salon(str(values["salon_id"]))
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
         replayed = booking.pop("_idempotency_replay", False)
