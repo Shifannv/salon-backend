@@ -1,8 +1,9 @@
 """Raw SQL repository adapter for frontend-facing platform APIs."""
 
+import hashlib
 import json
 from collections.abc import Callable, Iterable
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -12,17 +13,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import (
+    BookingIdempotencyKeyReusedError,
     ConflictError,
+    IdempotencyKeyReuseError,
     NotFoundError,
     PayAtSalonBlockedError,
     PayAtSalonDailyLimitError,
     PaymentCollectionRequiredError,
     PaymentInProgressError,
     PaymentOvercollectionError,
+    QrCodeNotFoundError,
     SalonNotAcceptingBookingsError,
     SlotUnavailableError,
     ValidationError,
 )
+
+
+def _contains_pattern(value: str | None) -> str | None:
+    """Build a literal "contains" ILIKE pattern (escape char ``!``); blank input means no filter."""
+
+    text_value = (value or "").strip()
+    if not text_value:
+        return None
+    escaped = text_value.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    return f"%{escaped}%"
+
+
+def _canonical_json_value(value: Any) -> str:
+    """Serialize non-JSON values; aware datetimes become UTC so one instant has one spelling."""
+
+    if isinstance(value, datetime) and value.utcoffset() is not None:
+        return value.astimezone(UTC).isoformat()
+    return str(value)
+
+
+def _request_fingerprint(values: dict[str, Any]) -> str:
+    """SHA-256 of a booking request, equal for the same instant sent with different UTC offsets."""
+
+    payload = json.dumps(values, sort_keys=True, default=_canonical_json_value)
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 class PlatformRepository:
@@ -177,10 +206,15 @@ class PlatformRepository:
         offset: int,
         ids: list[str] | None = None,
         category: str | None = None,
+        service: str | None = None,
         surface: str | None = None,
         shuffle_seed: str = "default",
     ) -> list[dict[str, Any]]:
         """List public approved, active, completed salons.
+
+        ``search`` matches the salon name, city or address; ``city`` matches the city exactly but ignoring case;
+        ``service`` keeps salons with at least one bookable service (active, in an active category and
+        subcategory, staff-assigned) whose name or subcategory name matches. Matching is case-insensitive and ``%``/``_`` in the input are literal.
 
         Services are NOT bundled. Callers that need service data should use
         the dedicated GET /salons/{salon_id}/services endpoint.
@@ -201,10 +235,11 @@ class PlatformRepository:
             if not normalized_ids:
                 return []
         params = {
-            "surface": surface or ("search" if search or ids or category else "home"),
+            "surface": surface or ("search" if search or ids or category or service else "home"),
             "shuffle_seed": shuffle_seed,
-            "search": f"%{search}%" if search else None,
-            "city": city,
+            "search": _contains_pattern(search),
+            "service": _contains_pattern(service),
+            "city": city.strip() if city and city.strip() else None,
             "lat": lat,
             "lng": lng,
             "ids": normalized_ids,
@@ -217,7 +252,7 @@ class PlatformRepository:
             f"""
             select
               s.id, s.name, s.description, s.category, s.address, s.city,
-              s.qr_token, s.lat, s.lng, s.timezone, s.approval_mode, s.accepting_bookings, s.profile_completed,
+              s.lat, s.lng, s.timezone, s.approval_mode, s.accepting_bookings, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
               case
                 when cast(:lat as double precision) is not null
@@ -264,8 +299,32 @@ class PlatformRepository:
               and public.salon_booking_eligible(s.id)
               and s.discovery_visibility <> 'hidden'
               and (:surface <> 'home' or s.discovery_visibility = 'listed')
-              and (cast(:search as text) is null or s.name ilike cast(:search as text))
-              and (cast(:city as text) is null or s.city = cast(:city as text))
+              and (cast(:search as text) is null
+                   or s.name ilike cast(:search as text) escape '!'
+                   or s.city ilike cast(:search as text) escape '!'
+                   or s.address ilike cast(:search as text) escape '!')
+              and (cast(:city as text) is null or lower(s.city) = lower(cast(:city as text)))
+              and (cast(:service as text) is null or exists (
+                select 1
+                from services sv3
+                join service_subcategories ss3 on ss3.id = sv3.subcategory_id
+                join service_categories sc3 on sc3.id = ss3.category_id
+                where sv3.salon_id = s.id
+                  and sv3.is_active
+                  and ss3.is_active
+                  and sc3.is_active
+                  and (sv3.name ilike cast(:service as text) escape '!'
+                       or ss3.name ilike cast(:service as text) escape '!')
+                  and exists (
+                    select 1
+                    from staff_services stsv3
+                    join staff st3 on st3.id = stsv3.staff_id
+                    where stsv3.service_id = sv3.id
+                      and stsv3.is_active
+                      and st3.is_active
+                      and st3.salon_id = sv3.salon_id
+                  )
+              ))
               {ids_filter}
             group by s.id, img.url, promo.weight
             having (
@@ -326,7 +385,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, name, description, category, address, city, qr_token, lat, lng, timezone,
+                select id, name, description, category, address, city, lat, lng, timezone,
                        working_hours, approval_mode, slot_interval_minutes, accepting_bookings, profile_completed,
                        is_active
                 from salons
@@ -1445,7 +1504,12 @@ class PlatformRepository:
         try:
             key = values.get("_idempotency_key")
             scope = values.get("_idempotency_scope", "booking:create")
-            replay = await self.begin_booking_operation(values.get("actor_id", ""), scope, key, values)
+            try:
+                replay = await self.begin_booking_operation(values.get("actor_id", ""), scope, key, values)
+            except IdempotencyKeyReuseError as exc:
+                raise BookingIdempotencyKeyReusedError(
+                    "Idempotency-Key was already used for a different booking request"
+                ) from exc
             if replay is not None:
                 return {**replay, "_idempotency_replay": True}
             await self.session.execute(
@@ -1529,13 +1593,11 @@ class PlatformRepository:
     async def begin_booking_operation(self, actor_id: str, scope: str, key: str | None, values: dict) -> dict | None:
         if key is None:
             return None
-        import hashlib
-
         from app.core.exceptions import IdempotencyKeyRequiredError
         from app.infrastructure.db.repositories.payment_repository import PaymentRepository
         if not 8 <= len(key) <= 200:
             raise IdempotencyKeyRequiredError("Idempotency-Key must be 8-200 characters")
-        fingerprint = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
+        fingerprint = _request_fingerprint(values)
         return await PaymentRepository(self.session).begin_idempotent(actor_id, scope, key, fingerprint, 86400)
 
     async def finish_booking_operation(self, actor_id: str, scope: str, key: str | None, booking: dict, code: int = 200) -> None:
@@ -3661,7 +3723,7 @@ class PlatformRepository:
         )
         row = result.mappings().one_or_none()
         if row is None:
-            raise NotFoundError("Salon not found or not accepting walk-ins")
+            raise QrCodeNotFoundError("Salon not found or not accepting walk-ins")
         return str(row["id"])
 
     async def get_salon_by_qr(self, qr_token: str) -> dict[str, Any]:
@@ -3684,7 +3746,7 @@ class PlatformRepository:
         )
         row = result.mappings().one_or_none()
         if row is None:
-            raise NotFoundError("Salon not found or not accepting walk-ins")
+            raise QrCodeNotFoundError("Salon not found or not accepting walk-ins")
         salon = dict(row)
         salon["qr_token"] = qr_token
 

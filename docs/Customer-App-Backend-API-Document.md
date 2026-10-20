@@ -46,7 +46,7 @@ Public endpoints:
 | --- | --- | --- |
 | GET | `/health` | Process health |
 | GET | `/health/db` | Database health |
-| GET | `/v1/salons` | Search/filter salons |
+| GET | `/v1/salons` | Search/filter salons (`search` name/city/address, `city`, `service`, `category`; see [public contract](PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md)) |
 | GET | `/v1/salons/nearby` | Distance-sorted salons |
 | GET | `/v1/salons/{salon_id}` | Salon details |
 | GET | `/v1/salons/{salon_id}/services` | Active services |

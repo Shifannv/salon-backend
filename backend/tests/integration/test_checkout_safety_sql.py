@@ -127,7 +127,7 @@ async def test_booking_same_key_replays_and_different_payload_rejects(safety):
     a,b = await asyncio.gather(safety.book(f,key="booking-key-1"),safety.book(f,key="booking-key-1"))
     assert a["id"] == b["id"]
     mismatch = await safety.book(f,key="booking-key-1",delta=30)
-    assert mismatch.code == "idempotency_key_reuse"
+    assert mismatch.code == "idempotency_key_reused"
     assert (await safety.sql("select count(*) as n from email_events where user_id=:id",id=f["customer"]))[0]["n"] == 1
 
 
