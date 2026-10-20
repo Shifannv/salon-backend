@@ -3,9 +3,6 @@
 import time
 from typing import Any
 
-import httpx
-from jose import JWTError, jwt
-
 from app.core.config import Settings
 from app.core.exceptions import UnauthorizedError
 from app.core.telemetry import measure_external
@@ -33,6 +30,10 @@ class SupabaseJWTVerifier:
 
         if not self.settings.supabase_jwks_url:
             raise UnauthorizedError("Supabase JWKS URL is not configured")
+
+        # Imported on first use: jose loads cryptography, which costs about 0.3 s of
+        # Cloud Run cold start that public routes do not need.
+        from jose import JWTError, jwt
 
         try:
             header = jwt.get_unverified_header(token)
@@ -91,6 +92,8 @@ class SupabaseJWTVerifier:
     @measure_external("supabase_jwks")
     async def _refresh_jwks(self) -> None:
         """Fetch fresh JWKS from Supabase and update the in-memory cache."""
+
+        import httpx  # on first use, to keep it out of cold start
 
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(str(self.settings.supabase_jwks_url))

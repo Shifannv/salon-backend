@@ -10,8 +10,6 @@ from functools import partial
 from io import BytesIO
 from typing import ClassVar
 
-from PIL import Image, ImageOps, UnidentifiedImageError
-
 from app.application.ports.image_processor import ImagePolicy
 from app.core.exceptions import ValidationError
 
@@ -47,6 +45,9 @@ class PillowImageProcessor:
             if key in self._approved_outputs:
                 self._approved_outputs.move_to_end(key)
                 return data
+        # Imported on first use to keep Pillow and its native libraries out of cold start.
+        from PIL import Image, ImageOps, UnidentifiedImageError
+
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
