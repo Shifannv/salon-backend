@@ -201,6 +201,35 @@ Exact lease/attempt/age/alert/repair access settings remain Q30. Exactly one fin
 outcome means no duplicate conflicting terminal state or overlap, not guaranteed
 success of any contender or exactly-once network delivery. No race test runs here.
 
+## U06 reschedule and owner-cancellation rules
+
+Recorded in the [approval register U06](APPROVAL_REGISTER.md#policy-approval-record-u06)
+and [specification section 4.6](../../verification/payment-subscription-booking-spec.md#46-u06-owner-cancellation-reschedule-and-cancellation-money).
+Business scope only; no table, function or revision is created or changed by this note.
+
+- **A1 Owner cancellation:** no advance admin approval. Reason mandatory, customer
+  notified, admin reviews afterwards. The owner-to-admin request state described under
+  the TP01 recommendations below is **not adopted**; a cancellation request must not be
+  modelled as a pending state that keeps the slot occupied.
+- **A2 Reschedule limit:** at most two reschedules per booking, never reset. The design
+  needs a durable per-booking reschedule count that is incremented in the same
+  transaction as the committed reschedule, and a guard that refuses a third. Only
+  committed reschedules count; a failed reschedule does not consume one (U06).
+- **A2b Policy evaluation:** after a reschedule the cancellation band is computed from
+  the new appointment start time. The booking stores the governing start used for each
+  evaluation so history stays auditable; earlier evaluations never change.
+- **A3 Slot order:** secure the new interval through the canonical PostgreSQL booking
+  path first, release the old interval only after the new one commits, and leave the
+  original booking untouched on any failure. Both intervals are protected by the same
+  ordered locks and overlap constraints as ordinary booking, so two concurrent
+  reschedules or a reschedule racing a cancellation produce at most one winner.
+  Every attempt and outcome is audited with actor, time, old and new interval.
+- **A4 Pre-check-in owner/admin cancellation:** commit the cancellation and release the
+  slot, then start a full customer refund asynchronously through the outbox. The refund
+  is capture-capped and uses a stable operation identity so a retry cannot refund twice.
+  Checked-in cancellation stays restricted and audited; its monetary remedy is
+  unresolved (Q29).
+
 ## Final technical approval defaults - recommendations only
 
 The [TP01 technical approval register](APPROVAL_REGISTER.md#final-technical-approval-defaults---recommendations-only)
@@ -209,16 +238,17 @@ contain the final candidate package. Every TA01-TA10 choice is **Approval requir
 No proposal overrides final database availability, valid committed cancellation
 release, original money obligations, or historical policy/price snapshots.
 
-Recommended authority is customer after-check-in cancellation forbidden, owner
-request requiring admin approval, and admin reason/audit. The owner-to-admin
-stage is an unapproved extra gate: a pending request keeps the existing booking
+Recommended authority was customer after-check-in cancellation forbidden, owner
+request requiring admin approval, and admin reason/audit. **U06 rejected the
+owner-to-admin gate** (see the U06 section above); the remainder is history. The
+owner-to-admin stage was an unapproved extra gate: a pending request keeps the existing booking
 occupied and must participate in closure/reschedule state/revision checks.
 Checked-in monetary remedy remains finance/legal review, never automatic U03
 penalty, refund amount or payout. Only actual valid cancellation commit releases.
 
 Recovery candidates are five retries after initial dispatch at successive delays
 1m/5m/30m/2h/12h, five-minute lease, retained dead-letter with Sentry plus admin
-email, and scoped two-person finance/admin repair. No retry/alert may redo a
+email, and repair by a single super-admin with `aal2` (U06 changed TA07 from two-person approval). No retry/alert may redo a
 closure, cancellation, notification intent or financial effect. Ninety-day
 resolved outbox retention is proposed separately from unresolved-job/dedup and
 financial audit schedules, which need explicit lawful approval. Managed encryption/

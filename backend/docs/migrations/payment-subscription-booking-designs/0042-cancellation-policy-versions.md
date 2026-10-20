@@ -11,9 +11,12 @@ The filename is a historical locator, not execution order. Inherits the
 U03 selects prospective customer cancellation bands: at least 48 hours flat-fee
 band (amount open), 12 to less than 48 hours 5%, 4 to less than 12 hours 35%,
 below 4 hours zero refund. Exactly 48/12/4 hours goes respectively to flat/5%/35%.
-Every penalty recipient remains open Q26; no new U03 70/30 allocation is selected.
-Provider costs Q17 and dispute hold Q19 are explicitly unresolved; Q25 supplies
-flat amount and percentage-base/refund mechanics only after approval.
+U06 selects the penalty base (captured amount before provider fees) and the
+recipients: after actual provider costs, the retained pool is split 70% salon and
+30% platform in every band (platform share rounded half-up in integer paise, residual
+paise to the salon; if costs exceed the pool the salon receives zero and the platform
+absorbs the shortfall). U07 selects the payout hold formulas. The exact flat amount
+(Q25) stays **Approval required**, configurable, with no default.
 
 U03 no-show requires appointment start passed and a full ten-minute grace,
 explicit authorized owner/staff confirmation, actual actor/timestamp/reason and
@@ -27,10 +30,10 @@ and payment_refunds authority, without implementing code or executable artifacts
 
 | Remaining elapsed time | Approved customer-cancellation band | Outstanding financial design |
 | --- | --- | --- |
-| At least 48 hours | Flat cancellation-fee band | Exact flat amount/caps Q25, recipient Q26, provider fees Q17 and hold Q19. |
-| 12 to less than 48 hours | 5% penalty | Base/rounding/caps/refund Q25; recipient, fees and hold remain open. |
-| 4 to less than 12 hours | 35% penalty | Exactly four hours included; base/refund Q25/Q18, recipient, fees and hold open. |
-| Below 4 hours, before start | Zero refund | Full eligible captured retained funds do not establish any beneficiary or spendable payout; Q26/Q17/Q19 unresolved. |
+| At least 48 hours | Flat cancellation-fee band | Exact flat amount and caps (Q25, **Approval required**). Recipients, fee order and hold per U06/U07. |
+| 12 to less than 48 hours | 5% penalty | Base is captured amount before provider fees (U06); caps and partial or unpaid captures remain Q25. Recipients, fees and hold per U06/U07. |
+| 4 to less than 12 hours | 35% penalty | Exactly four hours included; base per U06; caps and partial or unpaid captures remain Q25/Q18. Recipients, fees and hold per U06/U07. |
+| Below 4 hours, before start | Zero refund | Retained funds are split 70/30 after provider costs (U06); payout still waits for `hold_until` (U07), no dispute and known fees. |
 
 The proposed single-cutoff/U02 columns below do not fully represent the U03
 bands. Later review must bind immutable band boundaries, rate/flat amount/base,
@@ -177,14 +180,16 @@ TA01 recommends manual finance/legal remedy review with affected captured funds
 restricted, no guessed refund/partial-service or beneficiary amount, and only
 approved capture-capped asynchronous delivery. TA02 recommends customer after-
 check-in cancellation forbidden, owner request requiring scoped admin approval,
-and admin reason/audit. The additional owner-to-admin gate is unapproved; if
+and admin reason/audit. **U06 rejected the additional owner-to-admin gate**
+(owner cancels directly with reason; admin reviews afterwards); the sentence below
+is kept only as history. The gate was unapproved; if
 later selected, the request alone leaves status checked_in and slot occupied
 until valid approved cancellation commits. Earlier U05 scope evidence is not
 approval of this extra gate. No staff/finance right is inferred from a role label.
 
 TA03-TA07 propose five retries after the initial dispatch with delays 1m, 5m,
 30m, 2h, 12h, five-minute fenced lease, durable dead-letter, Sentry plus admin
-email and scoped finance/admin repair with two-person approval. These do not
+email and scoped finance/admin repair with two-person approval (U06 approved TA03-TA05 and TA08, and changed TA07 to a single super-admin with `aal2`). These do not
 execute cancellation/refund again or weaken immediate committed release.
 TA08 proposes 90 days from resolved delivery only, with lawful reviewed open-job
 exceptions; TA09 supplies no numerical financial-audit period. TA10 proposes
@@ -215,7 +220,7 @@ postings and an authorized append-only outcome correction, never by deleting it.
 
 - Unique policy `(policy_code, version)` and positive version. U03 needs a
   reviewed immutable multi-band representation with exact 48/12/4-hour boundaries;
-  flat fee, percentage base, beneficiaries, fees and holds remain unresolved.
+  the flat fee amount remains unresolved; percentage base, 70/30 beneficiaries, fee order and holds are selected by U06/U07 and still need a reviewed representation.
   Prior U02 3,000/7,000 allocation is historical only, not a U03 constraint/default.
   Existing bound policies keep their parameters. No policy row is inserted and
   no incomplete configuration may activate or silently substitute a default.
@@ -342,8 +347,11 @@ later booking binding must be written inside the canonical creation transaction.
 
 Admin reviews pending cancellation payouts, salon payout history and restricted
 allocation/audit data under Q20 scoped authority. Admin approval/timing cannot
-bypass reserves, KYC, active disputes or final transfer confirmation. Cancellation
-hold/origin is unset; ordinary service completion plus 48 hours cannot substitute.
+bypass reserves, KYC, active disputes or final transfer confirmation. U07 selects the
+cancellation and no-show hold formulas (customer cancellation:
+`max(cancellation_time + 48 hours, appointment_start)`; confirmed no-show:
+`max(no_show_confirmation_time, appointment_start + 10 minutes) + 48 hours`); ordinary
+service completion plus 48 hours cannot substitute.
 Owner projection may expose eligible amount, payout status, payout date and a
 sanitized admin message only after Q21 field review. It must exclude platform
 percentage/internal formula in APIs, reports, exports, cache/replay and messages.
@@ -376,12 +384,13 @@ and repairs forward. A failed refund remains reserved through rollback.
 
 **Prepared for design review; not execution-ready.** Q01-Q05/Q08/Q11/Q13/Q16,
 L01-L03/L05 and P01/P05, plus Q17-Q28: U03 bands/rates and confirmed no-show
-process are selected; flat amount/base/refund mechanics, every penalty recipient,
-provider fees, dispute hold, trusted ingress, admin scope, no-show finances,
-correction/notification handling, legacy/open-order transition and retention
-remain unresolved. U04 immediate release is selected; Q27/Q28 state/actor and
+process are selected, and U06/U07 select the percentage base, 70/30 recipients,
+provider-cost order, no-show money treatment and hold formulas. The flat amount
+(Q25), caps, partial or unpaid captures, dispute scope/release, trusted ingress,
+admin scope, correction/notification handling, legacy/open-order transition and
+retention remain unresolved. U04 immediate release is selected; Q27/Q28 state/actor and
 cache/audit/notification mechanics require review. Cancellation settlement is a distinct U02 admin-controlled path; its
-hold/origin and roles remain Q19/Q20. Never fabricate completed service.
+hold formulas are selected by U07; dispute scope/release and roles remain Q19/Q20. Never fabricate completed service.
 
 Later verification: before/equal/after cutoff, delayed decisions, U03 exact boundaries and no-show grace/confirmation, legacy A/B and U02 cost-branch
 conservation, multiple captures/refunds, duplicate cancellation/correction,

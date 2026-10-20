@@ -428,7 +428,7 @@ No TA value is adopted by existing worker/Redis settings in this review.
 | Lease | Five minutes, database time/fencing; timeouts, renewal/heartbeat and reclaim need review. Expired worker may still complete network work, so side-effect idempotency and fenced acknowledgement remain necessary. |
 | Dead-letter | Permanent error or exhausted selected budget retains job/source/attempt history, alerts operators and waits for audited repair; no loss of intent or false successful cleanup. |
 | Alerts | Sentry plus admin email, sanitized internal IDs/error class only; recipients, response targets, dedup/escalation and channel retention remain pending. No service/address configured. |
-| Repair | Scoped finance/admin access with two-person approval, no self-approval; targeted invalidation/canonical rebuild/original-job requeue only. Exact people/permissions and role separation remain open; no global flush or money/state rewrite. |
+| Repair | U06: a single super-admin with `aal2`, with a reason, an approval record and a complete audit trail; no two-person approval. Targeted invalidation/canonical rebuild/original-job requeue only; no global flush or money/state rewrite. Named permissions and the approval-record format remain open. |
 | Operational retention | 90 days after delivered/verified superseded resolution, not creation. Unresolved/dead-letter/held evidence needs lawful exception/review, no automatic expiry or indefinite exemption. Preserve necessary minimal dedup linkage under its separate approved schedule. |
 | Financial audit | Separate finite lawful schedule with per-field scrub/holds/access; no numeric duration and no inherited 90-day window. |
 | Encryption/keys | Ciphertext/version reference in database; wrapping keys in separately managed KMS, secrets in managed secret store, or adequate provider tokenization. No plaintext secrets in database/Git/logs/outbox/cache/replay/backups; concrete services, region, access and rotation unchosen. |
@@ -438,8 +438,9 @@ lease expiry or lost acknowledgement retains original logical identity and
 recorded attempt budget; manual repair does not start an unbounded fresh cycle.
 Primary fallback, final PostgreSQL revalidation and new-hold-safe cleanup stay
 required regardless of alert outage, dead-letter or proposed 90-day retention.
-TA01 monetary review and TA02 extra owner-admin gate remain proposals as well;
-a request awaiting approval does not itself cancel or release a checked-in slot.
+TA01 monetary review remains a proposal; U06 rejected the TA02 extra owner-admin
+gate. If any approval request state is ever introduced, it does not itself cancel
+or release a checked-in slot.
 No backend/SQL/schema/monitoring/key changes or runtime proof are produced.
 
 ## RLS/security impact

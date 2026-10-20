@@ -33,6 +33,13 @@ class PlatformRepository:
 
     async def lock_media_url(self, url: str) -> None:
         """Serialize reference writes and cleanup across API/worker processes."""
+        if "/webp-v2/" in url:
+            # All members share a lock before their individual URL locks. No new
+            # schema is needed; direct client media assignment remains guarded by 0020.
+            family = url.rsplit("/", 1)[0] + "/"
+            await self.session.execute(
+                text("select pg_advisory_xact_lock(hashtextextended(:url, 0))"), {"url": family},
+            )
         await self.session.execute(
             text("select pg_advisory_xact_lock(hashtextextended(:url, 0))"), {"url": url},
         )

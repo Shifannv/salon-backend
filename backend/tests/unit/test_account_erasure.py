@@ -26,6 +26,12 @@ class FakeStorage:
     def get_public_url(self, bucket: str, path: str) -> str:
         return f"{BASE}/{path}"
 
+    async def erasure_lock_paths(self, path: str) -> list[str]:
+        return [path]
+
+    async def erasure_paths(self, path: str) -> list[str]:
+        return [path]
+
     async def delete_object(self, bucket: str, path: str) -> None:
         if path in self.fail_for:
             raise RuntimeError("r2 unavailable")

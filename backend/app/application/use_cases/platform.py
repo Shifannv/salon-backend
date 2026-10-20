@@ -48,12 +48,13 @@ def _extract_r2_object_key(public_url: str, r2_public_base: str) -> str | None:
     return None
 
 
-def _upload_result(upload_url: str, public_url: str) -> dict[str, Any]:
+def _upload_result(upload_url: str, public_url: str, result_url: str | None) -> dict[str, Any]:
     """Return the standard upload URL response payload."""
     return {
         "upload_url": upload_url,
         "public_url": public_url,
         "expires_in": _UPLOAD_TTL_SECONDS,
+        "result_url": result_url,
     }
 
 
@@ -197,7 +198,7 @@ class CustomerUseCases:
 
         upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
         public_url = self.storage_gateway.get_public_url(bucket, object_key)
-        return _upload_result(upload_url, public_url)
+        return _upload_result(upload_url, public_url, self.storage_gateway.get_result_url(upload_url))
 
 
 PAYOUT_FIELDS = ("account_holder_name", "upi_id", "bank_name", "bank_account_number", "ifsc")
@@ -489,7 +490,7 @@ class OwnerUseCases:
 
         upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
         public_url = self.storage_gateway.get_public_url(bucket, object_key)
-        return _upload_result(upload_url, public_url)
+        return _upload_result(upload_url, public_url, self.storage_gateway.get_result_url(upload_url))
 
     async def get_staff_photo_upload_url(
         self,
@@ -536,7 +537,7 @@ class OwnerUseCases:
 
         upload_url = await self.storage_gateway.get_upload_url(bucket, object_key, content_type)
         public_url = self.storage_gateway.get_public_url(bucket, object_key)
-        return _upload_result(upload_url, public_url)
+        return _upload_result(upload_url, public_url, self.storage_gateway.get_result_url(upload_url))
 
     async def list_holidays(self, actor: Profile) -> list[dict[str, Any]]:
         """List salon holidays."""

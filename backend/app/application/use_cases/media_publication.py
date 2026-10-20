@@ -16,6 +16,8 @@ async def validate_media_reference(
         raise ValidationError("Validated image storage is required to save a new photo")
     # This transaction lock remains held through the repository's reference-write commit.
     await references.lock_media_url(url)
+    for member_url in sorted(set(await storage.publication_urls(url)) - {url}):
+        await references.lock_media_url(member_url)
     if policy is None:
         await storage.validate_media_reference(url, namespace)
     else:

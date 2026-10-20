@@ -411,8 +411,12 @@ for these groups.
 **Approval required** before dependent implementation:
 
 - Q01-Q05/Q08: remaining cost/base/causes/exception/ingress, fee bearers,
-  holds/reserves, funding and legacy/open-order transition. U02 late R=0,
-  strict/on-time equality and 70/30 are selected; Q17/Q18 still gate costs/refunds.
+  holds/reserves, funding and legacy/open-order transition. U02 late R=0 and
+  strict/on-time equality are historical (U03 replaced the bands). The 70/30 split is
+  **current policy** under U06/U07 (retained pool after actual provider costs), not
+  merely U02-era wording; the U03 statement that recipients were unresolved is
+  historical. Q25 flat amount, the Q29 checked-in remedy, tax components and
+  reserve/true-up still gate refunds.
 - Q06-Q09: selected no-cap trial/grace calendar and legacy details, receipt access,
   late captures, checkout/deposits and subscription tax/benefits/renewal mode.
 - Q10-Q12: staff basis/rules/weights/reversals, schedule/buffer/notice/cutoff and

@@ -140,10 +140,11 @@ not provider confirmation, and cannot populate verified production outcomes.
   the full confirmed amount, never silently discarding the paid event.
 - U02 selects cancellation settlement as a separate admin-controlled entitlement,
   never completed-service eligibility. Ordinary U01 hold is 48 elapsed hours
-  after service completion under the recorded U01 policy. U03 cancellation
-  final entitlement/recipient Q26, base/flat amount Q25, costs Q17 and hold
-  origin/duration Q19, roles Q20 and legal terms Q23 remain unresolved;
-  no fabricated completed_at or implicit zero cancellation hold.
+  after service completion under the recorded U01 policy. For cancellation, U06
+  selects the base and recipients (70% salon / 30% platform of the retained pool
+  after provider costs, with the cost order) and U07 selects the hold formulas.
+  The flat amount Q25, dispute scope/release Q19, roles Q20 and legal terms Q23
+  remain unresolved; no fabricated completed_at or implicit zero cancellation hold.
   If fees arrive after payout, append a deficit/receivable and reviewed recovery;
   never backdate a negative payout or assume a bank debit is permitted.
 
@@ -182,25 +183,27 @@ a second bank transfer; a local pending row cannot stop unsupported provider beh
 U03 customer cancellation uses flat-fee band at 48 hours or more, 5% at 12 to
 less than 48, 35% at 4 to less than 12, zero refund below 4 hours. Exactly
 48/12/4 hours belongs respectively to flat/5%/35%. These rates describe customer
-penalty, not beneficiary income or authority to transfer. Exact flat amount and
-percentage-base/refund mechanics Q25, every recipient Q26, provider costs Q17
-and dispute-hold duration Q19 are unresolved. U02 70/30 remains historical and
-must not create any new U03 entitlement/reservation. Retained capture with an
-unknown recipient is unresolved accounting, not available salon/platform money.
+penalty, not beneficiary income or authority to transfer. U06 selects the
+percentage base (captured amount before provider costs), the recipients (70% salon /
+30% platform of the retained pool after actual provider costs) and the cost order;
+U07 selects the holds. The exact flat amount Q25 and dispute scope/release Q19 are
+unresolved. The historical U02 split creates no entitlement; only a committed
+cancellation under its bound policy version does. While provider costs are unknown,
+the retained pool is unresolved accounting, not available salon/platform money.
 
 No-show requires appointment start passed, full ten-minute grace, explicit
 authorized owner/staff confirmation, actual actor/time/reason and customer
 notification; no timer silently cancels or marks no-show. Attendance confirmation
 is not a cancellation refund rule, completed service or payout entitlement.
-No-show penalty/refund/recipient, fees and hold are not selected by U03. Preserve
+U03 does not select no-show money; U06 selects the under-4-hour treatment (refund zero, provider costs deducted, 70/30 split) and U07 the hold. Preserve
 audit and notification intent in later design with durable delivery retries;
 revalidate concurrent arrival/check-in/correction before confirmation. Confirmers
 have no finance approval/execution powers merely from attendance authority.
 
-Admin control/timing remains subject to Q20 scoped authority and Q19 hold; common
+Admin control/timing remains subject to Q20 scoped authority and the U07 hold; common
 manual/automatic KYC, dispute, funding, reservation and finality checks remain.
 U01's historical ordinary 48-hour completion clock cannot be reused as the
-unresolved cancellation/no-show hold or a fabricated completed_at. Old policy
+cancellation/no-show hold (U07) or a fabricated completed_at. Old policy
 bindings/financial facts never change. See [U03 approval record](APPROVAL_REGISTER.md#policy-approval-record-u03)
 and [current bands](../../verification/payment-subscription-booking-spec.md#41-u03-approved-cancellation-bands-and-no-show-process).
 
@@ -249,8 +252,9 @@ transfer ID because the previous release cannot read the current schema.
 
 **Prepared for design review; not execution-ready.** Q04/Q05/Q13-Q16, P01-P06,
 L01-L03/L05 and Q17-Q26: ordinary 48-hour completion hold is preserved as U01 evidence;
-U03 flat amount/base, every recipient and no-show financial treatment,
-cancellation hold/origin, distributable-cost branch, authorities/limits, provider
+U06/U07 select the penalty base, recipients, cost order, no-show treatment and holds.
+Still unresolved: flat amount Q25, dispute scope/release Q19, tax components,
+reserve/true-up for unknown fees, authorities/limits, provider
 product and fund custody, fee reserves,
 manual evidence/independent reviewer, destination security and retention.
 

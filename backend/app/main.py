@@ -34,6 +34,7 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.telemetry import TimingMiddleware, init_sentry
+from app.infrastructure.media.admission import UploadAdmissionMiddleware
 
 _log = logging.getLogger(__name__)
 
@@ -95,6 +96,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Last registered runs outermost: timing -> CORS -> admission -> routing.
+    # Reject bodies before parsing while keeping the normal response wrappers.
+    app.add_middleware(UploadAdmissionMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.backend_cors_origins,
