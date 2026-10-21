@@ -442,3 +442,30 @@ async def test_key_reuse_with_a_different_booking_is_a_422_with_its_own_code():
         payments.PaymentRepository = saved
     assert raised.value.status_code == 422
     assert raised.value.code == "idempotency_key_reused"
+
+
+# ── idempotency fingerprint: one instant, one fingerprint ────────────────────
+
+
+def _fingerprint(start):
+    from app.infrastructure.db.repositories.platform_repository import _request_fingerprint
+
+    request = BookingCreateRequest.model_validate({**BOOKING, "start_datetime": start})
+    return _request_fingerprint(request.model_dump())
+
+
+def test_same_instant_in_different_offsets_has_one_fingerprint():
+    assert _fingerprint("2026-10-21T10:00:00Z") == _fingerprint("2026-10-21T15:30:00+05:30")
+    assert _fingerprint("2026-10-21T10:00:00+00:00") == _fingerprint("2026-10-21T15:30:00+05:30")
+
+
+def test_different_instant_has_a_different_fingerprint():
+    assert _fingerprint("2026-10-21T10:00:00Z") != _fingerprint("2026-10-21T10:30:00Z")
+    assert _fingerprint("2026-10-21T10:00:00Z") != _fingerprint("2026-10-21T10:00:00+05:30")
+
+
+def test_naive_start_datetime_is_rejected_not_reinterpreted():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        BookingCreateRequest.model_validate({**BOOKING, "start_datetime": "2026-10-21T10:00:00"})

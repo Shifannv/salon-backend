@@ -62,3 +62,6 @@ backend/.pytest_tmp/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Graphify output (generated; large cache and snapshots)
+graphify-out/

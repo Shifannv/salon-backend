@@ -113,3 +113,5 @@ ready for PR (local commits unpushed; push needs owner approval). Public discove
 - 2026-10-20: verified and documented the public discovery/QR/direct-booking contract (no migration, no deploy, no push); Ruff clean, pytest 1198 passed / 82 skipped, wrap run.
 - 2026-10-21: secured QR booking idempotency and verified booking behaviour on a throwaway PostgreSQL 18 container; no migration, commit, push, deploy or provider call.
 - 2026-10-21: Redis verification and independent final review of the public discovery/QR booking work; no blocking findings; nothing committed.
+- 2026-10-21: session started
+- 2026-10-21: final consistency correction on top of 54c09ff (uncommitted): service search now requires an active category, QR doc says no time-based expiry, booking idempotency fingerprint normalizes aware datetimes to UTC and `BookingCreateRequest.start_datetime` is AwareDatetime (naive now 422); focused tests and Ruff pass; no migration, push or deploy
