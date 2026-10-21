@@ -9,6 +9,7 @@ from typing import Annotated, Any, ClassVar, Literal
 from urllib.parse import unquote, urlsplit
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -470,7 +471,7 @@ class BookingCreateRequest(BaseModel):
     salon_id: str
     staff_id: str
     service_ids: list[str] = Field(min_length=1)
-    start_datetime: datetime
+    start_datetime: AwareDatetime
     customer_name: str
     customer_phone: str | None = None
     source: Literal["app", "manual_walkin", "qr_walkin"] = "app"

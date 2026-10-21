@@ -252,3 +252,33 @@ def test_response_models_still_validate_directly():
     assert SalonSummaryResponse(**base).payment_options == ["PAY_AT_SALON"]
     assert json.loads(SalonDetailResponse(**base, working_hours={}).model_dump_json())["payment_options"] == [
         "PAY_AT_SALON"]
+
+
+# ── service search stays consistent with the public services list ────────────
+
+
+def _listed(client, salon_id):
+    return [row["name"] for row in client.get(f"/v1/salons/{salon_id}/services").json()]
+
+
+def test_service_search_matches_what_the_services_list_shows(catalog):
+    client, _, _, ids = catalog
+    assert found(client, "/v1/salons", service="facial") == ["Bravo Studio"]
+    assert found(client, "/v1/salons/nearby", service="facial") == ["Bravo Studio"]
+    assert _listed(client, ids["bravo"]) == ["Facial"]
+
+
+@pytest.mark.parametrize("table", ["service_categories", "service_subcategories"])
+def test_service_search_requires_active_category_and_subcategory(catalog, table):
+    client, session, _, ids = catalog
+    session.db.execute(f"update {table} set is_active=0")
+    assert found(client, "/v1/salons", service="facial") == []
+    assert found(client, "/v1/salons/nearby", service="facial") == []
+    assert _listed(client, ids["bravo"]) == []
+
+
+def test_inactive_category_service_search_keeps_literal_wildcards(catalog):
+    client, session, *_ = catalog
+    session.db.execute("update service_categories set is_active=0")
+    assert found(client, "/v1/salons", service="%") == []
+    assert found(client, "/v1/salons", service="_") == []

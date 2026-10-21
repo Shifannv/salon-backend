@@ -1,0 +1,15 @@
+salonsalon-backend
+supabase-schema-backup
+.ruff_cache
+.pytest_cache
+.codegraph
+backend\.artifacts
+backend\.pytest_cache
+backend\.ruff_cache
+backend\.venv
+*__pycache__*
+backend\.env
+backend\.env.example
+backend\.env.gcp.example
+backend\.env.mumbai-local
+backend\test-results.xml

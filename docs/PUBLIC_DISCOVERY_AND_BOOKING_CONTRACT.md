@@ -49,15 +49,17 @@ UIs should show a payment method only when it is in `payment_options`, and nothi
   value is `https://<website-origin>/s` and the QR encodes `https://<website-origin>/s/<qr_token>`
   (the code default is now `http://localhost:3000/s`).
 - **Token:** issued by the database (`encode(gen_random_bytes(16), 'hex')`): 32 lowercase hex characters, unique,
-  permanent, never rotated by the API. Clients should treat it as opaque and accept URL-safe characters
+  with no time-based expiry; the API has no rotation endpoint. Clients should treat it as opaque and accept URL-safe characters
   `A-Za-z0-9_-`, 3 to 128 long; the backend rejects anything else without a lookup.
 - **Where a token may appear:** only in the route-specific resolver `GET /v1/walkin/{qr_token}` (which echoes the
   caller's own token) and in the owner's own salon payload. It is **not** in `/v1/salons`, `/v1/salons/nearby`,
   `/v1/salons/{id}`, `/services` or `/staff` (removed from the schemas and the SQL; a stale cache entry cannot
   leak it because the response model filters it).
-- **Failures:** a malformed, unknown, revoked or unpublished token returns one response, 404 with
+- **Failures:** a malformed, unknown, rotated, erased or unpublished token returns one response, 404 with
   `error.code = "qr_not_found"` (message "Salon not found or not accepting walk-ins"). The cause is not revealed.
   Cached salon data is revalidated against Postgres on every hit, so a token stops working immediately.
+  A token is invalidated by rotation/regeneration (account erasure issues a new one), by salon unpublication or by
+  account erasure. No time-based expiry is currently implemented.
 - **Booking by QR:** `POST /v1/walkin/{qr_token}/bookings` needs a customer bearer token (401 without; 403 `forbidden`
   for owners and staff). A `salon_id` that differs from the token's salon returns 422 `qr_salon_mismatch`.
   The server always sets `source = "qr_walkin"` itself after validating the token; the client need not send `source`, and any value it sends is overwritten. `pay_advance`/`pay_full` return 422 `online_payment_unavailable` while online payment is disabled, as on `POST /v1/bookings`.
@@ -86,7 +88,7 @@ This already exists and is now explicit: **`POST /v1/bookings`** with `source: "
   - same customer and key with a different request: **422 `idempotency_key_reused`**;
   - a duplicate sent while the first is still running waits for it in the database and then replays it;
     a failed first attempt leaves no record, so the key can be retried;
-  - the token and salon are revalidated before a replay, so a revoked token returns 404 `qr_not_found`;
+  - the token and salon are revalidated before a replay, so an invalidated token returns 404 `qr_not_found`;
   - records expire after 24 hours.
 
 **Open decision (not built):** this route needs a signed-in customer. The customer app signs in with Supabase
@@ -101,7 +103,7 @@ All errors use `{"error": {"code", "message", "details?"}}`. New or newly guaran
 
 | Code | HTTP | When |
 |---|---|---|
-| `qr_not_found` | 404 | QR token malformed, unknown, revoked, expired or its salon unpublished |
+| `qr_not_found` | 404 | QR token malformed, unknown, rotated, erased or its salon unpublished (tokens have no time-based expiry) |
 | `qr_salon_mismatch` | 422 | QR booking names a different salon than the token |
 | `booking_source_not_allowed` | 422 | `source: "qr_walkin"` on `POST /v1/bookings` |
 | `unauthorized` | 401 | missing bearer token (previously a bare `{"detail": ...}`; `detail` is still returned) |
