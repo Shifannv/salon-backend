@@ -9,6 +9,8 @@ describe the overall project, current features, and remaining integration bounda
 - [Database plan](database-plan.md)
 - [Features](features.md)
 - [Frontend integration](frontend-integration.md)
+- [Website, customer app and owner app developer handoff](CLIENT_DEVELOPER_HANDOFF.md)
+- [Complete backend API reference: all endpoints and data models](BACKEND_API_REFERENCE.md)
 - [Frontend integration prompts and readiness checklist](FRONTEND_INTEGRATION_PROMPTS.md)
 - [Customer app API contract](Customer-App-Backend-API-Document.md)
 - [Public discovery, QR and booking contract](PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md)
