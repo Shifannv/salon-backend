@@ -1,14 +1,35 @@
 # Progress: shifan
 
 ## Goal
+Continue deployment/client verification and prepare description removal plus one cover/two independent gallery slides. Preserve all category fields. Historical work below remains for context.
+
 Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory system. This session also did the migration-folder restructure (see Done); the Mumbai reconciliation itself is tracked in progress/mumbai-forward-reconciliation.md.
 
 Latest continuation (2026-10-19): took over the payment/subscription/booking backend plan from Codex (docs only so far), shipped local WebP image variants, and cleaned the Claude tooling. Two local commits (28bf921 image + U06/U07 docs, b0957a5 .claude cleanup) are unpushed pending owner approval. Prepared migrations 0038-0040 and `alembic stamp` remain held.
 
 ## Status
+in progress (2026-10-23 cleanup completed): approved58 obsolete revisions removed; six saved definitions remain; production APImin0/max1 verified, gallery hotfix traffic100%, photo candidate0%. Owner confirmed Free Trial with84 days remaining. Business acceptance, migration and VM/worker continuity remain pending.
+
+in progress (2026-10-23 cost review): app completion is partial; current source still references unavailable API families. Read-only cloud inventory found64 saved revisions across2 services, APImin1/max3, continuous notification worker and runningVM. Exact58-revision prune plus APImin0/max1 proposal awaits approval; trial/credit/expiry confirmation requested. No cleanup performed.
+
+in progress (2026-10-23): owner confirmed only test-phone installation; explicitly approved zero-traffic candidate is deployed and ten live contract/health checks pass. Normal traffic remains entirely on gallery hotfix. Promotion, destructive migration and live business acceptance remain held.
+
+in progress (2026-10-22): gallery response hotfix released after scoped approval; later description/photo changes are implemented and tested locally but unreleased. Updated owner verification APK installed. Production migration and complete business-journey acceptance remain held.
+
 in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shifan` is one local merge commit ahead of origin and unpushed (push needs owner approval). The 2026-10-22 audit follow-up work is uncommitted in the working tree and awaits review.
 
 ## Done
+- 2026-10-23: executed exact approved58-revision cleanup after fresh per-target reference checks; changed only service-level API minimum0/maximum1 without a new revision. Retained working release, all tags, candidate, rollback and staging latest. Fresh retained-set/scaling/traffic checks and health/OpenAPI GETs passed. No VM, worker, disk, image, database, billing or routing mutation.
+
+- 2026-10-23 cost review: refreshed sanitized cloud/scaling/instance metrics and production/candidate contracts; both138operations with eight checked missing client route families. Recorded app acceptance gaps and cost drivers in existing assessment section14; prepared exact58-revision prune manifest preserving tagged/current/rollback revisions. Billing enabled; budget read403; no verified trial balance/expiry or actual invoice costs. No infrastructure changes.
+
+- 2026-10-23: published exact reviewed six-file image and deployed photos-20261023 candidate with zero normal traffic after explicit approval. Ten live health/Swagger/OpenAPI checks passed; normal production remains 100% on gallery hotfix, unchanged. Owner-client population confirmed. See deployment assessment section13.
+
+- 2026-10-23: prepared serving-based six-file candidate and zero-traffic rollout/rollback manifest, excluding unrelated branch features and all migrations. Registry index resolves to the exact serving Linux image; no remote push/deploy occurred. Fixed legacy photo replacement/duplicate-edit and fourth-photo transition cases with four regressions. Final backend1323 passed/36 skipped, Ruff clean; candidate13 feature tests plus real PostgreSQL regression passed; offline image smoke passed138 operations. Three native Playwright presence checks plus separate Android UI-tree checks confirm retained Category, separate cover/two slides and omitted old controls. Temporary test database removed.
+
+- 2026-10-22 continuation: approved gallery UUID response fix released; phone Finish succeeded and submitted for admin review. Details/evidence are in `backend/docs/verification/CLOUD_RUN_DEPLOYMENT_ASSESSMENT_2026-10-22.md`; no migration, billing or VM-retirement change.
+- 2026-10-22 continuation: confirmed final scope keeps categories and removes salon/service descriptions; one separate cover plus two distinct slides. Updated backend contracts/repository, owner/customer/web UI and existing API reference; prepared forward revision 0041, never applied remotely.
+- 2026-10-22 verification: full backend 1319 passed/36 skipped; Ruff clean. Owner screens 60 passed, focused photo/API suites 51 passed, customer regressions 8 passed, website units 415 passed and desktop/mobile photo Playwright 4 passed. Customer/web typechecks passed. Native UI inspection confirms retained category, omitted description and two distinct slides; full native automation remains incomplete.
 - 2026-10-22: static API/architecture audit (`backend/docs/verification/FULL_API_ARCHITECTURE_AUDIT_2026-10-21.md`, 140 routes, 0 Critical/4 High/17 Medium/23 Low/11 Info), corrected for mixed client integration and a deployment-verification SEC-02. Frontend usage matrix (`frontend-api-usage-2026-10-22.md`) and per-frontend update lists (`frontend-update-lists-2026-10-22.md`); frontend code untouched.
 - 2026-10-22: ERR-02 fixed in the working tree: `create_booking` maps messages only for SQLSTATE P0001/23514 (`_is_business_error`, platform_repository.py), other errors re-raise to 500. Tests: tests/unit/test_booking_error_classification.py, db_errors.py. Independent review found and fixed a 23514 blocker.
 - 2026-10-22: customer deletion now blocks `checked_in`; super-admin closed-salon month-end statement (`GET /v1/admin/deleted-salons`, `/{salon_id}/statement`, no migration); designs only: `backend/docs/ACCOUNT_DELETION_FINANCIAL_PURGE_DESIGN.md`, `.plans/salon-review-thread-spec.md`. Ruff clean, pytest 1248 passed / 92 skipped / 0 failed. Nothing committed.
@@ -37,10 +58,27 @@ in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shif
 - Test comparison HEAD vs changed tree: 862 vs 871 passed, same 16 setup errors (test_docker_image_ids, test_vm_release). No new failures. Ruff clean. Docker image build, alembic heads/history inside it match local.
 
 ## In progress
+- 2026-10-23: wait for answer about other owner installations; compatible clients and scoped approval precede production API rollout. Complete authenticated admin/booking/QR acceptance when approved fixtures/sessions are available.
+
+- Coordinated client/API release preparation and review; current production still serves the scoped gallery hotfix. Keep migration history reconciliation and super-admin review separate from owner onboarding submission.
 - Uncommitted 2026-10-22 work (see Done): ERR-02 fix, deletion blocker, statement endpoints, 3 new design/handoff docs. Needs review and one coherent commit (or split into ERR-02 / deletion / docs branches).
 - (Stale as of 2026-10-22: the public-discovery work was merged via PRs #83 and #85.) Earlier note: public discovery contract changes were uncommitted in the working tree (13 files + 2 new test files + contract doc). Nothing else active. Commits 28bf921 and b0957a5 are local only; `.claude/commands/rams.md` and `.claude/skills/learned/` are untracked on purpose. The Redis recovery work from 2026-10-16 was committed earlier.
 
 ## Next steps
+1. Finish authenticated candidate business journeys with an approved test salon and dedicated sessions; obtain separate promotion approval after acceptance. Preserve APImin0/max1 on future updates. Verify VM guest dependencies/backup and worker continuity before proposing retirement; do not stop them under the completed revision-cleanup approval.
+
+1. Wait for answers to the exact58-revision pruning/APImin0max1 proposal and Billing Overview account-type/remaining-credit/expiry question. If approved, refresh references and preserve current traffic; do not stop VM/workers or alter routing under that scope. See assessment section14 and ignored cleanup manifest.
+
+1. Verify authenticated owner/customer/admin journeys against the candidate when dedicated sessions and approved salon are available; obtain separate traffic-promotion approval only after those checks. Do not promote or execute migration under the zero-traffic approval.
+
+1. Confirm owner-client compatibility, then obtain approval for the prepared API-only release in backend/.artifacts/photo-release-20261023/rollout-review.json; verify candidate before promotion and retain gallery-hotfix rollback. See assessment section12. Migration0041 remains a separate manual gate.
+
+1. Read section 11 of `backend/docs/verification/CLOUD_RUN_DEPLOYMENT_ASSESSMENT_2026-10-22.md`; prepare an isolated API candidate from the serving image, excluding unrelated unreleased changes, and verify compatibility with updated owner clients.
+2. Resolve the pending test-salon admin-review gate through authorized admin UI, then resume live customer/owner/QR journey checks; do not bypass approval or use account-erasure paths for fixture cleanup.
+3. Review `backend/migrations/versions/0041_salon_photo_limits.py` and matching SQL with reconciled history, representative lock rehearsal and explicit target approval; migration policy intentionally refuses the new revision.
+4. Complete native automation and owner release-build/typecheck gaps before store distribution.
+
+Earlier queued work (reassess after these gates):
 00. Run the new statement SQL on a throwaway Postgres 18 (`ACCOUNT_DELETION_TEST_DB`, see gotchas.md): tests `test_closed_salon_statement_keeps_money_totals_after_owner_erasure` and `test_a_customer_in_the_chair_is_blocked` in backend/tests/integration/test_account_deletion_sql.py have never run. Then set that variable (and the other skipped suites) in .github/workflows/backend.yml (audit TEST-01).
 00b. Hand `backend/docs/verification/frontend-update-lists-2026-10-22.md` to each frontend team; first priority for the customer app is C1 (payment-options 404) and the owner app O1/O2 (7 unbuilt routes).
 00c. Migration owner (Thameem): decide revision 0041 after 0040 for the financial purge + review thread (needs migration policy, tests and deploy workflow to learn the new head); accountant sets `FINANCIAL_RECORD_RETENTION_YEARS` (TA09). Run `founder-board` before building the review thread.
@@ -57,6 +95,14 @@ in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shif
 8. Optional: decide whether `.claude/skills/learned/` and `.claude/commands/rams.md` are kept, moved out or deleted.
 
 ## Decisions
+- 2026-10-23: old pre-cleanup service manifests are historical receipts, not reusable deployment inputs. Refresh service metadata and retain approvedmin0/max1 in future releases. Revision cleanup does not guarantee zero total spend.
+
+- 2026-10-23: zero-traffic candidate approval does not authorize promotion, migration or data deletion. Candidate shares inherited runtime connections; tagged URL is not a separate staging database.
+
+- 2026-10-23: permit legacy existing-row photo edits without increasing counts or introducing a new duplicate; new additions stay limited to one cover/two slides/three total. API-only candidate retains serving endpoint inventory rather than releasing unrelated local endpoints.
+
+- Final user clarification: retain all category/taxonomy fields; remove only salon/service descriptions. Final photo capacity is a separate cover plus two gallery slides, not two total. Retire excess/duplicate image references softly and leave binary cleanup to the verified cleanup workflow.
+- Prior live approval covers only the gallery UUID hotfix. It does not authorize the new destructive migration or releasing the entire local branch. Update older owner clients before removing required description response fields.
 - 2026-10-22: client integration is mixed and unverified (no API change may break an unverified client); three frontends, the website runs full customer + owner flows on the same APIs; duplicates are marked deprecated first. Account deletion keeps personal data hard-deleted at once; a closed salon's money rows are reviewed by the super-admin then purged only after a configurable retention period. Recorded in shared/decisions.md.
 - 2026-10-21: no `customer_web` source; direct bookings stay `source="app"` (no approved analytics need). Booking key reuse gets its own 422 code instead of changing the shared payments 409 exception.
 - 2026-10-20: no salon-id phone-OTP endpoint was added. Why: anyone with a public salon id could trigger SMS. No index added for search: contains-matches cannot use btree; add `lower(city)` and pg_trgm on name in a reviewed migration only if the salon count reaches tens of thousands.
@@ -70,6 +116,9 @@ in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shif
 - 2026-10-16: integration tests stop at `0037_customer_processing_charge` (not `head`) because 0038–0040 are prepared-only Mumbai migrations requiring Supabase-managed pre-conditions; tested separately when the gates pass.
 
 ## Files touched
+- 2026-10-23: application/salon_photos.py, unit/test_salon_photo_limits.py (both under backend), existing deployment assessment section12, ignored candidate/test evidence and branch memory.
+
+- Current continuation: backend HTTP schemas, `platform_repository.py`, `account_deletion_repository.py`, new `application/salon_photos.py`, new 0041 revision/SQL, migration/photo/metadata regressions, `docs/BACKEND_API_REFERENCE.md`, existing deployment assessment and docs index. Separate frontend repositories contain corresponding UI/adapter/tests; do not copy their source into backend.
 - 2026-10-21 (uncommitted): app/core/exceptions.py, application/use_cases/{platform,walkin}.py, api/v1/routes/walkin.py, infrastructure/db/repositories/platform_repository.py (key-reuse mapping), tests/unit/test_walkin_qr_contract.py, tests/integration/{test_booking_contract_sql.py (new),test_checkout_safety_sql.py,test_redis_recovery_sql.py (assert new code, redis one not run)}, docs/PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md. backend/README.md is modified by someone else (trailing whitespace on lines 15 and 19 fails `git diff --check`); not touched here.
 - 2026-10-20 (uncommitted): backend/app/{api/v1/routes/customer.py,walkin.py, api/v1/schemas/platform.py,walkin.py, application/use_cases/platform.py,walkin.py, core/config.py,exceptions.py,qr.py, infrastructure/db/repositories/platform_repository.py}; new backend/tests/unit/test_public_discovery_contract.py and test_walkin_qr_contract.py; docs/PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md, docs/README.md, docs/Customer-App-Backend-API-Document.md.
 - 2026-10-19: see `git show --stat 28bf921` (image + U06/U07 docs) and `git show --stat b0957a5` (.claude tooling + CLAUDE.md). This wrap only edits docs/agent-memory/** (uncommitted).
@@ -83,6 +132,14 @@ in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shif
 - backend/tests/unit/test_database_url_scheme.py (new regression test)
 
 ## Blockers and open questions
+- 2026-10-23: owner supplied current trial status/remaining-days confirmation; independent invoice costs and budget settings remain unverified. Other persistent cost drivers and business acceptance remain outstanding.
+
+- 2026-10-23 cost review: trial versus paid account and remaining credit/expiry unknown; budget metadata access denied. No zero-cost guarantee. VM guest dependencies and background-worker continuity must be verified before retirement; load balancer still serves normal API domain.
+
+- 2026-10-23: compatible owner-client population unconfirmed; new API rollout needs approval. Full live native/business journeys and super-admin review remain incomplete. Seven newer media-generation test expectations also fail against unchanged serving source and remain outside this candidate. Database history/migration gates unchanged.
+
+- Current continuation: owner TypeScript still reports earlier booking-schema test mismatches; clean native release build previously hit Windows memory limits. Verification APK is not a store release. Native Playwright editor/absence selectors timed out; do not count those attempts as passes.
+- Current continuation: live admin/customer journey fixtures and authorized salon approval are still needed. New API/schema release is not deployed; migration history is unreconciled and existing policy refuses 0041. Broader VM/worker/payment gates in the assessment remain open.
 - 2026-10-22: the closed-salon statement SQL and the `checked_in` blocker are covered by integration tests that are skipped locally and not enabled in CI, so the SQL is unverified on a real Postgres. Retention years (accountant) and the post-0040 migration slot (migration owner) are open. The audit's specialist review agents hit a usage limit, so security/data tracing was sampled, not exhaustive.
 - `backend/README.md` has uncommitted edits that are not from this work and fail `git diff --check`; decide before committing. `test_redis_recovery_sql.py`: 16 of 20 pass on throwaway Redis+Postgres; the 4 Playwright browser tests need `npm i playwright` (module missing) and were not run.
 - The `service` filter SQL is unverified on a real Postgres. Public discovery work is uncommitted. Client apps still carry old OpenAPI types listing `qr_token`.
@@ -95,12 +152,25 @@ in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shif
 - Prepared migrations 0038-0040 remain held and unapplied; no stamp, grants, sealed evidence edits or production/Sydney changes.
 
 ## Review findings
+- fixed (2026-10-23): legacy excess/duplicate images blocked visible replacements and metadata edits. Transition tests reproduced failures; corrected policy also rejects adding a fourth total photo. Final source review closed with no remaining local-candidate blocker.
+
+- fixed (2026-10-22): normalize ignored null image PATCH fields before role-limit validation; QR thumbnail reads now exclude retired photos. Real PostgreSQL regression covers both.
+- fixed (2026-10-22): focused erasure compatibility test covers owner isolation before description removal and successful execution afterward. Code/security review reported no scoped blocker; migration reviewer accepts prepared/unapplied status only, with production gates outstanding.
 - [fixed] high, PUT could store objects then return 422 (query string / expiry crossing): routes/media.py and r2/storage.py; regression tests in tests/unit/test_image_families.py.
 - [fixed] admission outside CORS/timing and non-standard error envelope (app/main.py, core/exceptions.py, media/admission.py).
 - [open] low, non-blocking: shared per-IP rate bucket for result GETs and uploads (admission.py), 10 s body read timeout, hardcoded `/webp-v2/` family lock prefix (platform_repository.py), encoded-byte hashes depend on libwebp version.
 - [open] low, backend/migrations/reviews/migration-inspection-2026-10-15.md:363, historical report still names backend/migrations/README.md; left as written.
 
 ## Session log
+- 2026-10-23: applied explicitly approved revision cleanup and service scaling; postchecks passed and report updated. No additional package installed; no commit, push, migration, traffic promotion or VM/worker shutdown.
+
+- 2026-10-23: completed read-only app/API/cost report and proposed bounded cleanup; approval and trial confirmation pending. No deletions, scaling changes, traffic promotion, migration or installation.
+
+- 2026-10-23: executed approved zero-traffic publication/deployment; ten live checks pass, normal traffic unchanged. Updated report/memory; no migration, data deletion, commit or push.
+
+- 2026-10-23: resumed release preparation, built/reviewed scoped candidate, corrected transition cases and reran full backend suite. Native profile checks advanced; production unchanged, no commit/push/migration.
+
+- 2026-10-22: resumed interrupted verification, confirmed final backend run, fixed import lint, completed deployment/feature report; changes remain uncommitted and release gates explicit.
 - 2026-10-15: workspace and memory setup
 - 2026-10-15: migration folder cleanup, evidence re-seal, HEAD vs changed test comparison, backup and runner plans (not executed)
 - 2026-10-15: session started
