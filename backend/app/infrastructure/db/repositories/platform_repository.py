@@ -232,7 +232,8 @@ class PlatformRepository:
         the dedicated GET /salons/{salon_id}/services endpoint.
 
         ``category`` filters to salons that have at least one active, staff-assigned
-        service whose ``service_categories.name`` matches the value (ILIKE wildcard).
+        service whose displayed category (owner label, or shared catalog fallback)
+        matches the value (ILIKE wildcard).
         For example ``category="Hair Cutting"`` matches the "Hair Cutting" category row.
         Omit or pass ``None`` to return all categories.
         """
@@ -350,7 +351,16 @@ class PlatformRepository:
                   and sv2.is_active
                   and ss2.is_active
                   and sc2.is_active
-                  and sc2.name ilike cast(:category_pattern as text)
+                  and coalesce(sv2.category_name, sc2.name) ilike cast(:category_pattern as text)
+                  and exists (
+                    select 1
+                    from staff_services stsv2
+                    join staff st2 on st2.id = stsv2.staff_id
+                    where stsv2.service_id = sv2.id
+                      and stsv2.is_active
+                      and st2.is_active
+                      and st2.salon_id = sv2.salon_id
+                  )
               )
             )
             order by case when :surface = 'home' then
