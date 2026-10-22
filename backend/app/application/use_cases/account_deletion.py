@@ -2,6 +2,7 @@
 
 import re
 from datetime import timedelta
+from decimal import Decimal
 from typing import Any
 
 from app.application.ports.account_deletion_repository import AccountDeletionRepository
@@ -58,6 +59,26 @@ def deletion_stage(status: str, step_state: dict[str, Any]) -> str:
     if step_state.get("bookings_cancelled"):
         return "refunding"
     return "queued"
+
+
+# Raw sums a closed-salon statement row carries; derived figures follow PaymentUseCases.earnings.
+_STATEMENT_SUMS = (
+    "online_collected", "online_refunded", "platform_fees", "commission_reversed", "overcollected",
+    "manual_recorded", "subscription_paid", "subscription_refunded", "online_count", "manual_count",
+)
+
+
+def _statement_figures(row: dict[str, Any]) -> dict[str, Any]:
+    """Money totals plus the platform's net commission, salon online net and platform revenue."""
+
+    figures = {"currency": row["currency"], **{key: row[key] for key in _STATEMENT_SUMS}}
+    commission_net = Decimal(row["platform_fees"]) - Decimal(row["commission_reversed"])
+    figures["platform_commission_net"] = commission_net
+    figures["online_net"] = Decimal(row["online_collected"]) - Decimal(row["online_refunded"]) - commission_net
+    figures["platform_revenue"] = (
+        commission_net + Decimal(row["subscription_paid"]) - Decimal(row["subscription_refunded"])
+    )
+    return figures
 
 
 class AccountDeletionUseCases:
@@ -244,3 +265,27 @@ class AccountDeletionUseCases:
         if not is_super_admin(actor):
             raise ForbiddenError("Super admin access required")
         return await self.repository.list_requests(limit, offset)
+
+    async def list_closed_salons(self, actor: Profile, limit: int, offset: int) -> list[dict[str, Any]]:
+        """Salons closed by their owner's account deletion, for month-end financial review."""
+        if not is_super_admin(actor):
+            raise ForbiddenError("Super admin access required")
+        return await self.repository.list_closed_salons(limit, offset)
+
+    async def closed_salon_statement(self, actor: Profile, salon_id: str) -> dict[str, Any]:
+        """Month-by-month money totals of a closed salon; no booking or personal detail."""
+        if not is_super_admin(actor):
+            raise ForbiddenError("Super admin access required")
+        rows = await self.repository.closed_salon_monthly_statement(salon_id)
+        if rows is None:
+            raise NotFoundError("No closed salon with this id")
+        months = [{"month": row["month"].strftime("%Y-%m"), **_statement_figures(row)} for row in rows]
+        by_currency: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            total = by_currency.setdefault(
+                row["currency"], {key: 0 if key.endswith("_count") else Decimal(0) for key in _STATEMENT_SUMS}
+            )
+            for key in _STATEMENT_SUMS:
+                total[key] += row[key]
+        totals = [_statement_figures({"currency": currency, **sums}) for currency, sums in by_currency.items()]
+        return {"salon_id": salon_id, "months": months, "totals": totals}

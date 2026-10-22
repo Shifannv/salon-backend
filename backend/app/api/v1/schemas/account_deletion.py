@@ -1,6 +1,7 @@
 """Account deletion request/response contracts."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -95,3 +96,36 @@ class AdminAccountDeletionResponse(BaseModel):
     )
     next_attempt_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class ClosedSalonFigures(BaseModel):
+    """Money totals only: no booking, customer, staff or payment-level detail."""
+
+    currency: str
+    online_collected: Decimal = Field(description="Online payments settled, excluding overcollection.")
+    online_refunded: Decimal
+    platform_fees: Decimal = Field(description="Platform commission charged on online payments.")
+    commission_reversed: Decimal = Field(description="Commission returned on refunds.")
+    platform_commission_net: Decimal
+    overcollected: Decimal
+    online_net: Decimal = Field(description="Salon's online net: collected - refunded - net commission.")
+    manual_recorded: Decimal = Field(description="Cash/UPI the salon recorded itself.")
+    subscription_paid: Decimal = Field(description="Subscription fees the salon paid the platform.")
+    subscription_refunded: Decimal = Field(
+        description="Attributed to the month the subscription fee was PAID (the billing record has no refund date)."
+    )
+    platform_revenue: Decimal = Field(description="Net commission + subscription paid - refunded.")
+    online_count: int
+    manual_count: int
+
+
+class ClosedSalonMonth(ClosedSalonFigures):
+    month: str = Field(pattern=r"^\d{4}-\d{2}$", description="Calendar month in Asia/Kolkata.")
+
+
+class ClosedSalonStatementResponse(BaseModel):
+    """Month-end statement of a salon closed by its owner's account deletion."""
+
+    salon_id: UUID
+    months: list[ClosedSalonMonth]
+    totals: list[ClosedSalonFigures] = Field(description="One row per currency.")

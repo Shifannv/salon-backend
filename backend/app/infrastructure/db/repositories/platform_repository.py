@@ -28,6 +28,17 @@ from app.core.exceptions import (
     ValidationError,
 )
 
+# SQLSTATEs the booking SQL deliberately raises to reject a request: P0001 from
+# `raise exception '...'` in create_booking, 23514 from the guard_booking_checkout trigger
+# (migrations/sql/0035_booking_checkout_safety.sql).
+_BUSINESS_ERROR_SQLSTATES = frozenset({"P0001", "23514"})
+
+
+def _is_business_error(exc: BaseException) -> bool:
+    """True when the database rejected the request on purpose, not because it failed."""
+
+    return isinstance(exc, DBAPIError) and getattr(exc.orig, "sqlstate", None) in _BUSINESS_ERROR_SQLSTATES
+
 
 def _contains_pattern(value: str | None) -> str | None:
     """Build a literal "contains" ILIKE pattern (escape char ``!``); blank input means no filter."""
@@ -1571,7 +1582,8 @@ class PlatformRepository:
         except Exception as exc:
             await self.session.rollback()
             from app.core.exceptions import AppError
-            if isinstance(exc, AppError):
+            if isinstance(exc, AppError) or not _is_business_error(exc):
+                # Outages, timeouts and unexpected errors surface as 500, never as a 409.
                 raise
             message = str(exc)
             if "pay_at_salon_daily_limit" in message:
