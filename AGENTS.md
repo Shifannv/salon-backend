@@ -1,5 +1,9 @@
 # Agent Instructions
 
+At the start of each chat and when the task changes, read
+`docs/agent-skill-routing.md` for task-relevant skill selection across the backend,
+customer app and owner app. Keep the backend-first working standard below.
+
 This repository contains the shared FastAPI backend API for the salon platform.
 
 It is backend-only. Customer, barber/owner, admin, and walk-in frontend apps should live

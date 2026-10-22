@@ -1711,6 +1711,12 @@ Services are NOT embedded. Call GET /salons/{salon_id}/services for service data
 Use `category` to filter by service category (e.g. ?category=Hair+Cutting) and `service` to search by
 service name (e.g. ?service=haircut). `search` matches name, city or address.
 
+The local category correction matches the displayed service category (owner label,
+with shared catalog fallback) and requires an active service assigned to active
+staff. The salon business-profile category does not control this filter. This also
+applies to nearby discovery. **Not yet deployed:** the live release currently matches
+only the shared category; see the deployment assessment, section 17.
+
 | Parameter | Location | Required | Type | Declared constraints/default |
 | --- | --- | --- | --- | --- |
 | `surface` | query | no | `"home" \| "search" \| "all"` or null |  |

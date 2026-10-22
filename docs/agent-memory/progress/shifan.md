@@ -8,6 +8,8 @@ Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory syst
 Latest continuation (2026-10-19): took over the payment/subscription/booking backend plan from Codex (docs only so far), shipped local WebP image variants, and cleaned the Claude tooling. Two local commits (28bf921 image + U06/U07 docs, b0957a5 .claude cleanup) are unpushed pending owner approval. Prepared migrations 0038-0040 and `alembic stamp` remain held.
 
 ## Status
+in progress (2026-10-23 app continuation): exact requested test salon approved by guarded maintenance; native customer discovery, service/staff/slots, booking request, owner confirmation, customer cancellation and owner rejection verified. Owner approval controls fixed; staff experience removed from UI/writes and custom titles verified on phone. Local category discovery correction tested but unreleased. See deployment assessment sections 16-17; broader QR/collection/completion and clean release gates remain.
+
 in progress (2026-10-23 cleanup completed): approved58 obsolete revisions removed; six saved definitions remain; production APImin0/max1 verified, gallery hotfix traffic100%, photo candidate0%. Owner confirmed Free Trial with84 days remaining. Business acceptance, migration and VM/worker continuity remain pending.
 
 in progress (2026-10-23 cost review): app completion is partial; current source still references unavailable API families. Read-only cloud inventory found64 saved revisions across2 services, APImin1/max3, continuous notification worker and runningVM. Exact58-revision prune plus APImin0/max1 proposal awaits approval; trial/credit/expiry confirmation requested. No cleanup performed.
@@ -19,6 +21,8 @@ in progress (2026-10-22): gallery response hotfix released after scoped approval
 in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shifan` is one local merge commit ahead of origin and unpushed (push needs owner approval). The 2026-10-22 audit follow-up work is uncommitted in the working tree and awaits review.
 
 ## Done
+- 2026-10-23: requested test salon approved without role changes or forged admin attribution; refreshed owner workspace. Assigned its existing service through native UI; verified customer discovery and booking lifecycle through confirmation, cancellation and rejection. No active test booking or payment receipt remains. Owner invisible approval controls corrected and device-verified. Updated installed verification app removes staff experience forms/cards/writes and shares preset/custom professional roles; custom save verified then original title restored. Category mismatch reproduced live and five local regressions failed before/passed after; full backend 1270 passed/94 skipped, Ruff clean; owner 50 component tests/targeted ESLint passed. Shared skill routing referenced by all three project AGENTS files. No cloud release, migration, deletion, billing, commit or push.
+
 - 2026-10-23: executed exact approved58-revision cleanup after fresh per-target reference checks; changed only service-level API minimum0/maximum1 without a new revision. Retained working release, all tags, candidate, rollback and staging latest. Fresh retained-set/scaling/traffic checks and health/OpenAPI GETs passed. No VM, worker, disk, image, database, billing or routing mutation.
 
 - 2026-10-23 cost review: refreshed sanitized cloud/scaling/instance metrics and production/candidate contracts; both138operations with eight checked missing client route families. Recorded app acceptance gaps and cost drivers in existing assessment section14; prepared exact58-revision prune manifest preserving tagged/current/rollback revisions. Billing enabled; budget read403; no verified trial balance/expiry or actual invoice costs. No infrastructure changes.
@@ -65,6 +69,8 @@ in progress. The public discovery/QR/booking work is merged (PR #83, #85); `shif
 - (Stale as of 2026-10-22: the public-discovery work was merged via PRs #83 and #85.) Earlier note: public discovery contract changes were uncommitted in the working tree (13 files + 2 new test files + contract doc). Nothing else active. Commits 28bf921 and b0957a5 are local only; `.claude/commands/rams.md` and `.claude/skills/learned/` are untracked on purpose. The Redis recovery work from 2026-10-16 was committed earlier.
 
 ## Next steps
+1. Review/rebuild an isolated API candidate containing the category correction in `backend/app/infrastructure/db/repositories/platform_repository.py`; current photo candidate excludes it. Follow assessment sections 16-17, preserve min0/max1, and obtain separately scoped release approval after candidate checks. Complete QR scan/check-in, collection/completion and clean mobile-release acceptance; do not claim all screens passed. Billing console requires manual account verification per user screenshot. No further cloud cleanup is authorized merely from the resource-count question.
+
 1. Finish authenticated candidate business journeys with an approved test salon and dedicated sessions; obtain separate promotion approval after acceptance. Preserve APImin0/max1 on future updates. Verify VM guest dependencies/backup and worker continuity before proposing retirement; do not stop them under the completed revision-cleanup approval.
 
 1. Wait for answers to the exact58-revision pruning/APImin0max1 proposal and Billing Overview account-type/remaining-credit/expiry question. If approved, refresh references and preserve current traffic; do not stop VM/workers or alter routing under that scope. See assessment section14 and ignored cleanup manifest.
@@ -132,6 +138,8 @@ Earlier queued work (reassess after these gates):
 - backend/tests/unit/test_database_url_scheme.py (new regression test)
 
 ## Blockers and open questions
+- 2026-10-23 continuation: category discovery corrected locally only; live Hair Cutting filter still excludes services with a displayed label backed by General taxonomy. Owner full TypeScript remains blocked by pre-existing booking.schema.test.ts expectations. Optional PostgreSQL integration suites were not enabled in the latest full run. Project legacy ctx executable unavailable; repository memory fallback recorded. Updated verification APK is not a clean store build.
+
 - 2026-10-23: owner supplied current trial status/remaining-days confirmation; independent invoice costs and budget settings remain unverified. Other persistent cost drivers and business acceptance remain outstanding.
 
 - 2026-10-23 cost review: trial versus paid account and remaining credit/expiry unknown; budget metadata access denied. No zero-cost guarantee. VM guest dependencies and background-worker continuity must be verified before retirement; load balancer still serves normal API domain.
@@ -162,6 +170,8 @@ Earlier queued work (reassess after these gates):
 - [open] low, backend/migrations/reviews/migration-inspection-2026-10-15.md:363, historical report still names backend/migrations/README.md; left as written.
 
 ## Session log
+- 2026-10-23: native owner/customer cross-app booking checks, scoped approval rendering fix and staff role/experience update verified; category mismatch reproduced and corrected locally; durable skill routing configured, deployment unchanged.
+
 - 2026-10-23: applied explicitly approved revision cleanup and service scaling; postchecks passed and report updated. No additional package installed; no commit, push, migration, traffic promotion or VM/worker shutdown.
 
 - 2026-10-23: completed read-only app/API/cost report and proposed bounded cleanup; approval and trial confirmation pending. No deletions, scaling changes, traffic promotion, migration or installation.

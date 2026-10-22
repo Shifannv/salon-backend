@@ -1056,3 +1056,174 @@ business-acceptance gates from sections13–14 still apply.
 Evidence: `backend/.artifacts/cloud-cost-cleanup-execution-20261023.json` and
 `cloud-cost-cleanup-verification-20261023.json`; the original exact approved manifest
 is retained as `cloud-cost-cleanup-plan-20261023.json`.
+
+## 16. Test salon approved; customer phone discovery verified (23 October)
+
+Scope is now the existing owner and customer apps. The super-admin interface remains
+under development and was not included in this acceptance check.
+
+The owner explicitly requested approval of the salon confirmed on the connected
+phone. A guarded trusted-maintenance update changed exactly one active, completed,
+pending salon to approved at **22 October 2026 20:11:59 UTC**. No account role was
+changed and no administrator identity was impersonated. `approved_by` remains NULL;
+the normal approval use case and its push notification were bypassed. This verifies
+the requested maintenance approval, **not** the super-admin API or UI workflow.
+Existing row audit metadata does not identify the maintenance operator.
+
+After refresh, the owner app showed the live workspace. Its existing staff member
+had no service assignment. Assigning the existing service through the owner app
+made it appear in the public services API. Other pending salons were untouched.
+
+The updated customer verification APK was installed with the normal app entry point
+and live API configuration, retaining app data. On the connected Android phone:
+
+- The salon **Mentrex** appeared in the customer salon list with its uploaded cover.
+- Its detail screen displayed **Buzz cut, INR 100, 60 minutes**, retained the category,
+  and displayed a two-slide counter without the removed description content.
+- Booking date selection loaded the assigned staff member and available times for
+  **24 October 2026**. The database availability function independently returned ten
+  slots for that date. An initial empty screen during loading was not treated as a
+  confirmed scheduling failure.
+- After the user selected the dedicated customer account and entered its contact
+  details, a **Pay at salon** booking was submitted through the customer app. The
+  database stored it as pending; the owner app received a new-booking notification
+  and displayed it under the selected appointment date.
+- Owner approval changed it to confirmed. The customer app received the confirmation
+  and displayed **Booking Approved**, still **unpaid**.
+- Customer cancellation through Manage Booking succeeded. The database confirmed
+  cancelled/unpaid, and availability returned to ten slots.
+- A replacement request exercised owner rejection. The customer app displayed
+  **Booking rejected** with the entered test reason. Final database state: one
+  cancelled and one rejected test booking, both unpaid; no test appointment remains
+  active. QR check-in, collection and service completion are not claimed.
+
+### Owner approval-control rendering fix
+
+The live phone exposed an invisible Approve control: accessibility still identified
+it and the API action worked, but its fill/layout were missing. The affected controls
+used function-valued inline styles through the installed NativeWind interop runtime.
+The scoped correction gives Approve and Decline static native styles while retaining
+disabled opacity, accessible labels and existing callbacks. No authorization or
+phone-verification rule was changed. The phone then visibly rendered the black
+Approve button and outlined red Decline button, and rejection worked through it.
+
+Changed source is in the separate owner repository:
+`src/features/bookings/screens/BookingsScreen.tsx`. Its component suite passed
+**22/22 tests**; the native bundle export, APK signing verification and installation
+succeeded. The test launcher subsequently failed while printing a Unicode checkmark
+under Windows CP1252; the saved Jest result itself reports all tests passed. The
+mechanical UI detector returned no findings. Private native before/after evidence
+is retained; source and phone checks, not the detector, establish the rendering fix.
+
+This is a verification APK assembled from compatible existing native components,
+not a clean release/store build. Neither app is yet certified fully complete.
+The photo/description API candidate still has zero normal traffic; the reviewed
+migration and production promotion have not been performed. Normal production still
+returns legacy gallery references, whereas the candidate limits its response to a
+separate cover and two slides. The new customer UI limits its displayed slides.
+
+Private local evidence: `backend/.artifacts/customer-owner-live-20261023/`, including
+`customer-salon-visible.png`, `customer-service-visible.png`,
+`customer-slots-visible.png`, `customer-booking-approved.png`,
+`customer-booking-cancelled.png`, `owner-approval-controls-fixed.png`,
+`customer-booking-rejected.png`, `owner-actions-tests.log`, `customer-live.apk` and
+`owner-corrected.apk`. Public API checks before the
+staff assignment are separately retained and must not be mistaken for the later
+successful service response.
+
+### Cloud and billing screenshots: interpretation and manual action
+
+The supplied overview lists **four resources**, not five running API instances:
+
+| Resource | Meaning and current decision |
+| --- | --- |
+| `salon-api-production` | Required live API; preserve minimum 0 / maximum 1 settings. |
+| `salon-prod-notifications` | Background notification worker; currently provisioned at one worker, so preserve until notification continuity is reviewed. |
+| `salon-api-mumbai-staging` | Separate test API; keep during current verification. |
+| `salon-production-db-check` | Diagnostic job definition; inspected executions were successful and finished, not running instances. Potential later cleanup after dependency review. |
+
+The chart covers seven days and does not establish an instantaneous instance count.
+The five retained production revisions in section 15 are saved versions. No further
+resource deletion, worker shutdown, traffic change or billing change was made in
+response to these screenshots.
+
+Billing screenshots show **Free trial**, **84 days remaining**, and an expiry of
+**15 January 2027**. Displayed credit differs slightly between the header and cards
+(approximately INR 28.1K); these screenshots are not an independently retrieved live
+balance. The displayed INR 0 total is after savings/credits and does not mean the
+resources consume no credit.
+
+**Manual action:** Billing Overview explicitly warns that an administrator must
+**Verify account** to avoid losing access. Complete that verification in the Google
+Cloud console; this is distinct from upgrading the trial. No upgrade was requested
+or performed. No additional software installation is currently required for testing.
+
+## 17. Staff simplification, category defect and skill routing (23 October)
+
+The owner requested continued verification of both apps, removal of staff experience
+entry, standard role labels and custom professional role names. The owner app now:
+
+- Omits experience from onboarding, Add/Edit Staff, expanded staff details, search
+  and staff save payloads. This request removed the UI option; no database column or
+  previously stored experience value was deleted.
+- Shares role choices between onboarding and staff management: Barber, Senior Barber,
+  Junior Barber, Stylist, Senior Stylist, Junior Stylist, Master Barber, Colorist,
+  Nail Technician, Beautician, Massage Therapist, Salon Manager and Receptionist.
+- Accepts a custom role name through the existing `specialization` API field. This
+  is a professional title and grants no account permissions. A custom test title was
+  saved through the phone, confirmed in Postgres, then restored to the original title
+  through the phone. Experience remained NULL for that test staff member.
+
+The updated verification APK is installed. The staff form visibly omits experience;
+the role picker and saved custom role were checked on the physical Android phone.
+Onboarding and booking component suites passed **50/50**, targeted ESLint passed,
+and the mechanical UI detector returned no findings. Full owner TypeScript remains
+blocked by previously recorded `src/lib/validation/booking.schema.test.ts` contract
+expectations; the current check reported no staff-change type error. These are not
+clean release builds or proof that every app screen has passed.
+
+### How customer home categories actually work
+
+Hair Cutting calls `GET /v1/salons?category=Hair%20Cutting` (alongside other active
+discovery parameters). The filter concerns the salon's service offerings. The
+business-profile category badge is a separate label.
+
+Live checking exposed a mismatch: the test service has displayed category
+**Hair Cutting**, backed by a shared **General** category/subcategory. Production
+filters only the shared category, so the salon appears under All Services but not
+Hair Cutting. This is a confirmed defect, not a phone installation problem.
+
+The local repository query now matches the same effective service category that
+public service responses display (`coalesce(category_name, shared category name)`)
+and requires an active service assignment to active staff in the same salon. Active
+shared category/subcategory checks remain. No catalog records or salon labels were
+rewritten. Five regressions failed before this correction and pass afterward,
+covering normal/nearby discovery and missing/inactive staff assignments.
+
+The full backend suite passed **1,270 tests / 94 skipped** in **48.74 seconds**;
+Ruff passed. This invocation did not enable optional PostgreSQL integration suites;
+it must not be equated with the earlier opt-in run. The category regressions execute
+the repository query through the SQLite compatibility harness. The corrected
+predicate was also checked read-only on Postgres against the test service; that is
+not a deployed FastAPI verification.
+
+**Release pending:** this category correction has not been published to Cloud Run.
+The existing zero-traffic photo candidate does not contain it. Normal traffic and
+the previously held migration remain unchanged. A fresh reviewed candidate is
+needed before release approval and a final live category/phone check.
+
+### Persistent task-based skills
+
+One shared routing guide, `docs/agent-skill-routing.md`, is referenced by the backend,
+owner and customer repositories' AGENTS.md instructions. It selects installed skills
+by the current task (API, Supabase/Postgres, native UI, app tests, booking, media,
+deployment), including later user updates. No duplicate skill/plugin installation
+or global account setting was introduced. Future chats must load those project
+instructions; this is not evidence that a fresh Codex session has already tested
+discovery. Owner legacy `ctx` is unavailable; the instructions use existing repository
+memory as the fallback instead of requiring an unrelated installation.
+
+Private evidence: `backend/.artifacts/customer-owner-live-20261023/`, including
+`owner-staff-no-experience.png`, `owner-custom-role-saved.png`, `staff-tests.log`,
+`staff-lint.log`, `staff-types.log`, `category-live-check.json` (records the failing
+old production behavior), and `category-backend-{before,after,lint}.log`.
