@@ -51,7 +51,7 @@ cancels, notifies, resolves and refunds them (next section). What still blocks:
 
 | Account | Blocker | `details` key |
 |---|---|---|
-| Customer | pending/confirmed bookings ending in the future | `open_bookings` |
+| Customer | pending, confirmed or checked-in bookings ending in the future (`checked_in` added 2026-10-22: a customer in the chair blocks deletion) | `open_bookings` |
 | Customer | their own pending booking-action requests | `pending_requests` |
 | Owner | an active/trialing/past-due subscription **and** `SUBSCRIPTION_PROVIDER != none` (challenge start **and again at confirm**, so a subscription bought in between cannot bypass it) | `active_subscriptions` |
 
@@ -310,6 +310,18 @@ it is only anonymised once erasure completes.
 identifiers. Each row now includes `attempts`, `last_error_code`, `next_attempt_at` and
 `updated_at` so a stuck request is visible without database access. Stale-request query:
 see RUNBOOK.md.
+
+**Closed-salon month-end review (2026-10-22).** For salons closed by an owner's deletion:
+
+- `GET /v1/admin/deleted-salons`: the review queue (the owner rows of the ledger above).
+- `GET /v1/admin/deleted-salons/{salon_id}/statement`: money totals per month and currency (online
+  collected, refunded, platform fees, commission reversed, manual receipts, subscription paid, and the
+  derived commission net, salon online net and platform revenue). No booking, customer or staff detail.
+  Returns 404 for any salon that an owner deletion did not close.
+
+Both need `super_admin` with `aal2`. The reviewed purge that deletes the financial rows after a
+retention period is a design only, not built: see
+[ACCOUNT_DELETION_FINANCIAL_PURGE_DESIGN.md](ACCOUNT_DELETION_FINANCIAL_PURGE_DESIGN.md).
 
 ## Deployment
 

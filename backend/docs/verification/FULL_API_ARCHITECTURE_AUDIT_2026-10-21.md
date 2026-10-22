@@ -1,11 +1,11 @@
-# Full API and architecture audit: salon-backend
+# Static API and architecture audit: salon-backend
 
 | | |
 |---|---|
-| **Date** | 2026-10-21 |
+| **Date** | 2026-10-21 (corrected 2026-10-22) |
 | **Commit** | `828d73b` (branch `shifan`) |
 | **Scope** | All 140 routes under `backend/app/api/`, plus the use cases, repositories, schemas, SQL migrations and tests behind them |
-| **Mode** | Read-only. No code, test, migration, database, infrastructure or provider was changed or contacted. |
+| **Mode** | Static and read-only. No code, test, migration, database, infrastructure or provider was changed or contacted. This is not a runtime or security certification. |
 | **Audience** | CTO and backend team |
 
 ## 1. Executive summary
@@ -21,20 +21,22 @@ The backend is in better shape than a typical early-stage API. The rules that ma
 
 Most POST routes are correct commands, not misused writes. HTTP-method problems are rare: two findings among 140 routes.
 
-**Findings:** Critical 0 · **High 4** · **Medium 17** · Low 23 · Informational 11. **No finding needs a database migration.** Every recommendation is additive, because the owner confirmed that all clients already call this API.
+**Findings:** Critical 0 · **High 4** · **Medium 17** · Low 23 · Informational 11. **No finding needs a database migration.** Every recommendation is backward compatible, because client integration status is not verified (§2).
+
+**Scope of this audit.** This is a static API and architecture audit. It inspected all 140 route declarations and traced the highest-risk code paths. It is **not** a complete runtime or security certification. The four specialist reviews stopped early, so authorization and security tracing was sampled in several areas (§2). Findings labelled **Concern** need targeted verification before action. Findings labelled **Proven** are established by reading the code path and stand as written.
 
 ### Top five risks
 
 1. **ERR-02 (High): booking creation reports outages as slot conflicts.** `except Exception` plus message-substring matching (`platform_repository.py:1571-1590`) turns connection failures, timeouts and bad data into 409 `slot_unavailable` or `conflict`. That breaks the published "real slot conflict only" guarantee and hides 5xx errors on the platform's main write path.
 2. **SEC-01 (High): the walk-in OTP rate limit can be bypassed.** The limit is keyed on the raw phone string (`walkin.py:152`), so `+919876543210` and `+91 98765 43210` get separate buckets. The limiter fails open without Redis, and the only gate is a QR token printed on the salon wall. The risk is SMS cost and harassment of third parties.
-3. **SEC-02 (High, concern): per-IP limits probably collapse behind a proxy.** uvicorn does not trust forwarded headers and `FORWARDED_ALLOW_IPS` is unset. On Cloud Run, the password-reset limit (10 per hour per IP) would become 10 per hour for **everyone**.
+3. **SEC-02 (High — deployment verification required): per-IP limits may collapse behind a proxy.** uvicorn trusts `X-Forwarded-For` only from configured trusted proxies, and none is configured. If Cloud Run presents its own proxy address, the password-reset limit (10 per hour per IP) applies to **everyone** together. This is a check for the deployment owner, not an immediate code change, and the fix must not be a blanket trust setting (§8).
 4. **TEST-01 (High): the account-erasure real-Postgres suite never runs in CI.** Only `MIGRATION_TEST_DB` is set (`backend.yml:49`). The only hard-delete path, which handles PII and refunds, can regress with a green CI. Media locking, approval and Redis-recovery suites are skipped too.
 5. **ENUM-03 / ERR-01 (Medium): bad input surfaces as server errors.** A mistyped salon `timezone`, which is free text and used in slot SQL, makes that salon's availability fail for every customer. Malformed path IDs return 500 "Please try again".
 
 ### Top five quick wins (each under half a day, no migration)
 
 1. **SEC-01 + ENUM-02:** key the OTP limiter on the normalised phone, using the profile validator that already exists (`schemas/platform.py:46-74`), and back it with the fail-closed Postgres throttle.
-2. **SEC-02:** set `FORWARDED_ALLOW_IPS` for each deployment target. This is configuration only.
+2. **SEC-02 verification on isolated staging (deployment owner):** confirm the real proxy path and trusted peer addresses before any `FORWARDED_ALLOW_IPS` change.
 3. **TEST-01:** add the missing gate variables to `backend.yml` so the erasure and other real-Postgres suites run in CI.
 4. **ERR-01 + ENUM-03:** type path IDs as `UUID` and validate `timezone` against IANA names. Both turn 500s into 422s.
 5. **DATA-01:** reuse the allow-list pattern already in `platform_repository.py:1199-1206` at the 10 other sites that build SQL column names from dictionary keys.
@@ -75,11 +77,13 @@ This was a static, read-only audit. In particular:
 - **The knowledge graph is stale.** `graphify-out/GRAPH_REPORT.md` was built from commit `54c09ff`, while `HEAD` is `828d73b`, and `graphify-out/wiki/` does not exist. No finding relies on a graph signal alone.
 - **Frontend repositories were not inspected.** "Frontend impact" columns describe the effect on a client of this API, not verified client code.
 
-### Assumption: the clients are fully wired
+### Client integration status
 
-The repository owner confirmed for this audit that **all frontend clients already call the real API**. Every recommendation is therefore **additive or versioned**: no response shape, enum tightening, path rename or method change is proposed as a breaking change. Where a method or path is semantically wrong, the recommendation is to add the correct form alongside the existing one and deprecate the old form, not to replace it.
+Client integration status differs by client and is not fully verified. Some frontend flows remain mock-first or await deployment/API wiring. Therefore all API changes must preserve backward compatibility until each client is verified against the deployed contract.
 
-This conflicts with the repository's own documents, which describe the clients as still needing wiring: `docs/FRONTEND_INTEGRATION_PROMPTS.md:13-14` ("The main work is verifying the deployed release and wiring the clients to it") and `docs/frontend-integration.md:3-8` (contract items clients "must adopt"). The owner's statement was used. If the clients are in fact not yet wired, several Phase B items become cheaper as direct changes; §14 notes which.
+Every recommendation in this report is therefore **additive or versioned**. No response shape, enum tightening, path rename or method change is proposed as a breaking change. Where a method or path is semantically wrong, the recommendation is to add the correct form alongside the existing one and deprecate the old form, not to replace it.
+
+Evidence for the mixed state: `docs/FRONTEND_INTEGRATION_PROMPTS.md:13-14` ("The main work is verifying the deployed release and wiring the clients to it") and `docs/frontend-integration.md:3-8` (contract items clients "must adopt"). This audit did not inspect the frontend repositories, so it makes no claim about which routes any client calls.
 
 ## 3. Current backend architecture overview
 
@@ -125,7 +129,23 @@ One envelope, `{"error": {"code", "message", "details"}}`, built in `backend/app
 
 ### Clients
 
-Three frontend repositories call this one API: the customer app, the owner app, and a website that holds both the public QR booking surface and the private super-admin workspace (`docs/FRONTEND_INTEGRATION_PROMPTS.md:7-9`). `CLAUDE.md` counts the website's two surfaces separately and says "four clients"; see DOC-07.
+There are exactly three frontends: the customer app, the owner app and one website (`docs/FRONTEND_INTEGRATION_PROMPTS.md:7-9`). The website runs the full customer flow and the full owner flow on the same `/v1` APIs and server-side logic as the apps, and also holds the QR booking page, the home page and the private super-admin workspace. `CLAUDE.md` counts the website's surfaces separately and says "four clients"; see DOC-07.
+
+### 3.1 Website flow coverage
+
+The website must run the same workflows and business logic as the apps. The APIs are client-agnostic, so no website-only copy of business logic is needed. The 2026-10-22 source scan ([frontend-api-usage-2026-10-22.md](frontend-api-usage-2026-10-22.md) §6) shows where the website stands today:
+
+- public discovery, QR booking and super-admin are wired;
+- the customer account is partly wired (bookings and account deletion; not profile or notifications);
+- the owner workspace calls **no** backend route yet.
+
+| Website surface | Backend support today | Notes and gaps |
+|---|---|---|
+| Home | Public discovery: `GET /v1/salons`, `/v1/catalog/*` | No auth needed |
+| Customer flow (no app needed) | Supabase sign-in; `GET /v1/salons`, `/v1/salons/{id}`, `/services`, `/staff`, `/v1/availability`; `POST /v1/bookings`; `GET /v1/bookings`, `POST /v1/bookings/{id}/cancel`; `/v1/notifications`; `/v1/profiles/me`; `/v1/account/deletion/*` | Web bookings are stored as `source = "app"` because `BookingSource` has no web value (`domain/entities/booking.py:20`). A new value needs a reviewed migration and is an owner decision, needed only if analytics must separate web from app. Web push is not verified: device registration accepts a free-text `platform` (`schemas/platform.py:726`). |
+| QR booking | `GET /v1/walkin/{qr_token}`, `POST …/verify-phone`, `POST …/bookings` | Website sign-in route is an open decision (`docs/PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md` §4). An account whose role is owner cannot complete the QR booking (`docs/FRONTEND_INTEGRATION_PROMPTS.md`). |
+| Owner workspace | `POST /v1/auth/owner-access`; `PATCH /v1/salons/me`, `POST …/complete-profile`, `GET …/setup-status`; status through `approval_status`, `rejection_reason` and notifications; after approval, every `/v1/salons/me/*` route | "Live" status means polling; there is no push feed to the website. **Gap, not built:** a multi-message super-admin to owner review thread. Today there is one `rejection_reason`, a resubmit and one decision notification (`backend/docs/SALON_APPROVAL.md`). A thread needs a new table, a reviewed migration and endpoints, and must be scoped and planned separately before any code. |
+| Super-admin | `/v1/admin/*` with `aal2` | |
 
 ## 4. API inventory summary
 
@@ -160,7 +180,7 @@ The full table is in §17. Totals: **140 routes**, of which 136 are under `/v1` 
 
 ## 5. HTTP method findings
 
-Each route was judged against the brief's standard, not against "every write must be PATCH". **Most of the 64 POST routes are correct**, and §5.2 lists them so they are not re-litigated. Only two method findings survived verification, and neither justifies a breaking change, because the clients are wired.
+Each route was judged against the brief's standard, not against "every write must be PATCH". **Most of the 64 POST routes are correct**, and §5.2 lists them so they are not re-litigated. Only two method findings survived verification, and neither justifies a breaking change, because clients may already call these routes.
 
 ### 5.1 Findings
 
@@ -168,7 +188,7 @@ Each route was judged against the brief's standard, not against "every write mus
 
 - *Evidence:* `owner.py:166` declares PUT. Its body, `OwnerPayoutAccountRequest` in `schemas/platform.py`, documents itself as *"Partial update of the owner's payout destination (merge semantics). Omitted fields keep their stored value; an explicit `null` clears the field."* Every field is optional.
 - *Why it is semantically wrong:* PUT promises that the body is the complete new representation, so an omitted field means "absent". Here an omitted field means "keep". A client or SDK that follows PUT semantics will keep stale data it intended to drop. For example, sending only the bank fields to switch an owner from UPI to bank transfer leaves the old `upi_id` on the payout record: the owner believes the UPI was removed, but the backend still holds it. This is a payout-destination record, so the impact grows when payouts go live (payout holds are approved but not built; see `docs/agent-memory/shared/roadmap.md`).
-- *Safe alternative:* add `PATCH /v1/salons/me/payout-account`, bound to the **same** handler with the same merge semantics. Keep PUT as a deprecated alias with unchanged behaviour. Do **not** convert PUT to true full replacement: wired clients that send partial bodies would then silently clear fields, which is worse than the current mismatch. Document in the owner API document that omitting a field never clears it.
+- *Safe alternative:* add `PATCH /v1/salons/me/payout-account`, bound to the **same** handler with the same merge semantics. Keep PUT as a deprecated alias with unchanged behaviour. Do **not** convert PUT to true full replacement: clients that may already send partial bodies would then silently clear fields, which is worse than the current mismatch. Document in the owner API document that omitting a field never clears it.
 
 **API-03: `POST …/deactivate` duplicates `PATCH {"is_active": false}`** (Low, Proven)
 
@@ -218,7 +238,7 @@ Routes pass `payload.model_dump(exclude_unset=True)`, so an explicit `null` sent
 
 *Why it matters:* a client "clear this field" action on any endpoint in the first row (an image caption, a staff specialization, a category description) silently does nothing and reports success. Separately, a client can blank a customer's name through the profile endpoint, which the schema intended to forbid.
 
-*Recommendation:* do not change behaviour globally. Wired clients may already send `null` meaning "no change" on the first-row endpoints. Instead:
+*Recommendation:* do not change behaviour globally. Clients may already send `null` meaning "no change" on the first-row endpoints. Instead:
 
 1. Document the current per-endpoint behaviour in the client API documents now (Phase A).
 2. Where product needs a "clear" action, adopt the per-field policy that `_service_write_values` already implements: an explicit writable set, nullable fields clearable, required fields rejected with 422.
@@ -232,7 +252,7 @@ Routes pass `payload.model_dump(exclude_unset=True)`, so an explicit `null` sent
 | `DELETE` → 200 with the deactivated resource | `/v1/salons/me/services/{id}` (`owner.py:507`), `/staff/{id}` (`owner.py:584`) |
 | `POST …/deactivate` → 200 | Admin categories, subcategories, plans and salons |
 
-All are valid HTTP. The cost is client inconsistency. Keep them (clients are wired) and state one convention for new routes: DELETE → 204 for owned objects, a POST command when there are side effects.
+All are valid HTTP. The cost is client inconsistency. Keep them (clients may already call them) and state one convention for new routes: DELETE → 204 for owned objects, a POST command when there are side effects.
 
 **API-05: three current-actor profile endpoints and two `ProfileResponse` classes** (Medium, Proven)
 
@@ -257,7 +277,7 @@ Both return `list[SalonSummaryResponse]` with almost the same filters (`customer
 - Singular and plural nouns are mixed for the same resource: `/v1/account/deletion` vs `/v1/admin/account-deletions`; `/v1/customer/profile` vs `/v1/profiles/me`.
 - OpenAPI tags mix styles (`"account deletion"`, `"salon owner"` vs `"admin"`, `"salons"`).
 
-None of these justifies renaming a wired route. Apply one naming rule to new routes (plural collections, `/me` for the actor's own resource).
+None of these justifies renaming a route that clients may call. Apply one naming rule to new routes (plural collections, `/me` for the actor's own resource).
 
 **API-11: OpenAPI does not describe some responses accurately** (Low, Proven)
 
@@ -265,6 +285,29 @@ None of these justifies renaming a wired route. Apply one naming rule to new rou
 - `GET /v1/salons/me/qr` declares `QrCodeUrlResponse` (`owner.py:240`) but returns a raw `JSONResponse` with an extra `cached` key (`owner.py:281`) or an SVG `Response` (`owner.py:271`). The OpenAPI schema therefore omits the `cached` field and the SVG media type.
 - `ReportRequest` and `ReportResponse` are defined inside `routes/reports.py:20,29` rather than under `schemas/`.
 - Routes whose use case *requires* `Idempotency-Key` still declare the header optional (ERR-04), so generated clients treat it as optional and then receive 400.
+
+### 6.1 Deprecation candidates (evidence from the three frontend repos)
+
+Decision of 2026-10-22: mark duplicates now, remove them later. The three frontend repositories were scanned on 2026-10-22; the full evidence is in [frontend-api-usage-2026-10-22.md](frontend-api-usage-2026-10-22.md). C = customer app, O = owner app, W = website.
+
+| Route | Callers | Recommendation |
+|---|---|---|
+| `GET /v1/profiles/me` | none | **Removal candidate.** No client reads it; the customer app reads `/v1/customer/profile` and every client reads `/v1/auth/me`. |
+| `GET /v1/admin/catalog/languages` | none | **Removal candidate.** No client calls it. |
+| `GET /v1/auth/me` | C, O, W | Keep: every client uses it |
+| `GET` and `PATCH /v1/customer/profile`; multipart `POST /v1/customer/profile/avatar` | C | Keep: the customer app depends on them |
+| `PATCH /v1/profiles/me`; signed `POST /v1/profiles/me/avatar-upload-url` | O | Keep: the owner app depends on them |
+| `GET /v1/salons/nearby` | C, W | Keep: both clients use it |
+| Admin `POST …/deactivate` and `PATCH` with `is_active` (categories, subcategories, plans) | W uses both | Keep both |
+| `PUT /v1/salons/me/payout-account` | O | Keep; add the `PATCH` alias (API-01) before any change |
+
+So the two profile pairs are not interchangeable duplicates today: each client uses a different pair. Converging them means first migrating one client, then removing the pair it no longer calls.
+
+**Not duplicates, keep:** `/cancel`, `/cancel/barber` and `/cancellation-requests`; `/payment`, `/payments/confirm` and `/payment-confirmation-requests`; `/payout-account` (local record) and `/settlement-account` (provider).
+
+**Removal procedure:** (1) confirm the route has no caller in the usage matrix; (2) add a deprecation note in OpenAPI and the client API documents; (3) watch server logs until the route has zero calls, because old app builds still installed on phones are not in the scan; (4) remove it in its own pull request.
+
+**Related finding from the same scan:** the clients call 9 routes that do not exist in the backend. All of them come from the unbuilt `MARKETPLACE_CONTRACT.md` design (evidence for DOC-06). The one to fix first is the customer app's `GET /v1/salons/{id}/payment-options`: it fails with 404 on every booking-confirm screen and its parser expects a different shape from the `payment_options` field the backend ships. Online payment is intentionally off in that app today, so nothing is broken for users yet. See §3 of the usage document.
 
 ## 7. Enum and validation findings
 
@@ -376,12 +419,17 @@ These were traced to the SQL and are recorded as Informational (INFO-01 to INFO-
 - *Not verified:* the Supabase project's own SMS rate limits bound the real cost; they are not visible from the repository.
 - *Recommendation:* key the limiter on the normalised phone (ENUM-02). Add a secondary per-IP and per-QR-token limit. Back the OTP limiter with the existing Postgres `api_rate_limits` throttle, which fails closed (`support_repository.py:13-25`), instead of Redis. No migration, no client change.
 
-**SEC-02: per-IP limits probably collapse to one shared bucket behind a proxy** (High, Concern)
+**SEC-02: per-IP limits may collapse to one shared bucket behind a proxy** (High — deployment verification required; Concern)
 
 - *Evidence:* the password-reset throttle keys on `request.client.host` (`auth.py:35`; 10 per hour per IP). Upload admission keys on `scope["client"][0]` (`infrastructure/media/admission.py:82-83`; 30 per minute per IP, per process). uvicorn is started without `--forwarded-allow-ips` (`Dockerfile:32`), and `FORWARDED_ALLOW_IPS` is set nowhere in the repository. uvicorn trusts `X-Forwarded-For` only from `127.0.0.1` by default.
 - *Why it matters:* behind Cloud Run (a Mumbai staging service exists) or any load balancer, the client address seen is the proxy's. All users then share one bucket: **10 password-reset requests per hour for the whole platform**, and 30 upload grants per minute per instance. One abusive client can lock everyone out of password reset. On the GCP VM with Docker's default NAT, the real client IP is probably preserved, which is why this is a concern rather than proven.
-- *How to verify:* log `request.client.host` for a few requests on staging.
-- *Recommendation:* set `FORWARDED_ALLOW_IPS` to the trusted proxy range for each deployment target, and document it in `backend/docs/DOCKER_DEPLOYMENT.md`. No code or migration change.
+- *How to verify:* on isolated staging, compare safe, redacted request metadata: the peer address uvicorn sees, and the `X-Forwarded-For` chain. Do not log full headers, tokens or user data.
+- *Recommendation (deployment owner; not an immediate code change):*
+  - uvicorn honours `X-Forwarded-For` only when the connecting peer is in the configured trusted-proxy list (`--forwarded-allow-ips` / `FORWARDED_ALLOW_IPS`).
+  - A wrong trust setting is a security risk. **Do not set it blindly, and never to `*`.** With a too-wide setting, any caller can send a forged `X-Forwarded-For` header and pick the client IP the application sees. That defeats every IP-based limit, including the password-reset and upload limits.
+  - First verify the actual Cloud Run or proxy request path and the trusted peer addresses on isolated staging (see *How to verify*). Then configure the smallest trusted proxy or network scope that covers only the real proxy.
+  - If the topology cannot give a safe trusted-peer boundary, keep application IP limiting conservative and move the abuse limit to Cloud Armor or platform-level rate limiting.
+  - Record the verified result in `backend/docs/DOCKER_DEPLOYMENT.md`.
 
 **SEC-03: OTP verification has no application-level attempt limit** (Medium, Concern)
 
@@ -409,9 +457,14 @@ One envelope is used everywhere (`core/exceptions.py:276-285`); 39 typed codes a
 
 **ERR-02: booking creation turns every failure into a 409, including outages** (High, Proven)
 
-- *Evidence:* `create_booking` wraps the whole operation in `except Exception` (`platform_repository.py:1571`) and classifies the error by **substring of the message** (`:1576-1590`). Any message containing `"slot"` or `"available"` becomes 409 `slot_unavailable`. Anything unrecognised becomes 409 `conflict`. A lost connection, a pool timeout, a statement timeout, an invalid salon timezone (ENUM-03) or a programming error is therefore reported to the client as a booking conflict. The same pattern is used for manual payment recording (`:2203`).
+- *Evidence:* `create_booking` wraps the whole operation in `except Exception` (`platform_repository.py:1571`) and classifies the error by **substring of the message** (`:1576-1590`). Any message containing `"slot"` or `"available"` becomes 409 `slot_unavailable`. Anything unrecognised becomes 409 `conflict`. A lost connection, a pool timeout, a statement timeout, an invalid salon timezone (ENUM-03) or a programming error is therefore reported to the client as a booking conflict. (Corrected 2026-10-22: manual payment recording at `:2195-2206` does **not** share this defect. It maps only the overcollection error and re-raises everything else.)
 - *Why it matters:* the published contract guarantees `slot_unavailable` is a "real slot conflict only" and tells clients to refresh availability and pick another slot (`docs/PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md` §5). During a database incident, customers are sent round that loop instead of being told to retry later. Because no 5xx is returned, the platform's most important write path produces no server-error signal in Sentry or in the timing metrics.
-- *Recommendation:* classify by SQLSTATE and constraint name, not by message text. The overlap constraint raises `exclusion_violation` (SQLSTATE `23P01`, constraint `bookings_no_overlap`); the booking functions can raise their business errors with explicit `ERRCODE` and `HINT` values. Re-raise anything unclassified, so that the global `SQLAlchemyError` handler returns 500. This changes only the responses for genuine failures; real conflicts keep their codes.
+- *Recommendation (implemented 2026-10-22, uncommitted; see below):* the booking SQL rejects a request on purpose with two error codes:
+  - `P0001`: plain `raise exception '…'` in `create_booking`, including the overlap error, which it catches and re-raises with the text "That slot was just taken" (`migrations/sql/001_supabase_schema.sql:950`, `:985-986`);
+  - `23514`: the `guard_booking_checkout` trigger from migration 0035, for `salon_not_accepting_bookings`, `pay_at_salon_temporarily_blocked` and `pay_at_salon_daily_limit` (`migrations/sql/0035_booking_checkout_safety.sql:83`, `:99`, `:104`).
+
+  The error code alone cannot tell these business errors apart, so the message mapping stays, but **only** for those two codes. Every other exception is re-raised, and the global `SQLAlchemyError` handler returns 500. Real business errors keep exactly their current codes and messages. Raising explicit, distinct `ERRCODE` values from the SQL would remove the message matching entirely, but needs a reviewed migration and can come later.
+- *Status:* fixed in the working tree, not committed. `_is_business_error` in `platform_repository.py` gates the mapping. Covered by `tests/unit/test_booking_error_classification.py`, whose cases include outages, timeouts, a unique violation, and the three 23514 trigger errors. The full suite passes (1,239 passed, 90 skipped, 0 failed). An independent review caught the 23514 case before it shipped.
 - *Tests:* the real-Postgres booking-contract suite (`tests/integration/test_booking_contract_sql.py`, which runs in CI) should assert that an overlap returns `slot_unavailable` and that a forced connection error returns 500.
 
 **ERR-01: malformed path IDs return 500 "Please try again"** (Medium, Proven by code path)
@@ -428,7 +481,7 @@ One envelope is used everywhere (`core/exceptions.py:276-285`); 39 typed codes a
   - Booking-family operations skip idempotency entirely when the header is absent: `begin_booking_operation` returns `None` (`platform_repository.py:1593-1595`). This covers booking create, QR booking create, check-in, no-show, complete, and **manual payment recording** (`POST /v1/bookings/{id}/payment`).
   - All 13 routes declare the header as optional in OpenAPI (`Header(default=None, …)`), including the ones whose use case rejects a missing key with 400.
 - *Verified non-impact:* a retried manual payment **cannot** double-count. The booking row is locked `for update`, and a second attempt hits `payment_status == 'paid'` → 409 *"Payment has already been recorded"* (`platform_repository.py:2208-2245`), behind a database overcollection guard. A retried booking creation hits the overlap constraint. The real effect is that a client retrying after a lost response gets a 409 error instead of the replayed success.
-- *Recommendation:* (a) mark the header `required` in OpenAPI on the routes whose use case already requires it. Wire behaviour is unchanged; only the documentation becomes accurate. (b) Correct `AUTHORIZATION.md` to say what the code does today. (c) Separately decide whether to require the key on booking-family routes. Enforcing it is breaking for wired clients that do not send it, so do it only after server logs show every client sends it.
+- *Recommendation:* (a) mark the header `required` in OpenAPI on the routes whose use case already requires it. Wire behaviour is unchanged; only the documentation becomes accurate. (b) Correct `AUTHORIZATION.md` to say what the code does today. (c) Separately decide whether to require the key on booking-family routes. Enforcing it is breaking for clients that may not send it, so do it only after server logs show every client sends it.
 
 **ERR-03: two error codes for "idempotency key reused"** (Low, Proven)
 
@@ -547,7 +600,7 @@ None of these is an existing decision. They are drift found while cross-checking
 | DOC-04 | Low | Two live files named `SALON_APPROVAL.md` on different subjects (`docs/` covers discovery ranking and has no H1; `backend/docs/` is the approval contract) | both files |
 | DOC-05 | Low | Verification commands disagree across four documents: `AGENTS.md` rule 49 uses `./.venv/bin/python` (fails on the Windows hosts in use); `backend/docs/SALON_APPROVAL.md` uses `./.venv/Scripts/python.exe`; `shared/gotchas.md` #14 uses `backend/.venv/Scripts/python.exe`; `backend/docs/ACCOUNT_DELETION.md` uses `./.env1/Scripts/python` (an apparent typo) | those files |
 | DOC-06 | Medium | `backend/docs/MARKETPLACE_CONTRACT.md` reads as a wire contract, but almost none of it is implemented (only `access-state` exists, `subscription_billing.py:91`). Its §3 `GET /v1/salons/{id}/payment-options` conflicts with the shipped per-response `payment_options` block (`schemas/platform.py:101-119`; `docs/PUBLIC_DISCOVERY_AND_BOOKING_CONTRACT.md` §2). A client team could implement against routes that do not exist. | file header and §3 |
-| DOC-07 | Low | `CLAUDE.md` says four clients; `docs/FRONTEND_INTEGRATION_PROMPTS.md:7-9` says three repositories (the website holds both the QR surface and super-admin) | those files |
+| DOC-07 | Low | `CLAUDE.md` says four clients; `docs/FRONTEND_INTEGRATION_PROMPTS.md:7-9` says three repositories (the website holds the customer flow, QR booking, owner workspace and super-admin) | those files |
 | DOC-08 | Low | `backend/docs/PAYMENTS.md` and `IMAGE_MEDIA.md` each declare themselves partly superseded without marking which passages still hold | file headers |
 | DOC-09 | (counted under ERR-04) | `AUTHORIZATION.md` says every money POST requires `Idempotency-Key`; the code requires it only on online-payment routes (ERR-04) | §9 |
 | DOC-10 | Low | Repository hygiene: `.gitignore` is left in an unresolved merge state (`git status` shows `UU`, with no conflict markers in the content); a stray tracked `salonsalon-backend/.codegraph/` directory sits at the repository root; this report's requested file name uses SCREAMING_SNAKE, while the other 28 reviews in this directory use `kebab-case-YYYY-MM-DD.md` | `git status`, `git ls-files` |
@@ -613,17 +666,17 @@ No test references `grant_owner_role` (`profile_repository.py:32-57`) or the rol
 
 ### 12.4 OpenAPI accuracy
 
-`tests/test_api_contract.py:8` asserts that 17 paths exist; it does not assert schemas. Known inaccuracies are listed in API-11 and ERR-04. A snapshot test of `/openapi.json` would make every contract change visible in review. That matters more now that the clients are wired and generate types from it.
+`tests/test_api_contract.py:8` asserts that 17 paths exist; it does not assert schemas. Known inaccuracies are listed in API-11 and ERR-04. A snapshot test of `/openapi.json` would make every contract change visible in review. That matters because the client API documents tell clients to treat `/openapi.json` as the type source.
 
 ## 13. Findings table
 
-Effort: **S** is under half a day, **M** is one to three days, **L** is more than three days. Status gives the evidence label (Proven or Concern) and the recommendation class. "Frontend impact" assumes the clients are already wired.
+Effort: **S** is under half a day, **M** is one to three days, **L** is more than three days. Status gives the evidence label (Proven or Concern) and the recommendation class. "Frontend impact" assumes a client may already call the route.
 
 | ID | Severity | Area | File/route | Finding | Why it matters | Recommendation | Migration needed | Frontend impact | Effort | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
 | SEC-01 | High | Security / rate limit | `POST /v1/walkin/{qr_token}/verify-phone`; `walkin.py:150-154`; `schemas/walkin.py:69` | OTP send limit keyed on the raw phone string; spelling variants bypass it; Redis limiter fails open; no per-IP or per-QR limit | SMS cost and harassment via a public, printed QR token | Key on the normalised phone; add per-IP and per-QR limits; use the fail-closed Postgres throttle | No | None | S | Proven · Fix before production |
-| SEC-02 | High | Security / rate limit | `auth.py:35`; `media/admission.py:82-83`; `Dockerfile:32` | Per-IP limits use the peer address; uvicorn does not trust forwarded headers; `FORWARDED_ALLOW_IPS` unset | Behind a proxy, one shared bucket: 10 password resets per hour platform-wide | Set `FORWARDED_ALLOW_IPS` per deployment target; verify on staging | No | None | S | Concern · Fix before production |
-| ERR-02 | High | Errors / reliability | `POST /v1/bookings`; `platform_repository.py:1571-1590`, `:2203` | `except Exception` plus message-substring matching turns outages, timeouts and bad data into 409 `slot_unavailable`/`conflict` | Breaks the published "real slot conflict only" guarantee; hides 5xx on the main write path | Classify by SQLSTATE and constraint name; re-raise unknown errors | No | Clients see 500 instead of 409 during real failures | M | Proven · Fix before production |
+| SEC-02 | High | Security / rate limit | `auth.py:35`; `media/admission.py:82-83`; `Dockerfile:32` | Per-IP limits use the peer address; uvicorn does not trust forwarded headers; `FORWARDED_ALLOW_IPS` unset | Behind a proxy, one shared bucket: 10 password resets per hour platform-wide | Deployment owner verifies the proxy path and trusted peers on isolated staging, then trusts only the smallest real proxy scope (never `*`); otherwise use Cloud Armor or platform rate limiting | No | None | S | Concern · Deployment verification required (deployment owner) |
+| ERR-02 | High | Errors / reliability | `POST /v1/bookings`; `platform_repository.py:1571-1590` | `except Exception` plus message-substring matching turns outages, timeouts and bad data into 409 `slot_unavailable`/`conflict` | Breaks the published "real slot conflict only" guarantee; hides 5xx on the main write path | Map messages only for business error codes `P0001` and `23514`; re-raise everything else | No | Clients see 500 instead of 409 during real failures | M | Proven · Fixed in working tree (uncommitted) |
 | TEST-01 | High | Tests / CI | `.github/workflows/backend.yml:35-49` | CI sets only `MIGRATION_TEST_DB`; erasure, media-locking, approval, website, service-presentation and Redis-recovery suites never run | PII-erasure SQL regressions can merge with a green CI | Set the other gate variables against the CI service, or record why not | No | None | S | Proven · Fix before production |
 | SEC-03 | Medium | Security | `walkin.py:157-163` | OTP verification has no app-level attempt limit | Brute-force resistance depends on unverified Supabase settings | Per-phone attempt limit on the normalised phone | No | None | S | Concern · Fix before production |
 | API-01 | Medium | HTTP method | `PUT /v1/salons/me/payout-account`; `owner.py:166` | PUT with documented merge (PATCH) semantics | A PUT-following client keeps a payout destination it meant to remove | Add PATCH alias on the same handler; deprecate PUT; never switch PUT to replacement | No | Optional switch to PATCH | S | Proven · Fix before production |
@@ -662,7 +715,7 @@ Effort: **S** is under half a day, **M** is one to three days, **L** is more tha
 | DOC-02 | Low | Docs | `verification/cloud-run-startup-profile-2026-10-20.md:3` | Broken link | Unverifiable reference | Fix or remove the link | No | None | S | Proven · Safe post-launch improvement |
 | DOC-04 | Low | Docs | `docs/SALON_APPROVAL.md`, `backend/docs/SALON_APPROVAL.md` | Same name, different subjects | Confusion | Rename the `docs/` file to match its subject | No | None | S | Proven · Safe post-launch improvement |
 | DOC-05 | Low | Docs | `AGENTS.md` rule 49 and three other documents | Verification commands disagree; one typo | Copy-paste failures on Windows | One per-OS command block | No | None | S | Proven · Safe post-launch improvement |
-| DOC-07 | Low | Docs | `CLAUDE.md`; `FRONTEND_INTEGRATION_PROMPTS.md:7-9` | Four clients vs three repositories | Minor confusion | Say "three repositories, four surfaces" | No | None | S | Proven · Safe post-launch improvement |
+| DOC-07 | Low | Docs | `CLAUDE.md`; `FRONTEND_INTEGRATION_PROMPTS.md:7-9` | Four clients vs three repositories | Minor confusion | Say "three repositories; the website has five surfaces" | No | None | S | Proven · Safe post-launch improvement |
 | DOC-08 | Low | Docs | `backend/docs/PAYMENTS.md`, `IMAGE_MEDIA.md` | Partly superseded without inline markers | Readers follow outdated passages | Mark superseded passages inline | No | None | S | Proven · Safe post-launch improvement |
 | DOC-10 | Low | Hygiene | `.gitignore`; `salonsalon-backend/`; this file name | Unresolved merge state; stray tracked directory; naming convention | Hygiene | `git add .gitignore` after review; remove the stray directory | No | None | S | Proven · Safe post-launch improvement |
 | INFO-01 | Informational | Authorization | Owner by-ID operations (§8.1) | Salon-scoped writes; 404 for other tenants | Confirmed correct | None | No | None | – | Do not change / already correct |
@@ -683,9 +736,25 @@ Effort: **S** is under half a day, **M** is one to three days, **L** is more tha
 
 **No item needs a database migration.** Every Phase A and Phase B item is application code, configuration, CI or documentation, so each can be rolled back by reverting its pull request. Following `AGENTS.md` rule 47, each item below should be its own branch and pull request.
 
+### 14.0 First implementation priority plan (not implemented)
+
+Ordered by risk. Nothing here has been started. Each item is its own branch and pull request.
+
+| # | Item | Responsibility | Migration | Frontend compatibility | Required tests | Rollback |
+|---|---|---|---|---|---|---|
+| 1 | **ERR-02 (done in working tree, uncommitted):** booking errors must not turn outages into 409 `slot_unavailable`. Apply the message mapping only to business error codes `P0001` and `23514`; re-raise everything else | Code | No. Explicit `ERRCODE` values in the SQL functions would be a later migration. | Real conflicts keep their codes; only genuine failures change from 409 to 500 | Real-PostgreSQL booking-contract suite (runs in CI): overlap gives `slot_unavailable`; an injected database failure gives 500 | Revert the pull request |
+| 2 | **SEC-01 / SEC-03:** normalised-phone OTP send throttle on the fail-closed Postgres limiter; verification-attempt limit per phone; secondary per-IP and per-QR limits | Code | No | Same inputs accepted (normalised, not rejected); only abusive volume gets 429 | Unit and HTTP tests: phone spellings share one bucket; verify attempts are capped; throttle holds with Redis down | Revert the pull request |
+| 3 | **TEST-01:** real-PostgreSQL account-erasure suite (and the other skipped suites) in CI | Code for the CI file; backend owner confirms each suite isolates its own database | No | None | The suites themselves, running in CI | Remove the added environment variables |
+| 4 | **ERR-01 / ENUM-03:** `UUID` path parameters; IANA timezone validation | Code. Deployment owner runs the read-only `pg_timezone_names` pre-check on each database before release | No | Valid input unchanged; malformed IDs move from 500 to 422; invalid timezones get 422 | One malformed-ID test per router; invalid-timezone test | Revert the pull request |
+| 5 | **DATA-01:** explicit writable-column allow-lists at the 10 sites, reusing `_service_write_values` (`platform_repository.py:1199-1206`); widen the guard test to all repositories | Code | No | Identical for every current schema field; unknown keys give 422 | Unknown key raises `ValidationError`; guard test covers all repositories | Revert the pull request |
+
+SEC-02 is a separate deployment-owner check and is not part of this code sequence.
+
+**Progress on 2026-10-22 (working tree, uncommitted):** task 1 (ERR-02) is implemented and reviewed. Beyond the plan, two account-deletion changes were made: the `checked_in` customer blocker, and the closed-salon month-end statement endpoints. The financial purge after review is a design only ([ACCOUNT_DELETION_FINANCIAL_PURGE_DESIGN.md](../ACCOUNT_DELETION_FINANCIAL_PURGE_DESIGN.md)). **The new real-PostgreSQL tests for the statement have not been run:** they are skipped locally, and CI does not set `ACCOUNT_DELETION_TEST_DB` (finding TEST-01), so no pipeline runs them yet. Fixing TEST-01 is therefore a prerequisite for trusting this SQL.
+
 ### Phase A: must fix before frontend uses real APIs
 
-The owner confirmed that the clients are already wired, so this phase is reinterpreted as **contract-accuracy fixes the wired clients need now**. Each one is documentation or OpenAPI only, with no behaviour change. (If the clients are in fact not yet wired, ERR-01, ENUM-01 and API-01 from Phase B could also move here as direct changes instead of additive ones.)
+Client integration status is mixed and unverified (§2), so this phase is limited to **contract-accuracy fixes that are safe whichever clients already call the API**. Each one is documentation or OpenAPI only, with no behaviour change.
 
 | Item | Affected routes and files | Migration | Backward compatibility | Tests | Rollback |
 |---|---|---|---|---|---|
@@ -700,8 +769,8 @@ The owner confirmed that the clients are already wired, so this phase is reinter
 | Item | Affected routes and files | Migration | Backward compatibility | Tests | Rollback |
 |---|---|---|---|---|---|
 | **SEC-01, SEC-03, ENUM-02** OTP limits on the normalised phone | `routes/walkin.py:134-165`; `schemas/walkin.py:69-70`; `schemas/platform.py:46-74,476` (extract a shared normaliser); `support_repository.py` (throttle) | No | Same inputs accepted (normalised, not rejected); only abusive volume sees 429 | Spelling variants share one bucket; verify branch limited; limiter works with Redis down | Revert; the old limiter returns |
-| **SEC-02** Trust the proxy's forwarded headers | `Dockerfile:32` or the deployment environment (`FORWARDED_ALLOW_IPS`); `backend/docs/DOCKER_DEPLOYMENT.md` | No | Clients unaffected | On staging, log `request.client.host` before and after; must show real client IPs | Unset the variable |
-| **ERR-02** Classify booking errors by SQLSTATE | `platform_repository.py:1571-1590`, `:2195-2206`; optionally the booking SQL functions raise explicit `ERRCODE` values (that part **would** need a migration, so ship the application-only classification first) | No for the first step | Real conflicts keep `slot_unavailable` and the other codes; only genuine failures change from 409 to 500 | `integration/test_booking_contract_sql.py` (in CI): overlap → `slot_unavailable`; injected connection error → 500 | Revert |
+| **SEC-02** Verify the proxy path before trusting forwarded headers (**deployment owner**) | Deployment environment (`FORWARDED_ALLOW_IPS`) only if verified safe; `backend/docs/DOCKER_DEPLOYMENT.md` | No | Clients unaffected | On isolated staging, compare redacted peer address and `X-Forwarded-For`; confirm a forged header from outside the trusted scope is ignored | Unset the variable |
+| **ERR-02** Map messages only for business error codes `P0001` and `23514`; re-raise the rest (done in working tree, uncommitted) | `platform_repository.py:1571-1590`; optionally the booking SQL functions raise explicit `ERRCODE` values (that part **would** need a migration, so ship the application-only classification first) | No for the first step | Real conflicts keep `slot_unavailable` and the other codes; only genuine failures change from 409 to 500 | `integration/test_booking_contract_sql.py` (in CI): overlap → `slot_unavailable`; injected connection error → 500 | Revert |
 | **TEST-01** Run the skipped real-Postgres suites in CI | `.github/workflows/backend.yml:46-49` | No | Not applicable | The suites themselves | Remove the variables |
 | **ERR-01** `UUID` path parameters | `routes/owner.py`, `bookings.py`, `payments.py`, `booking_actions.py`, `notifications.py`, `admin.py:181,202` | No | Valid IDs unchanged; malformed IDs return 422 instead of 500 | One malformed-ID test per router | Revert |
 | **ENUM-03** IANA timezone validation | `schemas/platform.py:247`; `schemas/admin.py:22,95` | No (optional `CHECK` later) | Before deploying, run `select id, timezone from salons where timezone not in (select name from pg_timezone_names)` and fix any rows; valid values unaffected | Invalid zone → 422 | Revert |
@@ -742,8 +811,8 @@ Each of these looks like a defect at first reading. Each was traced and found **
 
 ### 15.2 Do not change, even though it is imperfect
 
-- **No breaking renames or method changes on wired routes.** That covers API-03, API-04, API-06, API-07 and API-08, `POST /notifications/{id}/read`, and the 200 on `POST /v1/salons/me/staff/{id}/services`. Add, document and deprecate; never replace in place.
-- **Do not convert `PUT /payout-account` to full replacement** (API-01). It would silently clear fields for wired clients.
+- **No breaking renames or method changes on routes that clients may call.** That covers API-03, API-04, API-06, API-07 and API-08, `POST /notifications/{id}/read`, and the 200 on `POST /v1/salons/me/staff/{id}/services`. Add, document and deprecate; never replace in place.
+- **Do not convert `PUT /payout-account` to full replacement** (API-01). It would silently clear fields for clients that may already use it.
 - **Do not change null handling globally** (API-02). Some clients may send `null` meaning "no change".
 - **Do not require `Idempotency-Key` on booking-family routes** until server logs show every client sends it (ERR-04).
 - **Do not unify the two idempotency-reuse error codes** (ERR-03). Both are published.
@@ -780,6 +849,8 @@ These were checked **before** findings were written. None is raised as a new fin
 | Cold start of about 8–10 s on Cloud Run; `/health/db` latency | Measured and closed | `verification/cloud-run-startup-profile-2026-10-20.md`; `verification/latency-investigation.md` |
 | `access-state` is a thin stub | Documented | `docs/Salon-Owner-App-Backend-API-Document.md` |
 | "Any staff" availability not implemented | Documented boundary | `docs/Salon-Owner-App-Backend-API-Document.md` |
+| Multi-message super-admin to owner review thread ("changes requested") | Requested 2026-10-22, not built; needs scoping, a reviewed migration and endpoints | This report, §3.1 |
+| Website runs the full customer and owner flows on the same APIs as the apps | Requested 2026-10-22; no website-only business logic | This report, §3.1 |
 
 The full decision ledger, with owner approvals U01–U07 and about 80 statused items (Q, P, L, RP, MH, RC and TA), is `backend/docs/migrations/payment-subscription-booking-designs/APPROVAL_REGISTER.md`.
 

@@ -9,4 +9,4 @@ Auth and profiles, customer discovery and nearby search, owner workspace (servic
 Online payments (Cashfree and Razorpay adapters) until `PAYMENT_PROVIDER` and credentials are set. The account-deletion refund path until a provider exists.
 
 ## Not built
-Cancellation penalty/no-show payout, reschedule limit and payout-hold services (rules approved, see domain-rules.md; no migrations or code yet), subscription payments and checkout, analytics and admin activity history, the public web account-deletion page (lives in the website repo), per-salon provider credentials, automatic booking release on payment failure.
+Cancellation penalty/no-show payout, reschedule limit and payout-hold services (rules approved, see domain-rules.md; no migrations or code yet), subscription payments and checkout, analytics and admin activity history, the public web account-deletion page (lives in the website repo), per-salon provider credentials, automatic booking release on payment failure, the reviewed financial purge of closed salons and the super-admin to owner review thread (designs: backend/docs/ACCOUNT_DELETION_FINANCIAL_PURGE_DESIGN.md, .plans/salon-review-thread-spec.md).

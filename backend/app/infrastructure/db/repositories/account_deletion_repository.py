@@ -10,6 +10,7 @@ from app.application.ports.account_deletion_repository import AccountDeletionRep
 from app.core.exceptions import DeletionBlockedError, InvalidVerificationCodeError, NotFoundError
 from app.core.tokens import digests_match
 from app.infrastructure.db.json_utils import decode_json
+from app.infrastructure.db.repositories.payment_repository import _SETTLED
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )
@@ -77,7 +78,8 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             bookings = """
                 select count(*) from bookings b
                 where b.customer_id = :uid
-                  and b.status in ('pending', 'confirmed') and b.end_datetime > now()"""
+                  and ((b.status in ('pending', 'confirmed') and b.end_datetime > now())
+                       or b.status = 'checked_in')"""
             requests = """
                 select count(*) from booking_action_requests r
                 where r.requested_by = :uid and r.status = 'pending'"""
@@ -417,6 +419,101 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
                 order by requested_at desc limit :limit offset :offset
             """),
             {"limit": limit, "offset": offset},
+        )
+        return [dict(r) for r in result.mappings().all()]
+
+    async def list_closed_salons(self, limit: int, offset: int) -> list[dict[str, Any]]:
+        result = await self.session.execute(
+            text("""
+                select id, role, salon_id, salon_name, salon_city, status,
+                       requested_at, completed_at, attempts, last_error_code,
+                       next_attempt_at, updated_at
+                from account_deletion_requests
+                where role = 'owner' and salon_id is not null
+                order by requested_at desc limit :limit offset :offset
+            """),
+            {"limit": limit, "offset": offset},
+        )
+        return [dict(r) for r in result.mappings().all()]
+
+    async def closed_salon_monthly_statement(self, salon_id: str) -> list[dict[str, Any]] | None:
+        # Closed = named in an owner deletion request, or already an erased shell (this also
+        # covers every salon of an owner who had more than one; the ledger names only the first).
+        closed = (await self.session.execute(
+            text("""
+                select 1 from account_deletion_requests
+                where role = 'owner' and salon_id = cast(:s as uuid)
+                union all
+                select 1 from salons
+                where id = cast(:s as uuid) and owner_id is null and not is_active and name = :shell
+                limit 1
+            """),
+            {"s": salon_id, "shell": SHELL_SALON_NAME},
+        )).first()
+        if closed is None:
+            return None
+        # Months follow the platform's business calendar (Asia/Kolkata), as the booking
+        # trigger does for booking_calendar_date. Formulas mirror PaymentRepository.earnings.
+        result = await self.session.execute(
+            text(f"""
+                with pay as (
+                  select date_trunc('month', coalesce(p.captured_at, p.created_at)
+                                    at time zone 'Asia/Kolkata')::date as month,
+                         p.currency,
+                         coalesce(sum(p.amount - p.overcollected_amount) filter (
+                           where p.channel = 'gateway' and p.status in {_SETTLED}), 0) as online_collected,
+                         coalesce(sum(p.platform_commission_amount) filter (
+                           where p.channel = 'gateway' and p.status in {_SETTLED}), 0) as platform_fees,
+                         coalesce(sum(p.overcollected_amount) filter (
+                           where p.channel = 'gateway' and p.status in {_SETTLED}), 0) as overcollected,
+                         coalesce(sum(p.amount) filter (where p.channel = 'manual'), 0) as manual_recorded,
+                         count(*) filter (
+                           where p.channel = 'gateway' and p.status in {_SETTLED}) as online_count,
+                         count(*) filter (where p.channel = 'manual') as manual_count
+                  from booking_payments p
+                  where p.salon_id = cast(:s as uuid)
+                    and (p.channel = 'manual' or p.status in {_SETTLED})
+                  group by 1, 2
+                ), ref as (
+                  select date_trunc('month', coalesce(r.processed_at, r.created_at) at time zone 'Asia/Kolkata')::date as month,
+                         p.currency,
+                         coalesce(sum(r.amount) filter (where not r.applies_to_excess), 0) as online_refunded,
+                         coalesce(sum(r.commission_reversal_amount), 0) as commission_reversed
+                  from payment_refunds r join booking_payments p on p.id = r.payment_id
+                  where p.salon_id = cast(:s as uuid) and r.status = 'processed'
+                  group by 1, 2
+                ), sub as (
+                  select date_trunc('month', b.paid_at at time zone 'Asia/Kolkata')::date as month,
+                         b.currency::text as currency,
+                         coalesce(sum(b.amount), 0) as subscription_paid,
+                         coalesce(sum(b.refunded_amount), 0) as subscription_refunded
+                  from subscription_billing_records b
+                  where b.salon_id = cast(:s as uuid) and b.paid_at is not null
+                    and b.status in ('paid', 'refunded', 'partially_refunded')
+                  group by 1, 2
+                ), keys as (
+                  select month, currency from pay
+                  union select month, currency from ref
+                  union select month, currency from sub
+                )
+                select k.month, k.currency,
+                       coalesce(pay.online_collected, 0) as online_collected,
+                       coalesce(pay.platform_fees, 0) as platform_fees,
+                       coalesce(pay.overcollected, 0) as overcollected,
+                       coalesce(pay.manual_recorded, 0) as manual_recorded,
+                       coalesce(pay.online_count, 0) as online_count,
+                       coalesce(pay.manual_count, 0) as manual_count,
+                       coalesce(ref.online_refunded, 0) as online_refunded,
+                       coalesce(ref.commission_reversed, 0) as commission_reversed,
+                       coalesce(sub.subscription_paid, 0) as subscription_paid,
+                       coalesce(sub.subscription_refunded, 0) as subscription_refunded
+                from keys k
+                left join pay on pay.month = k.month and pay.currency = k.currency
+                left join ref on ref.month = k.month and ref.currency = k.currency
+                left join sub on sub.month = k.month and sub.currency = k.currency
+                order by k.month, k.currency
+            """),
+            {"s": salon_id},
         )
         return [dict(r) for r in result.mappings().all()]
 

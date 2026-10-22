@@ -16,6 +16,7 @@ from app.api.v1.schemas.account_deletion import (
     AccountDeletionAcceptedResponse,
     AccountDeletionStatusResponse,
     AdminAccountDeletionResponse,
+    ClosedSalonStatementResponse,
     ConfirmAccountDeletionRequest,
     DeletionChallengeResponse,
     StartDeletionChallengeRequest,
@@ -153,3 +154,40 @@ async def list_account_deletions(
 ) -> list[AdminAccountDeletionResponse]:
     rows = await _use_cases(session, auth_gateway, auth_admin).list_requests(actor, limit, offset)
     return [AdminAccountDeletionResponse(**row) for row in rows]
+
+
+@admin_router.get(
+    "/deleted-salons",
+    response_model=list[AdminAccountDeletionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Salons closed by their owner's account deletion (month-end review queue)",
+)
+async def list_closed_salons(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_gateway: AuthGateway = Depends(get_auth_gateway),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+) -> list[AdminAccountDeletionResponse]:
+    rows = await _use_cases(session, auth_gateway, auth_admin).list_closed_salons(actor, limit, offset)
+    return [AdminAccountDeletionResponse(**row) for row in rows]
+
+
+@admin_router.get(
+    "/deleted-salons/{salon_id}/statement",
+    response_model=ClosedSalonStatementResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Month-end money totals of a closed salon (no personal or booking detail)",
+)
+async def closed_salon_statement(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_gateway: AuthGateway = Depends(get_auth_gateway),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+) -> ClosedSalonStatementResponse:
+    statement = await _use_cases(session, auth_gateway, auth_admin).closed_salon_statement(
+        actor, str(salon_id)
+    )
+    return ClosedSalonStatementResponse(**statement)
