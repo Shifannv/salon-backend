@@ -1,7 +1,9 @@
 """Regression coverage for QR, provider uploads, avatars and reports."""
 
+from datetime import datetime, timezone
 from io import BytesIO
 from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import pytest
 from fastapi import FastAPI
@@ -29,6 +31,36 @@ def client_for(router, prefix="/v1"):
     app.dependency_overrides[get_current_actor] = lambda: make_owner()
     app.dependency_overrides[get_authenticated_session] = lambda: Mock()
     return TestClient(app)
+
+
+@pytest.mark.parametrize("operation", ["list", "create", "update"])
+def test_owner_gallery_serializes_database_uuid_ids(monkeypatch, operation):
+    """A successful gallery write must not fail while rendering its database row."""
+    image_id = UUID("11111111-1111-4111-8111-111111111111")
+    salon_id = UUID("22222222-2222-4222-8222-222222222222")
+    row = {
+        "id": image_id, "salon_id": salon_id,
+        "url": "https://cdn.example.test/gallery.webp", "caption": None,
+        "is_main": False, "sort_order": 0,
+        "created_at": datetime(2026, 10, 22, tzinfo=timezone.utc),
+        "updated_at": datetime(2026, 10, 22, tzinfo=timezone.utc),
+    }
+    uc = AsyncMock()
+    uc.list_images.return_value = [row]
+    uc.create_image.return_value = row
+    uc.update_image.return_value = row
+    monkeypatch.setattr(owner, "_use_cases", lambda *args, **kwargs: uc)
+    client = client_for(owner.router, "/v1/salons")
+    if operation == "list":
+        response = client.get("/v1/salons/me/images")
+    elif operation == "create":
+        response = client.post("/v1/salons/me/images", json={"url": row["url"]})
+    else:
+        response = client.patch(f"/v1/salons/me/images/{image_id}", json={"caption": "Gallery"})
+    assert response.status_code == (201 if operation == "create" else 200)
+    data = response.json()[0] if operation == "list" else response.json()
+    assert data["id"] == str(image_id)
+    assert data["salon_id"] == str(salon_id)
 
 
 async def test_avatar_upload_persists_only_actor_profile():

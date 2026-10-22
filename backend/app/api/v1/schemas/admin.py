@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt, field_validator
 
-from app.api.v1.schemas.platform import SalonImageResponse, ServiceResponse, StaffResponse
+from app.api.v1.schemas.platform import SalonPhotos, ServiceResponse, StaffResponse
 
 # ── Admin salon schemas ───────────────────────────────────────────────────────
 
@@ -34,7 +34,6 @@ class AdminSalonResponse(BaseModel):
     owner_phone_verified: bool | None = None
     owner_is_active: bool | None = None
     name: str
-    description: str | None = None
     category: str | None = None
     address: str | None = None
     city: str | None = None
@@ -75,7 +74,7 @@ class AdminApproveSalonRequest(BaseModel):
 class AdminSalonOnboardingResponse(AdminSalonResponse):
     """Full salon submission, accessible only to super admins."""
 
-    images: list[SalonImageResponse] = Field(default_factory=list)
+    images: SalonPhotos = Field(default_factory=list)
     services: list[ServiceResponse] = Field(default_factory=list)
     staff: list[StaffResponse] = Field(default_factory=list)
 

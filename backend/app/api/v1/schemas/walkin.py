@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from app.api.v1.schemas.platform import CustomerAvailabilityResponse
+from app.api.v1.schemas.platform import CustomerAvailabilityResponse, SalonPhotos
 
 
 class WalkInStaffSummary(BaseModel):
@@ -24,7 +24,6 @@ class WalkInServiceSummary(BaseModel):
     salon_id: str
     subcategory_id: str
     name: str
-    description: str | None = None
     duration_minutes: int
     price: Decimal
     is_active: bool
@@ -46,10 +45,10 @@ class WalkInSalonResponse(CustomerAvailabilityResponse):
 
     id: str
     name: str
-    description: str | None = None
     city: str | None = None
     address: str | None = None      # for the mini-header location line
     image_url: str | None = None    # for the optional hero thumbnail
+    images: SalonPhotos = Field(default_factory=list)
     qr_token: str | None = None     # echoes the route's own token; no other public response carries one
     timezone: str
     approval_mode: str

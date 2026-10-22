@@ -7,10 +7,12 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any, ClassVar, Literal
 from urllib.parse import unquote, urlsplit
+from uuid import UUID
 
 from pydantic import (
     AwareDatetime,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     HttpUrl,
@@ -21,6 +23,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.application.salon_photos import visible_salon_photos
 from app.core.config import settings
 from app.domain.entities.payment import derive_payment_state
 
@@ -131,7 +134,6 @@ class SalonSummaryResponse(CustomerAvailabilityResponse):
 
     id: str
     name: str
-    description: str | None = None
     category: str | None = None
     address: str | None = None
     city: str | None = None
@@ -160,6 +162,24 @@ class SalonImageResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("id", "salon_id", mode="before")
+    @classmethod
+    def _coerce_uuid_to_str(cls, value: Any) -> Any:
+        """asyncpg returns UUID identifiers; the HTTP contract uses strings."""
+        return str(value) if isinstance(value, UUID) else value
+
+
+def _visible_photos(value: Any) -> Any:
+    if not isinstance(value, list):
+        return value
+    return visible_salon_photos([image.model_dump() if isinstance(image, BaseModel) else image for image in value])
+
+
+SalonPhotos = Annotated[
+    list[SalonImageResponse], BeforeValidator(_visible_photos),
+    Field(max_length=3, description="One separate cover (is_main=true) and at most two distinct gallery slides."),
+]
+
 
 class ServiceResponse(BaseModel):
     """Service response."""
@@ -168,7 +188,6 @@ class ServiceResponse(BaseModel):
     salon_id: str
     subcategory_id: str
     name: str
-    description: str | None = None
     duration_minutes: int
     price: Decimal
     is_active: bool
@@ -190,7 +209,6 @@ class SalonDetailResponse(CustomerAvailabilityResponse):
 
     id: str
     name: str
-    description: str | None = None
     category: str | None = None
     address: str | None = None
     city: str | None = None
@@ -202,7 +220,7 @@ class SalonDetailResponse(CustomerAvailabilityResponse):
     accepting_bookings: bool = True
     profile_completed: bool
     is_active: bool
-    images: list[SalonImageResponse] = Field(default_factory=list)
+    images: SalonPhotos = Field(default_factory=list)
 
 
 class OwnerSalonResponse(BaseModel):
@@ -211,7 +229,6 @@ class OwnerSalonResponse(BaseModel):
     id: str
     owner_id: str
     name: str
-    description: str | None = None
     category: str | None = None
     address: str | None = None
     city: str | None = None
@@ -229,7 +246,7 @@ class OwnerSalonResponse(BaseModel):
     approved_by: str | None = None
     rejection_reason: str | None = None
     is_active: bool
-    images: list[SalonImageResponse] = Field(default_factory=list)
+    images: SalonPhotos = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -237,8 +254,9 @@ class OwnerSalonResponse(BaseModel):
 class OwnerSalonUpdateRequest(BaseModel):
     """Owner salon update request."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = None
-    description: str | None = None
     category: str | None = None
     address: str | None = None
     city: str | None = None
@@ -350,7 +368,6 @@ class ServiceCreateRequest(ServicePresentationRequest):
 
     subcategory_id: str | None = None
     name: str
-    description: str | None = None
     duration_minutes: int = Field(gt=0)
     price: Decimal = Field(ge=0)
     is_active: bool = True
@@ -361,7 +378,6 @@ class ServiceUpdateRequest(ServicePresentationRequest):
 
     subcategory_id: str | None = None
     name: str | None = None
-    description: str | None = None
     duration_minutes: int | None = Field(default=None, gt=0)
     price: Decimal | None = Field(default=None, ge=0)
     is_active: bool | None = None

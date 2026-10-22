@@ -27,4 +27,5 @@ Backend-specific references:
 - [Payout accounts](../backend/docs/PAYOUT_ACCOUNTS.md)
 - [Runbook](../backend/docs/RUNBOOK.md)
 - [Docker deployment](../backend/docs/DOCKER_DEPLOYMENT.md)
+- [Live Cloud Run assessment, VM retirement and billing approval gates (22 October 2026)](../backend/docs/verification/CLOUD_RUN_DEPLOYMENT_ASSESSMENT_2026-10-22.md)
 - [GitHub Actions CI/CD](../backend/docs/CI_CD.md)
