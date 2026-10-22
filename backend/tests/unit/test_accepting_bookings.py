@@ -36,6 +36,7 @@ from app.domain.entities.profile import Role
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.main import app
 from tests.conftest import make_mock_repo, make_owner, make_profile
+from tests.unit.db_errors import business_error
 from tests.unit.test_cache_integration import InMemoryCache
 
 MIGRATION = (
@@ -218,7 +219,7 @@ def test_walkin_qr_booking_returns_same_409(client):
 @pytest.mark.asyncio
 async def test_repository_maps_db_error_to_distinct_error_before_generic_slot_match():
     session = AsyncMock()
-    session.execute.side_effect = Exception("salon_not_accepting_bookings")
+    session.execute.side_effect = business_error("salon_not_accepting_bookings", sqlstate="23514")
     values = {
         "salon_id": SALON_ID, "staff_id": "s", "service_ids": [], "start_datetime": None,
         "customer_name": "A", "customer_phone": None, "source": "manual_walkin", "notes": None,
@@ -233,7 +234,7 @@ async def test_repository_maps_db_error_to_distinct_error_before_generic_slot_ma
 @pytest.mark.asyncio
 async def test_repository_still_maps_slot_errors_as_before():
     session = AsyncMock()
-    session.execute.side_effect = Exception("Selected slot is no longer available")
+    session.execute.side_effect = business_error("Selected slot is no longer available")
     values = {"salon_id": SALON_ID, "staff_id": "s", "service_ids": [], "start_datetime": None,
               "customer_name": "A", "customer_phone": None, "source": "app", "notes": None}
     with pytest.raises(ConflictError) as exc:

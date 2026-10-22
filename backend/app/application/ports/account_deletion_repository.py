@@ -72,6 +72,18 @@ class AccountDeletionRepository(ABC):
         """Return ledger rows, newest first, without personal identifiers."""
 
     @abstractmethod
+    async def list_closed_salons(self, limit: int, offset: int) -> list[dict[str, Any]]:
+        """Owner deletion ledger rows that closed a salon, newest first, no personal identifiers."""
+
+    @abstractmethod
+    async def closed_salon_monthly_statement(self, salon_id: str) -> list[dict[str, Any]] | None:
+        """Raw money totals per month and currency for a salon closed by account deletion.
+
+        Returns ``None`` when no owner deletion closed this salon, so the statement can never
+        be used to read an active salon's finances.
+        """
+
+    @abstractmethod
     async def claim_due_request(self, stale_seconds: int) -> dict[str, Any] | None:
         """Claim one due request for processing (SKIP LOCKED)."""
 

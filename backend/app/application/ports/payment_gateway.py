@@ -14,15 +14,14 @@ uses ``register_settlement_account``/``get_settlement_account``; a model (B) ada
 rejects them with ``PaymentCapabilityError``.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from app.core.exceptions import PaymentCapabilityError
+from app.application.ports.payment_provider import PaymentProvider, RefundProvider, WebhookVerifier
 from app.domain.entities.payment import (
-    GatewayCapability,
     LedgerStatus,
     OnboardingStatus,
     PaymentEventType,
@@ -192,82 +191,12 @@ class SettlementAccount:
     requirements: tuple[str, ...] = ()
 
 
-class PaymentGateway(ABC):
-    """Collect, verify and refund customer payments."""
+class PaymentGateway(PaymentProvider, RefundProvider, WebhookVerifier):
+    """Compatibility composite for collection, refund and webhook ports.
 
-    @property
-    @abstractmethod
-    def provider_name(self) -> str:
-        """Stable lowercase provider identifier stored on ledger rows."""
-
-    @abstractmethod
-    def supports(self, capability: GatewayCapability) -> bool:
-        """Whether this gateway can do ``capability``. Never raises."""
-
-    @abstractmethod
-    def client_config(self) -> ClientConfig:
-        """Public checkout configuration for client apps."""
-
-    @abstractmethod
-    async def create_payment_intent(self, request: PaymentIntentRequest) -> PaymentIntent:
-        """Create a provider order for ``request.amount``."""
-
-    @abstractmethod
-    def verify_payment_callback(self, callback: PaymentCallback) -> bool:
-        """Constant-time check of the client callback signature."""
-
-    @abstractmethod
-    def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
-        """Constant-time check over the RAW request bytes, before any parsing."""
-
-    @abstractmethod
-    def parse_event(self, raw_body: bytes, headers: Mapping[str, str]) -> PaymentEvent:
-        """Normalise an already-verified webhook body."""
-
-    @abstractmethod
-    async def fetch_payment(
-        self, *, payment_ref: str | None = None, order_ref: str | None = None
-    ) -> ProviderPayment | None:
-        """Fetch the provider's current view by payment or order reference.
-
-        With ``order_ref`` the most advanced payment on that order is returned, or ``None``
-        when nobody has attempted payment yet. Used for reconciliation after a lost webhook.
-        """
-
-    # ---- optional capabilities (safe defaults; adapters override what they can do) ----
-    def deterministic_order_ref(self, intent_reference: str) -> str | None:
-        """Provider order id derivable from our intent reference, or ``None``.
-
-        A provider that lets the caller choose the order id gets it persisted with the ledger
-        row BEFORE the create call, so a crash or timeout can be reconciled by that id.
-        """
-
-        return None
-
-    def deterministic_refund_ref(self, refund_id: str) -> str | None:
-        """Provider refund id derivable from our refund row id, or ``None``."""
-
-        return None
-
-    async def fetch_intent(self, order_ref: str, request: PaymentIntentRequest) -> PaymentIntent | None:
-        """Look up an existing order. ``None`` = the provider confirms it does not exist.
-
-        Raises ``PaymentCapabilityError`` when the adapter cannot look orders up (the caller
-        then falls back to letting the unconfirmed intent expire).
-        """
-
-        raise PaymentCapabilityError("The payment provider cannot look up orders")
-
-    async def fetch_refund(
-        self, *, refund_ref: str, order_ref: str | None, payment_ref: str | None
-    ) -> RefundResult | None:
-        """Look up a refund by OUR refund id. Raises ``PaymentCapabilityError`` if unsupported."""
-
-        raise PaymentCapabilityError("The payment provider cannot look up refunds")
-
-    @abstractmethod
-    async def refund(self, request: RefundRequest) -> RefundResult:
-        """Refund a captured payment, idempotently by ``request.idempotency_key``."""
+    Existing adapters/use cases retain their contract. Optional vendor onboarding
+    remains here; it does not imply the separate PayoutProvider capability.
+    """
 
     @abstractmethod
     async def register_settlement_account(

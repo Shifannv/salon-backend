@@ -277,9 +277,19 @@ class AccountErasureService:
             if path is None:
                 continue
             try:
-                await self.media_references.lock_media_url(url)
-                if not await self.media_references.media_url_is_referenced(url):
-                    await self.storage.delete_object(self.bucket, path)
+                for key in await self.storage.erasure_lock_paths(path):
+                    await self.media_references.lock_media_url(self.storage.get_public_url(self.bucket, key))
+                paths = await self.storage.erasure_paths(path)
+                referenced = False
+                for key in paths:
+                    if await self.media_references.media_url_is_referenced(self.storage.get_public_url(self.bucket, key)):
+                        referenced = True
+                        break
+                if not referenced:
+                    # Keep the recorded anchor until all siblings have gone, so
+                    # its signed manifest survives partial-delete retries.
+                    for key in [key for key in paths if key != path] + ([path] if paths else []):
+                        await self.storage.delete_object(self.bucket, key)
             finally:
                 await self.release_media_lock()
 

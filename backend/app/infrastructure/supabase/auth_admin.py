@@ -1,7 +1,5 @@
 """Supabase Auth Admin gateway — uses the service-role key."""
 
-import httpx
-
 from app.application.ports.auth_admin_gateway import (
     AuthAdminGateway,
     AuthUserContacts,
@@ -37,6 +35,8 @@ class SupabaseAuthAdminGateway(AuthAdminGateway):
             "user_metadata": {"role": role, "full_name": full_name},
             "app_metadata": {"role": role},
         }
+        import httpx  # on first use, to keep it out of cold start
+
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
                 f"{base_url}/auth/v1/admin/users",
@@ -57,6 +57,8 @@ class SupabaseAuthAdminGateway(AuthAdminGateway):
         """Ban a Supabase Auth user so they cannot sign in."""
 
         base_url, headers = self._admin_base()
+        import httpx  # on first use, to keep it out of cold start
+
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.put(
                 f"{base_url}/auth/v1/admin/users/{user_id}",
@@ -72,6 +74,8 @@ class SupabaseAuthAdminGateway(AuthAdminGateway):
         """Return the provider's verified contacts for a user."""
 
         base_url, headers = self._admin_base()
+        import httpx  # on first use, to keep it out of cold start
+
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.get(
                 f"{base_url}/auth/v1/admin/users/{user_id}", headers=headers
@@ -93,6 +97,8 @@ class SupabaseAuthAdminGateway(AuthAdminGateway):
         """Hard-delete a Supabase Auth user; an already-missing user is success."""
 
         base_url, headers = self._admin_base()
+        import httpx  # on first use, to keep it out of cold start
+
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.request(
                 "DELETE",

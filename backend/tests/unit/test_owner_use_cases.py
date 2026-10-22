@@ -358,6 +358,9 @@ class _FakeStorageGateway:
     async def get_upload_url(self, bucket: str, path: str, content_type: str = "image/jpeg") -> str:
         return f"https://presigned.example.com/{path}"
 
+    def get_result_url(self, upload_url: str) -> str | None:
+        return upload_url.replace("presigned.example.com", "results.example.com")
+
     def get_public_url(self, bucket: str, path: str) -> str:
         return f"https://pub.example.com/{path}"
 

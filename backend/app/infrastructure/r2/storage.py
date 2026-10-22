@@ -31,20 +31,19 @@ from functools import partial
 from io import BytesIO
 from typing import Any
 
-from PIL import Image
-
 from app.application.ports.image_processor import ImagePolicy
 from app.application.ports.storage_gateway import _UPLOAD_TTL_SECONDS, StorageGateway
 from app.core.config import Settings
 from app.core.exceptions import ValidationError
 from app.infrastructure.media.pillow_processor import PillowImageProcessor
+from app.infrastructure.r2.families import ImageFamilies, namespace_for
 
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="r2")
 
 
-class R2StorageGateway(StorageGateway):
+class R2StorageGateway(ImageFamilies, StorageGateway):
     """Issue signed backend upload capabilities; never presign a public R2 PUT.
 
     Requires the following settings (via environment variables):
@@ -106,6 +105,7 @@ class R2StorageGateway(StorageGateway):
         Called inside the thread executor — boto3 is synchronous.
         """
         import boto3  # type: ignore[import]
+        from botocore.config import Config
 
         endpoint = f"https://{self.settings.r2_account_id}.r2.cloudflarestorage.com"
         return boto3.client(
@@ -114,6 +114,8 @@ class R2StorageGateway(StorageGateway):
             aws_access_key_id=self.settings.r2_access_key_id,
             aws_secret_access_key=self.settings.r2_secret_access_key,
             region_name="auto",  # R2 uses 'auto' for region
+            config=Config(connect_timeout=5, read_timeout=10,
+                          retries={"mode": "standard", "total_max_attempts": 2}),
         )
 
     def _sign(self, payload: str) -> str:
@@ -122,6 +124,8 @@ class R2StorageGateway(StorageGateway):
 
     def _processed_metadata(self, path: str, data: bytes, mime: str) -> dict[str, str]:
         self._policy(path, mime)
+        from PIL import Image  # on first upload, to keep Pillow out of cold start
+
         with Image.open(BytesIO(data)) as image:
             dimension, pixels = max(image.size), image.width * image.height
         payload = json.dumps({"bucket": self.settings.r2_bucket, "path": path, "mime": mime, "size": len(data),
@@ -130,6 +134,8 @@ class R2StorageGateway(StorageGateway):
         return {"processed-image-v1": payload, "processed-signature": self._sign(payload)}
 
     def _verify_processed_head(self, path: str, head: dict) -> dict:
+        if "processed-image-v2" in head.get("Metadata", {}):
+            return self._verify_family_head(path, head)
         try:
             metadata = head["Metadata"]
             payload = metadata["processed-image-v1"]
@@ -163,6 +169,23 @@ class R2StorageGateway(StorageGateway):
     def _list_sync(self, params: dict) -> dict:
         return self._get_client().list_objects_v2(**params)
 
+    async def _r2_call(self, function, *args):
+        return await asyncio.get_running_loop().run_in_executor(_executor, partial(function, *args))
+
+    async def _objects(self, prefix: str) -> AsyncIterator[dict]:
+        continuation = None
+        while True:
+            params = {"Bucket": self.settings.r2_bucket, "Prefix": prefix, "MaxKeys": 1000}
+            if continuation:
+                params["ContinuationToken"] = continuation
+            page = await self._r2_call(self._list_sync, params)
+            yield_from = page.get("Contents", [])
+            for item in yield_from:
+                yield item
+            if not page.get("IsTruncated"):
+                break
+            continuation = page["NextContinuationToken"]
+
     async def validate_media_reference(self, url: str, namespace: str, *, policy: ImagePolicy | None = None) -> None:
         self._assert_configured()
         prefix = f"{str(self.settings.r2_public_url).rstrip('/')}/{namespace}"
@@ -172,6 +195,8 @@ class R2StorageGateway(StorageGateway):
         if any(char in path for char in ("%", "\\", "?", "#")) or any(not part for part in path.split("/")):
             raise ValidationError("Invalid image object URL")
         proof = await self.inspect_processed_object(path)
+        if "family_id" in proof:
+            await self._complete_family(proof)
         if policy and (proof["dimension"] > policy.max_dimension or proof["size"] > policy.max_bytes):
             raise ValidationError("Photo exceeds this media category's dimensions or size limit")
 
@@ -193,14 +218,14 @@ class R2StorageGateway(StorageGateway):
                     break
                 continuation = page["NextContinuationToken"]
 
-    def _claims(self, token: str, content_type: str) -> dict:
+    def _claims(self, token: str, content_type: str, *, enforce_expiry: bool = True) -> dict:
         self._assert_configured()
         try:
             payload, signature = token.split(".")
             if not hmac.compare_digest(self._sign(payload), signature):
                 raise ValueError()
             claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-            if claims["expires"] <= time.time() or claims["mime"] != content_type:
+            if (enforce_expiry and claims["expires"] <= time.time()) or claims["mime"] != content_type:
                 raise ValueError()
             if claims["bucket"] != self.settings.r2_bucket:
                 raise ValueError()
@@ -208,6 +233,48 @@ class R2StorageGateway(StorageGateway):
             return claims
         except (ValueError, KeyError, TypeError) as exc:
             raise ValidationError("Invalid or expired image upload URL") from exc
+
+    def _sign_result(self, payload: str) -> str:
+        secret = self.settings.r2_secret_access_key or ""
+        return hmac.new(secret.encode(), ("image-result-v1:" + payload).encode(), hashlib.sha256).hexdigest()
+
+    def get_result_url(self, upload_url: str) -> str | None:
+        """Read-only result URL derived from an upload URL or a bare upload token.
+
+        The result token is signed in its own domain, so it can never upload, and it
+        keeps the upload token's original expiry, so it extends nothing. The upload
+        token's signature, bucket and path policy are verified here, but not its
+        expiry: this also runs after a committed upload, which must not be reported
+        as a failure because the clock crossed the boundary while it was stored.
+        """
+        token = upload_url.rsplit("/", 1)[-1]
+        try:
+            payload = token.split(".", 1)[0]
+            mime = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["mime"]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ValidationError("Invalid or expired image upload URL") from exc
+        claims = self._claims(token, mime, enforce_expiry=False)
+        body = {"purpose": "result", "bucket": claims["bucket"], "path": claims["path"],
+                "mime": claims["mime"], "expires": claims["expires"]}
+        result = base64.urlsafe_b64encode(json.dumps(body, separators=(",", ":")).encode()).decode().rstrip("=")
+        origin = str(self.settings.public_api_base_url).rstrip("/")
+        return f"{origin}/v1/media/results/{result}.{self._sign_result(result)}"
+
+    def _result_claims(self, token: str) -> dict:
+        self._assert_configured()
+        try:
+            payload, signature = token.split(".")
+            if not hmac.compare_digest(self._sign_result(payload), signature):
+                raise ValueError()
+            claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+            if claims["purpose"] != "result" or claims["expires"] <= time.time():
+                raise ValueError()
+            if claims["bucket"] != self.settings.r2_bucket:
+                raise ValueError()
+            self._policy(claims["path"], claims["mime"])
+            return claims
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ValidationError("Invalid or expired image result URL") from exc
 
     def _policy(self, path: str, content_type: str) -> ImagePolicy:
         extensions = {"image/jpeg": {"jpg", "jpeg"}, "image/png": {"png"}, "image/webp": {"webp"}}
@@ -226,49 +293,20 @@ class R2StorageGateway(StorageGateway):
     def validate_upload_token(self, token: str, content_type: str) -> None:
         self._claims(token, content_type)
 
-    async def accept_upload(self, token: str, data: bytes, content_type: str) -> None:
+    async def accept_upload(self, token: str, data: bytes, content_type: str) -> dict:
         claims = self._claims(token, content_type)
-        policy = self._policy(claims["path"], content_type)
+        namespace, category = namespace_for(claims["path"])
         processor = PillowImageProcessor(self.settings.image_max_pixels)
-        # Share the decoder pool with customer multipart uploads.
-        loop = asyncio.get_running_loop()
-        processed = await processor.process_async(data, content_type, policy)
+        processed = await processor.process_family_async(data, content_type, category)
         self._claims(token, content_type)
-        try:
-            await loop.run_in_executor(
-                _executor,
-                partial(self._create_image_sync, claims["bucket"], claims["path"], processed, content_type),
-            )
-        except Exception as exc:
-            # A lost PUT response can safely retry the same content and capability.
-            # Different bytes must never overwrite or delete the first upload.
-            try:
-                proof = await self.inspect_processed_object(claims["path"])
-                if proof["sha256"] == hashlib.sha256(processed).hexdigest():
-                    return
-            except ValidationError:
-                pass
-            raise ValidationError("Image upload failed or this URL has already been used; request a new URL") from exc
-
-    def _create_image_sync(self, bucket: str, path: str, data: bytes, content_type: str) -> None:
-        self._get_client().put_object(
-            Bucket=bucket, Key=path, Body=data, ContentType=content_type, IfNoneMatch="*",
-            Metadata=self._processed_metadata(path, data, content_type),
+        return await self.upload_processed_family(
+            claims["bucket"], namespace, processed, alias=claims["path"],
         )
 
     def _delete_sync(self, bucket: str, path: str) -> None:
         """Delete an object synchronously (runs in thread pool)."""
         client = self._get_client()
         client.delete_object(Bucket=bucket, Key=path)
-
-    def _upload_sync(self, bucket: str, path: str, data: bytes, content_type: str) -> None:
-        """Upload raw bytes synchronously (runs in thread pool)."""
-        client = self._get_client()
-        # Only the avatar use case calls this with already-processed bytes.
-        # Other server-generated objects are not enrolled in automated image cleanup.
-        metadata = self._processed_metadata(path, data, content_type) if path.startswith("avatars/") else {}
-        client.put_object(Bucket=bucket, Key=path, Body=data, ContentType=content_type,
-                          Metadata=metadata, IfNoneMatch="*")
 
     # ── StorageGateway interface ───────────────────────────────────────────────
 
@@ -333,31 +371,5 @@ class R2StorageGateway(StorageGateway):
                 partial(self._delete_sync, bucket, path),
             )
         except Exception as exc:
-            logger.error("R2 delete failed for path %s: %s", path, exc)
+            logger.error("R2 delete failed error_type=%s", type(exc).__name__)
             raise ValidationError("Could not delete R2 object") from exc
-
-    async def upload_bytes(
-        self,
-        bucket: str,
-        path: str,
-        data: bytes,
-        content_type: str = "image/png",
-    ) -> str:
-        """Upload raw bytes directly from the server to R2 and return the public URL.
-
-        Used for server-generated content (e.g. QR code PNGs) where no presigned URL
-        flow is needed.
-        """
-        self._assert_configured()
-
-        loop = asyncio.get_running_loop()
-        try:
-            await loop.run_in_executor(
-                _executor,
-                partial(self._upload_sync, bucket, path, data, content_type),
-            )
-        except Exception as exc:
-            logger.error("R2 upload_bytes failed for path %s: %s", path, exc)
-            raise ValidationError("Could not upload object to R2") from exc
-
-        return self.get_public_url(bucket, path)

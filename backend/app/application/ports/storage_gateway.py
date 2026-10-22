@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from app.application.ports.image_processor import ImagePolicy
+from app.application.ports.image_processor import ImagePolicy, ProcessedImageFamily
 
 _UPLOAD_TTL_SECONDS = 300  # 5 minutes — exposed so implementations stay consistent
 
@@ -64,35 +64,44 @@ class StorageGateway(ABC):
             path: Object path within the bucket.
         """
 
-    @abstractmethod
-    async def upload_bytes(
-        self,
-        bucket: str,
-        path: str,
-        data: bytes,
-        content_type: str = "image/png",
-    ) -> str:
-        """Upload raw bytes directly from the server and return the public URL.
+    async def upload_processed_family(self, bucket: str, namespace: str,
+                                      family: ProcessedImageFamily, *, alias: str | None = None) -> dict:
+        """Upload explicitly processed variants; raw byte uploads are not a port."""
+        raise NotImplementedError("Image families unavailable")
 
-        This is the server-side complement to ``get_upload_url``/``get_public_url``.
-        Use it when the backend itself generates the binary content (e.g. QR codes)
-        rather than proxying a client upload.
+    async def publication_urls(self, url: str) -> list[str]:
+        """Additional family URLs that must be locked before publication."""
+        return []
 
-        Args:
-            bucket: Storage bucket name.
-            path: Object path within the bucket.
-            data: Raw bytes to upload.
-            content_type: MIME type (defaults to image/png).
+    async def retirement_paths(self, path: str) -> list[str]:
+        """Return all family members and aliases, or the single legacy key."""
+        return [path]
 
-        Returns:
-            The permanent public URL of the uploaded object.
-        """
+    async def retirement_lock_paths(self, path: str) -> list[str]:
+        return [path]
+
+    async def retirement_ready(self, paths: list[str]) -> bool:
+        return True
+
+    async def erasure_lock_paths(self, path: str) -> list[str]:
+        return [path]
+
+    async def erasure_paths(self, path: str) -> list[str]:
+        return [path]
+
+    async def upload_result(self, token: str) -> dict:
+        """Return variant metadata for a read-only result token (not an upload token)."""
+        raise NotImplementedError("Image families unavailable")
+
+    def get_result_url(self, upload_url: str) -> str | None:
+        """Return a read-only URL for the upload's result, or None if unsupported."""
+        return None
 
     def validate_upload_token(self, token: str, content_type: str) -> None:
         """Verify a backend upload capability before reading its body."""
         raise NotImplementedError("Upload gateway unavailable")
 
-    async def accept_upload(self, token: str, data: bytes, content_type: str) -> None:
+    async def accept_upload(self, token: str, data: bytes, content_type: str) -> dict:
         """Validate and process a signed upload before publishing it."""
         raise NotImplementedError("Upload gateway unavailable")
 

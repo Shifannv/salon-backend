@@ -459,6 +459,8 @@ def make_service(session, gateway, admin, *, refund_max_attempts=3):
     storage = MagicMock()
     storage.get_public_url = lambda bucket, path: f"https://media.example/{path}"
     storage.delete_object = AsyncMock()
+    storage.erasure_lock_paths = AsyncMock(side_effect=lambda path: [path])
+    storage.erasure_paths = AsyncMock(side_effect=lambda path: [path])
     cache = MagicMock()
     cache.delete_prefix = AsyncMock()
     cache.available = True
@@ -743,6 +745,37 @@ async def test_repeated_confirmation_is_idempotent_and_wrong_hash_is_rejected(en
     assert (await one(engine, "select count(*) n from account_deletion_requests where user_id = :u",
                       u=customer))["n"] == 1
     assert (await one(engine, "select is_active from profiles where id = :u", u=customer))["is_active"] is False
+
+
+async def test_closed_salon_statement_keeps_money_totals_after_owner_erasure(engine):
+    w = await seed_world(engine)
+    async with AsyncSession(engine) as session:  # an active salon is never readable this way
+        assert await SQLAccountDeletionRepository(session).closed_salon_monthly_statement(w["salon"]) is None
+    request = await confirm(engine, w["owner"])
+    async with AsyncSession(engine) as session:
+        await SQLAccountDeletionRepository(session).erase_database(w["owner"], "owner", [w["staff_user"]])
+    await finish_ledger(engine, request["id"])
+
+    async with AsyncSession(engine) as session:
+        months = await SQLAccountDeletionRepository(session).closed_salon_monthly_statement(w["salon"])
+        queue = await SQLAccountDeletionRepository(session).list_closed_salons(50, 0)
+    assert len(months) == 1 and months[0]["currency"] == "INR"
+    assert months[0]["online_collected"] == 500 and months[0]["online_count"] == 1
+    assert months[0]["manual_recorded"] == 1000 and months[0]["manual_count"] == 2
+    assert any(str(row["salon_id"]) == w["salon"] for row in queue)
+
+
+async def test_a_customer_in_the_chair_is_blocked(engine):
+    w = await seed_world(engine)
+    challenge_id, token_hash = await verified_challenge(engine, w["cust_a"])
+    await run(engine, "update bookings set status = 'checked_in' where id = :b", b=w["b_alice_future"])
+    async with AsyncSession(engine) as session:
+        blockers = await SQLAccountDeletionRepository(session).count_blockers(w["cust_a"], "customer")
+    assert blockers["open_bookings"] >= 1
+    async with AsyncSession(engine) as session:
+        with pytest.raises(DeletionBlockedError):
+            await SQLAccountDeletionRepository(session).confirm_deletion(
+                w["cust_a"], challenge_id, token_hash)
 
 
 async def test_an_owner_with_open_bookings_is_not_blocked(engine):

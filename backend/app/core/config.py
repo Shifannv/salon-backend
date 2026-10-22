@@ -84,8 +84,8 @@ class Settings(BaseSettings):
     backend_cors_origins: list[str] = Field(default_factory=list)
 
     # Walk-in QR — URL prefix of the customer-facing web booking route.
-    # QR codes encode: <walkin_base_url>/<qr_token>
-    walkin_base_url: str = "http://localhost:3000"
+    # QR codes encode: <walkin_base_url>/<qr_token>, so the base must end in the web route, e.g. https://<site>/s
+    walkin_base_url: str = "http://localhost:3000/s"
 
     # Customer cancellation policy. Before this cutoff a customer cancellation
     # is immediate; inside the cutoff window it requires salon approval.
@@ -129,6 +129,8 @@ class Settings(BaseSettings):
     # enabled=false, money endpoints answer 503, and no webhook route is registered.
     # Any other value names an adapter module in app/infrastructure/payments/.
     payment_provider: str = "none"
+    # In-memory synthetic adapter only; never permitted on shared/staging/production runtimes.
+    payment_fake_enabled: bool = False
     # 'platform_collect' = provider-side split settlement (funds stay in the provider's
     # escrow; the provider splits to each salon's linked account). 'direct_to_salon' is
     # reserved for per-salon credentials, which do not exist yet, so boot refuses it.
@@ -264,6 +266,13 @@ class Settings(BaseSettings):
         """
 
         self.payment_provider = (self.payment_provider or "none").strip().lower()
+        if self.payment_fake_enabled and self.environment not in {"local", "test"}:
+            raise ValueError("PAYMENT_FAKE_ENABLED is restricted to local/test environments")
+        if self.payment_provider == "fake":
+            if not self.payment_fake_enabled:
+                raise ValueError("PAYMENT_PROVIDER=fake requires PAYMENT_FAKE_ENABLED=true")
+            if self.payment_allow_live or self.cashfree_enabled:
+                raise ValueError("The fake provider cannot be combined with live or Cashfree flags")
         if self.payment_provider != "none":
             if not re.fullmatch(r"[a-z][a-z0-9_]*", self.payment_provider):
                 raise ValueError("PAYMENT_PROVIDER must be 'none' or an adapter module name")
@@ -357,6 +366,15 @@ class Settings(BaseSettings):
     def booking_payments_enabled(self) -> bool:
         return self.payment_provider != "none" and (
             self.payment_provider != "cashfree" or self.cashfree_enabled
+        )
+
+    @property
+    def fake_payments_enabled(self) -> bool:
+        """Factory guard, recomputed even for settings copied without validation."""
+        return (
+            self.payment_provider == "fake" and self.payment_fake_enabled
+            and self.environment in {"local", "test"}
+            and not self.payment_allow_live and not self.cashfree_enabled
         )
 
     @model_validator(mode="after")

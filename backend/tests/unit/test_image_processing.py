@@ -17,6 +17,7 @@ from app.core.exceptions import ValidationError, register_exception_handlers
 from app.infrastructure.media.pillow_processor import PillowImageProcessor
 from app.infrastructure.r2.storage import R2StorageGateway
 from tests.conftest import make_profile
+from tests.unit.media_r2_fake import FakeR2Client
 
 
 def photo(size=(3840, 2160), fmt="JPEG", orientation=None, alpha=False):
@@ -107,11 +108,14 @@ async def test_client_bypass_is_processed_before_r2_publication(path, edge):
     url = await gw.get_upload_url("images", path, "image/jpeg")
     assert url.startswith("https://api.example.test/v1/media/uploads/")
     gw._client.generate_presigned_url.assert_not_called()
+    gw._client = FakeR2Client()
     original = photo()
     await gw.accept_upload(url.rsplit("/", 1)[-1], original, "image/jpeg")
     args = gw._client.put_object.call_args.kwargs
     assert args["Body"] != original
-    assert args["Key"] == path and args["ContentType"] == "image/jpeg"
+    assert args["Key"] == path and args["ContentType"] == "image/webp"
+    assert "processed-image-v2" in args["Metadata"]
+    assert all(obj["Body"] != original for obj in gw._client.objects.values())
     with Image.open(BytesIO(args["Body"])) as image:
         assert max(image.size) == edge
 
@@ -157,11 +161,14 @@ async def test_oversized_gateway_body_never_creates_object():
 async def test_failed_avatar_publication_defers_cleanup_until_committed_reference_check():
     repo, storage = AsyncMock(), AsyncMock()
     repo.update_profile.side_effect = RuntimeError("database failure")
-    storage.upload_bytes.return_value = "https://cdn.example.test/new.jpeg"
+    storage.upload_processed_family.return_value = {
+        "public_url": "https://cdn.example.test/new.webp", "variants": {},
+        "family_id": "test-family", "policy_version": "webp-v2",
+    }
     with pytest.raises(RuntimeError):
         await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), photo_data, "image/jpeg", "images")
     storage.delete_object.assert_not_awaited()
-    repo.lock_media_url.assert_awaited_once_with("https://cdn.example.test/new.jpeg")
+    repo.lock_media_url.assert_awaited_once_with("https://cdn.example.test/new.webp")
 
 
 async def test_media_does_not_use_redis():
@@ -169,8 +176,13 @@ async def test_media_does_not_use_redis():
     from app.infrastructure.cache.redis import RedisCache
     with patch.object(RedisCache, "set", new_callable=AsyncMock) as cache_write:
         repo, storage = AsyncMock(), AsyncMock()
+        storage.upload_processed_family.return_value = {
+            "public_url": "https://cdn.example.test/new.webp", "variants": {},
+            "family_id": "test-family", "policy_version": "webp-v2",
+        }
         await UploadAvatar(repo, storage, PillowImageProcessor()).execute(make_profile(), photo_data, "image/jpeg", "images")
         gw = gateway()
+        gw._client = FakeR2Client()
         token = (await gw.get_upload_url("images", "avatars/u/a.jpeg", "image/jpeg")).rsplit("/", 1)[-1]
         await gw.accept_upload(token, photo_data, "image/jpeg")
         cache_write.assert_not_awaited()

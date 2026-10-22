@@ -27,6 +27,15 @@ class NotFoundError(AppError):
     code = "not_found"
 
 
+class QrCodeNotFoundError(NotFoundError):
+    """A walk-in QR token is malformed, unknown, revoked or its salon is not publicly bookable.
+
+    One code for every cause on purpose: the response must not reveal which.
+    """
+
+    code = "qr_not_found"
+
+
 class ForbiddenError(AppError):
     """Raised when the actor is authenticated but not allowed to perform an action."""
 
@@ -97,6 +106,33 @@ class ValidationError(AppError):
     code = "validation_error"
 
 
+class QrSalonMismatchError(ValidationError):
+    """The request names a salon other than the one the scanned QR token belongs to."""
+
+    code = "qr_salon_mismatch"
+
+
+class BookingSourceNotAllowedError(ValidationError):
+    """The booking source cannot be claimed on this route."""
+
+    code = "booking_source_not_allowed"
+
+
+class OnlinePaymentUnavailableError(ValidationError):
+    """An online payment preference was requested while online payment is not offered.
+
+    422, never 409: clients treat 409 ``slot_unavailable`` as a retryable slot conflict.
+    """
+
+    code = "online_payment_unavailable"
+
+
+class BookingIdempotencyKeyReusedError(ValidationError):
+    """A booking Idempotency-Key was already used by the same customer with a different request."""
+
+    code = "idempotency_key_reused"
+
+
 class ContactMismatchError(ValidationError):
     """The supplied contact is not a verified contact of the authenticated account."""
 
@@ -122,6 +158,21 @@ class TooManyRequestsError(AppError):
 
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     code = "too_many_requests"
+
+
+class PayloadTooLargeError(AppError):
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
+    code = "payload_too_large"
+
+
+class UnsupportedMediaTypeError(AppError):
+    status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+    code = "unsupported_media_type"
+
+
+class RequestTimeoutError(AppError):
+    status_code = status.HTTP_408_REQUEST_TIMEOUT
+    code = "request_timeout"
 
 
 class PaymentProviderNotConfiguredError(AppError):
@@ -222,11 +273,32 @@ def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str
     return {}
 
 
+def app_error_response(exc: AppError) -> JSONResponse:
+    """Shared application-error serialization for routes and early middleware."""
+    from app.core.telemetry import metrics
+
+    body: dict = {"code": exc.code, "message": exc.message}
+    if metrics.get() is not None:
+        metrics.get().error_code = exc.code
+    if exc.details is not None:
+        body["details"] = exc.details
+    return JSONResponse(status_code=exc.status_code, content={"error": body})
+
+
+_HTTP_STATUS_CODES = {
+    status.HTTP_401_UNAUTHORIZED: "unauthorized",
+    status.HTTP_403_FORBIDDEN: "forbidden",
+    status.HTTP_404_NOT_FOUND: "not_found",
+    status.HTTP_405_METHOD_NOT_ALLOWED: "method_not_allowed",
+}
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register one HTTP translation point for application exceptions."""
 
     from fastapi.exceptions import RequestValidationError
     from sqlalchemy.exc import SQLAlchemyError
+    from starlette.exceptions import HTTPException as StarletteHTTPException
 
     from app.core.config import settings
 
@@ -277,20 +349,26 @@ def register_exception_handlers(app: FastAPI) -> None:
             },
         )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        """Framework-raised errors (missing bearer token, unknown route) use the shared envelope too.
+
+        ``detail`` is kept at the top level so a client that still reads the framework shape keeps working.
+        """
+
+        message = exc.detail if isinstance(exc.detail, str) else "Request failed"
+        code = _HTTP_STATUS_CODES.get(exc.status_code, "http_error")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": code, "message": message}, "detail": message},
+            headers=exc.headers,
+        )
+
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
         # AppError is a named type → routed to ExceptionMiddleware (inside CORSMiddleware).
         # CORSMiddleware adds Access-Control-Allow-Origin automatically.
-        body: dict = {"code": exc.code, "message": exc.message}
-        from app.core.telemetry import metrics
-        if metrics.get() is not None:
-            metrics.get().error_code = exc.code
-        if exc.details is not None:
-            body["details"] = exc.details
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"error": body},
-        )
+        return app_error_response(exc)
 
     @app.exception_handler(SQLAlchemyError)
     async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:

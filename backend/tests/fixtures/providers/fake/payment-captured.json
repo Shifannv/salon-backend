@@ -1,0 +1,1 @@
+{"amount":"150.00","currency":"INR","event_id":"fake_event_e2ae2dbddf5033f6b1d9c7dddc33fa4e","event_type":"payment_captured","evidence_source":"mock","order_ref":"fake_order_cb30546216e07e1695785dac45ba2833","payment_ref":"fake_payment_f0544994c621c673a063fdceb5467204","provider":"fake","refund_ref":null,"version":1}

@@ -20,10 +20,15 @@ import re
 from functools import lru_cache
 
 from app.application.ports.payment_gateway import PaymentGateway
+from app.application.ports.payment_provider import PayoutProvider, ProviderFeeReconciler
 from app.application.ports.subscription_provider import SubscriptionProvider
 from app.core.config import Settings
 from app.core.config import settings as default_settings
-from app.core.exceptions import NotFoundError, PaymentProviderNotConfiguredError
+from app.core.exceptions import (
+    NotFoundError,
+    PaymentCapabilityError,
+    PaymentProviderNotConfiguredError,
+)
 from app.domain.entities.payment import SettlementModel, WebhookDomain
 from app.infrastructure.payments.null import NullPaymentGateway
 from app.infrastructure.subscriptions.resolver import build_subscription_provider
@@ -103,6 +108,19 @@ class PaymentGatewayResolver:
         raise PaymentProviderNotConfiguredError(
             "The payment provider that holds this payment is not enabled"
         )
+
+    def payout_provider(self) -> PayoutProvider:
+        """Optional capability; payment/split support never implies payout support."""
+        gateway = self.resolve()
+        if not isinstance(gateway, PayoutProvider):
+            raise PaymentCapabilityError("The provider does not support payouts")
+        return gateway
+
+    def fee_reconciler(self) -> ProviderFeeReconciler:
+        gateway = self.resolve()
+        if not isinstance(gateway, ProviderFeeReconciler):
+            raise PaymentCapabilityError("The provider does not support fee reconciliation")
+        return gateway
 
     def webhook_gateways(
         self, provider: str

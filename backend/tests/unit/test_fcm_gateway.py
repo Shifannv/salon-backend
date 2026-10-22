@@ -109,7 +109,8 @@ async def test_expo_push_includes_notification_payload(monkeypatch: pytest.Monke
     """Expo pushes include visible title/body plus app metadata."""
 
     FakeExpoClient.payloads = []
-    monkeypatch.setattr("app.infrastructure.push.fcm_gateway.httpx.AsyncClient", FakeExpoClient)
+    # The gateway imports httpx when it sends, so patch the client on httpx itself.
+    monkeypatch.setattr("httpx.AsyncClient", FakeExpoClient)
     session = FakeSession("ExponentPushToken[abc123]")
     gateway = FCMGateway(Settings(environment="test"), session)  # type: ignore[arg-type]
 
