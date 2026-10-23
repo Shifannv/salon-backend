@@ -1207,7 +1207,7 @@ the repository query through the SQLite compatibility harness. The corrected
 predicate was also checked read-only on Postgres against the test service; that is
 not a deployed FastAPI verification.
 
-**Release pending:** this category correction has not been published to Cloud Run.
+**Historical status before approval (superseded by section 19):** this category correction had not been published to Cloud Run.
 The existing zero-traffic photo candidate does not contain it. Normal traffic and
 the previously held migration remain unchanged. A fresh reviewed candidate is
 needed before release approval and a final live category/phone check.
@@ -1227,3 +1227,347 @@ Private evidence: `backend/.artifacts/customer-owner-live-20261023/`, including
 `owner-staff-no-experience.png`, `owner-custom-role-saved.png`, `staff-tests.log`,
 `staff-lint.log`, `staff-types.log`, `category-live-check.json` (records the failing
 old production behavior), and `category-backend-{before,after,lint}.log`.
+
+### QR download continuation
+
+The owner QR modal rendered successfully. Downloading originally requested music/
+audio access because it requested every media permission, and used the deprecated
+SDK 57 `saveToLibraryAsync` export. The scoped app fix requests write-only photo
+access and uses `MediaLibrary.Asset.create`. The revised dashboard regression checks
+both. Dashboard/onboarding/booking suites passed **73/73**, targeted ESLint passed,
+and the rebuilt APK was installed. The physical phone then displayed **QR code saved!**
+without an audio permission prompt; evidence is `owner-qr-saved.png` in the same
+private artifact directory. No new package or native permission was added.
+
+The QR targets the web booking journey. The customer app's current navigation does
+not implement a dedicated QR scanner screen; QR rendering/download is verified here,
+not an entire native customer QR booking or web acceptance journey.
+
+## 18. Category-only release candidate prepared; approval pending
+
+This is the pre-approval snapshot. Section 19 records the subsequent approved release.
+
+A separate **one-file** hotfix is built locally as
+`salon-api-category-review:20261023`, based on the immutable working gallery release.
+It changes only the category predicate and active staff-assignment check in
+`infrastructure/db/repositories/platform_repository.py`. It does not combine the
+held photo/description release, new endpoints or migrations.
+
+- Local image manifest-list digest:
+  `sha256:fc21dca55ae768b3c2d59bcf87f9a911daf3382966e7d2e0d8d0fb132bbdbbfc`.
+- Patched repository SHA-256:
+  `818da97f2d56e0d819a6366fe901b486dfee92b63891714178de4d5b5624da6f`.
+- Tests imported the actual isolated candidate and passed **5/5**. Its OpenAPI and
+  offline container smoke check expose **138 operations**. The container file hash
+  matches the manifest. The corrected predicate also matches Hair Cutting, and not
+  Beard Care/Facial, in a read-only PostgreSQL check against the test service.
+- A fresh production read still shows **100% normal traffic** on
+  `salon-api-production-gallery-20261022`. Maximum instances remains **1**; the
+  service minimum annotation is omitted (default zero). Existing photo-review and
+  other tags are unchanged.
+
+The concrete proposed approval is: publish a category-only zero-traffic candidate,
+verify health/database/OpenAPI and both matching/nonmatching category results, then
+move normal traffic only if those checks pass. Roll back to the current gallery
+revision on failure and preserve minimum 0 / maximum 1. No migration, data cleanup,
+photo/description promotion, billing, VM or worker change is included.
+
+**No publish, deployment or traffic change has occurred for this candidate.** The
+owner has been asked for the scoped release approval, with a zero-traffic-only option.
+The prior photo-candidate-only approval does not authorize this new release.
+
+Review evidence is in `backend/.artifacts/category-release-20261023/`:
+`manifest.json`, `candidate.diff`, `pytest.log`, the one-file overlay, Dockerfile and
+`production-state-before-approval.json`. The image contains the backend only.
+
+## 19. Approved category hotfix released and checked on the customer phone
+
+After explicit approval for the category-only release, a zero-traffic candidate was
+published and checked before promotion. Normal production traffic is now **100%**
+on `salon-api-production-category-20261023`. Rollback revision
+`salon-api-production-gallery-20261022` is preserved. Scaling remains **minimum 0 /
+maximum 1**; no migration, billing, VM, worker or resource-deletion change occurred.
+
+The immutable published image is
+`asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:fc21dca55ae768b3c2d59bcf87f9a911daf3382966e7d2e0d8d0fb132bbdbbfc`.
+It contains only the reviewed one-file overlay over the working gallery image.
+
+**All 11 candidate checks and all 11 production checks passed:** API/database/Redis
+health, unchanged full OpenAPI contract (138 operations), Swagger UI, matching Hair
+Cutting discovery, nonmatching Beard Care/Facial/General discovery, public service
+category consistency and nearby category discovery. The publication receipt is
+`backend/.artifacts/category-release-20261023/publication.json`.
+
+On the physical Android customer app, selecting Hair Cutting now shows **Mentrex**.
+Selecting Beard Care shows the empty state, consistent with its offered service.
+The filter was restored to Hair Cutting. Additional native checks added Mentrex to
+Favorites, opened the saved salon list, then removed it and verified the empty state.
+The test favorite was not left behind. Screenshots are in
+`backend/.artifacts/customer-owner-live-20261023/`:
+`customer-hair-category-live.png`, `customer-beard-category-live.png`,
+`customer-favorite-added.png`, and `customer-favorite-removed.png`.
+
+Current client verification includes the approved test salon, service/staff/slots,
+customer booking request, owner confirmation, customer cancellation, owner rejection,
+custom staff title save/restore and owner QR image download. Both test bookings remain
+terminal and unpaid. Staff experience prompts are removed in the installed owner
+verification build; staff titles use the existing specialization API field.
+
+**Still pending:** full QR target/check-in, collection/completion, remaining screen
+acceptance, unavailable API families recorded in section 14 and clean release builds.
+Owner full TypeScript still has the previously recorded booking-schema test errors.
+The photo/description candidate remains at zero normal traffic and revision 0041
+has not been applied. Those changes are not part of this category release. No claim
+of complete API wiring or full application acceptance is made. No additional package
+installation or manual sign-in is needed for the checks completed in this section.
+
+Frontend connection URLs remain:
+- API base: `https://apiv1.mudassirmhd.in` (routes under `/v1`).
+- Swagger: `https://apiv1.mudassirmhd.in/docs`.
+- OpenAPI: `https://apiv1.mudassirmhd.in/openapi.json`.
+
+## 20. Customer/owner cache and salon-screen blinking correction (23 October)
+
+Scope: the customer and owner clients only. No API implementation, Cloud Run
+configuration, Redis settings, database records or migration changed in this work.
+The category production release in section 19 remains the deployed backend.
+
+### Confirmed causes
+
+- Customer `SalonDetailsScreen` returned its full-screen skeleton whenever the
+  detail query was fetching, even with successful cached data. Default 30-second
+  salon polling therefore unmounted the content/gallery repeatedly.
+- Customer discovery hid its cached list during every background read. Foreground
+  handling reset public queries, and mount/focus/reconnect options forced reads
+  despite fresh data. Opening-hours badges also fetched a separate detail per card.
+- Owner defaults marked all reads immediately stale. Stable staff/service/setup
+  resources polled every 30 seconds, and route changes invalidated nearly every
+  non-auth query. An unchanged booking poll invalidated five dependent resources.
+
+### Applied client behavior
+
+| Data or event | Current policy |
+| --- | --- |
+| Customer salon lists/details/services/staff | 60-second freshness; reuse on immediate navigation; stale mount/foreground/reconnect reads run in the background |
+| Customer detail screen | Skeleton only for initial missing data; successful content stays mounted during background reads |
+| Customer opening-hours badges | Observe the shared detail cache; no detail request per card; retain local minute clock |
+| Customer cover/gallery | Installed `expo-image` component with explicit memory/disk cache and no image transition fade |
+| Owner services/staff | 60-second freshness, existing account-scoped persistence, mutation invalidation; no periodic setup polling |
+| Owner route/reconnect | Invalidate live operational resources, preserving fresh setup caches |
+| Owner unchanged booking poll | Skip dependent invalidations when TanStack structural sharing reports unchanged data |
+| Both clients' ordinary query defaults | 30-second freshness; stale-only mount/focus/reconnect behavior |
+| Booking availability | Existing staleTime 0, 10-second foreground polling and server authority preserved |
+| Owner booking feeds | Existing route-aware operational polling preserved |
+
+Manual refresh and mutation invalidation remain available. A forbidden/not-found
+salon detail still removes that salon from cached discovery and removes its service/
+staff entries. Failed list reads still suppress the list. There is no permanent
+offline approval, permission, price or availability guarantee. No new personal data
+was added to disk persistence; customer salon visibility is still revalidated after
+process restart rather than restored from an old disk snapshot. The existing owner
+snapshot remains user/salon scoped and expires after 24 hours. No new image package
+or native dependency was installed.
+
+### Measured API and photo behavior
+
+Three sequential requests per endpoint from this workstation, against the existing
+public production API, returned 200:
+
+| Endpoint | Observed range | Body size |
+| --- | --- | --- |
+| Salon list (`limit=10`) | 162-174 ms | 774 bytes |
+| Test salon detail | 168-187 ms | 3,861 bytes |
+| Test salon services | 174-181 ms | 364 bytes |
+| Test salon staff | 173-191 ms | 112 bytes |
+| Redis health | 146-180 ms | `status=ok`, `redis=reachable` on all three |
+
+These are warm end-to-end workstation samples, not phone latency, load testing,
+server-only timings, a cache-hit ratio or a p95/SLA. Redis reachability does not
+prove every endpoint is served from Redis. The client fixes reduce calls before
+they reach either Redis or Postgres.
+
+Public image samples were JPEGs of 229,884-335,201 bytes (about 225-327 KiB), with
+no Cache-Control header on those sampled responses. One initial default Python
+request returned 403; the recorded run with an explicit verification User-Agent
+succeeded. Existing owner upload processing already downsizes salon images to at
+most a 1600-pixel edge and a 1 MiB byte budget. Photos were not re-uploaded, degraded
+further or deleted. The held legacy gallery cleanup is separate from this fix.
+
+GET requests consume bandwidth, processing and potentially logging; they do not
+create another stored salon photo on each read. JSON metadata caching and native
+image disk caching serve different purposes. Existing process/device cache limits
+still apply; this work does not claim that all cache storage has a new hard byte cap.
+Cloud Run minimum 0 remains unchanged, so an initial request after an idle period
+can still incur a cold start. This work makes no promise of zero latency or cost.
+
+### Verification and delivery
+
+- Four new customer and two new owner regression checks failed before correction.
+  The repeat-navigation test previously made two detail requests; it now makes one
+  detail/service/staff request each across prefetch, first open and immediate reopen.
+  The card badge regression now makes zero detail requests. An unchanged owner
+  booking response previously caused five invalidations; it now causes zero.
+- **35 customer tests passed** across eight suites, including rendered content
+  during background reads, denial removal, manual refresh, disk privacy and booking
+  freshness. **27 owner tests passed** across six suites, including lifecycle,
+  polling, persistence, staff and mutation behavior.
+- Targeted ESLint passed for both apps. Customer TypeScript passed. Owner TypeScript
+  still reports only the previously recorded `booking.schema.test.ts` contract
+  expectations; a clean owner typecheck/release gate is not claimed.
+- Both normal app entries were rebuilt as local verification APKs with the existing
+  native bases, signed, verified and installed with app data retained. These are
+  verification builds, not clean native/store releases or production OTA publication.
+- Physical phone checks exercised customer first/repeat salon navigation and a
+  35-second dwell, plus owner dashboard/staff repeat navigation. Sampled screens
+  retain populated content; the early customer repeat sample shows the normal native
+  slide transition with populated content rather than a skeleton. The customer
+  interaction was recorded. No frame-rate improvement percentage, full video-frame
+  audit or all-screen acceptance claim is made.
+
+Evidence: `backend/.artifacts/app-cache-20261023/`, including before/after test logs,
+lint/typecheck logs, `public-api-measurements.json`, both APKs, customer navigation
+screenshots/recording and owner dashboard/staff screenshots. Functional work still
+pending in section 19 remains pending; this performance correction does not complete
+QR/check-in, collection/completion, missing API families or the held photo migration.
+
+Library references: [TanStack freshness/refetch defaults](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults)
+and [Expo SDK 57 image caching](https://docs.expo.dev/versions/v57.0.0/sdk/image/).
+
+## 21. Owner unread bookings, date/source indicators and live badge check
+
+The owner requested that the dock badge decrease when bookings are read and increase
+for new bookings, with clear markers identifying the appointment date and booking
+source. The owner explicitly chose **read when the card appears**, rather than read
+only after tapping a card. This work changes the owner client only and reuses existing
+notification and booking APIs. No backend release or schema change is involved.
+
+### Corrected behavior
+
+- The dock counts **distinct booking IDs with server-unread notifications**. It no
+  longer uses the maximum of pending approvals and notification count. Multiple
+  notifications for one booking count once; pending approval remains a separate
+  status/filter and does not make a seen booking unread again.
+- The focused, foreground bookings page acknowledges only bookings displayed by its
+  current date/source/status filters. Hidden bookings and general notifications
+  remain unread. Late-loaded notifications are handled after loading; merely
+  prefetching or mounting an inactive page does not acknowledge them.
+- Each acknowledgement carries immutable notification IDs selected before the
+  optimistic cache update. A later notification is not accidentally included.
+  Failed batches roll back only their affected read flags, preserve later arrivals
+  and reconcile with the server; they do not retry in a render loop.
+- Newly displayed cards retain an accessible **dot + New** cue for the current
+  visit, even after acknowledgement clears the unread count. The cue resets when
+  the owner leaves the page. It is a visual indication of a newly seen update,
+  separate from the server's now-read state.
+- Cards explicitly show **Today**, **Tomorrow** or the appointment date, and
+  **App**, **Manual walk-in** or **QR walk-in**. Appointment time/status markers
+  wrap rather than depending on a single crowded row.
+- A **New booking updates** shortcut shows each unread appointment's date, time
+  and source. It selects that exact day/source and the pending filter when relevant.
+  This makes future requests accessible even though the default view requests only
+  today's bookings. Calendar controls indicate new dates; view/source controls show
+  unread dots. Terminal updates point to History as appropriate.
+- Date/source lookup fetches only distinct unread booking IDs through the existing
+  owner-scoped repository, using a salon- and notification-batch-scoped query key,
+  60-second freshness and no interval polling. A new notification batch gets current
+  metadata even for the same booking. Loading/errors remain visible with retry.
+
+### Verification and limits
+
+Four badge regressions failed before correction. The final focused run passed
+**39 tests across five suites**, covering distinct counts, selected reads, arrivals
+during acknowledgement, failed acknowledgement, focus/background protection,
+late-loading data, current-visit markers, date/source navigation, next-month QR,
+today's manual walk-in and unread history. Targeted ESLint and whitespace checks
+passed. The UI detector reported no findings. Owner TypeScript still has the existing
+`booking.schema.test.ts` contract-expectation errors; a clean owner release gate is
+not claimed. CodeGraph was attempted first, but its MCP connection was closed and
+its CLI could not open the index; investigation continued through current source.
+
+Physical phone evidence confirmed:
+
+1. The old badge displayed three notifications for two bookings. The corrected
+   build displayed **2** distinct unread bookings.
+2. Displaying the two historical bookings cleared the dock badge; both showed
+   the current-visit New marker.
+3. One dedicated test customer request for **24 October 2026, 09:00 salon time**
+   increased the live dock badge to **1**. No payment was recorded.
+4. The extended page showed **Tomorrow · App · Sat, 24 Oct · 9:00 AM**, an App
+   unread dot and a new-date indication while the request was outside today's list.
+5. Selecting its date displayed the future appointment, cleared the dock badge,
+   retained the New marker and left **Awaiting approval** unchanged. This establishes
+   that reading and approval are separate operations.
+
+No foreground push latency SLA or every-device/store-build claim is made. The live
+test checked the existing server notification flow and phone views; source-specific
+manual/QR and next-month cases were covered in component tests without creating
+additional appointments.
+
+**Continuation completed (23 October):** after exclusive phone control was restored,
+the dedicated unpaid request was cancelled through the customer app. Its confirmation
+states that the slot is available again. The final badge APK was installed successfully.
+The cancellation created one unread owner update; opening its date displayed the
+cancelled card with a New marker and cleared the badge. A force-stop/restart then
+showed the owner Home screen with no booking badge. Reading did not approve or charge
+the booking. Screenshots: `cleanup-confirmed.png`, `final-cancellation-read.png` and
+`final-restart-read-persisted.png` in the evidence directory below.
+Private state/evidence: `backend/.artifacts/booking-badge-20261023/`, including
+`live-test-state.json`, test/lint/type logs, APK, `before-bookings.png`,
+`after-home.png`, `after-history-read.png`, `new-booking-badge.png`,
+`unread-date-source.png` and `future-booking-read.png`.
+
+## 22. Business-profile replacement, validation and category continuation
+
+Scope confirmed on 23 October: remove **only the salon business-profile category**
+from clients/API/storage; retain shared service categories, subcategories and service
+display labels. This supersedes the earlier instruction to retain that salon field.
+
+### Reproduced cause and source correction
+
+The public test salon returned eight legacy image records: one cover, five slides at
+sort order zero and two at order two. The editor previously reassigned a replacement
+to its visible slot number and appended it to the local list. Replacing Slide 2 therefore
+moved it behind older order-zero records, outside the two visible slides. A successful
+PATCH could save the photo while the screen displayed a different legacy record.
+
+The owner editor now preserves a replacement's existing sort order and list position,
+and rejects a response that does not match the requested URL/role/order. This requires
+no production migration. Two focused regressions fail under the previous logic.
+Final client tests/native photo-save acceptance are still being completed.
+
+Owner profile saves require the existing name, owner name, valid contact and location,
+plus a cover and at least one service-page photo. Slide 2 remains optional; maximum
+two slides plus the separate cover. Removed descriptions/category are not required.
+The API rejects explicitly supplied null/empty/whitespace salon name/address/city and
+profile name while preserving omitted fields for partial updates. Input checks do not
+prove a business is genuine; admin review remains a separate gate.
+
+### Category removal and release boundary
+
+Compatible owner source no longer sends/requires category; customer profile tags and
+mapping no longer use it. Shared catalog filtering remains based on service categories.
+Backend response/request models, setup checklist and SQL projections remove the field.
+Prepared migration `0042_remove_business_category` follows held `0041`; it uses bounded
+lock/statement waits and `DROP COLUMN … RESTRICT`, never CASCADE. It is irreversible
+and does not remove service taxonomy or platform records.
+
+The actual 0042 upgrade passed in a newly created disposable local PostgreSQL database:
+dependent-view refusal/rollback, preservation of service category/subcategory values,
+repeat execution and explicit irreversible downgrade. No remote migration was applied.
+Review identified and corrected statement splitting for asyncpg and owner-client
+compatibility. Updated apps/readers must be distributed before response removal and
+the explicit database drop; the working production revision still selects category.
+Do not run the drop against production while those readers remain active.
+
+Backend verification before the final profile-name guard: **1,281 passed, 95 skipped**;
+Ruff passed with its unwritable cache disabled. Skips include opt-in integration suites,
+not 95 failed checks. A final run follows any subsequent backend edits.
+
+### Newly confirmed booking/payment requirements
+
+The user's detailed cancellation/refund and admin-approved settlement policy is recorded
+as the latest U08 amendment in `payment-subscription-booking-spec.md`. It supersedes the
+earlier exactly-four-hour boundary and unresolved flat deduction. These payment/booking
+changes are **requirements, not a released capability**. Current live cancellation still
+uses the older cutoff/action-request behavior, and online payments remain dormant.
+No provider settlement, refund, billing or production release occurred in this continuation.
