@@ -17,6 +17,7 @@ def test_removed_fields_are_absent_from_openapi():
                  "AdminSalonResponse", "AdminSalonOnboardingResponse", "OwnerSalonUpdateRequest",
                  "OwnerSalonCompleteProfileRequest", "WalkInSalonResponse"):
         assert "description" not in schemas[name]["properties"], name
+        assert "category" not in schemas[name]["properties"], name
     for name in ("ServiceCreateRequest", "ServiceUpdateRequest"):
         assert "description" not in schemas[name]["properties"]
         assert {"category_name", "subcategory_name"} <= schemas[name]["properties"].keys()
@@ -26,7 +27,7 @@ def test_removed_fields_are_absent_from_openapi():
         assert {"subcategory_id", "category_name", "subcategory_name"} <= schemas[name]["properties"].keys()
 
 
-@pytest.mark.parametrize("field", ["description"])
+@pytest.mark.parametrize("field", ["description", "category"])
 def test_salon_rejects_removed_fields(field):
     with pytest.raises(ValidationError):
         OwnerSalonUpdateRequest.model_validate({field: "obsolete"})
@@ -39,5 +40,13 @@ def test_services_reject_optional_overrides(model, field):
         model.model_validate({"name": "Cut", "duration_minutes": 30, "price": 100, field: "obsolete"})
 
 
-def test_salon_category_is_preserved():
-    assert OwnerSalonUpdateRequest(category="Unisex").category == "Unisex"
+@pytest.mark.parametrize("field", ["name", "address", "city"])
+@pytest.mark.parametrize("value", [None, "", " \t\n "])
+def test_salon_cannot_clear_required_profile_details(field, value):
+    with pytest.raises(ValidationError):
+        OwnerSalonUpdateRequest.model_validate({field: value})
+
+
+def test_partial_salon_updates_preserve_omitted_fields_and_trim_details():
+    assert OwnerSalonUpdateRequest().model_dump(exclude_unset=True) == {}
+    assert OwnerSalonUpdateRequest(name="  Studio  ").name == "Studio"

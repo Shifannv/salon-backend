@@ -34,7 +34,6 @@ class AdminSalonResponse(BaseModel):
     owner_phone_verified: bool | None = None
     owner_is_active: bool | None = None
     name: str
-    category: str | None = None
     address: str | None = None
     city: str | None = None
     lat: float | None = None

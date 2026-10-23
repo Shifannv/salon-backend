@@ -47,6 +47,13 @@ class ProfileUpdateRequest(HostedMediaRequest):
     phone: str | None = None
     avatar_url: str | None = None
 
+    @field_validator("full_name")
+    @classmethod
+    def full_name_cannot_be_cleared(cls, value: str | None) -> str:
+        if value is None or not value.strip():
+            raise ValueError("Name cannot be empty")
+        return value.strip()
+
     @field_validator("phone")
     @classmethod
     def validate_indian_phone(cls, value: str | None) -> str | None:
@@ -134,7 +141,6 @@ class SalonSummaryResponse(CustomerAvailabilityResponse):
 
     id: str
     name: str
-    category: str | None = None
     address: str | None = None
     city: str | None = None
     lat: float | None = None
@@ -209,7 +215,6 @@ class SalonDetailResponse(CustomerAvailabilityResponse):
 
     id: str
     name: str
-    category: str | None = None
     address: str | None = None
     city: str | None = None
     lat: float | None = None
@@ -229,7 +234,6 @@ class OwnerSalonResponse(BaseModel):
     id: str
     owner_id: str
     name: str
-    category: str | None = None
     address: str | None = None
     city: str | None = None
     lat: float | None = None
@@ -257,7 +261,6 @@ class OwnerSalonUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = None
-    category: str | None = None
     address: str | None = None
     city: str | None = None
     lat: float | None = None
@@ -265,6 +268,14 @@ class OwnerSalonUpdateRequest(BaseModel):
     timezone: str | None = None
     working_hours: dict[str, Any] | None = None
     approval_mode: Literal["auto", "manual"] | None = None
+
+
+    @field_validator("name", "address", "city")
+    @classmethod
+    def required_details_cannot_be_cleared(cls, value: str | None) -> str:
+        if value is None or not value.strip():
+            raise ValueError("This business detail cannot be empty")
+        return value.strip()
 
 
 class OwnerSalonCompleteProfileRequest(OwnerSalonUpdateRequest):

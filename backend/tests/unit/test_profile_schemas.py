@@ -4,6 +4,17 @@ from pydantic import ValidationError
 from app.api.v1.schemas.platform import ProfileUpdateRequest
 
 
+@pytest.mark.parametrize("value", [None, "", " \t\n"])
+def test_profile_name_cannot_be_cleared(value):
+    with pytest.raises(ValidationError):
+        ProfileUpdateRequest(full_name=value)
+
+
+def test_profile_name_is_trimmed_and_omitted_fields_stay_omitted():
+    assert ProfileUpdateRequest(full_name="  Owner  ").full_name == "Owner"
+    assert ProfileUpdateRequest().model_dump(exclude_unset=True) == {}
+
+
 def test_profile_update_normalizes_indian_mobile() -> None:
     payload = ProfileUpdateRequest(phone="9090908080")
 

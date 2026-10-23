@@ -264,7 +264,7 @@ class PlatformRepository:
         statement = text(
             f"""
             select
-              s.id, s.name, s.category, s.address, s.city,
+              s.id, s.name, s.address, s.city,
               s.lat, s.lng, s.timezone, s.approval_mode, s.accepting_bookings, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
               case
@@ -407,7 +407,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, name, category, address, city, lat, lng, timezone,
+                select id, name, address, city, lat, lng, timezone,
                        working_hours, approval_mode, slot_interval_minutes, accepting_bookings, profile_completed,
                        is_active
                 from salons
@@ -651,7 +651,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, owner_id, name, category, address, city, lat, lng,
+                select id, owner_id, name, address, city, lat, lng,
                        timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                        qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -682,7 +682,7 @@ class PlatformRepository:
                 """
                 insert into salons (owner_id, name, is_active, profile_completed)
                 values (:actor_id, '', true, false)
-                returning id, owner_id, name, category, address, city, lat, lng,
+                returning id, owner_id, name, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -845,14 +845,14 @@ class PlatformRepository:
         salon_id = await self._find_owner_salon_id(actor_id)
         if salon_id is None:
             return {
-                "name": None, "category": None, "address": None, "city": None,
+                "name": None, "address": None, "city": None,
                 "working_hours": None, "has_photos": False, "has_services": False,
                 "has_staff": False, "has_payout": False,
             }
         result = await self.session.execute(
             text(
                 """
-                select s.name, s.category, s.address, s.city, s.working_hours,
+                select s.name, s.address, s.city, s.working_hours,
                        exists (select 1 from salon_images i
                                where i.salon_id = s.id and i.is_active) as has_photos,
                        exists (select 1 from services sv
@@ -872,7 +872,7 @@ class PlatformRepository:
     async def update_owner_salon(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Update owner-editable salon fields."""
 
-        if "description" in values:
+        if {"description", "category"} & values.keys():
             raise ValidationError("Unsupported salon field")
         salon = await self.get_owner_salon(actor_id)
         # _prepare_jsonb_values serialises working_hours so Postgres receives a JSON string
@@ -892,7 +892,7 @@ class PlatformRepository:
                 update salons
                 set {assignments}
                 where id = :salon_id and owner_id = :actor_id and is_active
-                returning id, owner_id, name, category, address, city, lat, lng,
+                returning id, owner_id, name, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -911,7 +911,7 @@ class PlatformRepository:
     ) -> dict[str, Any]:
         """Submit onboarding for review; a rejected salon may be resubmitted."""
 
-        if "description" in (values or {}):
+        if {"description", "category"} & (values or {}).keys():
             raise ValidationError("Unsupported salon field")
         allowed = self._prepare_jsonb_values(dict(values or {}))
         payload = {**allowed, "profile_completed": True}
@@ -936,7 +936,7 @@ class PlatformRepository:
                     f"""
                     insert into salons ({columns})
                     values ({placeholders})
-                    returning id, owner_id, name, category, address, city, lat, lng,
+                    returning id, owner_id, name, address, city, lat, lng,
                               timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                               qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -958,7 +958,7 @@ class PlatformRepository:
                 update salons
                 set {assignments}
                 where id = :salon_id and owner_id = :actor_id and is_active
-                returning id, owner_id, name, category, address, city, lat, lng,
+                returning id, owner_id, name, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -3177,7 +3177,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select s.id, s.owner_id, s.name, s.category,
+                select s.id, s.owner_id, s.name,
                        s.address, s.city, s.qr_token, s.timezone, s.approval_mode,
                        s.lat, s.lng, s.working_hours, s.slot_interval_minutes,
                        s.profile_completed, s.approval_status, s.approved_at, s.approved_by,
@@ -3260,7 +3260,7 @@ class PlatformRepository:
                 """
                 insert into salons (owner_id, name, timezone)
                 values (:owner_id, :name, :timezone)
-                returning id, owner_id, name, category, address, city,
+                returning id, owner_id, name, address, city,
                           lat, lng, timezone, working_hours, approval_mode,
                           slot_interval_minutes, qr_token, profile_completed,
                           approval_status, approved_at, approved_by, rejection_reason, is_active, created_at, updated_at

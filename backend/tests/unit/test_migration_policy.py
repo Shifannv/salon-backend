@@ -32,7 +32,8 @@ MUMBAI = f"postgresql+asyncpg://postgres:synthetic@db.{MUMBAI_PROJECT}.supabase.
 
 
 def test_repository_head_and_portable_boundary_are_distinct_and_linear():
-    assert SCRIPT.get_heads() == ["0041_salon_photo_limits"]
+    assert SCRIPT.get_heads() == ["0042_remove_business_category"]
+    assert SCRIPT.get_revision("0042_remove_business_category").down_revision == "0041_salon_photo_limits"
     assert SCRIPT.get_revision("0041_salon_photo_limits").down_revision == PREPARED_MUMBAI_REVISION
     prepared = list(reversed(list(SCRIPT.iterate_revisions(PREPARED_MUMBAI_REVISION, PORTABLE_CI_REVISION))))
     assert tuple(revision.revision for revision in prepared) == PREPARED_REVISIONS
@@ -44,7 +45,7 @@ def test_portable_target_is_explicit_known_ancestry(revision):
     validate_migration_target(SCRIPT, revision, LOCAL, {"migration_policy": "portable-ci"})
 
 
-@pytest.mark.parametrize("revision", [*PREPARED_REVISIONS, "0041_salon_photo_limits", "head", "heads", "+1", "unknown"])
+@pytest.mark.parametrize("revision", [*PREPARED_REVISIONS, "0041_salon_photo_limits", "0042_remove_business_category", "head", "heads", "+1", "unknown"])
 def test_portable_never_selects_prepared_or_ambiguous_target(revision):
     with pytest.raises(CommandError, match="Portable CI target"):
         validate_migration_target(SCRIPT, revision, LOCAL, {"migration_policy": "portable-ci"})
