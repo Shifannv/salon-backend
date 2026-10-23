@@ -61,9 +61,10 @@ docker compose logs -f api
 
 Stop the API and Redis:
 docker compose stop api redis
+
+backend run command
 run the backend local : 
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-
 
 ```
 
