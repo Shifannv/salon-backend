@@ -28,6 +28,7 @@ from app.core.exceptions import (
     SlotUnavailableError,
     ValidationError,
 )
+from app.domain.services.booking_finance_policy import validate_no_show
 
 # SQLSTATEs the booking SQL deliberately raises to reject a request: P0001 from
 # `raise exception '...'` in create_booking, 23514 from the guard_booking_checkout trigger
@@ -1955,7 +1956,7 @@ class PlatformRepository:
             "status": status, "rejection_reason": rejection_reason, "cancellation_reason": cancellation_reason,
         })
         if replay is not None:
-            return replay
+            return {**replay, "_idempotency_replay": True}
 
         owner_predicate = """
           exists (select 1 from salons s where s.id = bookings.salon_id and s.owner_id = :actor_id)
@@ -1983,8 +1984,23 @@ class PlatformRepository:
         }
         if status not in allowed.get(current["status"], set()):
             raise ConflictError("Booking state changed; refresh before deciding")
-        if status == "no_show" and current["start_datetime"] > current["database_now"]:
-            raise ValidationError("A customer cannot be marked as a no-show before the appointment starts")
+        no_show = status == "no_show" or (
+            status == "cancelled" and (cancellation_reason or "").startswith("Customer no-show")
+        )
+        if no_show:
+            if current["status"] == "checked_in":
+                raise ConflictError("A checked-in customer cannot be marked as a no-show")
+            try:
+                cancellation_reason = validate_no_show(
+                    current["start_datetime"], current["database_now"], cancellation_reason
+                )
+            except ValueError as error:
+                message = (
+                    "Wait until 10 minutes after the appointment starts before marking a no-show"
+                    if error.args == ("no_show_grace_period",)
+                    else "A reason is required when marking a customer as a no-show"
+                )
+                raise ValidationError(message) from None
         if status == "completed" and current.get("payment_preference") == "pay_at_salon" and current.get("payment_status") != "paid":
             raise PaymentCollectionRequiredError("Collect cash or direct UPI from customer before completing service.")
 
@@ -2006,7 +2022,7 @@ class PlatformRepository:
                 "cancellation_reason": cancellation_reason,
             },
         )
-        if status in {"rejected", "cancelled", "completed"}:
+        if status in {"rejected", "cancelled", "completed", "no_show"}:
             invalidated_kinds = (
                 ["cancellation"]
                 if status == "completed"
@@ -2037,7 +2053,17 @@ class PlatformRepository:
                 },
             )
         outbox_ids: list[str] = []
-        if status == "cancelled" and current["customer_id"]:
+        if no_show and current["customer_id"]:
+            outbox_ids.append(
+                await self._insert_notification_outbox(
+                    user_id=str(current["customer_id"]),
+                    booking_id=booking_id,
+                    notification_type="booking_no_show",
+                    title="Appointment marked as no-show",
+                    body=f"The salon marked that you did not attend: {cancellation_reason}",
+                )
+            )
+        elif status == "cancelled" and current["customer_id"]:
             outbox_ids.append(
                 await self._insert_notification_outbox(
                     user_id=str(current["customer_id"]),

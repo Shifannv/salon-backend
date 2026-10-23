@@ -918,19 +918,31 @@ class BookingUseCases:
             raise ForbiddenError("Salon workspace access required")
         kwargs = {"idempotency_key": idempotency_key} if idempotency_key else {}
         booking = await self.repository.update_booking_status(actor.id, booking_id, "completed", **kwargs)
-        if background_tasks is not None:
+        replayed = booking.pop("_idempotency_replay", False)
+        if not replayed and background_tasks is not None:
             background_tasks.add_task(
                 self._notify_customer, booking, "Visit Complete",
                 "Thank you for your visit!", "booking_completed"
             )
         return booking
 
-    async def mark_attendance(self, actor: Profile, booking_id: str, *, no_show: bool, idempotency_key: str | None) -> dict:
+    async def mark_attendance(
+        self, actor: Profile, booking_id: str, *, no_show: bool,
+        idempotency_key: str | None, reason: str | None = None,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict:
         await assert_approved_workspace(self.repository, actor)
         if not is_owner_or_staff(actor):
             raise ForbiddenError("Salon workspace access required")
-        return await self.repository.update_booking_status(actor.id, booking_id,
-            "no_show" if no_show else "checked_in", idempotency_key=idempotency_key)
+        if no_show and (not isinstance(reason, str) or not reason.strip()):
+            raise ValidationError("A reason is required when marking a customer as a no-show")
+        values = {"cancellation_reason": reason.strip()} if no_show else {}
+        booking = await self.repository.update_booking_status(
+            actor.id, booking_id, "no_show" if no_show else "checked_in",
+            idempotency_key=idempotency_key, **values,
+        )
+        self._schedule_booking_outbox(booking, background_tasks)
+        return booking
 
     async def cancel(
         self,

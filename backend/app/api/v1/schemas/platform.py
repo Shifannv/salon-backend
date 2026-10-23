@@ -712,6 +712,12 @@ class BarberCancelBookingRequest(BaseModel):
     )
 
 
+class NoShowBookingRequest(BaseModel):
+    """Explicit salon attendance decision; the server enforces the grace period."""
+
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
 class PaymentRequest(BaseModel):
     """Record booking payment request."""
 
