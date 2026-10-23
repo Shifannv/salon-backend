@@ -1912,9 +1912,20 @@ Returns all active subcategories for the given category. Used by the owner app t
 | `booking_id` | path | yes | string |  |
 | `Idempotency-Key` | header | no | string or null |  |
 
-**Body:** No declared request-body model.
+**Body:** Required JSON [NoShowBookingRequest](#model-noshowbookingrequest), for example
+`{"reason":"Customer did not arrive"}`.
 
 **Success 200:** `application/json`: [BookingResponse](#model-bookingresponse).
+
+**Prepared source change, not deployed:** this endpoint now requires a nonblank reason.
+The approved owner or assigned staff must wait until appointment start plus ten minutes.
+A checked-in customer cannot be marked absent. Missing/blank reason or an early request
+returns 422; an invalid current state returns 409; another actor cannot mutate the booking.
+Use the same `Idempotency-Key` when retrying the same decision. No-show persists a customer
+notification and its delivery-outbox intent with the state change. The existing owner-app
+`barber-cancel` request using `reason_code=customer_no_show` is also subject to these guards.
+Bodyless callers must be updated before releasing this contract. This does not activate
+online collection or the U08 refund/payout calculations.
 
 **Source:** [backend/app/api/v1/routes/bookings.py](../backend/app/api/v1/routes/bookings.py) (`no_show`).
 
@@ -3976,6 +3987,16 @@ Refund a captured online payment (omit amount for the full remainder).
 | `reason` | no | string or null |  |  |
 
 Unknown fields are forbidden by this model.
+
+<a id="model-noshowbookingrequest"></a>
+
+### NoShowBookingRequest
+
+Explicit salon attendance decision.
+
+| Field | Required | Type | Constraints/default | Description |
+| --- | --- | --- | --- | --- |
+| `reason` | yes | string | Trimmed; 1–500 characters | Reason recorded for the customer and appointment history. |
 
 <a id="model-paymentrequest"></a>
 

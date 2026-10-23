@@ -1533,7 +1533,17 @@ PATCH could save the photo while the screen displayed a different legacy record.
 The owner editor now preserves a replacement's existing sort order and list position,
 and rejects a response that does not match the requested URL/role/order. This requires
 no production migration. Two focused regressions fail under the previous logic.
-Final client tests/native photo-save acceptance are still being completed.
+Native acceptance subsequently passed: the user selected a distinct Slide 2 photo,
+the owner app saved it, and reopening showed that photo as Saved. The same slide
+record retained its order. The updated customer app then displayed the new photo
+in its salon carousel. Evidence: `backend/.artifacts/profile-media-20261023/`.
+
+Subsequent local verification: **72 owner tests passed across five suites**, including
+the photo editor, Settings, salon repository, profile completion and fallback checklist.
+Both new photo regressions fail with the previous save logic. **35 customer tests passed
+across eight suites**, and customer TypeScript passed. The updated owner JavaScript bundle
+exported successfully; the profile verification APK was subsequently packaged and
+installed on the test phone. The customer verification APK was also updated.
 
 Owner profile saves require the existing name, owner name, valid contact and location,
 plus a cover and at least one service-page photo. Slide 2 remains optional; maximum
@@ -1559,9 +1569,9 @@ compatibility. Updated apps/readers must be distributed before response removal 
 the explicit database drop; the working production revision still selects category.
 Do not run the drop against production while those readers remain active.
 
-Backend verification before the final profile-name guard: **1,281 passed, 95 skipped**;
-Ruff passed with its unwritable cache disabled. Skips include opt-in integration suites,
-not 95 failed checks. A final run follows any subsequent backend edits.
+Final backend verification including the profile-name guard: **1,285 passed, 95 skipped**
+in 127 seconds; Ruff passed with its unwritable cache disabled. Skips include opt-in
+integration suites. One dependency deprecation warning remains.
 
 ### Newly confirmed booking/payment requirements
 
@@ -1571,3 +1581,67 @@ earlier exactly-four-hour boundary and unresolved flat deduction. These payment/
 changes are **requirements, not a released capability**. Current live cancellation still
 uses the older cutoff/action-request behavior, and online payments remain dormant.
 No provider settlement, refund, billing or production release occurred in this continuation.
+
+## 23. Resumed native notification verification
+
+The user resumed after the requested 2:28 PM pause. Approval review became available,
+and exclusive phone control was confirmed. Both profile verification APKs were installed.
+The user selected the replacement photo; owner save/reopen and customer display passed.
+Customer profile freshness remains the accepted 60-second cache plus reopening/manual refresh.
+
+Owner **Alerts & activity** now uses customer-aligned image cards, separate content/dismiss
+touch targets, readable body text and reduced-motion-aware entry/exit/layout animations.
+The source passed **18 tests across four suites** and focused lint, including independent
+dismissal and push routing. The full native release-mode verification APK subsequently
+built successfully (including Android release lint) and installed over the existing app.
+It is signed with the existing debug certificate for local verification, not store release.
+After the user unlocked the phone, the new cards rendered with their matching image
+icons and without the old overlapping tinted blocks. Opening details and independently
+dismissing a dedicated test alert passed on the phone. A fresh foreground test message
+also displayed its full in-app heads-up banner; this establishes presentation alongside
+provider acceptance, without attributing the banner exclusively to FCM rather than inbox sync.
+The native build encountered a stale Windows dependency-cache path exceeding 260 characters;
+removing only its generated Ninja dependency file allowed that compilation step to pass.
+Google Maven DNS then blocked an AndroidX artifact; Java HTTPS connectivity was checked
+before retrying the cached build successfully. The low local Gradle heap/metaspace settings
+also caused a memory-pressure warning. No Cloud Run capacity was changed for this build.
+
+Live checks use only guarded system-notification fixtures for the existing owner/customer
+test accounts, through the existing outbox and notification worker. They create no booking
+or payment. Neither raw tokens nor provider credentials were read or published.
+
+| Installed app/state | Physical evidence | Result |
+| --- | --- | --- |
+| Customer foreground | Exact test push in Android tray; tap opened Notifications | Passed |
+| Customer background | Exact test push in Android tray; tap opened Notifications | Passed |
+| Customer process terminated | PID absent before sending; exact push arrived; tap cold-launched Notifications | Passed |
+| Owner background, earlier installed build | Exact test push in Android tray | Receipt passed; tap incorrectly opened Home |
+| Owner foreground, earlier installed build | Inbox/bell updated; recording not inspected | Physical foreground FCM presentation not yet established |
+| Owner foreground, final installed build | Exact test message displayed in heads-up banner; provider accepted | Presentation passed; banner may also be driven by inbox sync |
+| Owner background, final installed build | Exact push in Android tray; tap opened Alerts & Activity | Passed; route correction verified |
+| Owner swiped out of Recents, final installed build | Task removed; exact push arrived; tap reopened Alerts & Activity | Passed; cached process remained alive |
+
+The owner tap fallback was corrected to Alerts for notices without a booking; booking
+notices still route to Bookings. Its regression failed before the fix and passed after.
+That correction is installed and the live background/swipe-away tap retests passed.
+Customer registration was
+also corrected to create the backend's `salon-alerts-v3` Android channel rather than only
+`default`; **17 tests across three suites** and focused lint passed, and this fix is installed.
+
+Provider acceptance is checked separately from physical receipt. The fixture named
+`customer-closed-01` ran while a PID still existed and counts only as background evidence;
+`customer-process-stopped-02` is the valid process-termination check. This does not test
+Android force-stop, owner process termination, every device, audible sound or iOS delivery.
+All **nine** guarded test notices were processed and accepted without a provider error.
+The final owner Read all action cleared its three new test notices and the visible count
+fell to zero. One older test alert was hidden from this device while verifying dismissal;
+server notification records were retained. No test booking or payment was created.
+The initially missed swipe-away tap is not a passing artifact: `owner-swiped-tap.png`
+shows the customer app. A fresh notification UI hierarchy supplied exact bounds, and
+`owner-swiped-tap-verified.png` plus foreground package confirmation establish the pass.
+Evidence remains private
+under `backend/.artifacts/{owner-alerts,customer-push}-20261023/`.
+
+No new backend revision, remote migration, settlement/refund operation or cloud resource
+change was made during this resumed verification. Broader booking/QR/completion acceptance
+and the U08 payment implementation remain separate, unfinished work.

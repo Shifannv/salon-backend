@@ -14,6 +14,7 @@ from app.api.v1.schemas.platform import (
     BookingResponse,
     CancelBookingRequest,
     DelayBookingRequest,
+    NoShowBookingRequest,
     PaymentRequest,
     RejectBookingRequest,
 )
@@ -35,10 +36,14 @@ async def check_in(booking_id: str, actor: Profile = Depends(get_current_actor),
 
 
 @router.post("/bookings/{booking_id}/no-show", response_model=BookingResponse, status_code=status.HTTP_200_OK)
-async def no_show(booking_id: str, actor: Profile = Depends(get_current_actor),
+async def no_show(booking_id: str, payload: NoShowBookingRequest, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
     key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
-    return BookingResponse(**await _use_cases(session).mark_attendance(actor, booking_id, no_show=True, idempotency_key=key))
+    return BookingResponse(**await _use_cases(session).mark_attendance(
+        actor, booking_id, no_show=True, idempotency_key=key,
+        reason=payload.reason, background_tasks=background_tasks,
+    ))
 
 
 def _use_cases(session: AsyncSession) -> BookingUseCases:
