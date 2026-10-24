@@ -43,7 +43,9 @@ async def booking_quote(
     for key in ("salon_id", "staff_id"):
         values[key] = str(values[key])
     values["service_ids"] = [str(value) for value in values["service_ids"]]
-    result = await BookingCheckoutUseCases(PlatformRepository(session), resolver).quote(actor, values)
+    result = await BookingCheckoutUseCases(
+        PlatformRepository(session), resolver, policy_version=settings.booking_checkout_policy_version,
+    ).quote(actor, values)
     return BookingQuoteResponse(**result)
 
 

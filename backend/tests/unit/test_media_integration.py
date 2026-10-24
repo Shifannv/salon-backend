@@ -124,6 +124,7 @@ def test_owner_qr_does_not_require_storage(monkeypatch, fmt):
     uc.get_business_salon.return_value = {"qr_token": "abc123", "id": "salon", "name": "தமிழ் Salon"}
     monkeypatch.setattr(owner, "_use_cases", lambda session: uc)
     monkeypatch.setattr(owner.settings, "public_api_base_url", "https://api.example.test")
+    monkeypatch.setattr(owner.settings, "walkin_base_url", "https://booking.example.test/s")
     client = client_for(owner.router, "/v1/salons")
     client.app.dependency_overrides[get_storage_gateway] = lambda: (_ for _ in ()).throw(AssertionError())
     response = client.get(f"/v1/salons/me/qr?format={fmt}")
@@ -131,7 +132,12 @@ def test_owner_qr_does_not_require_storage(monkeypatch, fmt):
     if fmt == "svg":
         assert "<svg" in response.text
     else:
-        assert response.json()["url"] == "https://api.example.test/v1/walkin/abc123/qr?format=png&scale=12"
+        import hashlib
+
+        version = hashlib.sha256(b"https://booking.example.test/s").hexdigest()[:16]
+        assert response.json()["url"] == (
+            f"https://api.example.test/v1/walkin/abc123/qr?format=png&scale=12&v={version}"
+        )
 
 
 def test_owner_qr_repeated_clicks_keep_the_same_salon_identity(monkeypatch):

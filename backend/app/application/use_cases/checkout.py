@@ -4,13 +4,14 @@ from zoneinfo import ZoneInfo
 
 from app.core.exceptions import ForbiddenError, SlotUnavailableError
 from app.domain.entities.profile import Role
-from app.domain.services.checkout import checkout_quote
+from app.domain.services.checkout import checkout_quote, online_checkout_available
 
 
 class BookingCheckoutUseCases:
-    def __init__(self, repository, resolver):
+    def __init__(self, repository, resolver, *, policy_version="customer_processing_v1"):
         self.repository = repository
         self.resolver = resolver
+        self.policy_version = policy_version
 
     async def quote(self, actor, values):
         if actor.role not in {Role.customer, Role.owner}:
@@ -21,9 +22,9 @@ class BookingCheckoutUseCases:
         day = start.astimezone(ZoneInfo(salon["timezone"])).date()
         if not await self.repository.quoted_slot_available(values["staff_id"], day, services["duration"], start):
             raise SlotUnavailableError("Selected slot is no longer available")
-        online = self.resolver.enabled and salon["accepting_bookings"]
+        online = online_checkout_available(self.resolver.enabled, self.policy_version) and salon["accepting_bookings"]
         return {
-            **checkout_quote(services["amount"], values["payment_mode"]),
+            **checkout_quote(services["amount"], values["payment_mode"], policy_version=self.policy_version),
             "accepts_bookings": salon["accepting_bookings"],
             "payment_options": ["PAY_AT_SALON", "PAY_ONLINE"] if online else ["PAY_AT_SALON"],
             "online_payment_available": online,

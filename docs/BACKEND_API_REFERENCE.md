@@ -4,6 +4,80 @@ Generated from the current local FastAPI routes and Pydantic OpenAPI models on
 22 October 2026. This is a source snapshot, not confirmation of a deployed release.
 Regenerate/compare with the target server's `/openapi.json` when the backend changes.
 
+QR cache correction (deployed 24 October 2026):
+`GET /v1/salons/me/qr?format=url` returns an image URL with an opaque `v` query
+parameter derived from the booking destination. Clients must use the complete returned
+URL, including its query. The salon QR token stays unchanged. Previously downloaded
+malformed QR images must be replaced; they cannot be repaired by refreshing the API.
+
+### Prepared backend additions — 24 October 2026 (not deployed)
+
+The following additions require reviewed `0045`/`0046` and coordinated release. Live
+production still has the preceding contract. The default checkout selector stays on
+the historical policy; these commands do not convert existing bookings to U08.
+
+| Method | Path | Access / purpose |
+| --- | --- | --- |
+| GET | `/v1/bookings/{booking_id}/change-availability` | Owning customer/owner acting as customer; `staff_id`, `date`, repeated `service_ids`; SQL slots exclude only that owned booking |
+| POST | `/v1/bookings/{booking_id}/change-quote` | Same access; server prices selected services and reports slot availability |
+| POST | `/v1/bookings/{booking_id}/change` | Same access; atomic commit with `Idempotency-Key`, expected booking version and accepted quote fingerprint |
+| GET | `/v1/admin/bookings/{booking_id}/finance` | Super-admin, configured MFA gate; internal terminal-policy statement |
+| POST | `/v1/admin/bookings/{booking_id}/finance/commands` | Super-admin/MFA, `Idempotency-Key`; record provider costs/hold review, approve a cumulative payout amount, or record a manual payout already made |
+| GET | `/v1/salons/me/bookings/{booking_id}/payout` | Owning salon owner; approved amount, recorded paid amount and public status only |
+
+Change quote body: `staff_id` (UUID), distinct `service_ids` (1–30 UUIDs),
+`start_datetime` (timezone-aware), `expected_version` (nonnegative integer).
+Quote response: `booking_id`, `version`, `committed_reschedules`, `duration_minutes`,
+`service_amount`, `retained_paid_amount`, `additional_payment_required`, `total_payable`,
+`slot_available`, `quote_fingerprint`. Monetary JSON values are decimal strings.
+Commit uses the same body plus the exact `quote_fingerprint`; never send a client price.
+Keep the identical body/key on retry. A new intended change needs a new key.
+
+Changes require more than four hours before the current appointment, at most two
+committed time/staff reschedules, an available SQL slot and an unchanged reviewed
+quote. Service-only changes at the same staff/time do not consume a time reschedule.
+Initially pending bookings remain pending; approved bookings do not seek approval again.
+Time-only changes preserve booked service prices/durations. Unpaid Pay at Salon owes
+the new selected-service price. Fully prepaid cheaper changes retain previous money;
+`service_fulfilment_amount` records the new service value separately from retained total.
+Higher prepaid changes return `additional_payment_required` without moving the booking;
+verified additional-capture binding remains provider-dependent and is not activated.
+Partial/manual-mixed payments and outstanding payment/refund activity require reconciliation.
+
+Relevant conflicts: `booking_change_cutoff`, `booking_change_limit`,
+`booking_change_version_conflict`, `booking_change_quote_stale`, `slot_unavailable`,
+`additional_payment_required`, `booking_change_payment_reconciliation_required`,
+`booking_change_policy_unsupported`, `idempotency_key_reuse`.
+Missing reviewed schema returns sanitized 503, never raw SQL.
+
+Booking responses now include `change_version`, `committed_reschedules`,
+`service_fulfilment_amount`, `checkout_policy_version` and role/ownership-scoped
+`can_record_payment`. Owners use **can_record_payment** for collection; customer
+`can_confirm_payment` remains the separate request-to-confirm action. Checked-in
+bookings can support owner collection without exposing that permission to customers.
+U08 customer cancellation is direct even inside four hours; the stored policy decides
+the refund. Legacy bookings keep the old cutoff/request behavior. U08 after-check-in
+salon cancellation requires finance review rather than assuming an unspecified refund.
+
+Finance command body: `expected_version`, `action` (`provider_costs`, `hold_review`,
+`approve`, `record_payout`), nonnegative two-decimal `amount`, and an ASCII document/
+transaction `reference` (1–128 characters). `provider_costs` records the current verified
+total, not an increment; `hold_review` requires amount zero and records an admin's
+attestation, not an independent provider verification. `approve` increases the cumulative
+approved amount within the current salon entitlement. `record_payout` records one
+positive amount already paid, within the unpaid approved balance; references cannot be
+reused. These endpoints do not initiate a transfer or provide provider-held-funds proof.
+
+Terminal U08 events persist cancellation/refund obligations and a provider-pending
+refund job. Costs never reduce the promised customer refund. Payout requires cost/hold
+review and exact refund reconciliation. Unexpected refunds/captures retain their ledger
+records and enter manual reconciliation; no automatic adjustment or payout occurs.
+Owner response is exactly `booking_id`, `approved_amount`, `paid_out_amount`, `status`
+(`not_applicable`, `under_review`, `approved`, `paid`); internal percentages, platform
+allocation and provider costs must never be added to that schema. Refund dispatch and
+reconciliation resolution still need the deferred provider workflow; a pending job is
+not a successful refund.
+
 ## How to use this reference
 
 - Use [Client developer handoff](CLIENT_DEVELOPER_HANDOFF.md) for screens, workflows,
@@ -1444,6 +1518,14 @@ Hard-delete a blocked slot. Blocked slots have no is_active column in the schema
 **Success 200:** `application/json`: [BookingQuoteResponse](#model-bookingquoteresponse).
 
 **Source:** [backend/app/api/v1/routes/payments.py](../backend/app/api/v1/routes/payments.py) (`booking_quote`).
+
+Prepared source adds `checkout_policy_version` to the quote. The server selects it;
+clients cannot select a policy or submit trusted prices. The default remains
+`customer_processing_v1` with its historical online surcharge. Explicit U08 selection
+(`u08-2026-10-23-v1`) quotes no surcharge, but advertises only Pay at Salon until the
+new held-funds/payment workflow is implemented and verified. Always honor
+`online_payment_available` and `payment_options`; requesting an online quote does not
+enable a payment. This policy selection and migration0044 are not deployed.
 
 ### GET `/v1/payments/config`
 
@@ -3214,6 +3296,7 @@ Unknown fields are forbidden by this model.
 
 | Field | Required | Type | Constraints/default | Description |
 | --- | --- | --- | --- | --- |
+| `checkout_policy_version` | no | string | default="customer_processing_v1" | Server-selected policy for new checkout; prepared, not deployed. |
 | `payment_mode` | yes | `"PAY_ONLINE" \| "PAY_AT_SALON"` |  |  |
 | `currency` | no | string | default="INR" |  |
 | `service_amount` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |

@@ -495,4 +495,4 @@ def test_migration_heads_are_linear():
         revisions[rev] = down.group(1) if down else None
     parents = [d for d in revisions.values() if d]
     assert len(parents) == len(set(parents)), "two revisions share a parent (branch)"
-    assert [r for r in revisions if r not in parents] == ["0043_no_show_attendance_guards"]
+    assert [r for r in revisions if r not in parents] == ["0046_u08_financial_outcomes"]

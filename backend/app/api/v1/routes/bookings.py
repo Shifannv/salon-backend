@@ -2,11 +2,17 @@
 
 from datetime import date
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_cache, get_current_actor
+from app.api.v1.schemas.booking_changes import (
+    BookingChangeCommitRequest,
+    BookingChangeQuote,
+    BookingChangeRequest,
+)
 from app.api.v1.schemas.platform import (
     AvailabilityResponse,
     BarberCancelBookingRequest,
@@ -19,13 +25,48 @@ from app.api.v1.schemas.platform import (
     RejectBookingRequest,
 )
 from app.application.ports.cache_gateway import CacheGateway
+from app.application.use_cases.booking_changes import BookingChangeUseCases
 from app.application.use_cases.platform import BookingUseCases
+from app.core.config import settings
 from app.domain.entities.profile import Profile
+from app.domain.services.checkout import online_checkout_available
+from app.infrastructure.db.repositories.booking_changes import BookingChangeRepository
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.db.session import get_session
 from app.infrastructure.payments.resolver import get_payment_resolver
 
 router = APIRouter()
+
+
+@router.get("/bookings/{booking_id}/change-availability", response_model=list[AvailabilityResponse], status_code=200)
+async def booking_change_availability(
+    booking_id: UUID, staff_id: UUID, booking_date: date = Query(alias="date"),
+    service_ids: list[UUID] = Query(min_length=1, max_length=30),
+    actor: Profile = Depends(get_current_actor), session: AsyncSession = Depends(get_authenticated_session),
+) -> list[AvailabilityResponse]:
+    rows = await BookingChangeUseCases(BookingChangeRepository(session)).availability(
+        actor, str(booking_id), str(staff_id), [str(s) for s in service_ids], booking_date,
+    )
+    return [AvailabilityResponse(**row) for row in rows]
+
+
+@router.post("/bookings/{booking_id}/change-quote", response_model=BookingChangeQuote, status_code=200)
+async def quote_booking_change(
+    booking_id: UUID, payload: BookingChangeRequest, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> BookingChangeQuote:
+    row = await BookingChangeUseCases(BookingChangeRepository(session)).quote(actor, str(booking_id), payload.model_dump())
+    return BookingChangeQuote(**row)
+
+
+@router.post("/bookings/{booking_id}/change", response_model=BookingResponse, status_code=200)
+async def change_booking(
+    booking_id: UUID, payload: BookingChangeCommitRequest, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> BookingResponse:
+    row = await BookingChangeUseCases(BookingChangeRepository(session)).commit(actor, str(booking_id), payload.model_dump(), key)
+    return BookingResponse(**row)
 
 
 @router.post("/bookings/{booking_id}/check-in", response_model=BookingResponse, status_code=status.HTTP_200_OK)
@@ -47,7 +88,9 @@ async def no_show(booking_id: str, payload: NoShowBookingRequest, background_tas
 
 
 def _use_cases(session: AsyncSession) -> BookingUseCases:
-    return BookingUseCases(PlatformRepository(session), online_payments_enabled=get_payment_resolver().enabled)
+    return BookingUseCases(PlatformRepository(session), online_payments_enabled=online_checkout_available(
+        get_payment_resolver().enabled, settings.booking_checkout_policy_version,
+    ))
 
 
 @router.get(

@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from app.application.ports.cache_gateway import CacheGateway
+from app.core.exceptions import ServiceUnavailableError
 from app.core.telemetry import metrics
 
 logger = logging.getLogger(__name__)
@@ -260,23 +261,35 @@ class RedisCache(CacheGateway):
         """Return a cached idempotency response or None."""
         return await self.get(key)
 
-    async def check_rate_limit(self, key: str, limit: int, window_seconds: int) -> tuple[bool, int]:
+    async def check_rate_limit(self, key: str, limit: int, window_seconds: int, *, strict: bool = False) -> tuple[bool, int]:
         """Check rate limit using a fixed-window atomic counter.
 
         Returns (allowed, remaining).
         Gracefully returns (True, limit) when Redis is disabled or fails.
         """
         if self._client is None:
+            if strict:
+                raise ServiceUnavailableError("Authentication temporarily unavailable. Please try again.")
             return True, limit
         try:
-            current = await self._client.incr(key)
-            if current == 1:
-                await self._client.expire(key, window_seconds)
+            if strict:
+                # Counter and expiry must be atomic on the authentication path.
+                current = await self._client.eval(
+                    "local c=redis.call('INCR',KEYS[1]); "
+                    "if c==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return c",
+                    1, key, window_seconds,
+                )
+            else:
+                current = await self._client.incr(key)
+                if current == 1:
+                    await self._client.expire(key, window_seconds)
             if current > limit:
                 return False, 0
             return True, max(0, limit - current)
         except Exception as exc:
             self._mark_unsafe()
+            if strict:
+                raise ServiceUnavailableError("Authentication temporarily unavailable. Please try again.") from exc
             logger.debug("Redis rate limit error for %s: %s", key, exc)
             return True, limit
 

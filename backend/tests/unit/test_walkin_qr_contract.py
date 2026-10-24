@@ -1,5 +1,6 @@
 """QR contract (token format, expiry, authorization) and the direct booking-by-salon-id contract."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -62,6 +63,59 @@ def test_printed_payload_is_the_web_route_plus_the_token():
     assert _build_walkin_url(TOKEN, "https://site.example/s/") == f"https://site.example/s/{TOKEN}"
     default = Settings(_env_file=None).walkin_base_url
     assert default.rstrip("/").endswith("/s")
+
+
+@pytest.mark.parametrize('base', [
+    '["https://site.example/s", "http://localhost:3000/s"]',
+    'javascript:alert(1)', 'https://site.example/s?next=other',
+    'https://site.example/s#fragment', 'https://user:pass@site.example/s',
+    'https://site.example/s,https://other.example/s',
+])
+def test_qr_configuration_rejects_lists_and_non_booking_url_payloads(base):
+    with pytest.raises(ValueError, match='WALKIN_BASE_URL'):
+        Settings(_env_file=None, walkin_base_url=base)
+
+
+def test_qr_configuration_accepts_single_requested_web_destination():
+    cfg = Settings(_env_file=None, walkin_base_url='https://salon-customer-webpage.vercel.app/s/')
+    assert cfg.walkin_base_url == 'https://salon-customer-webpage.vercel.app/s'
+
+
+@pytest.mark.asyncio
+async def test_owner_qr_image_cache_identity_tracks_destination_without_rotating_token(monkeypatch):
+    import json
+
+    from app.api.v1.routes import owner
+
+    monkeypatch.setattr(owner, '_use_cases', lambda _: SimpleNamespace(
+        get_business_salon=AsyncMock(return_value={'qr_token': TOKEN}),
+    ))
+    monkeypatch.setattr(owner.settings, 'public_api_base_url', 'https://api.example')
+    urls = []
+    for base in ['https://old.example/s', 'https://new.example/s', 'https://new.example/s']:
+        monkeypatch.setattr(owner.settings, 'walkin_base_url', base)
+        result = await owner.get_my_qr(MagicMock(), fmt='url', scale=12, actor=make_owner(), session=MagicMock())
+        urls.append(json.loads(result.body)['url'])
+    assert urls[0] != urls[1], 'A destination change must invalidate cached QR image bytes'
+    assert urls[1] == urls[2], 'Unchanged destinations should reuse the same image cache key'
+    assert all(f'/v1/walkin/{TOKEN}/qr?' in url for url in urls)
+
+
+@pytest.mark.parametrize(('otp', 'limit'), [(None, 5), ('123456', 10)])
+def test_otp_send_and_verify_have_separate_strict_limits_without_plain_phone_keys(client, monkeypatch, otp, limit):
+    http, _, cache = client
+    gateway = SimpleNamespace(
+        send_phone_otp=AsyncMock(),
+        verify_phone_otp=AsyncMock(return_value=SimpleNamespace(access_token='synthetic-access', refresh_token=None)),
+    )
+    monkeypatch.setattr('app.api.v1.routes.walkin._use_cases', lambda _: SimpleNamespace(assert_public_qr_token=AsyncMock()))
+    monkeypatch.setattr('app.api.v1.routes.walkin.SupabaseAuthGateway', lambda _: gateway)
+    body = {'phone': '+15555550101', **({'otp': otp} if otp else {})}
+    for _ in range(limit):
+        assert http.post(f'/v1/walkin/{TOKEN}/verify-phone', json=body).status_code == 200
+    assert http.post(f'/v1/walkin/{TOKEN}/verify-phone', json=body).status_code == 429
+    assert all(body['phone'] not in key for key in cache._counter)
+    assert (gateway.verify_phone_otp if otp else gateway.send_phone_otp).await_count == limit
 
 
 @pytest.mark.parametrize("token", MALFORMED)

@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     """Runtime settings validated at process boot."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Raw Settings() must honor the same explicit isolation as get_settings().
+        env_file=os.environ.get("SALON_ENV_FILE", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -129,6 +130,9 @@ class Settings(BaseSettings):
     # enabled=false, money endpoints answer 503, and no webhook route is registered.
     # Any other value names an adapter module in app/infrastructure/payments/.
     payment_provider: str = "none"
+    # Select only for NEW bookings after the reviewed policy-stamp migration.
+    # U08 online collection remains blocked until the held-funds workflow exists.
+    booking_checkout_policy_version: Literal["customer_processing_v1", "u08-2026-10-23-v1"] = "customer_processing_v1"
     # In-memory synthetic adapter only; never permitted on shared/staging/production runtimes.
     payment_fake_enabled: bool = False
     # 'platform_collect' = provider-side split settlement (funds stay in the provider's
@@ -223,6 +227,17 @@ class Settings(BaseSettings):
     @classmethod
     def blank_optional_email_setting_is_unset(cls, value):
         return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("walkin_base_url")
+    @classmethod
+    def single_walkin_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip('/')
+        parsed = urlparse(normalized)
+        if (parsed.scheme not in {'http', 'https'} or not parsed.hostname
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or any(char in normalized for char in '[]\"\',\n\r\t ')):
+            raise ValueError('WALKIN_BASE_URL must contain one HTTP(S) booking URL, not a list')
+        return normalized
 
     @field_validator("subscription_grace_days", mode="before")
     @classmethod
