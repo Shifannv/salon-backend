@@ -1645,3 +1645,324 @@ under `backend/.artifacts/{owner-alerts,customer-push}-20261023/`.
 No new backend revision, remote migration, settlement/refund operation or cloud resource
 change was made during this resumed verification. Broader booking/QR/completion acceptance
 and the U08 payment implementation remain separate, unfinished work.
+
+## 24. Booking and payment continuation: local E2E verified, release held
+
+Resumed 23 October after the automatic approval review usage limit cleared. The
+user's commit `0b6ece4` contains the earlier source fixes; this continuation preserves
+it and records validation on `thameem/u08-verification-continuation`. No commit/push,
+APK installation, production release, migration, refund or payout occurred here.
+
+### Verified implementation and defects fixed
+
+`tests/integration/test_booking_journeys_e2e.py` exercises actual HTTP routes, use
+cases and a disposable PostgreSQL database. Synthetic actor overrides isolate auth
+extraction; these tests do not establish real JWT sign-in or Android UI behavior.
+Payment providers are disabled, and cash receipts exist only in the disposable fixture.
+
+- App, QR walk-in and manual walk-in journeys pass: resolve salon/QR PNG, read SQL
+  availability, create/replay booking, deny customer check-in, approve when required,
+  check in, reject unpaid completion, record collection and complete.
+- Completion retries previously produced duplicate customer notices. The repository's
+  actor-scoped replay marker now prevents scheduling another completion notice.
+  Concurrent same-key HTTP retries assert one receipt, completion audit and customer
+  notice. Completion notification scheduling remains a post-commit background action;
+  this does not prove crash-safe durable delivery for every completion failure.
+- No-show actions require a reason and the full ten-minute grace. Both native no-show
+  and legacy owner-cancellation paths reject marking a checked-in customer absent.
+  The no-show notice/outbox is written transactionally. Retry, exact-boundary, direct
+  SQL bypass and account-erasure compatibility checks pass.
+
+Prepared revision `0043_no_show_attendance_guards` follows held 0042. Independent
+migration and security reviews found no remaining concrete blocker in that scoped
+attendance foundation after fixes. They do not approve remote execution or financial
+policy activation. The no-show request body is documented in the existing API reference;
+bodyless consumers must be coordinated before releasing that contract.
+
+### Payment/change rules and implementation boundary
+
+The immutable Decimal calculation foundation covers the approved cancellation bands,
+provider-cost treatment, internal allocation, zero completed-service commission,
+four-hour change cutoff and two successful time-reschedule limit. These calculations
+are **not connected to live refunds, payouts or booking-change endpoints**. They do
+not replace existing legacy snapshots or activate online payment.
+
+The user's follow-up decisions are now recorded in the existing payment specification:
+unpaid salon collection uses the new service price; customer changes require an available
+slot without renewed salon approval; prepaid upgrades require verified extra funds
+before commit. All three earlier clarification questions are answered. The tested
+`service_change_quote` separates retained prepaid money from new service value and
+additional payment. Partial/advance or already-collected manual payments are explicitly
+outside its unpaid path; it does not claim to reserve/change a slot or verify a capture.
+
+Still required before full U08 acceptance: release/extension of the prepared policy binding,
+atomic SQL change/reschedule commands and count/audit persistence, verified extra-payment
+binding and failed-change/late-capture reconciliation, cancellation/refund execution and
+internal approval/settlement ledger, provider hold evidence, and customer/owner UI wiring
+plus physical end-to-end acceptance. The local helper alone is not a completed payment flow.
+The user answered that Cashfree account setup is still in progress. Continue local logic
+without credentials; real provider testing remains pending, separately from the completed
+disposable-database cash journeys. Configuration must use secure environment settings,
+not credentials pasted in chat.
+
+### Cashfree deferred: immutable checkout selection prepared
+
+Prepared revision `0044_versioned_checkout_policy` follows0043 and changes only the
+existing policy stamp function. `BOOKING_CHECKOUT_POLICY_VERSION` defaults to the
+historical `customer_processing_v1`. Explicit U08 selection stores
+`u08-2026-10-23-v1` at creation on all three booking paths; clients cannot select it,
+and later updates cannot rewrite it. Existing snapshots remain unchanged. The setting
+is transaction-local and resets on the reused connection after commit. Missing policy
+migration causes a503 and full creation rollback, rather than silently binding legacy.
+
+Checkout quote responses include the selected policy. U08 has zero customer surcharge;
+the existing policy retains its historical surcharge/commission behavior. U08 config,
+public payment options and app/QR booking gates keep online payment unavailable. A
+stored U08 booking cannot enter the legacy provider-intent/automatic-split flow even
+after credentials are configured. The completed-service zero-commission calculation
+remains the approved foundation; the actual held-funds/refund/approval workflow still
+needs implementation. This is not full U08 payment completion or activation.
+
+Independent migration/security review found no blocker in this scoped selector/guard.
+After U08 bookings exist, rollback must preserve the stored-policy guard or disable
+online collection: an older API could otherwise interpret them using legacy settlement.
+No0044 execution, runtime setting change, provider request or production release occurred.
+
+### Test evidence
+
+- Latest full backend run including the policy-binding changes and disposable PostgreSQL
+  suites: **1,416 passed, 36 skipped**, one dependency deprecation warning, 191 seconds.
+- Dedicated HTTP-to-PostgreSQL E2E rerun: **6 passed**, including concurrent completion
+  retries. Financial policy unit suite: **47 passed**.
+- New policy SQL tests cover all three booking sources, replay, pre-migration snapshot
+  preservation, missing-schema rollback, unknown versions, client ACL and transaction-local
+  setting reset. Focused checkout/payment suites passed61 checks before the full run.
+- Ruff over `app tests migrations`: passed. Other opt-in suites remain skipped;
+  these counts must not be described as complete native/payment-provider coverage.
+
+Private logs are in `backend/.artifacts/booking-policy-20261023/`, including
+`u08-full-final.log`, `full-resumed.log`, `e2e-resumed.log`, `u08-checkout-green.log`
+and `change-quote-green.log`.
+
+### Fresh live checks and deployment gates
+
+Production `/health` returned **200**. Its OpenAPI still has **119 paths**, has no
+required no-show request body and no reschedule/service-change routes. This confirms
+the source contract is not yet released; a healthy API does not establish U08 readiness.
+
+Read-only Mumbai metadata still shows **0 Alembic history rows**, existing salon
+category and salon/service description columns, and no attendance guard function.
+Do not stamp history or replay the migration chain against that restored database.
+The expected-head/catalog/ownership/privilege reconciliation described in
+`migrations/MUMBAI_FORWARD_RECONCILIATION.md` remains required before a concrete remote
+migration approval can be requested. No migration approval or traffic promotion is
+inferred from earlier scoped gallery/category/candidate approvals.
+
+## 25. Pre-market checks and actual phone QR cache defect — 2026-10-24
+
+**Release decision: not ready for market publication.** Passing checks below do not
+complete the outstanding payment/change commands, migration reconciliation, native
+release builds, provider acceptance or formal VAPT. This is the existing assessment
+updated in place; earlier sections retain their historical evidence.
+
+### Live routing and the approved QR environment fix
+
+- Public API: `https://apiv1.mudassirmhd.in`; Swagger: `/docs`; contract: `/openapi.json`.
+- Customer booking website: `https://salon-customer-webpage.vercel.app`.
+- Required salon QR destination: `https://salon-customer-webpage.vercel.app/s/<qr_token>`.
+  Use the salon's persistent public QR token, not a database salon UUID.
+- With explicit approval, changed only production `WALKIN_BASE_URL` to the single
+  website `/s` URL using the exact serving image digest ending `f360085`.
+  Revision `salon-api-production-qr-20261023` passed zero-traffic checks and received
+  normal traffic. The preceding category revision was preserved. Min 0/max 1 retained.
+  No source patches, migrations, billing changes or VM changes were included.
+- Production health, public salon resolver, QR PNG and website returned 200.
+  Actual PNG decoding produced the intended website URL. Browser checks reached
+  Mentrex → Buzz cut → team → available time → customer-details/OTP gate.
+  No OTP, booking or payment was submitted during this read-only flow.
+- Installed APK inspection found the production API origin in both bundles; the owner
+  config explicitly embeds it. A bundle string alone does not prove every request.
+  Correlated production request metadata also showed the website's server-side QR
+  lookup reaching Cloud Run. These checks did not use a local booking API mock.
+
+**Physical QR result corrected:** the user reported a not-found page. Inspection of
+the connected phone found the owner QR modal open. Decoding that exact screenshot
+revealed the *old malformed JSON-list payload*, despite the current public PNG
+decoding correctly. The old native image had survived the environment-only fix.
+Opening the corrected destination in Chrome on the same phone displayed Mentrex
+and Buzz cut, with no not-found label. This establishes the stale owner image defect;
+it does not establish a successful fresh OEM camera scan.
+
+Prepared `owner.py` now adds a deterministic destination hash to the QR image URL.
+The URL changes when the encoded destination changes, remains stable otherwise,
+and preserves the salon token. The regression failed before the patch and passed
+after it. Compared the file against the actual serving image: the only source
+difference is the hash import and QR URL version. Built local image
+`salon-qr-cache-review:20261024` from that exact image plus this one file; an offline
+runtime check passed. **This cache fix is not yet deployed.** A separate scoped
+release approval is needed. Existing malformed downloads/prints must be replaced;
+an image cache fix cannot repair an already printed code.
+
+**Release update, 24 October 2026:** the user subsequently approved this exact
+one-file cache fix. It is now deployed as `salon-api-production-qr-cache-20261024`
+and receives 100% of normal traffic. The preceding paragraph describes the prepared
+state before that approval. Published image index digest
+`sha256:15d487da380021f7e36a321307fe965814ee2ab3070dbb9fd0eec2ba73c7032b`;
+Cloud Run resolved its runtime image manifest to
+`sha256:03d755dfc70d32726c5e9eae0166774ef5f29baba69be7c73b5a30b741072044`.
+Zero-traffic health, actual QR PNG decoding, live website destination and anonymous
+401 checks passed before promotion. Candidate OpenAPI was identical to production
+(119 paths). Post-promotion checks through the public API domain passed again.
+Service min 0/max 1 was verified, and rollback revision
+`salon-api-production-qr-20261023` remains available. No migrations, payment/source
+security patches, app binaries, website release, billing or VM changes were included.
+**Post-release phone verification passed, 24 October 2026:** after the user returned
+exclusive phone control, restarted the existing signed-in owner app without clearing
+data, opened Menu → QR Code, and decoded the actual displayed image. It now contains
+the correct customer-web `/s/<qr_token>` destination rather than the malformed list.
+Opened that decoded URL in Chrome on the same physical phone: Mentrex and Buzz cut
+were visible and no not-found text appeared. No booking, payment or account change
+was submitted. This verifies native image refresh, actual QR content and same-device
+browser destination; a manual OEM-camera scan was not performed. Phone control was
+returned to the user. Saved or printed malformed codes still require replacement.
+Private evidence includes `owner-qr-after-release.png`,
+`owner-qr-after-release-decoded.json`, `owner-qr-destination-phone.png` and
+`owner-qr-device-result.json`, alongside `qr-cache-*` files in the existing
+release-readiness artifacts directory.
+
+### Customer and owner application status
+
+| Area | Evidence | Release limitation |
+| --- | --- | --- |
+| Owner native presence | Signed-in dashboard and Mentrex QR modal inspected | Full release APK and renewed end-to-end acceptance still required |
+| Customer native presence | Signed-in home exposes Mentrex | Updated secure-storage native build not installed |
+| Attendance contract | Owner validator accepts `checked_in`/`no_show`; customer adapter now maps them to Arrived/No-show with terminal display | These are source fixes; existing APKs retain their old behavior |
+| Owner collection | Backend accepts checked-in collection | Owner still reuses a customer payment-request capability; checked-in receipt action needs coordinated correction |
+| QR booking website | Live service/team/time/details entry checked; isolated Playwright suite passed | Live OTP/commit, refund and prepaid-upgrade acceptance not established |
+| Booking modifications/finance | Policy math, immutable version foundation, local HTTP/Postgres journeys tested | Atomic service/time changes, additional verified captures, refund/payout execution and corresponding app wiring remain unfinished |
+
+Customer attendance regression tests initially returned undefined for both backend
+states. The fix adds explicit labels and terminal handling rather than presenting
+no-show as an active request. Customer TypeScript checking passed after completing
+the typed fixture. Changed UI lint exposed **two existing errors and two existing
+warnings**, confirmed in HEAD: synchronous tab state update in an effect, an
+unescaped apostrophe, unstable memo input and an unused banner setter. Do not report
+the whole customer UI lint as clean.
+
+### Scoped security checks and prepared corrections
+
+This is a dependency/source/configuration assessment and bounded functional testing,
+**not a certified or comprehensive penetration test**.
+
+- Backend source now bounds unknown-JWT-key JWKS refreshes with a shared lock and
+  cooldown; strict QR OTP send/verify limits fail closed on Redis failure and use
+  atomic counter expiry. These patches passed tests but are **not in production**.
+- Customer native Supabase sessions previously used AsyncStorage. Prepared an
+  Expo-compatible SecureStore adapter with serialized chunked writes, safe legacy
+  migration and no plaintext fallback. Added device-only access and disabled Android
+  backup in app configuration. Required security review also identified malformed
+  manifest logout recovery; added regression tests and a targeted recovery fix.
+  Real-device session migration still requires a rebuilt native APK.
+- Both generated native release configurations reference debug signing. Verify actual
+  distribution signing before publication; test APKs are not evidence of store signing.
+- Approved npm advisory checks found owner **36** findings (1 critical, 19 high,
+  14 moderate, 2 low) and customer **19** (13 high, 6 moderate). These dependency
+  findings require reachability/upgrade review; they are not all proven native exploits.
+- Website production dependency audit initially found a critical Next.js advisory.
+  Prepared the compatible `16.4.0` → `16.4.3` patch: production audit now reports zero
+  findings and the isolated web suite passes. **The website patch is not deployed.**
+  Primary advisory: [Next.js image optimization vulnerability](https://github.com/advisories/GHSA-2464-fhr4-w9xw).
+- Customer dependency installation still has a TypeScript 6 versus
+  `openapi-typescript` peer-range conflict. The scoped SecureStore addition used
+  legacy peer resolution; clean-install/build compatibility remains a release gate.
+- Tests previously calling `Settings()` directly could read the developer dotenv.
+  The class now honors `SALON_ENV_FILE` before import, matching isolated test setup.
+  Production keeps its existing default when that override is absent.
+
+### Recorded verification and remaining gates
+
+- Full backend after QR cache patch: **1,431 passed, 36 skipped**, one dependency
+  deprecation warning; Ruff passed. The first post-patch run exposed two exact URL
+  expectations; assertions now verify the deterministic versioned URL.
+- Isolated website Playwright: **90 passed, 2 skipped**. The skips are optional visual
+  captures. Existing stale selectors were updated to the current UI without removing
+  their navigation, animation or reduced-motion assertions. This suite uses local
+  test API/auth fixtures and does not establish real Cashfree behavior.
+- Owner focused contract/push tests: **12 passed**; TypeScript passed.
+- Customer auth/storage/attendance tests: **18 passed**, including two reproduced
+  malformed-manifest recovery failures fixed afterward. Full TypeScript and focused
+  API/storage lint passed; the two pre-existing UI lint errors above remain.
+- Private evidence: `backend/.artifacts/release-readiness-20261023/` and
+  `backend/.artifacts/booking-policy-20261023/qr-cache-final-fixed.log`.
+
+Before publication: replace old malformed QR downloads/prints; finish atomic changes and
+financial execution; reconcile remote migration history and obtain approval for the
+concrete migration/release package; configure Cashfree securely and test real sandbox
+captures/refunds/webhooks; resolve dependency/build/signing gates; rebuild both apps
+and repeat physical booking, QR/check-in, collection/completion and notification
+acceptance. Cashfree setup is already known to be incomplete; do not request secrets
+in chat. None of the prepared migration or online-payment activation work has been
+approved or executed remotely.
+
+## 26. Backend-first continuation — 24 October 2026
+
+The user asked to prioritize backend completion while Cashfree account setup remains
+incomplete. The additions below are local, uncommitted and **not deployed**. The
+serving QR-cache revision and its existing public contract remain unchanged.
+
+### Implemented and locally exercised
+
+- Prepared migration **0045** and customer change availability, quote and commit APIs.
+  SQL checks ownership, current availability, the four-hour boundary and a maximum
+  of two committed time/staff reschedules. A quote fingerprint binds consent to the
+  exact price/duration snapshot. Version checks, idempotency and locking protect
+  against retries, concurrent changes, salon closures and competing bookings.
+- Unpaid Pay at Salon changes use the new service price. Fully prepaid cheaper
+  changes retain the amount paid while recording the new service value separately.
+  Time-only changes preserve the booked service price/duration. Existing approval
+  status is retained. More expensive prepaid changes remain blocked until an exact
+  verified additional capture can be bound to the change; this is unfinished.
+- Prepared migration **0046** for immutable terminal financial snapshots, durable
+  refund obligations and reconciliation holds. Approved cancellation bands are
+  applied using the stored U08 policy and appointment time. Provider costs do not
+  reduce the promised customer refund. Completed prepaid services have zero service
+  commission; cancellation allocations use the approved rounding rules.
+- Added super-admin finance read/command APIs with MFA enforcement, optimistic
+  versions, idempotency, hold review, recorded provider costs, manual approval and
+  manual payout recording. Recording a payout does **not** transfer money.
+  The owner statement exposes only approved/paid amounts and public status.
+- U08 customer cancellation is allowed within four hours with no refund; legacy
+  cutoff behavior is preserved. Checked-in owner collection has its own
+  `can_record_payment` response capability. Unpaid U08 completion is rejected.
+- Thirty-three focused HTTP/PostgreSQL tests exercise booking changes and finance,
+  including foreign-account denial, price forgery, quote drift, slot races, replay,
+  cancellation boundaries, owner self-booking cancellation, fee shortfalls, late
+  captures, over-refunds, owner-field redaction and manual payout limits.
+
+The API handoff is updated in `docs/BACKEND_API_REFERENCE.md`; it clearly separates
+these prepared routes from the live contract. Migration/security reviews found no
+remaining concrete blocker in the scoped local foundations. Reviews do not authorize
+remote migration or establish provider acceptance.
+
+Final isolated full backend verification: **1,466 passed, 36 skipped**, one dependency
+deprecation warning, 110 seconds. Ruff across app/tests/migrations and Git whitespace
+checks passed. The skipped cases are not established as passing. Evidence remains in
+the private `backend/.artifacts/booking-policy-20261023/backend-u08-verified.log`.
+
+### Remaining backend work and release gates
+
+1. Finish verified additional-payment binding and commit/reconciliation behavior for
+   prepaid upgrades. A failed or late capture must not silently change the booking.
+2. Implement provider refund dispatch and a reviewed reconciliation-resolution path.
+   Pending refund jobs currently record obligations; they do **not** issue refunds.
+   Manual finance hold review is an administrator attestation, not provider proof.
+3. Reconcile the restored Mumbai database's empty Alembic history against an isolated
+   reference. Prepared head is 0046; portable CI boundary 0037 and guarded Mumbai
+   target 0040 are unchanged. Do not stamp or replay the chain without proof.
+4. Review the concrete migration/release package and obtain production approval.
+   Earlier QR approvals cover neither these changes nor migrations/data removal.
+5. When Cashfree is securely configured, verify sandbox captures, signatures,
+   retries, refunds and settlement holds before enabling online U08 payments.
+
+The backend is **not yet fully complete or released**. These are backend tasks in
+addition to the separate customer/owner build, wiring and device-acceptance gates.

@@ -133,7 +133,7 @@ async def test_direct_payment_rejects_cancelled_booking() -> None:
         )
     )
 
-    with pytest.raises(ConflictError, match="confirmed or completed"):
+    with pytest.raises(ConflictError, match="confirmed, checked-in or completed"):
         await repository.record_payment("owner-1", "booking-1", "cash")
 
 

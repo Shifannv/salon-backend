@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.salon_photos import validate_salon_photo_write, visible_salon_photos
 from app.core.config import settings
 from app.core.exceptions import (
+    BookingChangeError,
     BookingIdempotencyKeyReusedError,
     ConflictError,
     IdempotencyKeyReuseError,
@@ -1569,6 +1570,10 @@ class PlatformRepository:
                 text("select set_config('app.payment_preference', :preference, true)"),
                 {"preference": values.get("payment_preference") or "pay_at_salon"},
             )
+            await self.session.execute(
+                text("select set_config('app.booking_checkout_policy_version', :policy, true)"),
+                {"policy": settings.booking_checkout_policy_version},
+            )
             service_ids_json = json.dumps(values["service_ids"])
             result = await self.session.execute(
                 text(
@@ -1588,6 +1593,13 @@ class PlatformRepository:
                 {**values, "service_ids_json": service_ids_json},
             )
             booking_id = result.scalar_one()
+            if settings.booking_checkout_policy_version != "customer_processing_v1":
+                stored = await self.session.scalar(
+                    text("select checkout_policy_version from bookings where id=:id"), {"id": booking_id},
+                )
+                if stored != settings.booking_checkout_policy_version:
+                    from app.core.exceptions import ServiceUnavailableError
+                    raise ServiceUnavailableError("Booking policy migration is not ready")
             if values.get("payment_preference") is not None:
                 # The deposit is derived here, in SQL, from the price create_booking
                 # computed. Python never recomputes or supplies an amount.
@@ -1753,7 +1765,15 @@ class PlatformRepository:
                   b.customer_name, b.customer_phone, b.phone_verified,
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
-                  b.total_duration_minutes, b.total_price,
+                  b.total_duration_minutes, b.total_price, b.checkout_policy_version,
+                  (b.status in ('confirmed','checked_in','completed') and b.payment_status='unpaid'
+                    and s.is_active and s.profile_completed and s.approval_status='approved'
+                    and exists(select 1 from profiles ap where ap.id=:actor_id and ap.is_active and ap.role in ('owner','staff'))
+                    and (s.owner_id=:actor_id or exists(select 1 from staff collect_staff
+                      where collect_staff.id=b.staff_id and collect_staff.profile_id=:actor_id and collect_staff.is_active))) as can_record_payment,
+                  coalesce((to_jsonb(b)->>'change_version')::integer,0) as change_version,
+                  coalesce((to_jsonb(b)->>'committed_reschedules')::integer,0) as committed_reschedules,
+                  (to_jsonb(b)->>'service_fulfilment_amount')::numeric as service_fulfilment_amount,
                   case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * 0.05, 2) else 0 end as online_processing_charge,
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
@@ -1815,9 +1835,9 @@ class PlatformRepository:
                   order by is_main desc, sort_order asc, created_at asc
                   limit 1
                 ) img on true
-                left join booking_services bs on bs.booking_id = b.id
+                left join booking_services bs on bs.booking_id = b.id and coalesce((to_jsonb(bs)->>'is_active')::boolean, true)
                 where {' and '.join(filters)}
-                group by b.id, s.name, s.owner_id, s.address, img.url, st.name, st.photo_url
+                group by b.id, s.name, s.owner_id, s.address, s.is_active, s.profile_completed, s.approval_status, img.url, st.name, st.photo_url
                 order by b.start_datetime desc
                 {pagination}
                 """
@@ -1848,7 +1868,15 @@ class PlatformRepository:
                   b.customer_name, b.customer_phone, b.phone_verified,
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
-                  b.total_duration_minutes, b.total_price,
+                  b.total_duration_minutes, b.total_price, b.checkout_policy_version,
+                  (b.status in ('confirmed','checked_in','completed') and b.payment_status='unpaid'
+                    and s.is_active and s.profile_completed and s.approval_status='approved'
+                    and exists(select 1 from profiles ap where ap.id=:actor_id and ap.is_active and ap.role in ('owner','staff'))
+                    and (s.owner_id=:actor_id or exists(select 1 from staff collect_staff
+                      where collect_staff.id=b.staff_id and collect_staff.profile_id=:actor_id and collect_staff.is_active))) as can_record_payment,
+                  coalesce((to_jsonb(b)->>'change_version')::integer,0) as change_version,
+                  coalesce((to_jsonb(b)->>'committed_reschedules')::integer,0) as committed_reschedules,
+                  (to_jsonb(b)->>'service_fulfilment_amount')::numeric as service_fulfilment_amount,
                   case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * 0.05, 2) else 0 end as online_processing_charge,
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
@@ -1910,7 +1938,7 @@ class PlatformRepository:
                   order by is_main desc, sort_order asc, created_at asc
                   limit 1
                 ) img on true
-                left join booking_services bs on bs.booking_id = b.id
+                left join booking_services bs on bs.booking_id = b.id and coalesce((to_jsonb(bs)->>'is_active')::boolean, true)
                 where b.id = :booking_id
                   and (
                     cast(:actor_id as uuid) is null
@@ -1922,7 +1950,7 @@ class PlatformRepository:
                         and st2.profile_id = :actor_id and st2.is_active
                     )
                   )
-                group by b.id, s.name, s.owner_id, s.address, img.url, st.name, st.photo_url
+                group by b.id, s.name, s.owner_id, s.address, s.is_active, s.profile_completed, s.approval_status, img.url, st.name, st.photo_url
                 """
             ),
             {"booking_id": booking_id, "actor_id": actor_id},
@@ -1966,7 +1994,7 @@ class PlatformRepository:
         current_result = await self.session.execute(
             text(
                 f"""
-                select id, status, customer_id, customer_name, payment_status, payment_preference,
+                select id, status, customer_id, customer_name, payment_status, payment_preference, checkout_policy_version,
                        start_datetime, now() as database_now from bookings
                 where id = :booking_id and ({predicate})
                 for update
@@ -2001,8 +2029,15 @@ class PlatformRepository:
                     else "A reason is required when marking a customer as a no-show"
                 )
                 raise ValidationError(message) from None
-        if status == "completed" and current.get("payment_preference") == "pay_at_salon" and current.get("payment_status") != "paid":
+        if status == "completed" and (current.get("payment_preference") == "pay_at_salon"
+                or current.get("checkout_policy_version") == "u08-2026-10-23-v1") and current.get("payment_status") != "paid":
             raise PaymentCollectionRequiredError("Collect cash or direct UPI from customer before completing service.")
+        if status == "cancelled":
+            if current.get("checkout_policy_version") == "u08-2026-10-23-v1" and current["status"] == "checked_in":
+                raise BookingChangeError("cancellation_review_required", "Cancellation after check-in requires finance review")
+            if current.get("checkout_policy_version") == "u08-2026-10-23-v1":
+                await self.session.execute(text("select set_config('app.booking_cancel_origin',:origin,true)"),
+                                           {"origin": "customer" if customer_only else "salon"})
 
         await self.session.execute(
             text(
@@ -2096,7 +2131,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select b.id, b.status, b.start_datetime, b.customer_name,
+                select b.id, b.status, b.start_datetime, b.customer_name, b.checkout_policy_version,
                        s.owner_id,
                        now() as database_now
                 from bookings b
@@ -2113,10 +2148,14 @@ class PlatformRepository:
         if row["status"] not in {"pending", "confirmed"}:
             raise ConflictError("Booking can no longer be cancelled")
         cutoff = row["start_datetime"] - timedelta(minutes=cutoff_minutes)
-        if row["database_now"] >= cutoff:
+        if row.get("checkout_policy_version") != "u08-2026-10-23-v1" and row["database_now"] >= cutoff:
             raise ConflictError(
                 "Immediate cancellation cutoff has passed; submit a cancellation request"
             )
+
+        # Trusted provenance also distinguishes an owner cancelling a self-booked visit.
+        if row.get("checkout_policy_version") == "u08-2026-10-23-v1":
+            await self.session.execute(text("select set_config('app.booking_cancel_origin','customer',true)"))
 
         await self.session.execute(
             text(
@@ -2313,7 +2352,7 @@ class PlatformRepository:
         if row is None:
             raise NotFoundError("Booking not found")
         if row["status"] not in {"confirmed", "checked_in", "completed"}:
-            raise ConflictError("Only confirmed or completed bookings can be paid")
+                raise ConflictError("Only confirmed, checked-in or completed bookings can be paid")
         if row["payment_status"] == "paid":
             raise ConflictError("Payment has already been recorded")
 
@@ -2429,7 +2468,7 @@ class PlatformRepository:
                     array(
                       select bs.service_name
                       from booking_services bs
-                      where bs.booking_id = b.id
+                      where bs.booking_id = b.id and coalesce((to_jsonb(bs)->>'is_active')::boolean, true)
                       order by bs.service_name
                     ), array[]::text[]
                   ) as service_names
@@ -2463,7 +2502,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select b.id, b.status, b.payment_status, b.payment_preference,
+                select b.id, b.status, b.payment_status, b.payment_preference, b.checkout_policy_version,
                        b.start_datetime, b.end_datetime, b.customer_name,
                        s.owner_id, now() as database_now
                 from bookings b
@@ -2477,6 +2516,9 @@ class PlatformRepository:
         booking = result.mappings().one_or_none()
         if booking is None:
             raise NotFoundError("Booking not found")
+
+        if kind == "cancellation" and booking.get("checkout_policy_version") == "u08-2026-10-23-v1":
+            raise BookingChangeError("direct_cancellation_required", "Cancel this booking directly to apply its stored cancellation policy")
 
         if kind == "payment_confirmation":
             if booking["status"] not in {"confirmed", "completed"}:
@@ -2574,7 +2616,7 @@ class PlatformRepository:
                   coalesce(
                     array(
                       select bs.service_name from booking_services bs
-                      where bs.booking_id = b.id order by bs.service_name
+                      where bs.booking_id = b.id and coalesce((to_jsonb(bs)->>'is_active')::boolean, true) order by bs.service_name
                     ), array[]::text[]
                   ) as service_names
                 from booking_action_requests ar
@@ -2910,7 +2952,7 @@ class PlatformRepository:
                        coalesce(
                          array(
                            select bs.service_name from booking_services bs
-                           where bs.booking_id = b.id order by bs.service_name
+                           where bs.booking_id = b.id and coalesce((to_jsonb(bs)->>'is_active')::boolean, true) order by bs.service_name
                          ), array[]::text[]
                        ) as service_names
                 from bookings b

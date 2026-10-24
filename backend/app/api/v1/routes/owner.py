@@ -1,5 +1,7 @@
 """Barber/owner app API routes."""
 
+import hashlib
+
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -278,7 +280,11 @@ async def get_my_qr(
         url = f"{base}/v1/walkin/{qr_token}/qr"
     else:
         url = str(request.url_for("get_qr_image", qr_token=qr_token))
-    return JSONResponse({"url": f"{url}?format=png&scale={scale}", "cached": False})
+    # A stable image URL can retain obsolete QR bytes in native image caches.
+    # Change its cache identity when the encoded destination changes, keeping the
+    # salon's permanent QR token and normal repeated-image caching intact.
+    version = hashlib.sha256(settings.walkin_base_url.rstrip("/").encode()).hexdigest()[:16]
+    return JSONResponse({"url": f"{url}?format=png&scale={scale}&v={version}", "cached": False})
 
 
 # ── Images ────────────────────────────────────────────────────────────────────

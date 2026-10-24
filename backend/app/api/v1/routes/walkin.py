@@ -1,5 +1,7 @@
 """Walk-in QR API routes — public (unauthenticated) and customer-authenticated."""
 
+import hashlib
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Path, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +23,7 @@ from app.core.config import settings
 from app.core.exceptions import QrCodeNotFoundError, TooManyRequestsError
 from app.core.qr import is_valid_qr_token_format, make_qr_png, make_qr_svg
 from app.domain.entities.profile import Profile
+from app.domain.services.checkout import online_checkout_available
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.payments.resolver import get_payment_resolver
 from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
@@ -148,10 +151,14 @@ async def verify_phone(
     """Send or verify a phone OTP via Supabase Auth."""
 
     await _use_cases(session).assert_public_qr_token(qr_token)
-    if not payload.otp:
-        allowed, _ = await cache.check_rate_limit(f"rate:otp:{payload.phone}", limit=5, window_seconds=60)
-        if not allowed:
-            raise TooManyRequestsError("Too many OTP requests. Please wait a minute before trying again.")
+    purpose = 'verify' if payload.otp else 'send'
+    phone_key = hashlib.sha256(payload.phone.encode()).hexdigest()
+    allowed, _ = await cache.check_rate_limit(
+        f"rate:otp:{purpose}:{phone_key}", limit=10 if payload.otp else 5,
+        window_seconds=60, strict=True,
+    )
+    if not allowed:
+        raise TooManyRequestsError("Too many OTP requests. Please wait a minute before trying again.")
 
     gateway = SupabaseAuthGateway(settings)
     if payload.otp:
@@ -187,7 +194,9 @@ async def create_walkin_booking(
     await _use_cases(session).validate_booking_context(actor, qr_token, payload.model_dump())
     repository = PlatformRepository(session)
     row = await WalkInUseCases(
-        repository, online_payments_enabled=get_payment_resolver().enabled
+        repository, online_payments_enabled=online_checkout_available(
+            get_payment_resolver().enabled, settings.booking_checkout_policy_version,
+        )
     ).create_walkin_booking(
         actor, qr_token, {**payload.model_dump(), "_idempotency_key": idempotency_key}
     )

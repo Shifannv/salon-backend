@@ -59,6 +59,8 @@ from app.domain.entities.payment import (
 )
 from app.domain.entities.profile import Profile
 from app.domain.services.authorization import is_owner
+from app.domain.services.booking_finance_policy import POLICY_VERSION
+from app.domain.services.checkout import online_checkout_available
 from app.domain.services.commission import commission_reversal, compute_commission
 from app.domain.value_objects.money import Money
 from app.infrastructure.db.repositories.payment_repository import PaymentRepository
@@ -273,7 +275,7 @@ class BookingPaymentUseCases:
             "currency": self.settings.payment_currency,
             "advance_percent": self.settings.payment_advance_percent,
         }
-        if not self.resolver.enabled:
+        if not online_checkout_available(self.resolver.enabled, self.settings.booking_checkout_policy_version):
             return {"enabled": False, "online_payment_available": False,
                     "online_payment_unavailable_reason": "Online payment coming soon.", **base}
         gateway = self.resolver.resolve()
@@ -315,6 +317,10 @@ class BookingPaymentUseCases:
         booking = await self.repository.lock_booking(booking_id, actor.id)
         if booking is None or not self._is_customer_of(booking, actor):
             raise NotFoundError("Booking not found")
+        if booking.get("checkout_policy_version") == POLICY_VERSION:
+            # Do not send this policy through the legacy automatic split/order path.
+            # Credentials alone cannot prove deferred settlement or approve a payout.
+            raise PaymentProviderNotConfiguredError("Online payment coming soon.")
         if booking["status"] not in {"pending", "confirmed"}:
             raise ConflictError("Only pending or confirmed bookings can be paid online")
         if not booking.get("accepts_new_online_payment", True):

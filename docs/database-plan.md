@@ -1,5 +1,14 @@
 # Database plan
 
+Prepared locally, not deployed: `0045_customer_booking_changes` adds booking versions,
+committed-reschedule counts, current service-line visibility and immutable change
+snapshots; `0046_u08_financial_outcomes` adds immutable terminal-policy obligations,
+provider-pending refund work, manual finance commands and ledger-drift review records.
+New history retains service/appointment/financial audit data through the existing
+anonymized booking; no customer names, phone numbers, contact copies or new profile FKs
+are introduced. Clients have no direct table/function privileges. U08 activation and
+remote migration-history reconciliation remain separate release gates.
+
 Prepared for review, not migrated/deployed: 0038–0040 document two legacy cancellation
 text columns, preserve promotion search_path hardening and codify FastAPI-only client
 access. The deletion adapter clears both legacy fields to NULL; transaction-rollback
