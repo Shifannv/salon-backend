@@ -98,3 +98,124 @@ The prepared [privilege matrix](../verification/mumbai-forward-privileges-2026-1
 expands all 1,212 existing-object revocations by object/grantee/privilege. There are no
 positive grants; the two redundant service grants in the earlier standalone proposal
 were removed because those rights already exist and are preserved by assertions.
+
+## 24 October: independent expected0040 reference (preparation only)
+
+A disposable PostgreSQL17.11 reference replayed the portable0037 fixture followed
+by the exact0038-0040 sidecars. The generic fixture initially lacked Supabase's
+explicit service_role function execution grants, so the0040 guard correctly
+refused it. Matching grants were added only to that disposable bootstrap; the
+second replay passed. No guard was weakened and no remote grant was issued.
+
+Fresh Mumbai SELECT-only catalog evidence covered44 tables,540 columns,148 indexes,
+52 functions,73 triggers,43 policies,290 constraints and7 default ACL records.
+Columns, normalized function definitions/configuration, indexes, triggers and RLS
+policies matched the reference. Twenty-four tables differed only in raw ACLs,
+including additional explicit Supabase service_role rights. Seven managed default
+ACL entries require explicit classification. One subscription interval constraint
+differs in array-element cast placement and needs semantic equivalence review.
+
+This is not complete expected-head equality or historical backfill proof. Effective
+inherited/schema/column/sequence privileges and extension exclusions still need
+reconciliation. Empty remote Alembic history remains unchanged; no stamp/upgrade
+command is authorized by these results. Prepared0041-0046 are not applied.
+
+Local ignored evidence: `backend/.artifacts/release-remote-catalog-20261024.json`,
+`backend/.artifacts/native-pending-20261024/expected-0040-catalog.json` and
+`reference-0040-diff.json`. The disposable reference container was removed.
+
+## 25 October: effective privileges and current data invariants
+
+Fresh read-only Mumbai metadata was compared with a newly replayed disposable
+PostgreSQL17.11 reference through exact0040. For anon/authenticated, all44 application
+tables,540 columns and52 application functions have zero effective table/column/EXECUTE
+rights. This includes inherited/PUBLIC effects through PostgreSQL privilege helpers.
+There are no memberships for the three reviewed roles and no non-extension public
+sequences. Application function EXECUTE privileges match the reference for all three
+roles. No remote privilege changes occurred.
+
+Remaining effective differences are explicit: service_role has managed BYPASSRLS,
+extra rights on24 tables/296 columns, and schema USAGE on auth/storage/extensions;
+the minimal local fixture lacks part of that managed platform setup. Seven managed
+default ACL records remain outside the fixture. These must be classified/preserved
+under an approved adoption plan; copying the production grants into the reference
+would not independently prove historical migration execution. No comparison result
+authorizes a stamp, replay from baseline or weakening of the migration guard.
+
+The single interval CHECK difference is cast placement: individually cast varchar
+array elements versus a varchar-array-to-text-array cast. A SELECT-only comparison
+covered four accepted values, NULL, empty, mixed-case, invalid and trailing-space
+inputs:9 cases,0 truth-value differences. This supports semantic equivalence of
+that expression and is not general normalization of arbitrary constraints.
+
+Current payment-state audit followed the existing0037 calculation: all20 bookings
+have zero mismatches in paid_amount, refunded_amount and payment_status versus the
+ledger. This establishes those current invariants only; it does not recreate every
+historical backfill/seed or authorize0041–0046 execution. Real-data backup, remaining
+history adoption proof and the approved release procedure remain gates.
+
+Ignored evidence: `.artifacts/remote-effective-acl-20261025.json`,
+`.artifacts/effective_acl_catalog_20261025.sql`,
+`.artifacts/acl-reference-20261025/expected-effective-acl.json` and
+`effective-acl-diff.json`. No remote migration/history mutation occurred.
+
+## 25 October: original-grant recovery and actual-data forward rehearsal
+
+The actual encrypted current Mumbai archive was restored into a network-isolated
+Supabase PostgreSQL17.6.1 container **with original owners and ACLs enabled**. Its
+platform bootstrap needed a local NOLOGIN `supabase_realtime_admin` role and the
+database owner `postgres`, confirmed independently by a source SELECT. After
+these prerequisites, archive restore exited0. A clean restore's effective roles,
+tables, columns, functions, schemas, sequences, memberships and seven default ACL
+entries matched the captured Mumbai metadata with zero differences. This closes
+the earlier recovery omission; it is not an independent historical-execution proof.
+
+The exact prepared SQL sidecars0041→0046 then replayed successfully, in order and
+in separate transactions, on a restored real-data copy. Original row counts stayed
+14 profiles/10 salons/20 bookings/20 booking_services/14 Auth users. Removed fields,
+duplicate active image URLs and over-limit galleries all counted0 afterward;
+no financial/change-history rows were invented. Alembic history remained empty.
+Hashes and acceptance are in `.artifacts/restored-forward-chain-20261025.json`;
+grant recovery is in `restored-acl-comparison-20261025.json` and
+`real-backup-ownership-20261025.json`. No remote sidecar or stamp was executed.
+
+Read-only migration review still identifies these release blockers:
+
+1. History adoption must be reviewed as adoption of a verified current state,
+   preserving the enumerated managed-platform ACL differences, not a claim that
+   all historical upgrades/backfills executed. Existing policy supports neither
+   stamp nor0041–0046 execution; do not weaken it or bypass it with remote SQL.
+2. The account-erasure integration suite targets an older schema. The immutable
+   change/finance tables introduce JSON/text and staff identifiers not covered by
+   its current classification. Prove full-head erasure and retention behavior
+   before releasing that broader chain; passing booking/finance tests alone does
+   not close this privacy gate.
+3. Coordinate compatible API/client deployment around irreversible field removal.
+   A previously successful narrow hotfix does not validate a full-source release.
+
+An acceptable adoption proposal must seal the source, expected-head comparison,
+managed-role/default-ACL exceptions, current backfill invariants and fresh tested
+backup. It must identify the exact approved adoption operation and forward tranche,
+then pass the migration policy and obtain the operator's approval. No executable
+remote-adoption command is supplied while those gates remain open. Cashfree
+activation and provider-money operations remain deferred by the user.
+
+## 25 October: approved audit privacy transformation prepared as0047
+
+The user resolved the new audit retention decision: remove personal text and hash
+request/reference identifiers, preserving amounts and dates. Forward0047 and the
+compatible erasure adapter are prepared locally. Populated0046 fixtures first
+reproduced retained personal text; head0047 checks now exercise both account roles,
+immutable financial history, real service-role execution, client denial, typed JSON
+scrubbing, rollback and reference/key uniqueness across raw and hashed values.
+No historical migration or existing approval evidence was edited.
+
+The exact0041–0046 restored-real-data rehearsal above remains evidence for that
+specific tranche, not0047. New0047 is exercised against synthetic local data and
+still needs inclusion in the sealed candidate/release review. The explicit new
+two-table privacy classification does not close broader legacy schema/worker
+acceptance. Do not adopt history, apply the forward chain or activate erasure from
+this note. Source head47 remains outside currently authorized migration policies.
+
+The legacy Sydney project is user-confirmed paused, with source continuity still
+unverified. This is not a deletion decision and does not alter recovery gates.

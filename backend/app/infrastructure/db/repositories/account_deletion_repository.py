@@ -812,6 +812,7 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         try:
             await s.execute(text("select set_config('app.account_erasure', 'on', true)"))
             params = {"uid": user_id}
+            await self._scrub_booking_audits(params)
             await self._scrub_user_footprint(params)
             deletable_staff: list[str] = []
             if role == "owner":
@@ -825,6 +826,18 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         except BaseException:
             await s.rollback()
             raise
+
+    async def _scrub_booking_audits(self, params: dict[str, str]) -> None:
+        """Fail closed during rollout if new audit tables lack their privacy migration."""
+        state = (await self.session.execute(text("""
+            select to_regclass('public.booking_customer_changes') is not null
+                     or to_regclass('public.booking_finance_commands') is not null as has_audits,
+                   to_regprocedure('public.erase_booking_audit_personal_data(uuid)') is not null as can_scrub
+        """))).mappings().one()
+        if state["has_audits"]:
+            if not state["can_scrub"]:
+                raise RuntimeError("booking_audit_privacy_migration_required")
+            await self.session.execute(text("select public.erase_booking_audit_personal_data(:uid)"), params)
 
     async def _scrub_notifications(self, predicate: str, params: dict[str, Any]) -> None:
         """Anonymise other people's notifications that name a deleted person.

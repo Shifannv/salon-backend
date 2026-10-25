@@ -200,16 +200,24 @@ class R2StorageGateway(ImageFamilies, StorageGateway):
         if policy and (proof["dimension"] > policy.max_dimension or proof["size"] > policy.max_bytes):
             raise ValidationError("Photo exceeds this media category's dimensions or size limit")
 
-    async def cleanup_candidates(self) -> AsyncIterator[str]:
+    async def cleanup_candidates(self, *, after_key: str | None = None) -> AsyncIterator[str]:
         """List aged keys; the worker must verify signed metadata before deletion."""
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.settings.media_cleanup_grace_seconds)
         loop = asyncio.get_running_loop()
-        for prefix in ("avatars/", "salon-images/", "staff-photos/"):
+        prefixes = ("avatars/", "salon-images/", "staff-photos/")
+        if after_key is not None:
+            matched = next((prefix for prefix in prefixes if after_key.startswith(prefix)), None)
+            if matched is None:
+                raise ValidationError("Invalid media cleanup checkpoint")
+            prefixes = prefixes[prefixes.index(matched):]
+        for prefix in prefixes:
             continuation = None
             while True:
                 params = {"Bucket": self.settings.r2_bucket, "Prefix": prefix, "MaxKeys": 1000}
                 if continuation:
                     params["ContinuationToken"] = continuation
+                elif after_key and after_key.startswith(prefix):
+                    params["StartAfter"] = after_key
                 page = await loop.run_in_executor(_executor, partial(self._list_sync, params))
                 for item in page.get("Contents", []):
                     if item["LastModified"] < cutoff:

@@ -430,7 +430,7 @@ class PlatformRepository:
     async def list_public_staff(self, salon_id: str) -> list[dict[str, Any]]:
         """List active staff for a public salon (customer-facing, trimmed fields)."""
 
-        await self.get_public_salon(salon_id)
+        await self.assert_public_salon(salon_id)
 
         result = await self.session.execute(
             text(
@@ -449,7 +449,7 @@ class PlatformRepository:
     async def list_public_services(self, salon_id: str) -> list[dict[str, Any]]:
         """List public active services for a salon."""
 
-        await self.get_public_salon(salon_id)
+        await self.assert_public_salon(salon_id)
 
         result = await self.session.execute(
             text(

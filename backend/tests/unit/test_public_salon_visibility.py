@@ -239,6 +239,32 @@ def test_cached_walkin_requires_current_database_qr_validation(public_api, monke
     repo.get_salon_by_qr.assert_not_awaited()
 
 
+@pytest.mark.parametrize("suffix", ["services", "staff"])
+def test_public_catalog_miss_avoids_unused_photo_query(public_api, suffix):
+    client, session, _ = public_api
+    statements = []
+    session.db.set_trace_callback(statements.append)
+    response = client.get(f"/v1/salons/{session.ids[0]}/{suffix}")
+    assert response.status_code == 200
+    assert response.json()
+    reads = [sql for sql in statements if sql.lstrip().lower().startswith("select")]
+    assert len(reads) == 2  # Current publication guard and requested catalog only.
+    assert all("salon_images" not in sql.lower() for sql in reads)
+
+
+@pytest.mark.parametrize("suffix", ["services", "staff"])
+@pytest.mark.parametrize("index", range(1, 7))
+def test_hidden_public_catalog_miss_stops_before_catalog_read(public_api, suffix, index):
+    client, session, _ = public_api
+    statements = []
+    session.db.set_trace_callback(statements.append)
+    response = client.get(f"/v1/salons/{session.ids[index]}/{suffix}")
+    assert response.status_code == 404
+    assert response.json()["error"]["message"] == "Salon not found"
+    reads = [sql for sql in statements if sql.lstrip().lower().startswith("select")]
+    assert len(reads) == 1
+
+
 def test_public_openapi_contracts():
     paths = app.openapi()["paths"]
     for path in ["/v1/salons", "/v1/salons/nearby", "/v1/salons/{salon_id}",

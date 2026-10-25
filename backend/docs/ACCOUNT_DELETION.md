@@ -350,6 +350,37 @@ the status endpoint. Until it exists the Play requirement is not satisfied.
 
 ## Verification
 
+### Prepared booking-change and finance audit privacy (0047, not deployed)
+
+The approved policy removes personal free text and hashes request/reference
+identifiers in `booking_customer_changes` and `booking_finance_commands`. Migration
+0047 preserves rows, booking/version identifiers, money and dates. It replaces
+service snapshots with numeric price/duration fields, clears change request JSON,
+keeps only numeric amount/version fields in finance request JSON, and replaces
+staff identifiers with row-specific UUID pseudonyms. Finance action is a server
+machine action. `anonymized_at` records the one-time transformation. Hashes are
+pseudonyms, not a guarantee against guessing known original values.
+
+The restricted database helper requires the existing verified-deletion workflow's
+processing request and matching profile role. The adapter calls it before account
+FKs are detached. Ordinary UPDATE/DELETE/TRUNCATE remains blocked; the trigger
+allows only the exact redaction, with no financial/date edits. Canonical digest
+indexes preserve duplicate payout-reference and command-key rejection after
+redaction. Old raw-key retries after erasure fail safely rather than performing a
+second operation. Re-running erasure leaves the digests and timestamp unchanged.
+
+The adapter supports the older schema without these audit tables. If the new
+tables exist without0047, erasure stops before any deletion and rolls back.
+Release0047 with the compatible adapter before enabling deletion workers on the
+broader schema. The migration is irreversible; it cannot restore erased text.
+It is prepared locally, not applied to production. Historical backups have their
+own retention/access requirements and are not rewritten by live-record erasure.
+
+`test_prepared_erasure_sql.py` exercises populated audit tables, role denial,
+service-role execution, numeric JSON allowlists, rollback and uniqueness on local
+PostgreSQL. Its explicit classification covers those two tables only. It does
+not replace the older whole-schema classification/worker acceptance suite below.
+
 Unit tests use fakes for Supabase/R2/Redis/the payment gateway (cancel, notify, refund exactly
 once across a retried run, settle backoff, cap, failed refund, no provider, cache failure,
 healthcheck, start-up validation, the schema guard).
