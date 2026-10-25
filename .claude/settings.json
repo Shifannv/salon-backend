@@ -39,6 +39,33 @@
           {
             "type": "command",
             "command": "tail -n 5 docs/agent-memory/SESSIONS.md 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "python .claude/hooks/skill_router.py session",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/skill_router.py prompt",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/skill_router.py subagent",
+            "timeout": 10
           }
         ]
       }

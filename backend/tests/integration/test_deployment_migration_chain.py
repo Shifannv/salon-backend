@@ -45,7 +45,8 @@ async def alembic(url, *args):
 
 
 @pytest.mark.asyncio
-async def test_upgrade_from_0014_to_portable_0037_and_account_deletion_downgrade():
+@pytest.mark.parametrize("photo_upgrade", [False, True])
+async def test_upgrade_from_0014_to_portable_0037_and_account_deletion_downgrade(photo_upgrade):
     admin_url = make_url(TEST_DB)
     assert admin_url.host in {"localhost", "127.0.0.1", "::1"}
     database = "migration_chain_" + uuid4().hex
@@ -104,6 +105,28 @@ async def test_upgrade_from_0014_to_portable_0037_and_account_deletion_downgrade
 
         await alembic(url.render_as_string(hide_password=False), "upgrade", PORTABLE_CI_REVISION)
         assert await conn.fetchval("select version_num from alembic_version") == PORTABLE_CI_REVISION
+        if photo_upgrade:
+            # Forward DDL compatibility on the complete disposable schema; this does
+            # not stamp history or authorize the held Mumbai reconciliation chain.
+            booking_before = await conn.fetch("""
+                select oid::regprocedure::text, pg_get_functiondef(oid) from pg_proc
+                where pronamespace='public'::regnamespace
+                  and proname in ('create_booking','get_available_slots') order by oid
+            """)
+            async with conn.transaction():
+                sql = (BACKEND / "migrations/sql/0041_salon_photo_limits.sql").read_text(encoding="utf-8")
+                for statement in sql.split("\n-- statement --\n"):
+                    if statement.strip():
+                        await conn.execute(statement)
+            assert await conn.fetchval("""
+                select count(*) from information_schema.columns where table_schema='public'
+                and table_name in ('salons','services') and column_name='description'
+            """) == 0
+            assert await conn.fetch("""
+                select oid::regprocedure::text, pg_get_functiondef(oid) from pg_proc
+                where pronamespace='public'::regnamespace
+                  and proname in ('create_booking','get_available_slots') order by oid
+            """) == booking_before
         assert await conn.fetchval("select email from profiles where id=$1", user_id) == (
             "migration@example.test"
         )

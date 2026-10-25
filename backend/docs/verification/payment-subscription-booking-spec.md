@@ -1,10 +1,85 @@
 # Payment, subscription and booking domain specification
 
-Revised: 2026-10-19 (Asia/Calcutta)
+Revised: 2026-10-23 (Asia/Calcutta)
 
 Status: Documentation risk review U05 with recommendation-only technical package TP01. Explicit U01/U02 business approvals recorded; remaining decisions, provider/legal evidence and implementation remain held.
 
 Scope: shared FastAPI backend only. This document neither implements behavior nor authorizes migration execution, provider activation or deployment.
+
+## Latest amendment U08 — confirmed 23 October 2026
+
+This amendment records the user's latest explicit decisions. It supersedes conflicting
+historical cancellation boundaries, the unresolved flat deduction, customer processing
+surcharge and completed-service commission assumptions below. It is an approved target,
+not evidence of implementation, provider capability or a production release.
+
+For newly governed prepaid customer bookings, let `C` be the captured customer amount
+governed by that booking's immutable policy snapshot. Use Decimal amounts and paise;
+never reduce a promised refund by provider costs.
+
+| Remaining time before the current appointment | Penalty P | Customer refund |
+| --- | --- | --- |
+| At least 48 hours | min(₹20, C) | C − P |
+| At least 12 hours and less than 48 hours | 5% of C | C − P |
+| More than 4 hours and less than 12 hours | 35% of C | C − P |
+| Exactly 4 hours or less | C | ₹0 |
+
+All amounts are nonnegative; a refund cannot exceed captured, not-already-refunded money.
+The ₹20 fee is capped at the amount paid. Half-up monetary rounding applies; existing
+ledger/idempotency and concurrent-state protections remain mandatory.
+
+After determining the customer refund, allocate the retained penalty internally:
+
+```text
+pool = max(0, P − actual_non_refundable_provider_costs)
+platform_share = round_half_up(pool × 30%, to paise)
+salon_share = pool − platform_share
+platform_shortfall = max(0, actual_non_refundable_provider_costs − P)
+```
+
+The salon receives zero if costs exhaust the penalty. The platform absorbs a shortage;
+the customer refund stays unchanged. Give rounding residue to the salon. Actual gateway
+fees, gateway GST, settlement/payout/refund costs are internal, observed provider costs;
+do not invent costs or double-count a later adjustment.
+
+New customer checkout charges only the service/cart amount, with **no separate customer
+processing fee**. Legacy bookings that already charged that fee retain their historical
+booking/policy snapshot; never reprice or reinterpret them using U08.
+
+Money remains held through the approved provider-controlled flow. Admin/finance records
+and approves release amount/timing; no automatic vendor split or payout is authorized.
+Owner responses/messages expose their approved payout amount and status, never the 70/30
+split, platform share or provider-cost breakdown. Provider account entitlement, deferred
+settlement and legal/accounting evidence in P01–P06 remain release gates; a local approval
+row alone cannot prevent an upstream automatic settlement. Existing approved dispute/hold
+requirements remain unless explicitly changed.
+
+For a completed prepaid service: platform service commission is zero; salon net is the
+captured customer payment less actual provider charges. Release still requires service
+completion and admin approval. Automatic payout remains a future decision.
+
+Owner/admin cancellation before check-in gives a full asynchronous customer refund and no
+salon payout unless separately approved. A customer no-show requires an explicit owner/staff
+action with reason, after appointment start plus ten minutes; notify the customer and apply
+the no-refund rule. Do not mark no-show automatically or before the grace period.
+
+Customer time/service changes are permitted only **more than four hours** before the current
+appointment. At exactly four hours or less, block both changes on the server and explain why
+in the app; customer cancellation remains available under U08. An unchanged/equal service
+total requires no extra payment; a higher total requires the extra amount. A cheaper selection
+is allowed without returning the price difference. Never trust a client-supplied total.
+Keep service fulfilment value, retained prior payment and any additional payment obligation
+distinct in the ledger; a service-list edit must not silently erase the retained amount.
+
+At most two successfully committed customer reschedules per booking; failed attempts do not
+count or release the original slot. Revalidate current SQL availability and serialize changes.
+Cancellation policy uses the newly committed appointment time; audit attempts and results.
+
+Implementation still required: versioned immutable snapshots and legacy discriminator,
+atomic change/reschedule and cancellation commands, refund/outbox reconciliation, internal
+allocation/approval ledger, provider settlement hold evidence, redacted owner projections,
+app quote/confirmation/disabled/error states, and boundary/concurrency/provider-failure tests.
+Current live two-hour/late-approval cancellation is not U08, and no U08 money has moved.
 
 ## 1. Evidence and change boundaries
 

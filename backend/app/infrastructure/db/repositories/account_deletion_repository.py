@@ -853,6 +853,20 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             {**params, "title": ANONYMISED_NOTIFICATION_TITLE},
         )
 
+    async def _scrub_legacy_descriptions(self, params: dict[str, str]) -> None:
+        """Erase owner metadata during rollout, without requiring removed columns."""
+        s = self.session
+        legacy = await s.execute(text("""
+            select table_name from information_schema.columns
+            where table_schema = 'public' and column_name = 'description'
+              and table_name in ('salons', 'services')
+        """))
+        for table in legacy.scalars().all():
+            if table == "salons":
+                await s.execute(text("update salons set description = null where owner_id = :uid"), params)
+            elif table == "services":
+                await s.execute(text(f"update services set description = null where salon_id in ({_OWNED_SALONS})"), params)
+
     async def _scrub_user_footprint(self, params: dict[str, str]) -> None:
         """Everything that points at the person being erased, whatever their role."""
 
@@ -956,7 +970,7 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
         await s.execute(
             text("""
                 update salons
-                set is_active = false, name = :shell, city = null, description = null,
+                set is_active = false, name = :shell, city = null,
                     address = null, lat = null, lng = null, qr_image_url = null,
                     rejection_reason = null, working_hours = '{}'::jsonb,
                     qr_token = encode(gen_random_bytes(16), 'hex')
@@ -965,9 +979,12 @@ class SQLAccountDeletionRepository(AccountDeletionRepository):
             {**params, "shell": SHELL_SALON_NAME},
         )
         await s.execute(
-            text(f"update services set photo_url = null, description = null where salon_id in {owned}"),
+            text(f"update services set photo_url = null where salon_id in {owned}"),
             params,
         )
+        # During the coordinated rollout the old columns may still exist. Keep
+        # erasure complete until reviewed 0041 drops them; never recreate them.
+        await self._scrub_legacy_descriptions(params)
         await s.execute(
             text(f"""
                 update staff_services set specialization = null

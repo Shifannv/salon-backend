@@ -271,8 +271,8 @@ def build_setup_status(facts: dict[str, Any]) -> dict[str, Any]:
 
     items = [
         ("profile_basics", "Business details",
-         "Add your salon name, category, address and city.",
-         all(present(k) for k in ("name", "category", "address", "city")), "business_profile"),
+         "Add your salon name, address and city.",
+         all(present(k) for k in ("name", "address", "city")), "business_profile"),
         ("working_hours", "Working hours",
          "Choose the days and times you are open.",
          _has_open_day(facts.get("working_hours")), "working_hours"),

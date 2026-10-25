@@ -393,7 +393,8 @@ async def test_gallery_attach_retry_returns_existing_row_without_duplicate_inser
     repository = PlatformRepository(session)
     with patch.object(repository, "get_owner_salon", AsyncMock(return_value={"id": "salon"})):
         assert await repository.create_salon_image("owner", {"url": row["url"]}) == row
-    assert session.execute.await_count == 1
+    assert session.execute.await_count == 2
+    assert "for update" in str(session.execute.await_args_list[0].args[0]).lower()
     session.commit.assert_awaited_once()
 
 

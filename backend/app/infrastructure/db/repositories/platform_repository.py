@@ -11,6 +11,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.salon_photos import validate_salon_photo_write, visible_salon_photos
 from app.core.config import settings
 from app.core.exceptions import (
     BookingIdempotencyKeyReusedError,
@@ -231,7 +232,8 @@ class PlatformRepository:
         the dedicated GET /salons/{salon_id}/services endpoint.
 
         ``category`` filters to salons that have at least one active, staff-assigned
-        service whose ``service_categories.name`` matches the value (ILIKE wildcard).
+        service whose displayed category (owner label, or shared catalog fallback)
+        matches the value (ILIKE wildcard).
         For example ``category="Hair Cutting"`` matches the "Hair Cutting" category row.
         Omit or pass ``None`` to return all categories.
         """
@@ -262,7 +264,7 @@ class PlatformRepository:
         statement = text(
             f"""
             select
-              s.id, s.name, s.description, s.category, s.address, s.city,
+              s.id, s.name, s.address, s.city,
               s.lat, s.lng, s.timezone, s.approval_mode, s.accepting_bookings, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
               case
@@ -349,7 +351,16 @@ class PlatformRepository:
                   and sv2.is_active
                   and ss2.is_active
                   and sc2.is_active
-                  and sc2.name ilike cast(:category_pattern as text)
+                  and coalesce(sv2.category_name, sc2.name) ilike cast(:category_pattern as text)
+                  and exists (
+                    select 1
+                    from staff_services stsv2
+                    join staff st2 on st2.id = stsv2.staff_id
+                    where stsv2.service_id = sv2.id
+                      and stsv2.is_active
+                      and st2.is_active
+                      and st2.salon_id = sv2.salon_id
+                  )
               )
             )
             order by case when :surface = 'home' then
@@ -396,7 +407,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, name, description, category, address, city, lat, lng, timezone,
+                select id, name, address, city, lat, lng, timezone,
                        working_hours, approval_mode, slot_interval_minutes, accepting_bookings, profile_completed,
                        is_active
                 from salons
@@ -441,7 +452,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
                        coalesce(sv.category_name, sc.name) as category_name,
                        coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
@@ -486,7 +497,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
                        coalesce(sv.category_name, sc.name) as category_name,
                        coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
@@ -527,6 +538,10 @@ class PlatformRepository:
         return grouped
 
     async def list_salon_images(self, salon_id: str) -> list[dict[str, Any]]:
+        """One cover and at most two distinct slides, including legacy read protection."""
+        return visible_salon_photos(await self._list_salon_images_raw(salon_id))
+
+    async def _list_salon_images_raw(self, salon_id: str) -> list[dict[str, Any]]:
         """List active images for a salon.
 
         Soft-deleted images (is_active = false) are excluded.
@@ -636,7 +651,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, owner_id, name, description, category, address, city, lat, lng,
+                select id, owner_id, name, address, city, lat, lng,
                        timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                        qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -667,7 +682,7 @@ class PlatformRepository:
                 """
                 insert into salons (owner_id, name, is_active, profile_completed)
                 values (:actor_id, '', true, false)
-                returning id, owner_id, name, description, category, address, city, lat, lng,
+                returning id, owner_id, name, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -830,14 +845,14 @@ class PlatformRepository:
         salon_id = await self._find_owner_salon_id(actor_id)
         if salon_id is None:
             return {
-                "name": None, "category": None, "address": None, "city": None,
+                "name": None, "address": None, "city": None,
                 "working_hours": None, "has_photos": False, "has_services": False,
                 "has_staff": False, "has_payout": False,
             }
         result = await self.session.execute(
             text(
                 """
-                select s.name, s.category, s.address, s.city, s.working_hours,
+                select s.name, s.address, s.city, s.working_hours,
                        exists (select 1 from salon_images i
                                where i.salon_id = s.id and i.is_active) as has_photos,
                        exists (select 1 from services sv
@@ -857,6 +872,8 @@ class PlatformRepository:
     async def update_owner_salon(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Update owner-editable salon fields."""
 
+        if {"description", "category"} & values.keys():
+            raise ValidationError("Unsupported salon field")
         salon = await self.get_owner_salon(actor_id)
         # _prepare_jsonb_values serialises working_hours so Postgres receives a JSON string
         # that can be cast to jsonb, not a raw Python dict which would raise ProgrammingError.
@@ -875,7 +892,7 @@ class PlatformRepository:
                 update salons
                 set {assignments}
                 where id = :salon_id and owner_id = :actor_id and is_active
-                returning id, owner_id, name, description, category, address, city, lat, lng,
+                returning id, owner_id, name, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -894,6 +911,8 @@ class PlatformRepository:
     ) -> dict[str, Any]:
         """Submit onboarding for review; a rejected salon may be resubmitted."""
 
+        if {"description", "category"} & (values or {}).keys():
+            raise ValidationError("Unsupported salon field")
         allowed = self._prepare_jsonb_values(dict(values or {}))
         payload = {**allowed, "profile_completed": True}
 
@@ -917,7 +936,7 @@ class PlatformRepository:
                     f"""
                     insert into salons ({columns})
                     values ({placeholders})
-                    returning id, owner_id, name, description, category, address, city, lat, lng,
+                    returning id, owner_id, name, address, city, lat, lng,
                               timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                               qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -939,7 +958,7 @@ class PlatformRepository:
                 update salons
                 set {assignments}
                 where id = :salon_id and owner_id = :actor_id and is_active
-                returning id, owner_id, name, description, category, address, city, lat, lng,
+                returning id, owner_id, name, address, city, lat, lng,
                           timezone, working_hours, approval_mode, slot_interval_minutes, accepting_bookings,
                           qr_token, profile_completed, approval_status, approved_at, approved_by,
                           rejection_reason, is_active, created_at, updated_at
@@ -957,6 +976,7 @@ class PlatformRepository:
         """Create an image for the owner's salon."""
 
         salon = await self.get_owner_salon(actor_id)
+        await self.session.execute(text("select id from salons where id = :id for update"), {"id": salon["id"]})
         # The publication use case holds the URL advisory lock. A lost attach
         # response can safely retry without inserting a duplicate gallery row.
         existing = await self.session.execute(text("""
@@ -966,9 +986,12 @@ class PlatformRepository:
         """), {"salon_id": salon["id"], "url": values["url"]})
         row = existing.mappings().one_or_none()
         if row is not None:
+            if bool(row.get("is_main")) != bool(values.get("is_main", False)):
+                raise ValidationError("Choose a different photo for each salon image")
             await self.session.commit()
             return dict(row)
-        result = await self.session.execute(
+        validate_salon_photo_write(await self._list_salon_images_raw(salon["id"]), values)
+        result = await self._execute_salon_photo_write(
             text(
                 """
                 insert into salon_images (salon_id, url, caption, is_main, sort_order)
@@ -993,14 +1016,16 @@ class PlatformRepository:
         """Update an owner salon image."""
 
         salon = await self.get_owner_salon(actor_id)
+        await self.session.execute(text("select id from salons where id = :id for update"), {"id": salon["id"]})
+        images = await self._list_salon_images_raw(salon["id"])
+        if not any(str(image["id"]) == image_id for image in images):
+            raise NotFoundError("Image not found")
         allowed = {key: value for key, value in values.items() if value is not None}
         if not allowed:
-            images = [img for img in await self.list_salon_images(salon["id"]) if str(img["id"]) == image_id]
-            if not images:
-                raise NotFoundError("Image not found")
-            return images[0]
+            return next(image for image in images if str(image["id"]) == image_id)
+        validate_salon_photo_write(images, allowed, image_id)
         assignments = ", ".join(f"{key} = :{key}" for key in allowed)
-        result = await self.session.execute(
+        result = await self._execute_salon_photo_write(
             text(
                 f"""
                 update salon_images
@@ -1016,6 +1041,22 @@ class PlatformRepository:
             raise NotFoundError("Image not found")
         await self.session.commit()
         return dict(row)
+
+    async def _execute_salon_photo_write(self, statement: Any, values: dict[str, Any]) -> Any:
+        """Map only known photo constraints; never expose raw database errors."""
+        try:
+            return await self.session.execute(statement, values)
+        except DBAPIError as error:
+            await self.session.rollback()
+            state = getattr(error.orig, "sqlstate", None)
+            diagnostic = str(error.orig)
+            if state == "23505" and "uq_salon_active_image_url" in diagnostic:
+                raise ValidationError("Choose a different photo for each salon image") from None
+            if state == "23514" and any(code in diagnostic for code in ("salon_photo_limit", "salon_photo_move_forbidden")):
+                raise ValidationError("A salon supports one cover and at most two gallery photos; refresh and try again") from None
+            if state == "40001":
+                raise ConflictError("Salon photos changed; refresh and try again") from None
+            raise
 
     async def list_holidays(self, actor_id: str) -> list[dict[str, Any]]:
         """List owner salon holidays."""
@@ -1095,7 +1136,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
                        sv.created_at, sv.updated_at,
                        coalesce(sv.category_name, sc.name) as category_name,
@@ -1116,16 +1157,16 @@ class PlatformRepository:
 
         salon = await self.get_owner_salon(actor_id)
         values = self._service_write_values(values)
-        for field in ("description", "category_name", "subcategory_name", "photo_url"):
+        for field in ("category_name", "subcategory_name", "photo_url"):
             values.setdefault(field, None)
         subcategory_id = values.get("subcategory_id") or await self._default_service_subcategory_id()
         result = await self.session.execute(
             text(
                 """
-                insert into services (salon_id, subcategory_id, name, description,
+                insert into services (salon_id, subcategory_id, name,
                                       duration_minutes, price, is_active,
                                       category_name, subcategory_name, photo_url)
-                values (:salon_id, :subcategory_id, :name, :description,
+                values (:salon_id, :subcategory_id, :name,
                         :duration_minutes, :price, :is_active,
                         :category_name, :subcategory_name, :photo_url)
                 returning id
@@ -1161,7 +1202,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select sv.id, sv.salon_id, sv.subcategory_id, sv.name, sv.description,
+                select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
                        sv.created_at, sv.updated_at,
                        coalesce(sv.category_name, sc.name) as category_name,
@@ -1209,7 +1250,7 @@ class PlatformRepository:
     @staticmethod
     def _service_write_values(values: dict[str, Any]) -> dict[str, Any]:
         writable = {
-            "subcategory_id", "name", "description", "duration_minutes", "price",
+            "subcategory_id", "name", "duration_minutes", "price",
             "is_active", "category_name", "subcategory_name", "photo_url",
         }
         if values.keys() - writable:
@@ -1224,7 +1265,7 @@ class PlatformRepository:
         salon = await self.get_owner_salon(actor_id)
         allowed = self._service_write_values(values)
         if any(value is None for key, value in allowed.items()
-               if key not in {"description", "category_name", "subcategory_name", "photo_url"}):
+               if key not in {"category_name", "subcategory_name", "photo_url"}):
             raise ValidationError("Required service fields cannot be null")
         if not allowed:
             raise ValidationError("No service fields provided")
@@ -3136,7 +3177,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select s.id, s.owner_id, s.name, s.description, s.category,
+                select s.id, s.owner_id, s.name,
                        s.address, s.city, s.qr_token, s.timezone, s.approval_mode,
                        s.lat, s.lng, s.working_hours, s.slot_interval_minutes,
                        s.profile_completed, s.approval_status, s.approved_at, s.approved_by,
@@ -3219,7 +3260,7 @@ class PlatformRepository:
                 """
                 insert into salons (owner_id, name, timezone)
                 values (:owner_id, :name, :timezone)
-                returning id, owner_id, name, description, category, address, city,
+                returning id, owner_id, name, address, city,
                           lat, lng, timezone, working_hours, approval_mode,
                           slot_interval_minutes, qr_token, profile_completed,
                           approval_status, approved_at, approved_by, rejection_reason, is_active, created_at, updated_at
@@ -3750,7 +3791,7 @@ class PlatformRepository:
         result = await self.session.execute(
             text(
                 """
-                select id, name, description, city, timezone, approval_mode
+                select id, name, city, timezone, approval_mode
                 from get_salon_by_qr(:qr_token)
                 """
             ),
@@ -3772,6 +3813,7 @@ class PlatformRepository:
                   select url
                   from salon_images
                   where salon_id = s.id
+                    and is_active = true
                   order by is_main desc, sort_order asc, created_at asc
                   limit 1
                 ) img on true
@@ -3788,6 +3830,7 @@ class PlatformRepository:
             salon["accepting_bookings"] = extra_row["accepting_bookings"]
 
         salon["id"] = str(salon["id"])
+        salon["images"] = await self.list_salon_images(salon["id"])
         salon["services"] = await self.list_public_services(salon["id"])
         salon["staff"] = await self._list_walkin_staff(str(salon["id"]))
         return salon

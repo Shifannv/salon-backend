@@ -72,12 +72,12 @@ variants must be interpreted per response model, not globally.
 
 ## Inventory
 
-**140 operations**, including one conditionally mounted webhook; **133 named schemas**. GET and POST on the same path count separately.
+**142 operations**, including one conditionally mounted webhook; **136 named schemas**. GET and POST on the same path count separately.
 
 | API group | Operations |
 | --- | --- |
 | [health](#group-health) | 4 |
-| [account deletion](#group-account-deletion) | 5 |
+| [account deletion](#group-account-deletion) | 7 |
 | [media](#group-media) | 3 |
 | [reports](#group-reports) | 1 |
 | [auth](#group-auth) | 4 |
@@ -175,6 +175,8 @@ Probe the Redis cache connection.
 | POST | `/v1/account/deletion` | Irreversibly delete the account (explicit confirmation) | 202 |
 | GET | `/v1/account/deletion/{request_id}` | Deletion progress; authenticated by X-Status-Token, not the JWT | 200 |
 | GET | `/v1/admin/account-deletions` | Account deletion ledger (no personal identifiers) | 200 |
+| GET | `/v1/admin/deleted-salons` | Salons closed by their owner's account deletion (month-end review queue) | 200 |
+| GET | `/v1/admin/deleted-salons/{salon_id}/statement` | Month-end money totals of a closed salon (no personal or booking detail) | 200 |
 
 ### POST `/v1/account/deletion/challenges`
 
@@ -251,6 +253,39 @@ Locks the account immediately and queues permanent erasure of the identity and p
 **Success 200:** `application/json`: array of [AdminAccountDeletionResponse](#model-adminaccountdeletionresponse).
 
 **Source:** [backend/app/api/v1/routes/account_deletion.py](../backend/app/api/v1/routes/account_deletion.py) (`list_account_deletions`).
+
+### GET `/v1/admin/deleted-salons`
+
+**Purpose:** Salons closed by their owner's account deletion (month-end review queue).
+
+**Access:** Bearer; route role gate: super_admin; application scope checks also apply.
+
+| Parameter | Location | Required | Type | Declared constraints/default |
+| --- | --- | --- | --- | --- |
+| `limit` | query | no | integer | minimum=1; maximum=200; default=50 |
+| `offset` | query | no | integer | minimum=0; default=0 |
+
+**Body:** No declared request-body model.
+
+**Success 200:** `application/json`: array of [AdminAccountDeletionResponse](#model-adminaccountdeletionresponse).
+
+**Source:** [backend/app/api/v1/routes/account_deletion.py](../backend/app/api/v1/routes/account_deletion.py) (`list_closed_salons`).
+
+### GET `/v1/admin/deleted-salons/{salon_id}/statement`
+
+**Purpose:** Month-end money totals of a closed salon (no personal or booking detail).
+
+**Access:** Bearer; route role gate: super_admin; application scope checks also apply.
+
+| Parameter | Location | Required | Type | Declared constraints/default |
+| --- | --- | --- | --- | --- |
+| `salon_id` | path | yes | string (uuid) |  |
+
+**Body:** No declared request-body model.
+
+**Success 200:** `application/json`: [ClosedSalonStatementResponse](#model-closedsalonstatementresponse).
+
+**Source:** [backend/app/api/v1/routes/account_deletion.py](../backend/app/api/v1/routes/account_deletion.py) (`closed_salon_statement`).
 
 <a id="group-media"></a>
 
@@ -1676,6 +1711,12 @@ Services are NOT embedded. Call GET /salons/{salon_id}/services for service data
 Use `category` to filter by service category (e.g. ?category=Hair+Cutting) and `service` to search by
 service name (e.g. ?service=haircut). `search` matches name, city or address.
 
+The deployed category correction matches the displayed service category (owner label,
+with shared catalog fallback) and requires an active service assigned to active
+staff. The salon business-profile category does not control this filter. This also
+applies to nearby discovery. Released on 23 October 2026 in the scoped category
+hotfix; see the deployment assessment, section 19, for live verification evidence.
+
 | Parameter | Location | Required | Type | Declared constraints/default |
 | --- | --- | --- | --- | --- |
 | `surface` | query | no | `"home" \| "search" \| "all"` or null |  |
@@ -2811,7 +2852,6 @@ Full salon submission, accessible only to super admins.
 | `owner_phone_verified` | no | boolean or null |  |  |
 | `owner_is_active` | no | boolean or null |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -2834,7 +2874,7 @@ Full salon submission, accessible only to super admins.
 | `created_at` | yes | string (date-time) |  |  |
 | `updated_at` | yes | string (date-time) |  |  |
 | `updated_by` | no | string or null |  |  |
-| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) |  |  |
+| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) | maxItems=3 | One separate cover (is_main=true) and at most two distinct gallery slides. |
 | `services` | no | array of [ServiceResponse](#model-serviceresponse) |  |  |
 | `staff` | no | array of [StaffResponse](#model-staffresponse) |  |  |
 
@@ -2855,7 +2895,6 @@ Admin view of a salon (includes owner info).
 | `owner_phone_verified` | no | boolean or null |  |  |
 | `owner_is_active` | no | boolean or null |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -3322,6 +3361,63 @@ Update service category request.
 | `expires_at` | yes | string (date-time) |  |  |
 | `client_payload` | yes | object |  |  |
 
+<a id="model-closedsalonfigures"></a>
+
+### ClosedSalonFigures
+
+Money totals only: no booking, customer, staff or payment-level detail.
+
+| Field | Required | Type | Constraints/default | Description |
+| --- | --- | --- | --- | --- |
+| `currency` | yes | string |  |  |
+| `online_collected` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Online payments settled, excluding overcollection. |
+| `online_refunded` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
+| `platform_fees` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Platform commission charged on online payments. |
+| `commission_reversed` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Commission returned on refunds. |
+| `platform_commission_net` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
+| `overcollected` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
+| `online_net` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Salon's online net: collected - refunded - net commission. |
+| `manual_recorded` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Cash/UPI the salon recorded itself. |
+| `subscription_paid` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Subscription fees the salon paid the platform. |
+| `subscription_refunded` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Attributed to the month the subscription fee was PAID (the billing record has no refund date). |
+| `platform_revenue` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Net commission + subscription paid - refunded. |
+| `online_count` | yes | integer |  |  |
+| `manual_count` | yes | integer |  |  |
+
+<a id="model-closedsalonmonth"></a>
+
+### ClosedSalonMonth
+
+| Field | Required | Type | Constraints/default | Description |
+| --- | --- | --- | --- | --- |
+| `currency` | yes | string |  |  |
+| `online_collected` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Online payments settled, excluding overcollection. |
+| `online_refunded` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
+| `platform_fees` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Platform commission charged on online payments. |
+| `commission_reversed` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Commission returned on refunds. |
+| `platform_commission_net` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
+| `overcollected` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
+| `online_net` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Salon's online net: collected - refunded - net commission. |
+| `manual_recorded` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Cash/UPI the salon recorded itself. |
+| `subscription_paid` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Subscription fees the salon paid the platform. |
+| `subscription_refunded` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Attributed to the month the subscription fee was PAID (the billing record has no refund date). |
+| `platform_revenue` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ | Net commission + subscription paid - refunded. |
+| `online_count` | yes | integer |  |  |
+| `manual_count` | yes | integer |  |  |
+| `month` | yes | string | pattern=^\d{4}-\d{2}$ | Calendar month in Asia/Kolkata. |
+
+<a id="model-closedsalonstatementresponse"></a>
+
+### ClosedSalonStatementResponse
+
+Month-end statement of a salon closed by its owner's account deletion.
+
+| Field | Required | Type | Constraints/default | Description |
+| --- | --- | --- | --- | --- |
+| `salon_id` | yes | string (uuid) |  |  |
+| `months` | yes | array of [ClosedSalonMonth](#model-closedsalonmonth) |  |  |
+| `totals` | yes | array of [ClosedSalonFigures](#model-closedsalonfigures) |  | One row per currency. |
+
 <a id="model-closureaffectedbookingresponse"></a>
 
 ### ClosureAffectedBookingResponse
@@ -3707,7 +3803,6 @@ Final onboarding payload used to submit an owner salon for admin review.
 | Field | Required | Type | Constraints/default | Description |
 | --- | --- | --- | --- | --- |
 | `name` | no | string or null |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -3716,6 +3811,8 @@ Final onboarding payload used to submit an owner salon for admin review.
 | `timezone` | no | string or null |  |  |
 | `working_hours` | no | object or null |  |  |
 | `approval_mode` | no | `"auto" \| "manual"` or null |  |  |
+
+Unknown fields are forbidden by this model.
 
 <a id="model-ownersalonresponse"></a>
 
@@ -3728,7 +3825,6 @@ Owner salon response.
 | `id` | yes | string |  |  |
 | `owner_id` | yes | string |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -3746,7 +3842,7 @@ Owner salon response.
 | `approved_by` | no | string or null |  |  |
 | `rejection_reason` | no | string or null |  |  |
 | `is_active` | yes | boolean |  |  |
-| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) |  |  |
+| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) | maxItems=3 | One separate cover (is_main=true) and at most two distinct gallery slides. |
 | `created_at` | yes | string (date-time) |  |  |
 | `updated_at` | yes | string (date-time) |  |  |
 
@@ -3771,7 +3867,6 @@ Owner salon update request.
 | Field | Required | Type | Constraints/default | Description |
 | --- | --- | --- | --- | --- |
 | `name` | no | string or null |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -3780,6 +3875,8 @@ Owner salon update request.
 | `timezone` | no | string or null |  |  |
 | `working_hours` | no | object or null |  |  |
 | `approval_mode` | no | `"auto" \| "manual"` or null |  |  |
+
+Unknown fields are forbidden by this model.
 
 <a id="model-ownersetupstatusresponse"></a>
 
@@ -4139,7 +4236,6 @@ Services and staff are NOT embedded — use the dedicated endpoints:
 | `online_payment_unavailable_reason` | no | string or null | default="Online payment coming soon." | Customer-facing reason online payment is not offered; null when it is available. |
 | `id` | yes | string |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -4151,7 +4247,7 @@ Services and staff are NOT embedded — use the dedicated endpoints:
 | `accepting_bookings` | no | boolean | default=true |  |
 | `profile_completed` | yes | boolean |  |  |
 | `is_active` | yes | boolean |  |  |
-| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) |  |  |
+| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) | maxItems=3 | One separate cover (is_main=true) and at most two distinct gallery slides. |
 
 <a id="model-salonimagecreaterequest"></a>
 
@@ -4213,7 +4309,6 @@ to fetch services for a specific salon.
 | `online_payment_unavailable_reason` | no | string or null | default="Online payment coming soon." | Customer-facing reason online payment is not offered; null when it is available. |
 | `id` | yes | string |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `category` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
@@ -4242,7 +4337,6 @@ Create service request.
 | `photo_url` | no | string or null |  |  |
 | `subcategory_id` | no | string or null |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `duration_minutes` | yes | integer | exclusiveMinimum=0.0 |  |
 | `price` | yes | number or string |  |  |
 | `is_active` | no | boolean | default=true |  |
@@ -4261,7 +4355,6 @@ Service response.
 | `salon_id` | yes | string |  |  |
 | `subcategory_id` | yes | string |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `duration_minutes` | yes | integer |  |  |
 | `price` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
 | `is_active` | yes | boolean |  |  |
@@ -4284,7 +4377,6 @@ Update service request; omitted fields retain their stored values.
 | `photo_url` | no | string or null |  |  |
 | `subcategory_id` | no | string or null |  |  |
 | `name` | no | string or null |  |  |
-| `description` | no | string or null |  |  |
 | `duration_minutes` | no | integer or null |  |  |
 | `price` | no | number or string or null |  |  |
 | `is_active` | no | boolean or null |  |  |
@@ -4692,10 +4784,10 @@ Slot availability is fetched separately via GET /v1/availability.
 | `online_payment_unavailable_reason` | no | string or null | default="Online payment coming soon." | Customer-facing reason online payment is not offered; null when it is available. |
 | `id` | yes | string |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `city` | no | string or null |  |  |
 | `address` | no | string or null |  |  |
 | `image_url` | no | string or null |  |  |
+| `images` | no | array of [SalonImageResponse](#model-salonimageresponse) | maxItems=3 | One separate cover (is_main=true) and at most two distinct gallery slides. |
 | `qr_token` | no | string or null |  |  |
 | `timezone` | yes | string |  |  |
 | `approval_mode` | yes | string |  |  |
@@ -4716,7 +4808,6 @@ Service summary for walk-in display.
 | `salon_id` | yes | string |  |  |
 | `subcategory_id` | yes | string |  |  |
 | `name` | yes | string |  |  |
-| `description` | no | string or null |  |  |
 | `duration_minutes` | yes | integer |  |  |
 | `price` | yes | string | pattern=^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ |  |
 | `is_active` | yes | boolean |  |  |
