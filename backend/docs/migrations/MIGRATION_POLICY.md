@@ -1,12 +1,19 @@
 # Explicit migration policy
 
 The portable CI revision is **0037_customer_processing_charge**. The actual Alembic
-repository head is **0046_u08_financial_outcomes**, prepared and not released.
+repository head is **0048_support_billing_erasure**, prepared and not released.
 The guarded Mumbai approval/manifest target remains **0040_fastapi_only_access**;
 it does not authorize the later photo/description, business-category, attendance,
 checkout-policy, booking-change or finance-outcome revisions.
 These are different concepts. No revision, dependency, label or sealed evidence has
-been changed to make CI pass. Revisions 0038-0046 remain unapplied by this work.
+been changed to make CI pass. Revisions 0038-0048 remain unapplied by this work.
+
+0047 adds narrowly guarded redaction for new immutable booking/finance audits.
+0048 adds versioned, restricted support-case retention and exact subscription
+benefit redaction without altering charges, purchase/period/expiry dates or provider
+references. Both remain separate prepared forward revisions; neither changes the
+portable or approved Mumbai execution boundaries below. The repository head must
+never be interpreted as an approved production migration target.
 
 0045 adds versioned atomic customer service/time changes and an owned-booking SQL
 availability overload. 0046 adds terminal U08 obligations, provider-pending refund jobs,

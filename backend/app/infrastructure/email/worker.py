@@ -40,20 +40,27 @@ async def deliver_once(session_factory=AsyncSessionLocal, gateway=None):
         await session.commit()
     if event is None:
         return False
-    try:
-        provider_id = await gateway.send(recipient=event["recipient"], subject=event["subject"],
-                                         body=event["body"], event_key=event["event_key"])
-    except Exception:
-        _log.error("ALERT email_delivery failed event_id=%s", event["id"])
-        async with session_factory() as session:
+    # The durable claim is committed. Re-read and lock its current contents so
+    # erasure either wins before submission or waits for this bounded send to finish.
+    async with session_factory() as session:
+        current = (await session.execute(text("""
+            select * from email_events where id=:id and status='processing'
+              and locked_at=:claimed_at and attempts=:attempts for update
+        """), {"id":event["id"], "claimed_at":event["locked_at"], "attempts":event["attempts"]})).mappings().one_or_none()
+        if current is None:
+            return True
+        try:
+            provider_id = await gateway.send(recipient=current["recipient"], subject=current["subject"],
+                                             body=current["body"], event_key=current["event_key"])
+        except Exception:
+            _log.error("ALERT email_delivery failed event_id=%s", current["id"])
             await session.execute(text("""
                 update email_events set status=case when attempts >= :max then 'failed' else 'pending' end,
                   last_error_code='provider_unavailable',locked_at=null,
                   next_attempt_at=now() + make_interval(secs => :delay) where id=:id
             """), {"id":event["id"],"max":settings.email_max_attempts,"delay":min(3600, 30 * 2 ** event["attempts"])})
             await session.commit()
-    else:
-        async with session_factory() as session:
+        else:
             await session.execute(text("update email_events set status='sent',provider_message_id=:ref,sent_at=now(),locked_at=null,last_error_code=null where id=:id"), {"id":event["id"],"ref":provider_id})
             await session.commit()
     return True

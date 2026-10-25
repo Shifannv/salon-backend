@@ -381,6 +381,69 @@ service-role execution, numeric JSON allowlists, rollback and uniqueness on loca
 PostgreSQL. Its explicit classification covers those two tables only. It does
 not replace the older whole-schema classification/worker acceptance suite below.
 
+### Prepared selective support and benefit privacy (0048, not deployed)
+
+User-approved policy `support-erasure-v1` retains closed-salon support cases for
+operational retention review, without inventing a legal retention period. It removes
+the erased person's own messages, known profile/contact references and matching
+literal copies of authored messages from related subjects/replies. Other participants'
+remaining wording and unrelated salon threads stay intact. Local queued/delivery
+copies and persisted support-create/reply response caches containing those copies
+are removed. Known profile references use escaped literal patterns, including encoded
+references and common Indian phone formatting. Authored message-copy redaction
+requires explicit quote/attribution context; ambiguous short acknowledgements,
+punctuation and bare amounts are preserved for restricted review instead of erasing
+another participant's evidence. This is not a semantic guarantee for unknown aliases,
+paraphrases or previously unrecorded personal data. All local support-email copies
+for retained cases are cancelled, and new internal admin replies do not email ordinary
+participants. Quote reads
+use20-row keyset pages and bounded pattern batches. Redacted quote fragments use
+one block character to avoid expanding length-constrained evidence text.
+
+Retained cases carry a restriction flag, policy version and
+`operational_review_pending` reason. Immutable `support_erasure_events` record a
+case-specific actor pseudonym, role, case type, policy, reason and timestamp; no
+profile/contact copy is written there. Reads and replies require super-admin
+authorization after restriction, including checking access before replaying a cached
+reply. The platform currently has no separate support role. Existing admin MFA
+rules apply. A later participant's verified erasure detaches their identity from
+an already-retained case instead of cascading its evidence. No case-purge function
+or financial/legal retention period is introduced. This is a privacy operation,
+not evidence that an accountant or lawyer has approved a retention schedule.
+
+Support mutations lock the active author before the ticket; creation also locks
+and rechecks the salon. Erasure locks the profile and owned salons before capturing
+threads, preventing late requests from bypassing redaction/restriction. Email claims
+remain durably committed before provider calls. Before sending, the worker rechecks
+and locks the current event until submission finishes, so local erasure either
+removes it first or waits. The Resend adapter has a total10-second deadline and
+stable retry keys. Messages already accepted by the provider cannot be recalled
+or removed from external inboxes by database erasure.
+
+Policy `benefits-erasure-v1` removes string values recursively from the erased
+owner's purchase benefit JSON. Only the seven published catalog benefit keys survive
+verbatim; custom keys become row/path-specific pseudonyms, preserving their numeric
+and boolean values without retaining names or contact text in JSON keys. Plan IDs,
+existing plan codes, money, tax, purchase/billing/expiry dates and provider references
+are preserved. Shared public plans remain unchanged. No plan-version ID/hash exists
+in the present schema; this change does not fabricate historical versions. Technical
+`updated_at` may record the privacy modification; purchase/renewal/expiry dates do not
+change. The immutable billing guard permits only the exact verified transformation.
+
+Anomaly/provider-audit narratives and billing diagnostics receive selective known-PII
+redaction, preserving other settlement/dispute evidence. The full prepared-schema
+text/JSON treatment matrix extends the legacy0028 matrix without rewriting it;
+the old matrix's tests still remain independently opt-in. There are no support
+attachment or search-index tables in the current contract; those features would
+need corresponding erasure coverage before introduction. Client-local caches are
+a separate mobile acceptance concern; this backend proof covers server persistence.
+
+0048 and the compatible API/worker code must be coordinated. If later support/billing
+tables exist without their privacy migration, the new erasure adapter stops before
+deletion. Production execution/history adoption remain separately held. The SQL
+and API tests use synthetic loopback data; no production support case, purchase,
+email queue or provider account was changed by preparing this policy.
+
 Unit tests use fakes for Supabase/R2/Redis/the payment gateway (cancel, notify, refund exactly
 once across a retried run, settle backoff, cap, failed refund, no provider, cache failure,
 healthcheck, start-up validation, the schema guard).

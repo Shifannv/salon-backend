@@ -10,6 +10,12 @@ from app.infrastructure.db.repositories.payment_repository import PaymentReposit
 
 
 class SupportRepository(PaymentRepository):
+    async def lock_active_author(self, actor_id):
+        found = (await self.session.execute(text("select id from profiles where id=:id and is_active for share"),
+                                            {"id": actor_id})).scalar_one_or_none()
+        if found is None:
+            raise NotFoundError("Support ticket not found")
+
     async def throttle(self, principal: str, limit: int, seconds: int):
         bucket = hashlib.sha256(principal.encode()).hexdigest()
         row = (await self.session.execute(text("""
@@ -32,7 +38,7 @@ class SupportRepository(PaymentRepository):
 
     async def create_ticket(self, actor, subject, body, salon_id):
         if salon_id is not None:
-            found = (await self.session.execute(text("select id from salons where id=:id and is_active"), {"id": salon_id})).scalar_one_or_none()
+            found = (await self.session.execute(text("select id from salons where id=:id and is_active for share"), {"id": salon_id})).scalar_one_or_none()
             if found is None:
                 raise NotFoundError("Salon not found")
         ticket_id = str(uuid4())
@@ -52,8 +58,10 @@ class SupportRepository(PaymentRepository):
 
     async def get_ticket(self, ticket_id):
         row = (await self.session.execute(text("""
-            select t.*, s.owner_id, p.email as customer_email from support_tickets t
-            left join salons s on s.id=t.salon_id join profiles p on p.id=t.customer_id
+            select t.*, s.owner_id, p.email as customer_email,
+              coalesce((to_jsonb(t)->>'retained_restricted')::boolean,false) as privacy_restricted
+            from support_tickets t
+            left join salons s on s.id=t.salon_id left join profiles p on p.id=t.customer_id
             where t.id=:id for update of t
         """), {"id":ticket_id})).mappings().one_or_none()
         return dict(row) if row else None

@@ -81,6 +81,8 @@ class RecordingSession:
         self.statements.append((str(statement), parameters))
         if "to_regclass('public.booking_customer_changes')" in str(statement):
             return SimpleNamespace(mappings=lambda: SimpleNamespace(one=lambda: {"has_audits": True, "can_scrub": True}))
+        if "select tablename from pg_catalog.pg_tables" in str(statement):
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
 
 
 @pytest.mark.asyncio

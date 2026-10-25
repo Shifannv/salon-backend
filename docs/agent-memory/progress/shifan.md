@@ -8,13 +8,20 @@ Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory syst
 Latest continuation (2026-10-19): took over the payment/subscription/booking backend plan from Codex (docs only so far), shipped local WebP image variants, and cleaned the Claude tooling. Two local commits (28bf921 image + U06/U07 docs, b0957a5 .claude cleanup) are unpushed pending owner approval. Prepared migrations 0038-0040 and `alembic stamp` remain held.
 
 ## Status
-Latest backend continuation,25 October: user approved redaction/hashing for the two
-new retained audit tables. Prepared0047 and adapter implement exact guarded
-redaction before FK detach, preserving dates/money; no remote migration/release.
-Local PostgreSQL authorization/rollback/uniqueness coverage and read-only review
-pass. Legacy Sydney project is user-confirmed paused; no continuity/delete proof.
-Cashfree, apps and website remain outside this continuation. Assessment38 is the
-current release/recovery status; older entries below are historical.
+Latest backend continuation,25 October: approved selective closed-salon support
+retention and numeric/boolean-only historical purchase benefits are prepared as0048.
+Full schema classification,25syntheticPG cases, MFA/HTTP denial, quote preservation,
+concurrent creation/email and missing0047/48 refusal pass. Full1542passed/36skipped;
+Ruff clean; read-only migration/security review has no remaining scope blocker.
+Actual encrypted archive restored with original ACLs; exact0041–48 replay passed
+with unchanged counts. Local review image built/offline147operation smoke passed;
+222source hashes match its files. Assessment39 is current. No production migration,
+history change, deployment or worker activation. Separate reviewed state-adoption
+implementation/attestation and approval still precede release; existing guard unchanged.
+Resend MCP test sent once successfully; backend email configuration remains separate.
+User confirmed the backend email configuration is not yet replaced; keep it disabled.
+Legacy Sydney continuity, off-device portable recovery and worker prerequisites remain.
+Cashfree, apps and website remain outside this continuation.
 
 2026-10-24 frontend-only continuation: customer real booking-change quote/commit wiring and owner collection capability compatibility prepared in separate clients. Customer358tests/63suites, owner842tests/101suites and both TypeScript checks pass. Focused customer lint passes; broad customer lint remains failing. Owner lint has zero errors/three warnings. Both verification APKs installed without data clearing; signed-in customer Home/salon service/history and owner Home/Manage Bookings/menu visually checked. Customer full native build includes prepared secure-session storage; owner reuses unchanged release-mode native base. New U08 changes remain gated because backend routes/migrations are unreleased. No website/provider/production changes. Canonical assessment section27 has evidence and limitations. Phone control returned after customer history inspection.
 
@@ -359,3 +366,12 @@ Earlier queued work (reassess after these gates):
   remote mutation/commit/deploy. User confirmed Sydney projectpaused/inaccessible;
   retain it and VMdisk. Broaderprivacy/adoption/release/workers/offdevice remain;
   secure replacement email config requested. Assessment38/currentpriorities updated.
+- 2026-10-25 support/billing privacy continuation: prepared0048 implements the user's
+  selective retention and benefit-text removal decisions. Review findings fixed;
+  full1542passed36skipped/Ruffclean. Exact0041–48 actual encrypted-archive restore
+  rehearsal passed with owners/ACLs and unchanged counts; temporary restore removed.
+  Local image/offline smoke and222source/6evidence seal passed. Assessment39 current.
+  No production mutation, push or deploy. Next: reviewed state-adoption implementation
+  and fresh attestation before operator-approved forward release; then worker
+  prerequisites/acceptance. User confirmed backend email configuration not replaced.
+  Off-device portable recovery and legacy continuity remain unresolved; Cashfree deferred.

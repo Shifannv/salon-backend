@@ -219,3 +219,35 @@ this note. Source head47 remains outside currently authorized migration policies
 
 The legacy Sydney project is user-confirmed paused, with source continuity still
 unverified. This is not a deletion decision and does not alter recovery gates.
+
+## 25 October: support/subscription privacy and full0048 restore rehearsal
+
+The user approved selective owner-data redaction in retained closed-salon support
+cases and removal of copied free-text subscription benefits. Prepared0048 adds
+restricted, policy-versioned support retention and an exact guarded benefit
+transformation. Other participants' evidence, financial values, provider references
+and shared plans remain intact. Known quotations are redacted only with explicit
+quote/attribution context; ambiguous short text is preserved for restricted review.
+See `../ACCOUNT_DELETION.md` for the policy and its limits.
+
+The full prepared-schema text/JSON classification now accounts for additions after
+0028. Synthetic PostgreSQL tests exercise owner/customer deletion, retained-case
+HTTP access/MFA, cross-actor replay/email copies, immutable financial history,
+recursive benefit keys/values, concurrency and missing-migration refusal. Read-only
+migration/security review found no remaining blocking issue in this scope.
+
+A fresh local restore of the existing encrypted Mumbai archive retained original
+owners and grants, with zero effective-ACL differences against the captured source.
+Exact sidecars0041 through0048 then passed in order. Counts remained14 profiles,
+10 salons,20 bookings,20 booking_services and14 Auth users. Obsolete fields,
+gallery-limit violations and duplicate active photo URLs counted0; no change,
+finance or erasure-event rows were fabricated. Alembic history remained empty.
+Receipt: `.artifacts/restored-privacy48-20261025.json`; the earlier0041–0046 receipt
+was preserved. This rehearsal establishes compatibility with that backup snapshot,
+not historical execution or permission to mutate production.
+
+A fresh SELECT-only production check found0 support cases/messages,0 subscription
+purchases and0 unfinished erasure requests. Production history still has0 rows.
+No stamp or forward migration has been executed remotely. The separate state-adoption
+policy/approved manifest described above is still required; existing execution guards
+remain unchanged. Cashfree activation stays deferred.

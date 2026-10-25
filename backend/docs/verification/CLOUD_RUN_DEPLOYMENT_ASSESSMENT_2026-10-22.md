@@ -2818,3 +2818,81 @@ were corrected and verification uses a fresh workspace-owned temp directory.
 Final full regression: **1526 passed,36 skipped**, one existing Starlette
 deprecation warning; full Ruff and `git diff --check` passed. Eleven prepared-head
 PostgreSQL checks are included. The single Alembic source head is0047.
+
+## 39. Approved support/billing privacy and candidate verification (25 October)
+
+The user's latest retention answers are implemented locally in prepared0048 and
+the compatible support, erasure and email adapters. Closed-salon cases retain other
+participants' evidence while removing the deleted owner's own message text and known
+personal references. Retained cases are restricted to existing super-admin access
+with MFA; immutable policy-versioned events record the privacy operation. Local
+queued/delivery email copies and cross-actor cached replies are removed. Internal
+admin replies on retained cases do not email ordinary participants.
+
+Copied authored text is redacted only with explicit quotation/attribution context;
+short acknowledgements, punctuation and bare amounts are preserved to avoid removing
+another participant's evidence. Unknown aliases/paraphrases still need restricted
+review. Case-specific hashes are pseudonyms. No retention period or evidence-purge
+operation has been invented. There are no attachment/search-index tables in the
+current support contract; future additions require corresponding coverage.
+
+Only the deleted owner's subscription-purchase benefit text is removed. Numeric and
+boolean values survive; seven published catalog keys remain, and custom keys become
+row/path-specific pseudonyms. Charges, dates, provider references and public plans
+remain intact. No historical plan-version/hash is fabricated. Diagnostic narratives
+receive selective known-personal-data redaction, preserving surrounding financial
+evidence. See `../ACCOUNT_DELETION.md` for the complete policy and limitations.
+
+Support creation/replies and erasure now use compatible profile/salon/ticket locks.
+The email worker rechecks and locks the current event through submission, preventing
+a deleted queued payload from being sent by a stale worker copy. Resend submission
+has a total10-second deadline. Already provider-accepted messages cannot be recalled
+from external inboxes by these database changes.
+
+Verification completed:
+
+- **1542 passed,36 skipped**, one existing Starlette deprecation warning; full Ruff
+  and diff whitespace checks passed. Twenty-five prepared-head PostgreSQL cases are
+  included. The old0028 opt-in erasure suite remains separately scoped; its skips
+  are not counted as passes.
+- The full prepared-schema text/JSON classification accounts for post0028 fields.
+  Tests cover selective support copies, unrelated evidence, recursive benefit keys,
+  immutable amounts, authorization/MFA, concurrent creation/sending and refusal on
+  missing0047 or0048. HTTP authorization fixtures override authenticated actors;
+  they are not live Supabase JWT acceptance tests.
+- A fresh isolated restore of the existing encrypted current-Mumbai backup preserved
+  original owners/grants with zero effective-ACL differences. Exact0041→0048 SQL
+  replayed successfully. Counts stayed14 profiles/10 salons/20 bookings/
+  20 booking_services/14 Auth users; obsolete fields and photo violations counted0.
+  No change/finance/erasure history was invented; Alembic history stayed empty.
+- Local backend image `salon-privacy48-release-review:20261025` built successfully.
+  Offline `/health`, `/docs` and `/openapi.json` returned200; OpenAPI has147 operations,
+  source head0048, non-root execution and maintenance CLI help passed. Environment
+  files, backups and artifacts are absent. Startup dependencies, live provider calls
+  and production data paths were not exercised by this offline smoke.
+- Built-image application/migration sources match the workspace exactly. A local
+  review bundle seals222 input files and6 evidence receipts. Its status explicitly
+  denies execution authorization; it is not an approved migration manifest.
+
+Fresh SELECT-only production checks found0 support tickets/messages,0 subscription
+purchases and0 unfinished deletion requests. Production still has an empty Alembic
+version table. No remote migration, history write, push, deployment, worker activation
+or billing change occurred. The candidate is local and uncommitted. Existing execution
+policy remains unchanged; the broad release still requires a reviewed state-adoption
+implementation, fresh attestation and exact operator-approved release procedure.
+
+The earlier explicitly requested Resend MCP test send succeeded once. That verifies
+the MCP connection/provider acceptance only; it does not repair the rejected backend
+email configuration or prove inbox delivery. Do not repeat the send. Cashfree remains
+deferred. The user confirmed the backend email configuration has not yet been replaced;
+keep that worker disabled pending valid configuration and sender verification.
+Off-device/portable key recovery, legacy Sydney continuity and backend
+worker prerequisites remain as in37–38; retain the stopped VM disk and paused source.
+Apps and website were not changed or retested in this continuation.
+
+Evidence in ignored `.artifacts/`: `privacy48-full-final-20261025.log`,
+`restored-privacy48-20261025.json`, `privacy48-image-smoke-20261025.json`,
+`privacy48-local-review-bundle-20261025.json` and
+`resend-test-send-result-20261025.json`. The earlier0041–0046 restore receipt is
+preserved separately. Temporary restore data is removed after acceptance; encrypted
+archives and protected recovery material are retained.
