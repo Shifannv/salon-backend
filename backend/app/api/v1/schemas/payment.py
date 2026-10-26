@@ -34,6 +34,7 @@ class BookingQuoteRequest(BaseModel):
 
 
 class BookingQuoteResponse(BaseModel):
+    checkout_policy_version: str = "customer_processing_v1"
     payment_mode: Literal["PAY_ONLINE", "PAY_AT_SALON"]
     currency: str = "INR"
     service_amount: Decimal

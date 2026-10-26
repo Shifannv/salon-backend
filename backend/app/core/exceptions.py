@@ -75,6 +75,14 @@ class SlotUnavailableError(ConflictError):
     code = "slot_unavailable"
 
 
+class BookingChangeError(ConflictError):
+    """A sanitized, explicitly classified booking-change conflict."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 class PayAtSalonDailyLimitError(ConflictError):
     code = "pay_at_salon_daily_limit"
 

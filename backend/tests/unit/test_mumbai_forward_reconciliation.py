@@ -3,6 +3,7 @@
 import ast
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -78,6 +79,10 @@ class RecordingSession:
 
     async def execute(self, statement, parameters=None):
         self.statements.append((str(statement), parameters))
+        if "to_regclass('public.booking_customer_changes')" in str(statement):
+            return SimpleNamespace(mappings=lambda: SimpleNamespace(one=lambda: {"has_audits": True, "can_scrub": True}))
+        if "select tablename from pg_catalog.pg_tables" in str(statement):
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
 
 
 @pytest.mark.asyncio
@@ -89,6 +94,8 @@ async def test_customer_clear_happens_before_profile_reference_detachment():
     scrub = next(i for i, s in enumerate(statements) if "cancellation_reason_code = null" in s)
     detach = next(i for i, s in enumerate(statements) if "select erase_profile_references" in s)
     assert scrub < detach
+    audit_scrub = next(i for i, s in enumerate(statements) if "select public.erase_booking_audit_personal_data" in s)
+    assert audit_scrub < scrub
     assert "cancellation_reason_text = null" in statements[scrub]
     assert "where customer_id = :uid" in statements[scrub]
     assert session.statements[scrub][1]["uid"] == "synthetic-customer"

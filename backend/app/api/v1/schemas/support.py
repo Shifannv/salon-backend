@@ -27,13 +27,15 @@ class SupportMessageResponse(BaseModel):
 
 class SupportTicketResponse(BaseModel):
     id: UUID
-    customer_id: UUID
+    customer_id: UUID | None
     salon_id: UUID | None
     subject: str
     status: str
     created_at: datetime
     updated_at: datetime
     messages: list[SupportMessageResponse] = Field(default_factory=list)
+    erasure_policy_version: str | None = None
+    erasure_retention_reason: str | None = None
 
 
 class EmailEventResponse(BaseModel):

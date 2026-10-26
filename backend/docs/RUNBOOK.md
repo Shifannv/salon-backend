@@ -236,3 +236,138 @@ The same `payment-webhook-worker` runs the subscription pass; alert on log lines
 `ALERT subscription_billing`. Recovery queries and the duplicate/mismatch/blocked procedures are in
 `SUBSCRIPTIONS.md` ("Operator recovery"). Turning billing off (`none`) leaves history, cancel and entitlement
 reads working and never touches booking collection.
+
+## Encrypted database backup preparation and recovery
+
+Source code is not a database backup. The existing schema-only exports contain no
+customer/booking rows. Database archives also do not include R2 object bytes,
+provider settings, Google Cloud IAM/DNS or runtime secrets; inventory and protect
+those separately before claiming complete disaster recovery.
+
+`scripts/backup_database.py` streams `pg_dump --format=custom` directly into GPG
+encryption. It never writes a plaintext dump or reads an application environment
+file. Existing PostgreSQL18 tools and Git's GnuPG2.4.9 were verified on this Windows
+machine; Git GPG's MSYS path conversion is handled by the script.
+
+Preparation:
+
+1. Create a password-protected recovery encryption key in a keyring outside the
+   checkout, using an interactive GPG terminal. Keep its private key and passphrase
+   under the operator's control, with a recoverable off-device copy. The unattended
+   backup machine only needs the matching public encryption key. Never send private
+   keys/passphrases through chat or put them beside an archive.
+2. Configure libpq process settings securely: `PGHOST`, `PGPORT`, `PGDATABASE`,
+   `PGUSER`, `PGPASSWORD` or `PGPASSFILE`, `PGSSLMODE=verify-full`, and a trusted
+   `PGSSLROOTCERT`. Use a direct/session-pooler endpoint; transaction port6543 is
+   refused. The script pins the source to the separately supplied expected hostname.
+3. Run from `backend/` (placeholders below are intentionally nonfunctional):
+
+   ```text
+   .venv/Scripts/python.exe scripts/backup_database.py --check-tools
+   .venv/Scripts/python.exe scripts/backup_database.py --execute --expected-host EXPECTED_DB_HOST --output-dir .backups --gpg-home KEYRING_OUTSIDE_CHECKOUT --recipient FULL_PUBLIC_KEY_FINGERPRINT
+   ```
+
+`backend/.backups/` is ignored by Git. Other destinations inside the checkout must
+also be ignored; the script refuses to store private keys in this repository.
+Successful exports have an encrypted `.dump.gpg` archive plus a SHA256/size/scope
+manifest. Failed `.partial` files are not backups. A successful export remains
+explicitly **restore unverified** until tested. Do not configure a schedule before
+the first real export and restoration have passed.
+
+Recovery rehearsal must decrypt through a pipe to `pg_restore` on a fresh,
+isolated target, never the current production database. Confirm checksum/decryption,
+schema/functions/roles/permissions, row counts and representative booking/financial
+invariants. Supabase managed schemas, Auth identities/providers, OAuth callbacks,
+JWKS, storage and role ownership need their own restore/migration review. Do not
+blindly replay a full Supabase archive over another managed project. Restore media
+bytes separately and test their URLs. For an API-only server move, retain the same
+Supabase/Auth, R2, Redis and public API hostname whenever possible; do not restore
+the database merely because the compute host changes.
+
+Keep a second encrypted archive off this laptop and rehearse using the separately
+stored recovery key. Choose backup frequency and retention from an agreed recovery
+point objective, and include erasure/retention rules when restoring old data. A
+synthetic local toolchain rehearsal is not proof of a production backup or a tested
+full-account restoration. Current acceptance evidence is in deployment assessment33.
+
+### Local recovery configuration verified on 25 October 2026
+
+The operator authorized local encrypted archives under `backend/.backups/` and
+references in the ignored `backend/.env`. Its `BACKUP_OUTPUT_DIR`,
+`BACKUP_GPG_HOME`, `BACKUP_RECIPIENT_FINGERPRINT`, `BACKUP_EXPECTED_HOST`,
+`BACKUP_SSL_ROOT_CERT` and `BACKUP_PASSPHRASE_DPAPI_FILE` entries are local backup
+configuration, not application runtime settings or an automatic backup schedule.
+The export helper still accepts explicit arguments and libpq process variables;
+it does not automatically load these entries from `.env`.
+
+The separate keyring is under
+`%LOCALAPPDATA%/SalonRecovery/database-keyring/`. The GPG private key and its
+armored export are password protected. The saved password is encrypted with
+Windows current-user DPAPI in `passphrase.dpapi`; folder access is restricted to
+the current Windows user and SYSTEM. The public recipient and Supabase root CA
+are stored there too. No private key or password was added to `.env`.
+
+**This is currently laptop/account-bound recovery.** Copying a DPAPI file to a
+different machine does not establish password recovery there. Before relying on
+this for laptop loss, the operator must establish an independent, secure recovery
+password/private-key copy and keep a second encrypted archive off device. Do not
+send either through chat. No off-device copy or scheduled backup exists yet.
+
+The first real Mumbai database archive passed SHA256, decryption after closing
+the GPG agent cache, and an isolated restore using the installed Supabase
+PostgreSQL17 image. The target had no network or exposed port and was removed
+after verification. Restore omitted original owners and ACLs; managed role,
+permission and full hosted-project recovery still require review. Five key table
+counts matched production. Assessment35 records the evidence and remaining scope.
+Failed `.partial` files are not usable archives. R2 media bytes and runtime/cloud
+configuration are not included in this database export.
+
+## Prepared Cloud Run maintenance passes
+
+`python -m app.infrastructure.maintenance_job TASK --limit 20 --timeout-seconds 240`
+is a **local, tested entrypoint**, not an enabled production schedule. Tasks are
+`email`, `account-deletion` and `media-cleanup`. It reuses existing workers and
+does not add a public maintenance endpoint. There is no payment/subscription queue
+task. Owner erasure can nevertheless require refunds through its existing closure
+workflow; review those prerequisites before running it.
+
+Queue results count **attempts**, including deferred/failed items. Inspect their
+durable queue statuses to establish delivery or erasure completion. Media passes
+propagate candidate failures. The time budget is cooperative: it stops between
+items and finishes current work before closing its database session. Do not add
+`wait_for` around threaded object deletion: cancellation can release publication
+locks while a storage call continues. The blocking-thread unit regression covers
+this boundary. Hard platform termination remains a separate operational risk.
+
+Proposed jobs should use an immutable reviewed image, the existing production
+runtime identity, a pinned runtime-secret version, one task/parallelism1,
+max-retries0, and a platform timeout with room beyond the cooperative budget.
+Prepare and manually validate each task before enabling a schedule. A Cloud Run
+job runs and exits; creating one does not itself schedule it. Keep the working
+notification worker unchanged until push continuity is separately accepted.
+
+Deployment gates still open:
+
+- Account erasure: full target-schema privacy tests and provider/storage/cache
+  prerequisites. A zero-length current deletion queue does not prove processing.
+- Email: configured verified sender, permission for the intended sends, and queue
+  review. The production sample has13 pending events,10 outside the worker's23-hour
+  delivery window; none were sent or modified by this investigation.
+- Media: deletion/publication acceptance before scheduling sweeps. The bounded job
+  now requires reachable Redis and saves/verifies one enumeration checkpoint per
+  pass, advancing past referenced/unmarked objects and resetting after a complete
+  traversal. Tests cover reaching a later orphan and preserving in-flight locks.
+  Keep one execution at a time; overlapping jobs can duplicate enumeration work.
+  Existing full continuous sweeps retain their original behavior.
+
+No Cloud Run job, Scheduler schedule or new continuously allocated worker was
+created during this preparation. The new image was built locally only.
+
+The later original-owner/ACL restore matched captured production effective
+permissions with zero differences. An actual encrypted R2 media export also now
+exists beside the database archive:24 objects/8564415 source bytes, all object
+hashes verified after decryption in memory. Object HTTP/custom metadata is inside
+its encrypted manifest. No object was uploaded or deleted. The archive does not
+include bucket configuration or prove restoration to a different storage provider.
+The user selected local storage only; independent off-device recovery is still
+unconfigured. Assessment36 records the exact archive identities and acceptance.

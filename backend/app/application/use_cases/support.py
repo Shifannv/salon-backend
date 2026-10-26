@@ -21,6 +21,7 @@ class SupportUseCases:
     async def create(self, actor, values, key):
         if actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer or owner access required")
+        await self.repository.lock_active_author(actor.id)
         replay = await self.begin(actor, "support:create", key, values)
         if replay is not None:
             return replay
@@ -40,6 +41,8 @@ class SupportUseCases:
 
     async def read(self, actor, ticket_id):
         ticket = await self.repository.get_ticket(ticket_id)
+        if ticket and (ticket.get("retained_restricted") or ticket.get("privacy_restricted")) and actor.role != Role.super_admin:
+            raise NotFoundError("Support ticket not found")
         if not ticket or not (str(ticket["customer_id"]) == actor.id or actor.role == Role.super_admin
             or (actor.role == Role.owner and str(ticket.get("owner_id")) == actor.id)):
             raise NotFoundError("Support ticket not found")
@@ -48,17 +51,18 @@ class SupportUseCases:
     async def reply(self, actor, ticket_id, body, key):
         if actor.role not in {Role.owner, Role.super_admin}:
             raise ForbiddenError("Owner or admin access required")
+        await self.repository.lock_active_author(actor.id)
         scope = "support:reply:" + ticket_id
+        ticket = await self.read(actor, ticket_id)
         replay = await self.begin(actor, scope, key, {"body": body})
         if replay is not None:
             return replay
-        ticket = await self.read(actor, ticket_id)
         if actor.role == Role.owner and str(ticket.get("owner_id")) != actor.id:
             raise NotFoundError("Support ticket not found")
         await self.repository.throttle("support:reply:" + actor.id, 30, 3600)
         message_id = await self.repository.add_message(ticket_id, actor.id, body)
         await self.repository.mark_replied(ticket_id)
-        if ticket.get("customer_email"):
+        if ticket.get("customer_email") and not (ticket.get("retained_restricted") or ticket.get("privacy_restricted")):
             await self.repository.enqueue_email(str(ticket["customer_id"]), "support_reply:" + message_id,
                 "support_reply", ticket["customer_email"], "Reply to your support request", body)
         result = await self.read(actor, ticket_id)

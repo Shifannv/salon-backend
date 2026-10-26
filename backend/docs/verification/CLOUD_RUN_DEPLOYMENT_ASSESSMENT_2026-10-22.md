@@ -5,6 +5,13 @@ Project: `saloon-505509`. Local source: `ee87dde` on `shifan`.
 Initial mode: live read-only infrastructure inspection and low-volume HTTP GET smoke
 checks. Section 8 records the subsequent authorized local integration tests.
 
+**Current state,25 October:** sections33–38 supersede earlier resource/deployment
+snapshots. The old VM is stopped with its boot disk retained. The independently
+tested query-only hotfix now receives100% of production traffic, with min0/max1.
+Actual encrypted Mumbai database/media archives and original-grant recovery now pass. Off-device
+recovery, history reconciliation and the broader source release remain
+incomplete; this is not full business-flow acceptance.
+
 **Latest follow-up:** section 10 records the connected-phone Google login recovery,
 website Playwright results and the approved, deployed gallery API fix. Sections 11–12
 track the description removal and two-slide changes. **Section 13 records the separately
@@ -1533,7 +1540,17 @@ PATCH could save the photo while the screen displayed a different legacy record.
 The owner editor now preserves a replacement's existing sort order and list position,
 and rejects a response that does not match the requested URL/role/order. This requires
 no production migration. Two focused regressions fail under the previous logic.
-Final client tests/native photo-save acceptance are still being completed.
+Native acceptance subsequently passed: the user selected a distinct Slide 2 photo,
+the owner app saved it, and reopening showed that photo as Saved. The same slide
+record retained its order. The updated customer app then displayed the new photo
+in its salon carousel. Evidence: `backend/.artifacts/profile-media-20261023/`.
+
+Subsequent local verification: **72 owner tests passed across five suites**, including
+the photo editor, Settings, salon repository, profile completion and fallback checklist.
+Both new photo regressions fail with the previous save logic. **35 customer tests passed
+across eight suites**, and customer TypeScript passed. The updated owner JavaScript bundle
+exported successfully; the profile verification APK was subsequently packaged and
+installed on the test phone. The customer verification APK was also updated.
 
 Owner profile saves require the existing name, owner name, valid contact and location,
 plus a cover and at least one service-page photo. Slide 2 remains optional; maximum
@@ -1559,9 +1576,9 @@ compatibility. Updated apps/readers must be distributed before response removal 
 the explicit database drop; the working production revision still selects category.
 Do not run the drop against production while those readers remain active.
 
-Backend verification before the final profile-name guard: **1,281 passed, 95 skipped**;
-Ruff passed with its unwritable cache disabled. Skips include opt-in integration suites,
-not 95 failed checks. A final run follows any subsequent backend edits.
+Final backend verification including the profile-name guard: **1,285 passed, 95 skipped**
+in 127 seconds; Ruff passed with its unwritable cache disabled. Skips include opt-in
+integration suites. One dependency deprecation warning remains.
 
 ### Newly confirmed booking/payment requirements
 
@@ -1571,3 +1588,1311 @@ earlier exactly-four-hour boundary and unresolved flat deduction. These payment/
 changes are **requirements, not a released capability**. Current live cancellation still
 uses the older cutoff/action-request behavior, and online payments remain dormant.
 No provider settlement, refund, billing or production release occurred in this continuation.
+
+## 23. Resumed native notification verification
+
+The user resumed after the requested 2:28 PM pause. Approval review became available,
+and exclusive phone control was confirmed. Both profile verification APKs were installed.
+The user selected the replacement photo; owner save/reopen and customer display passed.
+Customer profile freshness remains the accepted 60-second cache plus reopening/manual refresh.
+
+Owner **Alerts & activity** now uses customer-aligned image cards, separate content/dismiss
+touch targets, readable body text and reduced-motion-aware entry/exit/layout animations.
+The source passed **18 tests across four suites** and focused lint, including independent
+dismissal and push routing. The full native release-mode verification APK subsequently
+built successfully (including Android release lint) and installed over the existing app.
+It is signed with the existing debug certificate for local verification, not store release.
+After the user unlocked the phone, the new cards rendered with their matching image
+icons and without the old overlapping tinted blocks. Opening details and independently
+dismissing a dedicated test alert passed on the phone. A fresh foreground test message
+also displayed its full in-app heads-up banner; this establishes presentation alongside
+provider acceptance, without attributing the banner exclusively to FCM rather than inbox sync.
+The native build encountered a stale Windows dependency-cache path exceeding 260 characters;
+removing only its generated Ninja dependency file allowed that compilation step to pass.
+Google Maven DNS then blocked an AndroidX artifact; Java HTTPS connectivity was checked
+before retrying the cached build successfully. The low local Gradle heap/metaspace settings
+also caused a memory-pressure warning. No Cloud Run capacity was changed for this build.
+
+Live checks use only guarded system-notification fixtures for the existing owner/customer
+test accounts, through the existing outbox and notification worker. They create no booking
+or payment. Neither raw tokens nor provider credentials were read or published.
+
+| Installed app/state | Physical evidence | Result |
+| --- | --- | --- |
+| Customer foreground | Exact test push in Android tray; tap opened Notifications | Passed |
+| Customer background | Exact test push in Android tray; tap opened Notifications | Passed |
+| Customer process terminated | PID absent before sending; exact push arrived; tap cold-launched Notifications | Passed |
+| Owner background, earlier installed build | Exact test push in Android tray | Receipt passed; tap incorrectly opened Home |
+| Owner foreground, earlier installed build | Inbox/bell updated; recording not inspected | Physical foreground FCM presentation not yet established |
+| Owner foreground, final installed build | Exact test message displayed in heads-up banner; provider accepted | Presentation passed; banner may also be driven by inbox sync |
+| Owner background, final installed build | Exact push in Android tray; tap opened Alerts & Activity | Passed; route correction verified |
+| Owner swiped out of Recents, final installed build | Task removed; exact push arrived; tap reopened Alerts & Activity | Passed; cached process remained alive |
+
+The owner tap fallback was corrected to Alerts for notices without a booking; booking
+notices still route to Bookings. Its regression failed before the fix and passed after.
+That correction is installed and the live background/swipe-away tap retests passed.
+Customer registration was
+also corrected to create the backend's `salon-alerts-v3` Android channel rather than only
+`default`; **17 tests across three suites** and focused lint passed, and this fix is installed.
+
+Provider acceptance is checked separately from physical receipt. The fixture named
+`customer-closed-01` ran while a PID still existed and counts only as background evidence;
+`customer-process-stopped-02` is the valid process-termination check. This does not test
+Android force-stop, owner process termination, every device, audible sound or iOS delivery.
+All **nine** guarded test notices were processed and accepted without a provider error.
+The final owner Read all action cleared its three new test notices and the visible count
+fell to zero. One older test alert was hidden from this device while verifying dismissal;
+server notification records were retained. No test booking or payment was created.
+The initially missed swipe-away tap is not a passing artifact: `owner-swiped-tap.png`
+shows the customer app. A fresh notification UI hierarchy supplied exact bounds, and
+`owner-swiped-tap-verified.png` plus foreground package confirmation establish the pass.
+Evidence remains private
+under `backend/.artifacts/{owner-alerts,customer-push}-20261023/`.
+
+No new backend revision, remote migration, settlement/refund operation or cloud resource
+change was made during this resumed verification. Broader booking/QR/completion acceptance
+and the U08 payment implementation remain separate, unfinished work.
+
+## 24. Booking and payment continuation: local E2E verified, release held
+
+Resumed 23 October after the automatic approval review usage limit cleared. The
+user's commit `0b6ece4` contains the earlier source fixes; this continuation preserves
+it and records validation on `thameem/u08-verification-continuation`. No commit/push,
+APK installation, production release, migration, refund or payout occurred here.
+
+### Verified implementation and defects fixed
+
+`tests/integration/test_booking_journeys_e2e.py` exercises actual HTTP routes, use
+cases and a disposable PostgreSQL database. Synthetic actor overrides isolate auth
+extraction; these tests do not establish real JWT sign-in or Android UI behavior.
+Payment providers are disabled, and cash receipts exist only in the disposable fixture.
+
+- App, QR walk-in and manual walk-in journeys pass: resolve salon/QR PNG, read SQL
+  availability, create/replay booking, deny customer check-in, approve when required,
+  check in, reject unpaid completion, record collection and complete.
+- Completion retries previously produced duplicate customer notices. The repository's
+  actor-scoped replay marker now prevents scheduling another completion notice.
+  Concurrent same-key HTTP retries assert one receipt, completion audit and customer
+  notice. Completion notification scheduling remains a post-commit background action;
+  this does not prove crash-safe durable delivery for every completion failure.
+- No-show actions require a reason and the full ten-minute grace. Both native no-show
+  and legacy owner-cancellation paths reject marking a checked-in customer absent.
+  The no-show notice/outbox is written transactionally. Retry, exact-boundary, direct
+  SQL bypass and account-erasure compatibility checks pass.
+
+Prepared revision `0043_no_show_attendance_guards` follows held 0042. Independent
+migration and security reviews found no remaining concrete blocker in that scoped
+attendance foundation after fixes. They do not approve remote execution or financial
+policy activation. The no-show request body is documented in the existing API reference;
+bodyless consumers must be coordinated before releasing that contract.
+
+### Payment/change rules and implementation boundary
+
+The immutable Decimal calculation foundation covers the approved cancellation bands,
+provider-cost treatment, internal allocation, zero completed-service commission,
+four-hour change cutoff and two successful time-reschedule limit. These calculations
+are **not connected to live refunds, payouts or booking-change endpoints**. They do
+not replace existing legacy snapshots or activate online payment.
+
+The user's follow-up decisions are now recorded in the existing payment specification:
+unpaid salon collection uses the new service price; customer changes require an available
+slot without renewed salon approval; prepaid upgrades require verified extra funds
+before commit. All three earlier clarification questions are answered. The tested
+`service_change_quote` separates retained prepaid money from new service value and
+additional payment. Partial/advance or already-collected manual payments are explicitly
+outside its unpaid path; it does not claim to reserve/change a slot or verify a capture.
+
+Still required before full U08 acceptance: release/extension of the prepared policy binding,
+atomic SQL change/reschedule commands and count/audit persistence, verified extra-payment
+binding and failed-change/late-capture reconciliation, cancellation/refund execution and
+internal approval/settlement ledger, provider hold evidence, and customer/owner UI wiring
+plus physical end-to-end acceptance. The local helper alone is not a completed payment flow.
+The user answered that Cashfree account setup is still in progress. Continue local logic
+without credentials; real provider testing remains pending, separately from the completed
+disposable-database cash journeys. Configuration must use secure environment settings,
+not credentials pasted in chat.
+
+### Cashfree deferred: immutable checkout selection prepared
+
+Prepared revision `0044_versioned_checkout_policy` follows0043 and changes only the
+existing policy stamp function. `BOOKING_CHECKOUT_POLICY_VERSION` defaults to the
+historical `customer_processing_v1`. Explicit U08 selection stores
+`u08-2026-10-23-v1` at creation on all three booking paths; clients cannot select it,
+and later updates cannot rewrite it. Existing snapshots remain unchanged. The setting
+is transaction-local and resets on the reused connection after commit. Missing policy
+migration causes a503 and full creation rollback, rather than silently binding legacy.
+
+Checkout quote responses include the selected policy. U08 has zero customer surcharge;
+the existing policy retains its historical surcharge/commission behavior. U08 config,
+public payment options and app/QR booking gates keep online payment unavailable. A
+stored U08 booking cannot enter the legacy provider-intent/automatic-split flow even
+after credentials are configured. The completed-service zero-commission calculation
+remains the approved foundation; the actual held-funds/refund/approval workflow still
+needs implementation. This is not full U08 payment completion or activation.
+
+Independent migration/security review found no blocker in this scoped selector/guard.
+After U08 bookings exist, rollback must preserve the stored-policy guard or disable
+online collection: an older API could otherwise interpret them using legacy settlement.
+No0044 execution, runtime setting change, provider request or production release occurred.
+
+### Test evidence
+
+- Latest full backend run including the policy-binding changes and disposable PostgreSQL
+  suites: **1,416 passed, 36 skipped**, one dependency deprecation warning, 191 seconds.
+- Dedicated HTTP-to-PostgreSQL E2E rerun: **6 passed**, including concurrent completion
+  retries. Financial policy unit suite: **47 passed**.
+- New policy SQL tests cover all three booking sources, replay, pre-migration snapshot
+  preservation, missing-schema rollback, unknown versions, client ACL and transaction-local
+  setting reset. Focused checkout/payment suites passed61 checks before the full run.
+- Ruff over `app tests migrations`: passed. Other opt-in suites remain skipped;
+  these counts must not be described as complete native/payment-provider coverage.
+
+Private logs are in `backend/.artifacts/booking-policy-20261023/`, including
+`u08-full-final.log`, `full-resumed.log`, `e2e-resumed.log`, `u08-checkout-green.log`
+and `change-quote-green.log`.
+
+### Fresh live checks and deployment gates
+
+Production `/health` returned **200**. Its OpenAPI still has **119 paths**, has no
+required no-show request body and no reschedule/service-change routes. This confirms
+the source contract is not yet released; a healthy API does not establish U08 readiness.
+
+Read-only Mumbai metadata still shows **0 Alembic history rows**, existing salon
+category and salon/service description columns, and no attendance guard function.
+Do not stamp history or replay the migration chain against that restored database.
+The expected-head/catalog/ownership/privilege reconciliation described in
+`migrations/MUMBAI_FORWARD_RECONCILIATION.md` remains required before a concrete remote
+migration approval can be requested. No migration approval or traffic promotion is
+inferred from earlier scoped gallery/category/candidate approvals.
+
+## 25. Pre-market checks and actual phone QR cache defect — 2026-10-24
+
+**Release decision: not ready for market publication.** Passing checks below do not
+complete the outstanding payment/change commands, migration reconciliation, native
+release builds, provider acceptance or formal VAPT. This is the existing assessment
+updated in place; earlier sections retain their historical evidence.
+
+### Live routing and the approved QR environment fix
+
+- Public API: `https://apiv1.mudassirmhd.in`; Swagger: `/docs`; contract: `/openapi.json`.
+- Customer booking website: `https://salon-customer-webpage.vercel.app`.
+- Required salon QR destination: `https://salon-customer-webpage.vercel.app/s/<qr_token>`.
+  Use the salon's persistent public QR token, not a database salon UUID.
+- With explicit approval, changed only production `WALKIN_BASE_URL` to the single
+  website `/s` URL using the exact serving image digest ending `f360085`.
+  Revision `salon-api-production-qr-20261023` passed zero-traffic checks and received
+  normal traffic. The preceding category revision was preserved. Min 0/max 1 retained.
+  No source patches, migrations, billing changes or VM changes were included.
+- Production health, public salon resolver, QR PNG and website returned 200.
+  Actual PNG decoding produced the intended website URL. Browser checks reached
+  Mentrex → Buzz cut → team → available time → customer-details/OTP gate.
+  No OTP, booking or payment was submitted during this read-only flow.
+- Installed APK inspection found the production API origin in both bundles; the owner
+  config explicitly embeds it. A bundle string alone does not prove every request.
+  Correlated production request metadata also showed the website's server-side QR
+  lookup reaching Cloud Run. These checks did not use a local booking API mock.
+
+**Physical QR result corrected:** the user reported a not-found page. Inspection of
+the connected phone found the owner QR modal open. Decoding that exact screenshot
+revealed the *old malformed JSON-list payload*, despite the current public PNG
+decoding correctly. The old native image had survived the environment-only fix.
+Opening the corrected destination in Chrome on the same phone displayed Mentrex
+and Buzz cut, with no not-found label. This establishes the stale owner image defect;
+it does not establish a successful fresh OEM camera scan.
+
+Prepared `owner.py` now adds a deterministic destination hash to the QR image URL.
+The URL changes when the encoded destination changes, remains stable otherwise,
+and preserves the salon token. The regression failed before the patch and passed
+after it. Compared the file against the actual serving image: the only source
+difference is the hash import and QR URL version. Built local image
+`salon-qr-cache-review:20261024` from that exact image plus this one file; an offline
+runtime check passed. **This cache fix is not yet deployed.** A separate scoped
+release approval is needed. Existing malformed downloads/prints must be replaced;
+an image cache fix cannot repair an already printed code.
+
+**Release update, 24 October 2026:** the user subsequently approved this exact
+one-file cache fix. It is now deployed as `salon-api-production-qr-cache-20261024`
+and receives 100% of normal traffic. The preceding paragraph describes the prepared
+state before that approval. Published image index digest
+`sha256:15d487da380021f7e36a321307fe965814ee2ab3070dbb9fd0eec2ba73c7032b`;
+Cloud Run resolved its runtime image manifest to
+`sha256:03d755dfc70d32726c5e9eae0166774ef5f29baba69be7c73b5a30b741072044`.
+Zero-traffic health, actual QR PNG decoding, live website destination and anonymous
+401 checks passed before promotion. Candidate OpenAPI was identical to production
+(119 paths). Post-promotion checks through the public API domain passed again.
+Service min 0/max 1 was verified, and rollback revision
+`salon-api-production-qr-20261023` remains available. No migrations, payment/source
+security patches, app binaries, website release, billing or VM changes were included.
+**Post-release phone verification passed, 24 October 2026:** after the user returned
+exclusive phone control, restarted the existing signed-in owner app without clearing
+data, opened Menu → QR Code, and decoded the actual displayed image. It now contains
+the correct customer-web `/s/<qr_token>` destination rather than the malformed list.
+Opened that decoded URL in Chrome on the same physical phone: Mentrex and Buzz cut
+were visible and no not-found text appeared. No booking, payment or account change
+was submitted. This verifies native image refresh, actual QR content and same-device
+browser destination; a manual OEM-camera scan was not performed. Phone control was
+returned to the user. Saved or printed malformed codes still require replacement.
+Private evidence includes `owner-qr-after-release.png`,
+`owner-qr-after-release-decoded.json`, `owner-qr-destination-phone.png` and
+`owner-qr-device-result.json`, alongside `qr-cache-*` files in the existing
+release-readiness artifacts directory.
+
+### Customer and owner application status
+
+| Area | Evidence | Release limitation |
+| --- | --- | --- |
+| Owner native presence | Signed-in dashboard and Mentrex QR modal inspected | Full release APK and renewed end-to-end acceptance still required |
+| Customer native presence | Signed-in home exposes Mentrex | Updated secure-storage native build not installed |
+| Attendance contract | Owner validator accepts `checked_in`/`no_show`; customer adapter now maps them to Arrived/No-show with terminal display | These are source fixes; existing APKs retain their old behavior |
+| Owner collection | Backend accepts checked-in collection | Owner still reuses a customer payment-request capability; checked-in receipt action needs coordinated correction |
+| QR booking website | Live service/team/time/details entry checked; isolated Playwright suite passed | Live OTP/commit, refund and prepaid-upgrade acceptance not established |
+| Booking modifications/finance | Policy math, immutable version foundation, local HTTP/Postgres journeys tested | Atomic service/time changes, additional verified captures, refund/payout execution and corresponding app wiring remain unfinished |
+
+Customer attendance regression tests initially returned undefined for both backend
+states. The fix adds explicit labels and terminal handling rather than presenting
+no-show as an active request. Customer TypeScript checking passed after completing
+the typed fixture. Changed UI lint exposed **two existing errors and two existing
+warnings**, confirmed in HEAD: synchronous tab state update in an effect, an
+unescaped apostrophe, unstable memo input and an unused banner setter. Do not report
+the whole customer UI lint as clean.
+
+### Scoped security checks and prepared corrections
+
+This is a dependency/source/configuration assessment and bounded functional testing,
+**not a certified or comprehensive penetration test**.
+
+- Backend source now bounds unknown-JWT-key JWKS refreshes with a shared lock and
+  cooldown; strict QR OTP send/verify limits fail closed on Redis failure and use
+  atomic counter expiry. These patches passed tests but are **not in production**.
+- Customer native Supabase sessions previously used AsyncStorage. Prepared an
+  Expo-compatible SecureStore adapter with serialized chunked writes, safe legacy
+  migration and no plaintext fallback. Added device-only access and disabled Android
+  backup in app configuration. Required security review also identified malformed
+  manifest logout recovery; added regression tests and a targeted recovery fix.
+  Real-device session migration still requires a rebuilt native APK.
+- Both generated native release configurations reference debug signing. Verify actual
+  distribution signing before publication; test APKs are not evidence of store signing.
+- Approved npm advisory checks found owner **36** findings (1 critical, 19 high,
+  14 moderate, 2 low) and customer **19** (13 high, 6 moderate). These dependency
+  findings require reachability/upgrade review; they are not all proven native exploits.
+- Website production dependency audit initially found a critical Next.js advisory.
+  Prepared the compatible `16.4.0` → `16.4.3` patch: production audit now reports zero
+  findings and the isolated web suite passes. **The website patch is not deployed.**
+  Primary advisory: [Next.js image optimization vulnerability](https://github.com/advisories/GHSA-2464-fhr4-w9xw).
+- Customer dependency installation still has a TypeScript 6 versus
+  `openapi-typescript` peer-range conflict. The scoped SecureStore addition used
+  legacy peer resolution; clean-install/build compatibility remains a release gate.
+- Tests previously calling `Settings()` directly could read the developer dotenv.
+  The class now honors `SALON_ENV_FILE` before import, matching isolated test setup.
+  Production keeps its existing default when that override is absent.
+
+### Recorded verification and remaining gates
+
+- Full backend after QR cache patch: **1,431 passed, 36 skipped**, one dependency
+  deprecation warning; Ruff passed. The first post-patch run exposed two exact URL
+  expectations; assertions now verify the deterministic versioned URL.
+- Isolated website Playwright: **90 passed, 2 skipped**. The skips are optional visual
+  captures. Existing stale selectors were updated to the current UI without removing
+  their navigation, animation or reduced-motion assertions. This suite uses local
+  test API/auth fixtures and does not establish real Cashfree behavior.
+- Owner focused contract/push tests: **12 passed**; TypeScript passed.
+- Customer auth/storage/attendance tests: **18 passed**, including two reproduced
+  malformed-manifest recovery failures fixed afterward. Full TypeScript and focused
+  API/storage lint passed; the two pre-existing UI lint errors above remain.
+- Private evidence: `backend/.artifacts/release-readiness-20261023/` and
+  `backend/.artifacts/booking-policy-20261023/qr-cache-final-fixed.log`.
+
+Before publication: replace old malformed QR downloads/prints; finish atomic changes and
+financial execution; reconcile remote migration history and obtain approval for the
+concrete migration/release package; configure Cashfree securely and test real sandbox
+captures/refunds/webhooks; resolve dependency/build/signing gates; rebuild both apps
+and repeat physical booking, QR/check-in, collection/completion and notification
+acceptance. Cashfree setup is already known to be incomplete; do not request secrets
+in chat. None of the prepared migration or online-payment activation work has been
+approved or executed remotely.
+
+## 26. Backend-first continuation — 24 October 2026
+
+The user asked to prioritize backend completion while Cashfree account setup remains
+incomplete. The additions below are local, uncommitted and **not deployed**. The
+serving QR-cache revision and its existing public contract remain unchanged.
+
+### Implemented and locally exercised
+
+- Prepared migration **0045** and customer change availability, quote and commit APIs.
+  SQL checks ownership, current availability, the four-hour boundary and a maximum
+  of two committed time/staff reschedules. A quote fingerprint binds consent to the
+  exact price/duration snapshot. Version checks, idempotency and locking protect
+  against retries, concurrent changes, salon closures and competing bookings.
+- Unpaid Pay at Salon changes use the new service price. Fully prepaid cheaper
+  changes retain the amount paid while recording the new service value separately.
+  Time-only changes preserve the booked service price/duration. Existing approval
+  status is retained. More expensive prepaid changes remain blocked until an exact
+  verified additional capture can be bound to the change; this is unfinished.
+- Prepared migration **0046** for immutable terminal financial snapshots, durable
+  refund obligations and reconciliation holds. Approved cancellation bands are
+  applied using the stored U08 policy and appointment time. Provider costs do not
+  reduce the promised customer refund. Completed prepaid services have zero service
+  commission; cancellation allocations use the approved rounding rules.
+- Added super-admin finance read/command APIs with MFA enforcement, optimistic
+  versions, idempotency, hold review, recorded provider costs, manual approval and
+  manual payout recording. Recording a payout does **not** transfer money.
+  The owner statement exposes only approved/paid amounts and public status.
+- U08 customer cancellation is allowed within four hours with no refund; legacy
+  cutoff behavior is preserved. Checked-in owner collection has its own
+  `can_record_payment` response capability. Unpaid U08 completion is rejected.
+- Thirty-three focused HTTP/PostgreSQL tests exercise booking changes and finance,
+  including foreign-account denial, price forgery, quote drift, slot races, replay,
+  cancellation boundaries, owner self-booking cancellation, fee shortfalls, late
+  captures, over-refunds, owner-field redaction and manual payout limits.
+
+The API handoff is updated in `docs/BACKEND_API_REFERENCE.md`; it clearly separates
+these prepared routes from the live contract. Migration/security reviews found no
+remaining concrete blocker in the scoped local foundations. Reviews do not authorize
+remote migration or establish provider acceptance.
+
+Final isolated full backend verification: **1,466 passed, 36 skipped**, one dependency
+deprecation warning, 110 seconds. Ruff across app/tests/migrations and Git whitespace
+checks passed. The skipped cases are not established as passing. Evidence remains in
+the private `backend/.artifacts/booking-policy-20261023/backend-u08-verified.log`.
+
+### Remaining backend work and release gates
+
+1. Finish verified additional-payment binding and commit/reconciliation behavior for
+   prepaid upgrades. A failed or late capture must not silently change the booking.
+2. Implement provider refund dispatch and a reviewed reconciliation-resolution path.
+   Pending refund jobs currently record obligations; they do **not** issue refunds.
+   Manual finance hold review is an administrator attestation, not provider proof.
+3. Reconcile the restored Mumbai database's empty Alembic history against an isolated
+   reference. Prepared head is 0046; portable CI boundary 0037 and guarded Mumbai
+   target 0040 are unchanged. Do not stamp or replay the chain without proof.
+4. Review the concrete migration/release package and obtain production approval.
+   Earlier QR approvals cover neither these changes nor migrations/data removal.
+5. When Cashfree is securely configured, verify sandbox captures, signatures,
+   retries, refunds and settlement holds before enabling online U08 payments.
+
+The backend is **not yet fully complete or released**. These are backend tasks in
+addition to the separate customer/owner build, wiring and device-acceptance gates.
+
+## 27. Customer and owner frontend continuation — 24 October 2026
+
+Scope: customer and owner apps only. The website, Cloud Run configuration, database
+and payment-provider configuration were not changed in this continuation.
+
+### Customer app
+
+- Replaced the runtime booking-edit/add-services placeholder paths with one real
+  change flow: selected services/professional/date, booking-specific server slots,
+  server quote review and idempotent commit. The old paths could navigate away
+  without persisting a change. Navigation now follows a successful server commit.
+- Requests include the booking version and accepted quote fingerprint. Changing
+  selections discards the quote. Transport retries retain the same commit key;
+  conflicts discard the stale selection and refresh. Cached booking/detail and
+  availability queries are invalidated after a successful commit.
+- Extra-payment upgrades cannot commit before verified payment support exists.
+  Older/non-U08 booking responses show an unavailable message and leave the original
+  booking unchanged. No client price or slot calculation replaces server checks.
+- Fixed the booking-tab route synchronization that caused an extra effect-driven
+  render, stabilized the empty-list dependency and serialized dates independently
+  of locale date-string ordering.
+- Full Jest: **358 tests, 63 suites passed**, including the new flow and request
+  contract regressions. TypeScript and focused changed-file lint passed.
+- Full application lint remains a release gate: the broad run reported **227 errors
+  and 70 warnings**, including existing hook/compiler-animation issues and audit/test
+  utility files. The focused booking-list error was subsequently fixed; the broad
+  total is the recorded pre-fix run, not a new final count.
+- Full Android release-mode verification build succeeded in nine minutes, including
+  `lintVitalRelease`. The initial offline build lacked Google Services plugin4.4.4;
+  the subsequent online build resolved dependencies. APK signature verified and
+  installed over the existing customer app without clearing data. This remains a
+  verification build with existing test signing, not a store publication artifact.
+
+### Owner app
+
+- Collection controls now consume `can_record_payment`. An explicit false denies
+  collection even when the customer payment-claim flag is true. For the older
+  serving API only, its existing confirmed/completed capability remains a fallback;
+  checked-in collection is never inferred from the customer flag.
+- Full Jest: **842 tests, 101 suites passed**. Full TypeScript passed. Full lint
+  returned zero errors and three warnings. Screen/schema regressions cover the new
+  grant, explicit denial and legacy response behavior.
+- Exported normal owner entry, packaged it over the unchanged release-mode native
+  base and verified its signature. Installed the verification APK without clearing
+  data. This JavaScript-only update is not a clean native rebuild or store release.
+- Refreshed the existing local Graphify AST index as required by owner instructions.
+  No LLM labeling or external publishing was performed.
+
+### Physical phone evidence and limits
+
+Both updated apps retained their signed-in sessions. The owner Home, actual Manage
+Bookings list and menu rendered. Customer Home loaded the live test salon, its
+service detail opened, and the authenticated booking history rendered. Screenshots
+were visually inspected. Builds use `https://apiv1.mudassirmhd.in`, with mock API
+disabled. No booking, cancellation, payment or profile mutation was performed.
+
+The first Playwright selector matched a dashboard Bookings label rather than the
+actual destination, then its driver stalled. That initial screenshot is **not**
+navigation evidence. Stopped the test driver, used native Android actions and
+verified the actual destination using its unique Booking view/date controls and
+screen capture. Only the later `owner-bookings-verified.png` establishes that page.
+The attempted Alerts navigation did not establish an Alerts-page pass.
+
+Private evidence: `backend/.artifacts/native-pending-20261024/`. Physical tests did
+not exercise an active U08 change/extra-payment/refund journey: the prepared backend
+routes and migrations remain unreleased. FCM delivery and QR camera capture were not
+retested in this continuation; earlier scoped evidence remains as recorded above.
+
+Remaining: backend release/migration and provider gates from section26; real U08
+device acceptance after that release; customer broad lint and dependency triage;
+distribution signing and clean store-build acceptance. Neither app is certified as
+fully market-ready by these tests. Phone control returned after customer history
+inspection. No commit, push, store submission or production OTA publication.
+
+## 28. Customer lint, offline layout and live booking verification (24 October)
+
+This continuation supersedes section27's customer lint and read-only phone limits.
+Website source, production image, migrations and billing were not changed.
+
+### Customer app changes and verification
+
+- Removed compiler/lint errors in animated value ownership, shared-value access,
+  form reset lifecycles and callback handling without disabling lint rules.
+- Full lint now exits successfully: **zero errors, 52 warnings**. These warnings
+  remain review work; this is not a warning-free result. TypeScript passed.
+- Fixed the actual offline-salon defect: the long disabled checkout label squeezed
+  the cart summary into vertical text. The paused salon now retains its profile,
+  services and pause notice without mounting a checkout cart. Long button labels
+  also have bounded width and line count. A regression covers the paused state.
+- Full customer Jest after the fix: **359 tests, 63 suites passed**. The corrected
+  animation test mock is included. Android release-mode rebuild including
+  lintVitalRelease passed; installed over the existing app without clearing data.
+- Visually inspected the native offline detail and services screens after install.
+  Evidence: `.artifacts/native-pending-20261024/offline-fixed-detail.png` and
+  `offline-fixed-services.png`, with the original failure in `offline-before.png`.
+
+### Actual production customer-to-owner journey
+
+Both installed verification builds use **https://apiv1.mudassirmhd.in** with mocks
+turned off. Production API routes are under `/v1`; Swagger is `/docs` and the
+machine-readable contract is `/openapi.json`. A local development server was not
+used for this device journey.
+
+Temporarily enabled bookings on the dedicated test salon, selected a real available
+future slot in the customer app, chose **Pay at Salon**, and submitted one request.
+The owner app showed the new booking and its future date, and approved that exact
+request. The customer app then showed approval. Finally cancelled the same test
+booking through the customer app. Read-only production database checks established
+`pending -> confirmed -> cancelled`, with payment remaining `unpaid`. The new booking
+was absent from the pre-test snapshot. An unrelated existing appointment was left
+unchanged. Restored the salon's original offline setting after cleanup.
+
+Private screenshots/XML are under `.artifacts/native-pending-20261024/`, including
+`customer-test-approved.png`, `customer-test-cancelled-final.png` and
+`owner-restored-offline.xml`. This is physical Android interaction plus database
+confirmation, not a claimed Playwright pass. Customer UI hierarchy capture sometimes
+could not reach idle during animations; screenshots and the actual record transitions
+provide the narrower evidence.
+
+This does **not** establish prepaid payment/refund, U08 change commands, QR check-in,
+completion, FCM delivery or a fresh vendor approval journey. Those must retain their
+own test results and release/provider prerequisites. Both APKs still use existing
+verification/debug signing. Clean distribution builds, signing credentials, store
+configuration and final acceptance remain required before publication.
+
+### Fresh vendor verification in progress
+
+The public serving OpenAPI includes `POST /v1/auth/owner-access`,
+`POST /v1/salons/me/complete-profile` and the super-admin salon approve route.
+Focused backend owner-access/approval tests: **62 passed**, one dependency
+deprecation warning. Owner onboarding screen tests: **28 passed**, including draft
+isolation between accounts, retry safety and submission routing to approval.
+Source gates keep incomplete/pending salons out of normal
+operations and discovery until review. These source tests are not a live fresh
+signup/approval pass. The user has a fresh Google test account; account selection
+was requested after reaching owner sign-in. No super-admin identity or MFA bypass
+is permitted for approval testing.
+
+Follow-up: the selected account reached native onboarding **Step1 of8, Your Salon**.
+An empty-name Continue attempt stayed on that step with the expected validation
+message. Read-only production metadata showed one newly provisioned salon with
+`profile_completed=false`, `approval_status=pending` and a blank name; none of the
+new salons met the approved/complete/active discovery predicate. The Google
+identity itself pre-existed this attempt, so this establishes first salon setup
+for that identity rather than creation of a brand-new Google/Supabase identity.
+The user is filling the dedicated TEST salon and was asked to stop before Finish
+Setup. Submission, actual admin review and subsequent discovery remain unverified.
+
+Subsequent device check: after the user completed details, tapped **Finish Setup**
+once on Step8. Submission succeeded and the actual owner app displayed **Under
+review / Business verification in progress**. Production SELECT-only confirmation
+showed `profile_completed=true`, `approval_status=pending`, one active service and
+one active staff member. Force-stopping and reopening the owner app returned to the
+same review screen. An unauthenticated GET of that exact salon through the public
+production `/v1/salons/{id}` endpoint returned **404**, confirming that this pending
+salon is not exposed through its public detail route.
+
+The entered name did not contain the requested TEST label. No name was changed and
+the salon was left pending. Actual approval requires an existing authenticated
+super-admin review with MFA; availability was requested from the user. No direct
+database approval, admin impersonation or website change was performed. Approval,
+post-approval owner workspace access and customer discovery are still untested for
+this newly submitted salon. Phone control returned on the Under review screen.
+
+The user confirmed the admin review screen is **not ready**. Live approval and
+post-approval acceptance therefore remain blocked by that missing interface/access,
+not by an observed onboarding submission failure. Retain pending status until a
+genuine authorized admin can review through the API or finished admin interface.
+
+### Backend release preparation remains separate
+
+Read-only Mumbai metadata still reports an empty Alembic version table and absent
+prepared booking-change/financial-outcome tables. Independently replayed the
+reviewed through0040 reference in disposable PostgreSQL17.11 and compared its
+catalog to fresh Mumbai metadata. See the migration reconciliation document for
+qualified matches and unresolved ACL/history proof. Removed the disposable
+container afterward. No production migration, stamp or backend release occurred.
+Cashfree credentials and live provider validation remain unavailable. The newer
+app booking-change workflow must stay unavailable against the older serving API.
+
+## 29. Approved vendor and setup checklist correction (24 October)
+
+This supersedes section28's admin-access blocker. The user supplied the live
+`https://salon-customer-webpage.vercel.app/superadmin` page and signed in personally.
+On the phone, inspected the submitted salon and its actual review controls. Opened
+its approval confirmation; the user reviewed and confirmed approval. Production
+SELECT-only evidence then showed approved status, an approval timestamp and a
+recorded reviewer. The owner app subsequently opened its daily dashboard after
+restart. No direct database approval or identity/MFA bypass was used. Website
+source was not changed.
+
+### Why Finish setting up remained
+
+The serving checklist still required the business-profile category removed from the
+owner form. It reported Business details incomplete and mentioned category. A second
+independent defect was found: onboarding never collected or submitted city, even
+though the checklist required it. Its location validation allowed coordinates alone.
+The older Settings save copied the entire street address into city; this explains
+why tapping Save could make the card disappear without correcting the actual city.
+Read-only data confirmed the city was initially blank and later duplicated address.
+
+### Scoped production fix: released with explicit approval
+
+Prepared a candidate from the exact serving QR-cache image, changing only two lines
+in `app/application/use_cases/platform.py`: remove category from the profile checklist
+predicate and its instruction. No schema, approval gate, payment behavior, other
+source file or OpenAPI change. Regression failed against serving source and passed
+17 cases against the correction. Built-image checks covered route/use-case output,
+health and unauthenticated rejection; source hashes proved one changed Python file
+and OpenAPI equality. Existing backend setup/approval tests:45 passed. Ruff passed
+with a writable scratch cache after the default cache rejected temporary writes.
+
+Published the approved candidate at zero traffic, passed seven live checks, promoted,
+and passed the same seven public checks. Current100% revision:
+**salon-api-production-setup-20261024**. Image digest:
+`sha256:ad8efc530e0e6a7abfbe341f2d6293ec96cc9eea4e706921c19c20b8454bb4f0`.
+Service min0/max1 preserved. Rollback retained:
+`salon-api-production-qr-cache-20261024`. No migrations or broad backend release.
+Private preparation/release receipts: `.artifacts/setup-checklist-20261024/`.
+
+### Owner app correction
+
+Added a distinct city input to onboarding and business-profile Settings. Require
+street address and city before advancing/submitting; older final-step drafts missing
+city return to Location before writing setup. Persist/resume city with the account's
+onboarding draft and submit city independently from address. Settings validates and
+sends its distinct city value; backend city errors appear on that field.
+
+A regression demonstrated that successful profile saves left setup-status cached.
+Invalidate the salon-scoped checklist after successful detail saves and final
+onboarding so completed setup does not remain visible until a later refresh.
+Full owner Jest after fixes: **846 passed,101 suites**. TypeScript and focused lint
+passed; the prior full lint has zero errors/three existing warnings. Tests include
+missing city, old drafts, separate address/city payloads and cache invalidation.
+Native verification build and physical acceptance are in progress; source tests do
+not yet prove installation or the final screen. Existing broader provider, migration,
+booking-change and store-signing gates remain open.
+
+Final acceptance: the full owner native release-mode build succeeded in2m48s,
+including lintVitalRelease. Signature verification passed and the APK installed
+over the signed-in app without clearing data. This is still a debug-signed
+verification artifact, not a store publication. The user corrected the city using
+the new field. Production read-only checks confirmed city is nonblank and no longer
+duplicates the full address; the public detail API returns the corrected city too.
+After force-stop/restart, the actual owner Settings screen rendered with **no Finish
+setting up card**. The new separate City field was inspected on the physical device.
+
+The customer app's Home listed the newly approved salon. Its service detail rendered
+the uploaded images and saved service; Continue loaded the assigned staff member and
+real available future slots. Stopped before booking submission. Public detail,
+services, staff and search requests also passed. This establishes approval-to-owner
+workspace and approval-to-customer browsing/availability, without claiming another
+completed booking, payment, check-in or notification delivery test. The older
+unpaid booking E2E result remains in section28. Returned the phone to owner Settings.
+
+Final owner suite remains846 tests/101 suites passed after cache correction, with
+TypeScript/focused lint clean. Full lint retains three existing warnings. Native
+screenshots and private logs are in `.artifacts/native-pending-20261024/`, especially
+`owner-setup-final.png`, `owner-final-return.xml`, `customer-new-salon-card.png`,
+`customer-approved-service-final.png` and `customer-approved-available-slots.png`.
+Some customer XML captures timed out on animated screens; screenshots establish
+the narrower native checks. No website release, migration, commit or push occurred.
+
+## 30. Cost/request audit resumed (25 October; in progress)
+
+User requested completing backend finance/release work and reducing unnecessary API
+traffic across both apps after creating Cashfree account. Credentials were not read,
+printed or sent to a provider. Asked only where securely configured and whether they
+are sandbox or live. Account creation alone does not prove sandbox configuration.
+No payment activation, charge, refund, migration or additional cloud release occurred.
+
+Found owner setup-status eagerly mounted service/staff/payout reads even when the
+server checklist was available. Added optional enabled controls to those existing
+hooks (default behavior preserved), enabling their checklist use only after a404
+requires local fallback. Added request-count regression proving zero fallback reads
+when server checklist succeeds. Focused16 tests/3 suites passed; TypeScript and
+changed-file lint passed. Full owner suite:847 tests/101 suites passed. This is local source only,
+not yet an installed APK or deployed app, and does not establish total app-wide
+request or bill reductions. Other screens may legitimately fetch these same resources.
+
+Read-only cloud inventory: production latest-ready setup-20261024, service max1;
+staging latest-ready cold10-20261020, service max3; notification worker pool exists;
+old VM instance-20261009-141410 remains RUNNING in us-central1-a on e2-medium.
+Worker instance count was not returned by the selected metadata projection, so no
+count is inferred. Resource presence is not proof of measured spend. Do not stop
+VM/workers until Redis/database/notification dependencies are verified.
+
+Google documents scale-to-zero by default for idle services and separate Free Trial
+credit/time limits. Trial credit is not a zero-compute-usage promise. References:
+https://docs.cloud.google.com/run/docs/about-instance-autoscaling and
+https://docs.cloud.google.com/free/docs/free-cloud-features . Current remaining
+credit/expiry was not reverified. Database plans, repeated app polling, actual billed
+SKUs and provider acceptance remain unfinished investigations. Existing section26
+backend finance and migration gates remain in force.
+
+Cashfree follow-up: user identified backend/.env and confirmed sandbox keys.
+Selected presence checks found CASHFREE_APP_ID/CASHFREE_SECRET_KEY. Current config
+already supports these aliases; the earlier inferred name mismatch was incorrect.
+PAYMENT_PROVIDER remains none and PAYMENT_ALLOW_LIVE false; no activation changed.
+One credential-authenticated GET of a random nonexistent order against the fixed
+Cashfree sandbox host returned404/order_not_found, establishing sandbox read access.
+No order, charge, refund or payout was created. This is not full payment acceptance.
+Official endpoint reference: https://www.cashfree.com/docs/api-reference/payments/latest/orders/get-order .
+Remaining: isolated order/payment/webhook/refund journeys, verified upgrade captures,
+refund dispatcher/reconciliation, migration proof/release and measured DB/client cost
+analysis. Do not infer these are complete from the authentication probe.
+
+## 31. Sandbox hold and measured request audit (25 October)
+
+User confirmed the Cashfree screenshot is Test Environment and production merchant
+activation is pending. Keep PAYMENT_PROVIDER/live flags unchanged; production payment
+activation is deferred until the user reports readiness. Sandbox authentication from
+section30 passed; full sandbox financial acceptance is still separate and incomplete.
+Continue independent backend/app work without treating production activation as a
+blocker for everything else. Never reproduce keys from the screenshot or environment.
+
+Customer history inherited the global30-second live timer despite its five-minute
+freshness setting. A real QueryObserver regression reproduced3 reads over95seconds
+with fresh cached history. Disabled only that history timer: zero periodic reads in
+that test, and explicit invalidation still triggers exactly one read. Active booking
+and availability timers are unchanged. Full customer suite360 tests/64 suites and
+one snapshot passed; TypeScript and changed-file lint passed. The first broad run
+was blocked by the test-process guard denying the public .env.example fixture, not
+an application regression. A separate guard allowed only that exact template while
+continuing to block real environment files; the complete rerun passed without skips.
+These customer and prior owner request fixes remain local source, not installed APKs.
+
+Read-only Cloud Monitoring window: production2663 requests over the queried24hours;
+no staging request-count series returned. No pagination remained. This is not a
+billing export and does not prove staging/VM/workers/storage cost zero. Local metrics
+receipt: `.artifacts/cloud-run-requests-20261025.json`.
+
+Read-only PostgreSQL statement aggregates: availability758 calls averaging4.507ms,
+bookings6084 calls averaging0.855ms, notification_outbox34221 calls averaging0.099ms.
+These are cumulative SQL execution times, not end-to-end API latency, billing or
+one controlled traffic benchmark. The outbox due-query EXPLAIN uses a small sequential
+scan with estimated total cost1.65 and one output row; no EXPLAIN ANALYZE or data
+mutation was run. Public outbox live-row estimate44. A high scan count on a tiny
+table alone does not justify an index. Database table statistics last reset2October;
+statement-statistics reset was not established and must not be inferred from that.
+
+Supabase performance advisor reports56 unindexed foreign-key findings, including many
+audit-actor columns. Review hot join/delete paths and growth before proposing migration
+indexes; do not bulk-create all suggestions. Advisor remediation reference:
+https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys .
+Source notification worker polls every15seconds; its read frequency and always-running
+resource footprint need coordinated review, preserving delivery/retry behavior.
+No remote indexes, migrations, Cloud Run settings, VM or worker changes were made.
+
+## 32. Backend response/query optimization (25 October)
+
+No additional package was needed. Existing Python/httpx, pytest, Ruff and cloud tools
+were sufficient. Cashfree production remains deferred as requested.
+
+Bounded public production checks against `https://apiv1.mudassirmhd.in`: one salon
+discovery request selected a public fixture internally, then five sequential GETs
+per endpoint, with a250ms pause between requests. No booking writes or load test.
+Response bodies and salon identifiers were not saved in the timing receipt.
+
+| Endpoint group | Median client latency | Responses |
+| --- | ---: | --- |
+| Process health |44.0ms|5/5 HTTP200|
+| Database health |57.1ms|5/5 HTTP200|
+| Redis health |50.1ms|5/5 HTTP200|
+| Salon discovery |65.4ms|5/5 HTTP200|
+| Salon detail |77.9ms|5/5 HTTP200|
+| Salon services |79.5ms|5/5 HTTP200|
+| Salon staff |74.8ms|5/5 HTTP200|
+
+A separate health-payload check confirmed both database and Redis report `ok` and
+`reachable`; cache-disabled HTTP200 was not mistaken for healthy Redis. These are
+small warm samples from this workstation, not cold-start percentiles, capacity
+proof, authenticated booking latency or results for every backend endpoint.
+Historical initial medians are recorded above; separate post-retirement samples
+are archived in section33.
+
+Found an avoidable query on public service/staff cache misses: each called
+`get_public_salon`, which also loaded gallery images that these endpoints discard.
+Both now call the existing `assert_public_salon` guard instead. It retains the
+same active/completed/approved/trial-eligibility checks and404 behavior. Response
+contracts and cached-response publication checks are unchanged. Trace-based tests
+first reproduced3 reads for each endpoint; after the change they require2 reads
+and no gallery read. Twelve denial cases stop after the publication query. This is
+one fewer SQL round trip per uncached service/staff request, not a measured33%
+reduction in API duration, total database traffic or cost. Local source only.
+
+Focused publication/cache/contract checks:71 passed. Full backend suite:1376 passed,
+140 skipped. An elevated rerun confirmed the same counts; the outstanding checks
+require explicitly configured disposable PostgreSQL/other opt-in fixtures, rather
+than being evidence of a failed query regression. They were not executed against
+production. Ruff passed using `--no-cache` after the existing Ruff cache directory
+denied temporary-file creation. No dependency installation was needed. Logs:
+`.artifacts/backend-performance-full-tests-20261025.log` and
+`.artifacts/backend-performance-full-elevated-20261025.log`.
+
+Read-only Mumbai statement statistics now show763 availability calls, weighted mean
+4.619ms and largest recorded119.456ms. Ten database connections were observed, with
+zero idle-in-transaction sessions. These are cumulative statistics/one connection
+snapshot, not a controlled API benchmark or a connection-capacity guarantee. No
+new index is justified solely by these small-dataset measurements. Follow query
+plans and actual hot paths; Supabase also cautions against over-indexing:
+https://supabase.com/docs/guides/database/query-optimization .
+
+VM retirement remains unapproved and unproven: metadata confirms the old VM is
+RUNNING. Production loads configuration through a mounted environment secret;
+staging database/Redis values are secret references. Metadata therefore cannot
+establish matching runtime hosts. No secret payload was read for this audit and no
+guest SSH/access provisioning was attempted. Use the trusted-operator inventory in
+section7A before any shutdown. This is an unresolved dependency check, not evidence
+that the VM is unused. Sanitized receipt:
+`.artifacts/vm-dependency-metadata-20261025.json`.
+
+No production release, migration, VM/worker/scaling/billing change, payment
+activation, commit or push occurred. Broader finance/release gates from section26
+remain open. Existing customer/owner request-budget fixes from sections30–31 remain
+local and need installation/release verification separately.
+
+## 33. Authorized VM retirement test and recovery preparation (25 October)
+
+User authorized handling GCP inspection/execution directly after requesting help
+finding the console. No further manual console navigation was required. Existing
+SSH identity matched the VM metadata. Windows OpenSSH keyscan failed on the server's
+key-exchange method; already-installed Git OpenSSH resolved it. The supplied
+fingerprint did not match this VM. Established a local first-use key pin through
+the authenticated IAP tunnel to the exact named VM, retaining strict SSH host checks.
+No VM SSH keys, project metadata, firewall or IAM changes were made.
+
+Actual guest inventory before shutdown:
+
+- Only `backend-redis-1` was running. Its INFO keyspace contained no databases/keys;
+  its single connection included the inspection client. Redis AOF was enabled on
+  a Docker volume. No Redis values were read or exported.
+- Old API and six application workers were exited. They pointed to Sydney Supabase,
+  while current production points to Mumbai. No database server listened on this VM.
+- nginx listened on80/443 but forwarded the old API to stopped localhost8000.
+  Its local HTTPS health returned502. A uniquely marked public-domain request
+  returned200, appeared on the serving Cloud Run revision and did not appear in
+  the VM's active nginx access log.
+- No root crontab jobs were found. Enabled units/timers were inspected; this is
+  not a complete filesystem/data archive or proof about every historic user cron.
+
+Hostname-only comparison of the exact serving revision's runtime configuration
+confirmed Mumbai Supabase and external Upstash Redis, distinct from the old VM's
+Sydney/local-Redis targets. Selected runtime settings were parsed internally; raw
+configuration and credential values were neither displayed nor written to disk.
+No legacy Sydney database query, merge, restore or deletion was performed. Neither
+connected Supabase account exposed that legacy project, so historical row continuity
+with Sydney remains unverified. Do not interpret a healthy current API as proof
+that every old Sydney record was copied.
+
+Executed `gcloud compute instances stop instance-20261009-141410` in us-central1-a.
+Verified `TERMINATED` (GCP stopped state), with its10GiB persistent boot disk still
+attached. Did not delete the VM, its disk/volume, either Supabase project or R2 data.
+The boot disk still has autoDelete=true for a future VM-delete operation; it must
+not be treated as protected from later deletion. Keep it until required legacy
+configuration/files are archived and recovery acceptance is complete. Restarting
+the VM may allocate a different ephemeral external IP; do not use restart/Compose
+as an unreviewed database rollback.
+
+After shutdown,35 sequential public API samples all returned200; database/Redis
+payloads reported reachable. Median milliseconds: process53.7, DB72.5, Redis62.4,
+discovery78.5, detail96.3, services92.1, staff89.3. These variable small samples are
+not a controlled before/after speed comparison. Mumbai still has20 bookings,
+10 salons,14 profiles and0 Alembic history rows. No database mutation occurred.
+No new native booking or payment journey was submitted during this retirement test.
+
+Notification pool metadata confirms manualInstanceCount1, CPU1, memory512Mi; retained
+for notification processing. All44 current notification-outbox rows were processed;
+account-deletion requests/payment-webhook tables had no rows in the aggregate check.
+Mumbai's only listed Cloud Run job was the existing database-check job. Replacement
+runtime coverage for all non-notification workers remains unestablished; do not
+claim it from source modules or create multiple continuous workers blindly.
+
+Stopped VM compute no longer incurs VM usage charges, but retained disks and other
+chargeable resources can still cost money. One continuous notification worker,
+database/storage/registry/network usage and API traffic also require measured cost
+review. Zero invoice/trial coverage is not guaranteed by stopping this VM. Google:
+https://docs.cloud.google.com/compute/docs/instances/suspend-stop-reset-instances-overview .
+Rotating trial accounts every90days is not a sustainable eligibility assumption:
+Google's offer requires no previous Free Trial signup. Prefer the existing project,
+bounded usage, cost alerts and recovery portability:
+https://docs.cloud.google.com/free/docs/free-cloud-features#whos_eligible .
+
+Backup preparation: added `scripts/backup_database.py` and ignored
+`backend/.backups/`. Streams a PostgreSQL custom archive directly into public-key
+GPG encryption; no plaintext dump, application env-file reads or credential-bearing
+command arguments. Pins the expected source hostname, requires verify-full TLS and
+a trusted CA, refuses transaction-pooler6543, requires full recipient fingerprint,
+keeps keyrings outside the checkout, and never promotes failed partial output.
+Manifest explicitly says restore unverified. Details are maintained once in the
+Runbook's encrypted-backup section.
+
+Seventeen focused backup checks passed, including routing/TLS/keyring guards,
+failed/timeout export handling and the Windows Git GPG path regression. A real
+pg_dump→GPG→decrypt→pg_restore rehearsal passed with synthetic loopback PostgreSQL
+data; its temporary synthetic key was destroyed. No production-data export,
+permanent recovery key, schedule, off-device copy or R2-object backup exists yet.
+The encrypted synthetic fixture must not be mistaken for a recoverable user backup.
+Actual backup activation remains pending secure recovery-key/destination setup.
+
+Ignored receipts: `.artifacts/vm-iap-inventory-20261025.json`,
+`production-runtime-targets-20261025.json`,
+`notification-worker-cost-metadata-20261025.json`,
+`backend-public-latency-after-vm-stop-20261025.json` and
+`backup-rehearsal-20261025/receipt.json`. Full backend validation with explicit
+disposable PostgreSQL17.11:1497 passed,36 skipped; Ruff clean. The disposable
+reference container was removed. No source commit or push occurred.
+
+## 34. Query-only production release (25 October)
+
+Under the user's GCP task authorization, extracted the repository module from exact
+serving image `sha256:635d99d617c70a6fade7040b8bb795b4b17c540cf15dc5f3be55d631c0022812`.
+That is its resolved registry manifest identity, distinct from the earlier recorded
+local/container image identity. Prepared exactly two changed method calls in
+`app/infrastructure/db/repositories/platform_repository.py`: public staff/services
+use the existing equivalent publication guard without hydrating unused gallery data.
+No other source was copied from the broader working tree. One file plus compiled
+bytecode changed; no field removal, payment/security release or migration was bundled.
+
+The packaged candidate passed14 repository/SQLite fixture checks: approved paths
+use2 reads, denied states use1 read, no gallery query, source hash verified. The
+published immutable image repeated these checks without network access. Published
+digest: `sha256:dfb24746323e9d4cfa2a4fd9cff7d0fee1d7a02ee5d0893a8a436f9f3cfbcef1`.
+
+Candidate `salon-api-production-query-20261025` was deployed at zero traffic, then
+passed16 checks covering process/database/Redis, unchanged OpenAPI and public
+payloads for two salons, Swagger, owner/booking authentication and missing-salon404s.
+This workstation initially could not resolve the newly tagged hostname; Google's
+authenticated public DNS-over-HTTPS answer was used only for the candidate check,
+retaining original TLS hostname verification. Production DNS was unchanged.
+
+Promoted query revision to100% and repeated all16 checks on the public domain.
+Service min0/max1 and runtime configuration were preserved. Rollback remains
+`salon-api-production-setup-20261024`. API hostname stays
+`https://apiv1.mudassirmhd.in`; Swagger `/docs`, specification `/openapi.json`.
+No client URL or website release is needed for this isolated optimization.
+
+Receipt: `.artifacts/query-budget-20261025/publication.json`; exact source diff,
+scope manifest, packaged check and live check logs are in that directory. This
+does not deploy the remaining field/photo cleanup, JWKS/security changes, booking
+changes or finance migrations. Real backup/recovery acceptance, legacy data
+continuity and approved history adoption remain release gates. The full source
+must not be declared production-complete because this small hotfix is live.
+
+## 35. Actual local backup and deployment recheck (25 October)
+
+The user selected private-key storage outside the repository and only key
+references in `.env`. Created a permanent GPG recipient in the Windows user's
+local `SalonRecovery/database-keyring` directory, protected its private key with
+a random password, encrypted the saved password with current-user Windows DPAPI,
+and restricted directory access to that user and SYSTEM. Added only backup
+paths, expected source hostname and public fingerprint to the ignored `.env`.
+No credential values were printed or added to tracked files. Backups are under
+the ignored, access-restricted `backend/.backups/` directory.
+
+The initial exports failed certificate verification with the general CA bundle.
+Retried with Supabase's public root CA, retaining `verify-full` and the pinned
+Mumbai session-pooler hostname. The successful archive is
+`postgres-20261025T064436286705Z.dump.gpg`, 183477 bytes, created
+2026-10-25T06:46:14Z. SHA256 is
+`72e3d55dcba5601c29169140427d470ad431c77133ebfc0ebd9da44be522926e`.
+Its manifest, checksum and decrypted archive catalog were verified:1424 entries,
+83 table-data sections, including44 public and27 Auth sections. No plaintext
+dump was written. Failed `.partial` attempts remain distinguishable from the
+completed archive and are not recovery inputs.
+
+Restored the real archive successfully into a disposable, network-isolated
+Supabase PostgreSQL17.6.1 container, with no exposed port or mounted host data.
+Used the container's local restore administrator and `--no-owner --no-acl`;
+the successful archive replay exited0. Original production ownership/grants
+were therefore not exercised. Production versus restored counts matched:
+
+| Table | Production | Restored |
+|---|---:|---:|
+| profiles |14|14|
+| salons |10|10|
+| bookings |20|20|
+| booking_services |20|20|
+| auth.users |14|14|
+
+The disposable restore container was removed. Decryption passed again after
+closing the key-agent cache, using the saved Windows-protected password. This
+does not prove every financial invariant, restore of hosted Auth/OAuth settings,
+managed roles/grants, or object media. Recovery is currently tied to this Windows
+account/machine; independently recoverable off-device key/password and archive
+copies remain pending. No backup schedule was configured. Runtime secrets, cloud
+IAM/DNS and R2 object bytes are outside this export. Legacy Sydney data continuity
+also remains unverified; this archive captures the current Mumbai database.
+
+Live recheck: VM `instance-20261009-141410` remains `TERMINATED` (stopped,
+not deleted). Cloud Run serves100% on `salon-api-production-query-20261025`.
+Service maximum remains1; minimum is unset/default0. The revision template still
+contains max3, but the service-wide maximum1 bounds the service; it is not evidence
+of three running instances. Public PostgreSQL and Redis reachability checks pass.
+The public base remains `https://apiv1.mudassirmhd.in/v1`; current data is in
+Mumbai Supabase and is independent of the stopped VM's old Sydney configuration.
+
+Thirty-five bounded public latency probes all returned200. Measured medians were
+health132ms, DB97ms, Redis154ms, discovery106ms, detail197ms, services164ms and
+staff196ms. These are workstation round-trip samples, not capacity/cold-start
+guarantees or a controlled before/after benchmark. No extra performance code or
+production settings were changed during this backup task.
+
+Monitoring reported2880 production requests in the rolling24h window. Bounded
+last-hour access-log inspection returned406 entries:118 HTTP200,284 HTTP404 and
+4 HTTP401. Unknown paths and probes such as `.env`/`phpinfo.php` accounted for much
+of the404 traffic. Developer validation requests are included; per-client duplicate
+fetch attribution was not established. Do not interpret this aggregate as an app
+request-loop diagnosis. Existing owner fallback gating and customer history-polling
+reductions are tested source changes that still need updated app builds/device
+verification. Live booking/availability refreshes remain intentional.
+
+The user screenshot shows ₹27556.80 trial credit and82 days remaining, with
+15 January2027 expiry; this is screenshot evidence, not a new billing API export.
+Stopped VM compute usage is avoided, but retained disks and the continuous
+notification worker, storage and other usage can consume credit. Zero spend is
+not guaranteed. No VM/disk deletion, billing change or further release occurred.
+
+Remaining backend gates: migration-history adoption/review, original grants and
+complete recovery acceptance, broader field/photo/security/booking-change/finance
+release, non-notification worker coverage, and Cashfree payment/refund/webhook/
+payout acceptance before online payments. Production merchant activation is
+still user-deferred. This task does not make those releases complete.
+
+Evidence: `.artifacts/real-backup-20261025.json`, completed archive manifest,
+`.artifacts/backend-public-latency-backup-review-20261025.json`,
+`.artifacts/request-patterns-backup-review-20261025.json` and rolling request-count
+receipt. Archive/key contents remain outside tracked documentation.
+
+## 36. Recovery, migration rehearsal and worker continuation (25 October)
+
+Scope selected by the user: recovery, history/release preparation and infrastructure
+continuity. Cashfree activation/provider tests remain deferred. Website/app source
+was not changed in this continuation. No production migration, history write,
+API release, worker schedule, email send or platform-data deletion was performed.
+
+### Recovery acceptance advanced
+
+The user selected the existing project folder for local backups and did not
+provide an off-device destination. Archives remain under ignored, access-restricted
+`backend/.backups/`; private key material remains outside the checkout. Keeping
+them on this laptop is not off-device disaster recovery.
+
+The actual database archive now also passed a clean restore **with original owners
+and ACLs**. Local platform prerequisites were the `supabase_realtime_admin` NOLOGIN
+role and database ownership by `postgres`, matching the source. Effective table,
+column, function, schema, sequence, role/membership and default privileges matched
+captured production metadata with zero differences. This extends section35's
+earlier no-owner/no-ACL test; it does not establish historical migration execution.
+
+Cloudflare CLI access initially targeted its unrelated default account, then the
+correct account refused the old profile. The installed beta13/global Node25
+combination repeatedly crashed during login. Checked current npm metadata and
+installed isolated CLI1.0.0-beta.21/Node22.23.4 in npm's tool cache, preserving global
+Node and project dependencies. A new `salon-recovery` profile completed genuine
+user browser authorization and successfully read the production `salon-storage`
+bucket. No API token or OAuth code was recorded in tracked files. Generated
+`.cloudflare/` caches are ignored. Enabling Data Access Logs is distinct from this
+CLI authorization. Official CLI authentication guidance:
+https://developers.cloudflare.com/cf/get-started/ .
+
+Copied all24 objects,8564415 bytes, through read-only CLI GETs into encrypted tar
+`media-20261025T073334Z.tar.gpg`. The encrypted archive is8545064 bytes with SHA256
+`4b8251d1156fd99368507a5047ce890cbc5f74b4ffb743145e88c79c1cfbdfb2`.
+Its encrypted manifest includes keys, HTTP/custom metadata, storage class, source
+ETags and per-object SHA256. Inventory key/ETag/size sets stayed equal before and
+after export. Decryption, archive integrity and every object's byte count/checksum
+passed in memory; no plaintext media was extracted and no production object was
+written/deleted. This is a verified media export, not a tested upload into a new
+bucket or a cross-provider restoration. Bucket-level settings are not included.
+Both archives have manifests beside them. Backups are now excluded from Docker
+build context too.
+
+### Migration and release preparation
+
+Exact0041→0046 SQL sidecars replayed in order on the isolated original-grant
+restored database. All six exited0;14 profiles,10 salons,20 bookings,
+20 booking-service rows and14 Auth users were preserved. Removed columns,
+duplicate active image URLs and photo-limit violations were0 afterward.
+No new finance/change-history rows or Alembic history were invented. Source
+hashes and outcomes are in `restored-forward-chain-20261025.json`.
+
+Read-only review still blocks broader production release on an independently
+reviewed history-adoption contract and full target-schema erasure/retention
+coverage. The existing migration guard refuses stamp/unknown forward targets;
+it was not weakened. Actual-data DDL rehearsal does not establish every historical
+backfill or justify bypassing that guard. New immutable JSON/text/manual-reference
+history requires explicit privacy handling before enabling it in production.
+
+### Worker coverage and local fixes
+
+Mumbai Scheduler listing was empty. The current production queues had0 account
+deletion requests,44 processed notification-outbox rows, and13 pending email events;
+10 email events were outside the worker's23-hour delivery window. No messages or
+deletions were initiated to test those real queues. Preserve the working continuous
+notification worker. Other worker coverage must not be inferred from that process.
+
+Added local `app.infrastructure.maintenance_job` for queue-bounded email/account
+deletion attempts and bounded media sweeps. It reuses existing worker behavior,
+checks prerequisites, closes resources, reports sanitized failures and accurately
+labels queue counts as attempts. Owner erasure can still require its existing
+refund workflow, even though payment/subscription queue tasks are excluded.
+
+Review caught unsafe forced cancellation of executor-backed R2 deletion. Replaced
+it with a cooperative budget between work items; a blocking-thread regression
+proves the session stays open until deletion and commit finish. Media candidate
+failures propagate in the scheduled mode. Review also caught enumeration
+starvation: bounded passes now require reachable Redis, save/read-back verify
+one cursor per pass, advance past retained/failed objects, resume within the
+correct prefix and reset after traversal. Tests cover reaching a later orphan
+after a retained first item. No blocking runner finding remained on re-review.
+Use one execution stream and review hard platform termination behavior before
+creating schedules. Existing unbounded Compose sweeps keep their default behavior.
+
+The local review image `salon-maintenance-release-review:20261025` built successfully;
+its manifest-list digest is
+`sha256:e64be8c16e1c537b14b18af06fd8256a1bae65586cfa5f41a44cca07e3465eaa`.
+Packaged entrypoint help and3 network-disabled HTTP checks passed; the image runs
+non-root and contains neither `.env` nor backups. It includes current source and
+newly resolved runtime dependencies, so it is a review artifact, not an approved
+production replacement. It was not pushed, deployed or scheduled.
+
+Final backend regression run:1514 passed,36 opt-in tests skipped, one existing
+Starlette deprecation warning; full Ruff passed. No dependency lock/requirement
+file, production service configuration or billing setting changed.
+
+### Still open
+
+- Independent off-device/portable key and archive recovery; no destination chosen.
+- Full-head privacy/retention proof, approved history adoption and coordinated API
+  and migration release, with pre-release snapshot/rollback review.
+- Genuine scheduled-worker acceptance with appropriate provider/storage settings;
+  account deletion and email are not demonstrated by empty/old queues.
+- Legacy Sydney row continuity: linked source access is unavailable, and available
+  GCP secret history has only the current production version. No source merge was
+  performed. Keep the stopped VM's disk; deletion remains held.
+
+Evidence under ignored `.artifacts/`: `real-backup-ownership-20261025.json`,
+`restored-acl-comparison-20261025.json`, `restored-forward-chain-20261025.json`,
+`real-media-backup-20261025.json`, `maintenance-final-tests-20261025.log`, private
+media inventory and the bounded CLI backup/verification helpers. Archives and
+their inner manifests contain sensitive data and remain outside tracked docs.
+
+## 37. Prepared-head erasure compatibility and worker readiness (25 October)
+
+Added `tests/integration/test_prepared_erasure_sql.py`: synthetic loopback
+PostgreSQL installs the portable reference and exact0038→0046 SQL sequence,
+including explicit local service-role prerequisites. Both customer and owner
+erasure-adapter scenarios pass after description removal. Bookings and amounts
+remain intact, an owner's salon becomes an inactive anonymous shell, and an
+unrelated account remains present. Bookings are created through the real RPC.
+These checks do not populate or validate erasure of the new immutable audit
+tables; their retention decision is still pending with the user.
+
+Full regression:1516 passed,36 skipped, one existing Starlette deprecation
+warning; full Ruff passed. Single Alembic source head remains0046. No production
+schema, history, configuration or account was changed. The local test container
+was removed after verification.
+
+Read-only inspection of exact serving revision configuration found:
+
+| Prerequisite | Result |
+|---|---|
+| Supabase server configuration | Present |
+| R2 credentials/public URL/bucket | Present; bucket uses supported R2_BUCKET_NAME alias |
+| Redis setting | Present |
+| ACCOUNT_DELETION_SECRET | Absent; no direct secret reference override found |
+| Resend key/from-address settings | Present, but configured key rejected by read-only provider check |
+| RESEND_DOMAIN_VERIFIED | False/unset |
+| Payment provider | none; no payment provider call made |
+
+The existing account-deletion API needs its signing secret before the challenge/
+status flow can be accepted. Do not enable it while the processing/erasure gates
+are unresolved. The Resend `GET /domains` check returned401; no response body,
+address or credential was logged. It therefore establishes neither a verified
+sender nor working email delivery. Keep email disabled until credentials and
+sender-domain readiness are securely corrected and intended sends are authorized.
+Endpoint reference: https://resend.com/docs/api-reference/domains/list-domains .
+
+Both connected Supabase accounts denied a metadata lookup of the legacy Sydney
+project. The user was asked whether its dashboard opens, is paused, or cannot
+be found/accessed. No old database was merged or deleted, and the VM disk is
+retained. A successful Mumbai API/backup test cannot establish legacy continuity.
+
+Read-only migration review specified a separate, default-denied state-adoption
+policy as the narrow possible path: literal online adoption of0040 from an existing
+empty version table, sealed independent catalog/ACL/data/backup evidence and
+operator approval, same-transaction drift/history checks and bounded locks.
+Existing policies must remain unchanged. That path is a reviewed design only;
+no stamp-enabling code or approval manifest was created and no remote command
+was run. Forward tranche execution remains separate from adopting current state.
+
+Receipts: `.artifacts/prepared-erasure-tests-20261025.log`,
+`worker-prerequisites-20261025.json` and `email-domain-readiness-20261025.json`.
+Cashfree remains deferred; native apps and website were not changed.
+
+## 38. Approved retained-audit privacy policy (25 October)
+
+The user approved removing personal free text and hashing request/reference
+identifiers in the new booking-change and payout audit logs while retaining
+amounts and dates. Two local PostgreSQL regression scenarios first reproduced
+personal text remaining after customer/owner erasure on0046.
+
+Prepared forward migration0047 now implements that policy without editing any
+historical migration. The adapter invokes the restricted helper before detaching
+customer/owner references. A matching-role processing deletion request is required;
+ordinary client roles cannot invoke the helper. The immutable-history trigger
+permits only the exact redaction, preserving row/booking/version identity, money
+and dates. Repeated erasure does not rehash identifiers or alter its timestamp.
+Canonical digest indexes prevent original payout references and command keys from
+being reused after erasure. Hashes are pseudonyms, not guaranteed anonymity against
+guessing. No payment/refund/payout is executed by this change.
+
+The new tests cover populated customer/owner audits, unrelated records, numeric
+JSON allowlists, actual service-role execution, forged redacted inserts, forbidden
+updates/deletes/truncates, denied request states/client roles, rollback, duplicate
+references/keys and a missing0047 rollout. Text classification is explicit for
+these two tables only. The broader legacy whole-schema privacy/worker acceptance
+gate remains separate. The adapter still supports the old schema without these
+tables, but refuses erasure if the new tables exist without their privacy helper.
+
+Read-only migration/security review found no blocker in the scoped change.
+Source head is0047; the migration policy still refuses unapproved forward execution
+and stamps. No production migration, history write, release, worker activation or
+cloud configuration change occurred. No extra installation was needed.
+
+The user also confirmed the old Sydney project is paused and inaccessible to them.
+There is still no legacy row comparison or merge proof and no current authorization
+to delete that project. Keep it and the stopped VM disk retained. Existing local
+encrypted database/media backups remain laptop-dependent until independent
+off-device archive and recovery-key copies are configured.
+
+Worker prerequisites remain as reported in37: missing deletion signing setting,
+rejected configured email key and unverified sender readiness. A secure replacement
+email configuration was requested; no credential was requested in chat. Cashfree
+remains deferred. Apps and website were not changed in this continuation.
+
+Evidence: `.artifacts/booking-audit-erasure-final-20261025.log` and
+`tests/integration/test_prepared_erasure_sql.py`. The first full-suite attempt hit
+Windows shared-temp ACL errors and three stale test expectations; the expectations
+were corrected and verification uses a fresh workspace-owned temp directory.
+Final full regression: **1526 passed,36 skipped**, one existing Starlette
+deprecation warning; full Ruff and `git diff --check` passed. Eleven prepared-head
+PostgreSQL checks are included. The single Alembic source head is0047.
+
+## 39. Approved support/billing privacy and candidate verification (25 October)
+
+The user's latest retention answers are implemented locally in prepared0048 and
+the compatible support, erasure and email adapters. Closed-salon cases retain other
+participants' evidence while removing the deleted owner's own message text and known
+personal references. Retained cases are restricted to existing super-admin access
+with MFA; immutable policy-versioned events record the privacy operation. Local
+queued/delivery email copies and cross-actor cached replies are removed. Internal
+admin replies on retained cases do not email ordinary participants.
+
+Copied authored text is redacted only with explicit quotation/attribution context;
+short acknowledgements, punctuation and bare amounts are preserved to avoid removing
+another participant's evidence. Unknown aliases/paraphrases still need restricted
+review. Case-specific hashes are pseudonyms. No retention period or evidence-purge
+operation has been invented. There are no attachment/search-index tables in the
+current support contract; future additions require corresponding coverage.
+
+Only the deleted owner's subscription-purchase benefit text is removed. Numeric and
+boolean values survive; seven published catalog keys remain, and custom keys become
+row/path-specific pseudonyms. Charges, dates, provider references and public plans
+remain intact. No historical plan-version/hash is fabricated. Diagnostic narratives
+receive selective known-personal-data redaction, preserving surrounding financial
+evidence. See `../ACCOUNT_DELETION.md` for the complete policy and limitations.
+
+Support creation/replies and erasure now use compatible profile/salon/ticket locks.
+The email worker rechecks and locks the current event through submission, preventing
+a deleted queued payload from being sent by a stale worker copy. Resend submission
+has a total10-second deadline. Already provider-accepted messages cannot be recalled
+from external inboxes by these database changes.
+
+Verification completed:
+
+- **1542 passed,36 skipped**, one existing Starlette deprecation warning; full Ruff
+  and diff whitespace checks passed. Twenty-five prepared-head PostgreSQL cases are
+  included. The old0028 opt-in erasure suite remains separately scoped; its skips
+  are not counted as passes.
+- The full prepared-schema text/JSON classification accounts for post0028 fields.
+  Tests cover selective support copies, unrelated evidence, recursive benefit keys,
+  immutable amounts, authorization/MFA, concurrent creation/sending and refusal on
+  missing0047 or0048. HTTP authorization fixtures override authenticated actors;
+  they are not live Supabase JWT acceptance tests.
+- A fresh isolated restore of the existing encrypted current-Mumbai backup preserved
+  original owners/grants with zero effective-ACL differences. Exact0041→0048 SQL
+  replayed successfully. Counts stayed14 profiles/10 salons/20 bookings/
+  20 booking_services/14 Auth users; obsolete fields and photo violations counted0.
+  No change/finance/erasure history was invented; Alembic history stayed empty.
+- Local backend image `salon-privacy48-release-review:20261025` built successfully.
+  Offline `/health`, `/docs` and `/openapi.json` returned200; OpenAPI has147 operations,
+  source head0048, non-root execution and maintenance CLI help passed. Environment
+  files, backups and artifacts are absent. Startup dependencies, live provider calls
+  and production data paths were not exercised by this offline smoke.
+- Built-image application/migration sources match the workspace exactly. A local
+  review bundle seals222 input files and6 evidence receipts. Its status explicitly
+  denies execution authorization; it is not an approved migration manifest.
+
+Fresh SELECT-only production checks found0 support tickets/messages,0 subscription
+purchases and0 unfinished deletion requests. Production still has an empty Alembic
+version table. No remote migration, history write, push, deployment, worker activation
+or billing change occurred. The candidate is local and uncommitted. Existing execution
+policy remains unchanged; the broad release still requires a reviewed state-adoption
+implementation, fresh attestation and exact operator-approved release procedure.
+
+The earlier explicitly requested Resend MCP test send succeeded once. That verifies
+the MCP connection/provider acceptance only; it does not repair the rejected backend
+email configuration or prove inbox delivery. Do not repeat the send. Cashfree remains
+deferred. The user confirmed the backend email configuration has not yet been replaced;
+keep that worker disabled pending valid configuration and sender verification.
+Off-device/portable key recovery, legacy Sydney continuity and backend
+worker prerequisites remain as in37–38; retain the stopped VM disk and paused source.
+Apps and website were not changed or retested in this continuation.
+
+Evidence in ignored `.artifacts/`: `privacy48-full-final-20261025.log`,
+`restored-privacy48-20261025.json`, `privacy48-image-smoke-20261025.json`,
+`privacy48-local-review-bundle-20261025.json` and
+`resend-test-send-result-20261025.json`. The earlier0041–0046 restore receipt is
+preserved separately. Temporary restore data is removed after acceptance; encrypted
+archives and protected recovery material are retained.

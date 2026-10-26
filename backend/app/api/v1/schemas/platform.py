@@ -26,6 +26,7 @@ from pydantic import (
 from app.application.salon_photos import visible_salon_photos
 from app.core.config import settings
 from app.domain.entities.payment import derive_payment_state
+from app.domain.services.checkout import online_checkout_available
 
 
 class ProfileUpdateRequest(HostedMediaRequest):
@@ -122,7 +123,9 @@ class CustomerAvailabilityResponse(BaseModel):
     def customer_availability(self) -> "CustomerAvailabilityResponse":
         from app.infrastructure.payments.resolver import get_payment_resolver
         self.accepts_bookings = bool(getattr(self, "accepting_bookings", True))
-        self.online_payment_available = self.accepts_bookings and get_payment_resolver().enabled
+        self.online_payment_available = self.accepts_bookings and online_checkout_available(
+            get_payment_resolver().enabled, settings.booking_checkout_policy_version,
+        )
         self.payment_options = (["PAY_AT_SALON"] if self.accepts_bookings else [])
         if self.online_payment_available:
             self.payment_options.append("PAY_ONLINE")
@@ -522,6 +525,11 @@ _CANCELLABLE_STATUSES = frozenset({"pending", "confirmed"})
 class BookingResponse(BaseModel):
     """Booking response."""
 
+    change_version: int = 0
+    committed_reschedules: int = 0
+    service_fulfilment_amount: Decimal | None = None
+    checkout_policy_version: str = "customer_processing_v1"
+
     id: str
     salon_id: str
     staff_id: str
@@ -574,6 +582,7 @@ class BookingResponse(BaseModel):
     can_cancel: bool = False
     can_request_cancellation: bool = False
     can_confirm_payment: bool = False
+    can_record_payment: bool = False
 
     @model_validator(mode="after")
     def _set_can_cancel(self) -> "BookingResponse":
@@ -585,12 +594,16 @@ class BookingResponse(BaseModel):
             minutes=settings.customer_cancellation_cutoff_minutes
         )
         self.can_cancel = active and now < cutoff
+        if self.checkout_policy_version == "u08-2026-10-23-v1":
+            self.can_cancel = active
         self.can_request_cancellation = (
             settings.allow_late_cancellation_requests
             and active
             and cutoff <= now < self.end_datetime
             and self.latest_cancellation_request_status != "pending"
         )
+        if self.checkout_policy_version == "u08-2026-10-23-v1":
+            self.can_request_cancellation = False
         self.payment_state = derive_payment_state(
             self.payment_status, self.paid_amount, self.refunded_amount
         ).value
@@ -710,6 +723,12 @@ class BarberCancelBookingRequest(BaseModel):
         max_length=500,
         description="Optional free-text note with additional context (shown to the customer).",
     )
+
+
+class NoShowBookingRequest(BaseModel):
+    """Explicit salon attendance decision; the server enforces the grace period."""
+
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
 class PaymentRequest(BaseModel):

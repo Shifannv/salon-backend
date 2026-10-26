@@ -41,8 +41,8 @@ class CacheGateway(ABC):
         """Retrieve a cached idempotency payload."""
 
     @abstractmethod
-    async def check_rate_limit(self, key: str, limit: int, window_seconds: int) -> tuple[bool, int]:
-        """Check rate limit. Returns (allowed, remaining_quota)."""
+    async def check_rate_limit(self, key: str, limit: int, window_seconds: int, *, strict: bool = False) -> tuple[bool, int]:
+        """Return quota; strict authentication limits must raise on unavailable storage."""
 
     @abstractmethod
     async def ping(self) -> bool:

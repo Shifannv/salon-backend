@@ -55,6 +55,8 @@ logs/
 frontend/
 changes-log.txt
 supabase-schema-backup/
+backend/.backups/
+.cloudflare/
 
 # Local test manifests, reports and UI artifacts
 backend/.artifacts/

@@ -2,7 +2,7 @@
 
 Revised: 2026-10-23 (Asia/Calcutta)
 
-Status: Documentation risk review U05 with recommendation-only technical package TP01. Explicit U01/U02 business approvals recorded; remaining decisions, provider/legal evidence and implementation remain held.
+Status: U08 rules approved; local financial calculation foundation and attendance safeguards implemented/tested. Full payment/change commands, immutable policy snapshots, provider verification and production release remain unfinished. Earlier documentation-only restrictions below describe their historical phase.
 
 Scope: shared FastAPI backend only. This document neither implements behavior nor authorizes migration execution, provider activation or deployment.
 
@@ -67,7 +67,7 @@ Customer time/service changes are permitted only **more than four hours** before
 appointment. At exactly four hours or less, block both changes on the server and explain why
 in the app; customer cancellation remains available under U08. An unchanged/equal service
 total requires no extra payment; a higher total requires the extra amount. A cheaper selection
-is allowed without returning the price difference. Never trust a client-supplied total.
+is allowed without returning the price difference on prepaid bookings. Never trust a client-supplied total.
 Keep service fulfilment value, retained prior payment and any additional payment obligation
 distinct in the ledger; a service-list edit must not silently erase the retained amount.
 
@@ -75,11 +75,55 @@ At most two successfully committed customer reschedules per booking; failed atte
 count or release the original slot. Revalidate current SQL availability and serialize changes.
 Cancellation policy uses the newly committed appointment time; audit attempts and results.
 
-Implementation still required: versioned immutable snapshots and legacy discriminator,
-atomic change/reschedule and cancellation commands, refund/outbox reconciliation, internal
-allocation/approval ledger, provider settlement hold evidence, redacted owner projections,
-app quote/confirmation/disabled/error states, and boundary/concurrency/provider-failure tests.
-Current live two-hour/late-approval cancellation is not U08, and no U08 money has moved.
+Follow-up decisions confirmed by the user on 23 October:
+
+- An **unpaid Pay at Salon** booking owes the new SQL-quoted service price, including
+  a lower price when services become cheaper. Do not preserve an unpaid old total as
+  a cancellation penalty. Already-collected manual/advance payments are not this case.
+- A customer changing/adding services must select an available slot for the newly
+  selected services and duration. The committed customer change needs **no renewed
+  salon approval**; do not route it through the salon's current manual-approval mode.
+  This does not waive approval of an initially unapproved booking.
+- A prepaid upgrade must have its additional payment **verified before the change
+  commits**. Client success callbacks or a quoted amount are not payment evidence.
+  Bind verified funds to the exact booking/change version; revalidate SQL availability
+  under the database locks before committing. A failed attempt retains the original
+  booking and does not consume a reschedule. Late captures after a failed slot change
+  need reconciliation; they must not silently change the old booking or disappear.
+
+The local `service_change_quote` foundation separates service value, retained payment,
+extra online payment and unpaid salon collection. For example, prepaid 200 -> services
+150 retains 200; a later change to 180 needs no additional money, while 250 needs 50.
+Unpaid 200 -> services 150 owes 150. This helper neither verifies funds nor reserves or
+changes a booking; no reschedule/payment endpoint is activated by these calculations.
+
+Prepared 0044 binds the immutable U08 version on new bookings only, through the existing
+`checkout_policy_version` discriminator. Its server setting defaults to the old policy;
+neither existing values nor historical ledger snapshots are rewritten. Local U08 quotes
+have no customer surcharge. U08 provider-intent creation stays blocked even if credentials
+are later configured, because the legacy automatic-split flow does not implement this
+policy's held-funds/admin-release requirement. Real provider readiness is a separate gate.
+The user confirmed the Cashfree account is **not set up yet**; do not request or paste
+credentials in chat. Once ready, use secure environment settings and report configuration
+status only. Sandbox and provider-hold verification remain pending.
+
+Prepared locally on 24 October: 0045 atomic change commands and owned-booking SQL
+availability, accepted quote fingerprints and historical snapshots; 0046 terminal
+U08 refund/retention snapshots, durable provider-pending refund jobs, internal cost/
+allocation/manual approval records and redacted owner payout statements. SQL/HTTP tests
+cover policy bands, original-slot preservation, quote/catalogue races, closures,
+prepaid cheaper retention, unverified upgrades, late captures and excess refunds.
+Time-only changes preserve the booked service snapshot. Time/staff reschedules count
+toward the two-change limit; a service-only edit at the same staff/time does not.
+
+Still required before online activation: bind verified additional captures to committed
+changes; dispatch/reconcile provider refund jobs; resolve flagged late/changed ledger
+obligations through a reviewed workflow; obtain actual provider settlement-hold evidence;
+complete app quote/confirmation/error states and real provider acceptance. An admin
+hold-review reference is a recorded human attestation, not proof the provider holds money.
+Manual payout endpoints record transfers already made and initiate no external transfer.
+Current live two-hour/late-approval cancellation is not U08, no new migrations have been
+applied remotely, and no real U08 money has moved.
 
 ## 1. Evidence and change boundaries
 

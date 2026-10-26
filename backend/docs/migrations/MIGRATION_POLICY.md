@@ -1,9 +1,45 @@
 # Explicit migration policy
 
 The portable CI revision is **0037_customer_processing_charge**. The actual Alembic
-repository head remains **0040_fastapi_only_access**, prepared for Mumbai only.
+repository head is **0048_support_billing_erasure**, prepared and not released.
+The guarded Mumbai approval/manifest target remains **0040_fastapi_only_access**;
+it does not authorize the later photo/description, business-category, attendance,
+checkout-policy, booking-change or finance-outcome revisions.
 These are different concepts. No revision, dependency, label or sealed evidence has
-been changed to make CI pass. Revisions 0038-0040 remain unapplied by this work.
+been changed to make CI pass. Revisions 0038-0048 remain unapplied by this work.
+
+0047 adds narrowly guarded redaction for new immutable booking/finance audits.
+0048 adds versioned, restricted support-case retention and exact subscription
+benefit redaction without altering charges, purchase/period/expiry dates or provider
+references. Both remain separate prepared forward revisions; neither changes the
+portable or approved Mumbai execution boundaries below. The repository head must
+never be interpreted as an approved production migration target.
+
+0045 adds versioned atomic customer service/time changes and an owned-booking SQL
+availability overload. 0046 adds terminal U08 obligations, provider-pending refund jobs,
+manual finance controls and ledger-drift reconciliation queues. Both have explicit
+forward-only downgrade refusal, local SQL/HTTP regression coverage and read-only review.
+They do not activate U08, dispatch refunds, verify provider-held funds or authorize any
+remote migration. The existing portable and Mumbai execution gates remain unchanged.
+
+Fresh read-only Mumbai metadata on 23 October still shows zero Alembic history rows.
+Do not use `upgrade head` or stamp a restored database to bypass reconciliation.
+0041/0042 require compatible API/client readers before their destructive field cleanup;
+0043 additionally needs coordinated rollout of its required no-show reason body.
+The scoped 0043 SQL passed local disposable PostgreSQL guard/journey tests, including
+repeat execution, exact ten-minute timing and erasure compatibility. Those tests apply
+the reviewed sidecar explicitly to a portable fixture; they do not prove whole-chain
+replay or extend the Alembic execution policy to any remote target.
+
+0044 replaces only the existing immutable checkout-policy stamp, with no data rewrite
+or new grants. The server setting `BOOKING_CHECKOUT_POLICY_VERSION` defaults to
+`customer_processing_v1`; explicit selection of `u08-2026-10-23-v1` is for future
+bookings only and requires the reviewed migration first. Application creation verifies
+the stored version and rolls back with503 if the migration is missing. Keep the old
+setting until coordinated approval; preparing this selector does not activate U08.
+Once U08 bookings exist, rollback must retain the stored-policy online-payment guard
+or keep collection disabled. An older API must not route those bookings through the
+legacy automatic-split/commission flow merely because credentials are configured.
 
 `app/core/migration_policy.py` defines the two targets. Alembic `env.py` validates
 the exact process-supplied URL, raw destination, operation, starting revision and
@@ -19,7 +55,8 @@ prove disposal or rule out a tunnel. The operator must supply a verified disposa
 server. The local runs in this change used identity-checked dedicated Docker containers.
 Targets must be explicit members of 0001-0037's ancestry. Prepared starting revisions
 are also refused, including downgrades and offline ranges. The test helper checks the
-target before creating a disposable database. No prepared SQL executes on scratch.
+target before creating a disposable database. The generic portable Alembic path never
+executes prepared SQL; explicitly scoped local sidecar tests are separate evidence.
 
 The generic workflow names `PORTABLE_CI_TARGET=0037_customer_processing_charge`, uses
 the declared asyncpg driver, isolates normal environment files and emits JUnit results.

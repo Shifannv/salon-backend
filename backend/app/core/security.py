@@ -1,5 +1,6 @@
 """Supabase JWT verification and actor extraction."""
 
+import asyncio
 import time
 from typing import Any
 
@@ -11,6 +12,7 @@ from app.core.telemetry import measure_external
 # Cache for 60 minutes so a key rotation is picked up within an hour
 # without restarting the server.
 _JWKS_TTL_SECONDS = 3600
+_JWKS_REFRESH_COOLDOWN_SECONDS = 30
 
 
 class SupabaseJWTVerifier:
@@ -20,6 +22,8 @@ class SupabaseJWTVerifier:
         self.settings = settings
         self._jwks: dict[str, Any] | None = None
         self._jwks_fetched_at: float = 0.0  # epoch seconds
+        self._refresh_lock = asyncio.Lock()
+        self._refresh_attempted_at: float | None = None
 
     async def verify_subject(self, token: str) -> str:
         """Return the verified Supabase user id from a bearer token."""
@@ -38,7 +42,7 @@ class SupabaseJWTVerifier:
         try:
             header = jwt.get_unverified_header(token)
             kid = header.get("kid")
-            if not isinstance(kid, str):
+            if not isinstance(kid, str) or not 1 <= len(kid) <= 256:
                 raise UnauthorizedError("Invalid token header")
 
             key_data = await self._get_key(kid)
@@ -63,21 +67,22 @@ class SupabaseJWTVerifier:
     async def _get_key(self, kid: str) -> dict[str, Any]:
         """Return the JWK matching kid, refreshing the cache if stale."""
 
-        now = time.monotonic()
-        cache_expired = (now - self._jwks_fetched_at) > _JWKS_TTL_SECONDS
-
-        if self._jwks is None or cache_expired:
-            await self._refresh_jwks()
-
         key = self._find_key(kid)
-        if key is not None:
+        if key is not None and time.monotonic() - self._jwks_fetched_at <= _JWKS_TTL_SECONDS:
             return key
-
-        # kid not found — force a refresh once in case Supabase just rotated keys
-        await self._refresh_jwks()
-        key = self._find_key(kid)
-        if key is not None:
-            return key
+        # One refresh per process/cooldown, shared across arbitrary unknown kids.
+        # No per-kid cache that an attacker could grow without a bound.
+        async with self._refresh_lock:
+            now = time.monotonic()
+            key = self._find_key(kid)
+            if key is not None and now - self._jwks_fetched_at <= _JWKS_TTL_SECONDS:
+                return key
+            if self._refresh_attempted_at is None or now - self._refresh_attempted_at >= _JWKS_REFRESH_COOLDOWN_SECONDS:
+                self._refresh_attempted_at = now  # Failures also consume the cooldown.
+                await self._refresh_jwks()
+                key = self._find_key(kid)
+                if key is not None:
+                    return key
 
         raise UnauthorizedError("Invalid authentication credentials")
 

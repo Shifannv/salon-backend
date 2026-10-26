@@ -50,7 +50,7 @@ class InMemoryCache(CacheGateway):
     async def get_idempotency(self, key: str):
         return await self.get(key)
 
-    async def check_rate_limit(self, key: str, limit: int, window_seconds: int):
+    async def check_rate_limit(self, key: str, limit: int, window_seconds: int, *, strict: bool = False):
         val = self._counter.get(key, 0) + 1
         self._counter[key] = val
         if val > limit:

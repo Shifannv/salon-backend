@@ -1,5 +1,6 @@
 """Checkout math, provider-disabled isolation, email replay and privacy regressions."""
 
+import asyncio
 import json
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -68,6 +69,26 @@ async def test_only_resend_key_without_verified_sender_makes_no_network_call():
     gateway=ResendEmailGateway(cfg,httpx.MockTransport(lambda r:pytest.fail("Unexpected call")))
     with pytest.raises(ServiceUnavailableError):
         await gateway.send(recipient="customer@example.test",subject="Test",body="Test",event_key="event-1")
+
+
+async def test_resend_send_has_an_overall_deadline_and_cancels_slow_transport(monkeypatch):
+    from app.infrastructure.email import resend
+
+    stopped = asyncio.Event()
+
+    async def slow(request):
+        try:
+            await asyncio.sleep(.2)
+            return httpx.Response(200, json={"id": "synthetic-message"})
+        finally:
+            stopped.set()
+
+    monkeypatch.setattr(resend, "_SEND_DEADLINE_SECONDS", .01)
+    cfg = Settings(_env_file=None, resend_api_key="test-key-only", resend_from_email="no-reply@example.test", resend_domain_verified=True)
+    gateway = ResendEmailGateway(cfg, httpx.MockTransport(slow))
+    with pytest.raises(ServiceUnavailableError):
+        await gateway.send(recipient="customer@example.test", subject="Test", body="Test", event_key="deadline-test")
+    assert stopped.is_set()
 
 
 async def test_password_reset_delegates_to_supabase_never_mints_tokens():
