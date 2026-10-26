@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     environment: str = "local"
     resend_api_key: SecretStr | None = None
     resend_from_email: str | None = None
+    resend_reply_to_email: str | None = None
     support_email: str | None = None
     resend_domain_verified: bool = False
     email_worker_poll_seconds: int = Field(default=10, ge=1, le=3600)
@@ -223,7 +224,8 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("password_reset_redirect_url", "resend_from_email", "support_email", mode="before")
+    @field_validator("password_reset_redirect_url", "resend_from_email", "resend_reply_to_email", "support_email",
+                     mode="before")
     @classmethod
     def blank_optional_email_setting_is_unset(cls, value):
         return None if isinstance(value, str) and not value.strip() else value

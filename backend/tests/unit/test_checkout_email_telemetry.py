@@ -64,6 +64,33 @@ async def test_resend_provider_key_is_server_only_and_retries_keep_same_idempote
     assert "test-key-only" not in calls[0].content.decode()
 
 
+async def test_resend_payload_uses_configured_sender_and_support_reply_to():
+    calls=[]
+    def handler(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(200,json={"id":"email-provider-reference"})
+    cfg=Settings(_env_file=None,resend_api_key="test-key-only",resend_from_email="Salones <notify@salones.in>",
+                 resend_reply_to_email="support@salones.in",resend_domain_verified=True)
+    await ResendEmailGateway(cfg,httpx.MockTransport(handler)).send(
+        recipient="customer@example.test",subject="Test",body="Test message",event_key="booking-confirmation-1")
+    assert calls[0]["from"]=="Salones <notify@salones.in>"
+    assert calls[0]["reply_to"]=="support@salones.in"
+    assert "test-key-only" not in json.dumps(calls[0])
+
+
+@pytest.mark.parametrize("reply_to",[None,"  "])
+async def test_resend_payload_omits_reply_to_when_unset(reply_to):
+    calls=[]
+    def handler(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(200,json={"id":"email-provider-reference"})
+    cfg=Settings(_env_file=None,resend_api_key="test-key-only",resend_from_email="Salones <notify@salones.in>",
+                 resend_reply_to_email=reply_to,resend_domain_verified=True)
+    await ResendEmailGateway(cfg,httpx.MockTransport(handler)).send(
+        recipient="customer@example.test",subject="Test",body="Test message",event_key="booking-confirmation-1")
+    assert "reply_to" not in calls[0]
+
+
 async def test_only_resend_key_without_verified_sender_makes_no_network_call():
     cfg=Settings(_env_file=None,resend_api_key="test-key-only")
     gateway=ResendEmailGateway(cfg,httpx.MockTransport(lambda r:pytest.fail("Unexpected call")))

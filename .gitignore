@@ -66,4 +66,5 @@ backend/.pytest_tmp/
 .claude/settings.local.json
 
 # Graphify cache only (graph, wiki, etc. are tracked)
-graphify-out/cache
+*graphify-out\cache*
+backend\graphify-out\cache

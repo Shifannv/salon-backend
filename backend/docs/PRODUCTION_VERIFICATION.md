@@ -97,12 +97,18 @@ PAYMENT_PROVIDER=none
 CASHFREE_EASY_SPLIT_ENABLED=false
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
+RESEND_REPLY_TO_EMAIL=
 SUPPORT_EMAIL=
 RESEND_DOMAIN_VERIFIED=false
 PASSWORD_RESET_REDIRECT_URL=
 SENTRY_DSN=
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
+
+Salones production email values (non-secret): `RESEND_FROM_EMAIL=Salones <notify@salones.in>`,
+`RESEND_REPLY_TO_EMAIL=support@salones.in`, `SUPPORT_EMAIL=support@salones.in`. Set
+`RESEND_DOMAIN_VERIFIED=true` only after Resend shows salones.in verified. A blank reply-to
+omits the header.
 
 Legacy Cashfree credential/env names are accepted; use one naming set to avoid ambiguity.
 No new Easy Split or disbursement workflow was added. Existing split capability remains dormant

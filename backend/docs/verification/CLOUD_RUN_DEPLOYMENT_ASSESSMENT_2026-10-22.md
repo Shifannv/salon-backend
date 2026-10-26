@@ -2896,3 +2896,98 @@ Evidence in ignored `.artifacts/`: `privacy48-full-final-20261025.log`,
 `resend-test-send-result-20261025.json`. The earlier0041–0046 restore receipt is
 preserved separately. Temporary restore data is removed after acceptance; encrypted
 archives and protected recovery material are retained.
+
+## 40. Cross-client release and canonical website (26 October, in progress)
+
+The user expanded the task to both mobile apps and the website, with Google Play
+and Apple review preparation. Android is available; the user has no Mac, iPhone
+or Apple Developer account. Native iOS acceptance and signing cannot be completed
+on this Windows/Android setup. Cashfree production remains deferred.
+
+Canonical website explicitly approved: **https://www.salones.in**. Public Home,
+privacy, terms and account-deletion pages return HTML200 there. The new Vercel
+alias salones-webpage.vercel.app also serves them. The old alias returned Vercel
+DEPLOYMENT_NOT_FOUND. The apex salones.in has mixed A answers and failed HTTPS from
+this machine; its DNS/TLS repair is separate. Public MX answers point to Zoho;
+mailbox receipt/ownership has not been tested. The connected Vercel MCP cannot
+access the project, but the authorised local CLI can inspect salon-customer-web,
+project prj_MATPZ41voAmtbEqbIVAyg0w736AN, root walking-customer-web. Current website
+rollback: dpl_E2Wg4H84mnvnErZq9vPr318Pgtpc. No website release has occurred here.
+
+The user separately approved a QR URL-only Cloud Run release. Candidate
+salon-api-production-qr-www-20261026 used the exact serving immutable image from
+salon-api-production-query-20261025. Revision comparison found only WALKIN_BASE_URL
+changed, to https://www.salones.in/s. Candidate health/OpenAPI/public salon resolver
+returned200,138operations; normal traffic was unchanged before checks passed.
+Promotion is complete:100% normal traffic, public health200, service min0/max1.
+Rollback remains salon-api-production-query-20261025. No migration, finance,
+account-erasure, billing, worker, VM or website code change was released.
+
+The actual owner-displayed QR was decoded before and after. Before: retired Vercel
+origin. After an explicit app restart, the displayed QR uses www.salones.in/s/ and
+the signed-in workspace restored. The same route resolves the dedicated test salon
+on the live website. Cloud Run request logs record GET /v1/salons/me/qr200 on the
+new revision. QR payloads/tokens and phone screenshots remain private ignored
+artifacts. This is native QR rendering/destination evidence, not a camera or FCM
+cold-start claim. Old printed codes still require a working legacy redirect or
+replacement; website redirect rules are prepared locally, not deployed.
+
+Local client changes and verification so far:
+
+- Owner: system photo picker no longer asks for broad gallery read permission;
+  READ_MEDIA_IMAGES/READ_EXTERNAL_STORAGE blocked in source/native manifest;
+  write-only QR save and camera permission remain. Regression failed before and
+  both image-picker suites11passed after. Unsupported privacy promises corrected;
+  approved identity/canonical legal defaults aligned. Unused Firebase Web dependency
+  removed after checking app imports; native Firebase plugins/configuration retained.
+  Graphify is development tooling. Full859tests/103suites, TypeScript and full lint
+  passed. Updated verification APK built successfully in7m49s and installed with
+  adb install -r after matching the existing certificate. Label Salones Owner,
+  version1.0.7/code1, original package retained. Broad photo-read declarations are
+  absent; standalone bundle contains the production API and canonical www origin;
+  known local/staging markers absent; ZIP16KiB alignment passes. SHA256:
+  ea04d3efb0709dea04ec52d2261e8ba8133ad0bb62a5999379b142597fcd1759.
+  Signing remains the existing Android Debug verification certificate. First build
+  failed with Windows insufficient system resources while browser checks overlapped;
+  sequential retry passed without deleting caches or weakening checks. Native rerun
+  could not reach Home because Android showed its lock screen; user unlock requested.
+  This run is not counted as native acceptance. After the user unlocked the phone,
+  both native Playwright checks passed on the new APK in26.3s. Profile photo options
+  opened com.google.android.photopicker with no permission dialog; picker cancelled
+  without selecting, uploading or saving a photo. A separate exploratory driver
+  wait stalled and was stopped; it is not counted as another test pass.
+- Customer: canonical legal defaults and template aligned; media-provider disclosure
+  corrected; compatible transitive update. Full400tests/69suites/one snapshot and
+  TypeScript pass; lint0errors/50existingwarnings. User has a customer-only Google
+  test account available and will select it when prompted. Updated APK built in7m43s
+  and installed in-place with the same certificate; session restored. Label Salones,
+  version1.0.0/code1; original package retained. Broad photo-read permissions absent;
+  production/www markers present; known local/staging markers absent; ZIP16KiB
+  alignment passes. Eight release-environment/preflight tests pass. SHA256:
+  ac294e96c2ba12123c2b4ee59d93d033fc7907a53c6fd60b5d13dbe4721aad03.
+  Customer-only booking/history acceptance remains in progress. Both APKs use the
+  existing Android Debug verification certificate, not distribution signing.
+- Website: approved support/operator metadata, truthful queued-deletion/refund
+  wording, deletion support path without installing an app, analytics excluded on
+  deletion routes, readable legal text/touch links and host-specific canonical
+  redirects prepared. Full421unit tests and102desktop/mobile Playwright checks pass
+  (2existing visual-capture tests skipped by design). Initial obsolete email assertion
+  corrected; one five-second test timeout under concurrent checks passed unchanged
+  in isolation and in the complete final run. Production build with live API,
+  canonical www, approved operator/contact and API_MOCK=false passed on Node22.
+  Final TypeScript and lint pass (0errors/12existingwarnings). Website publication
+  remains unapproved; none occurred. These are local build and contract-browser
+  checks, not production deletion or authenticated transaction acceptance.
+
+Fresh advisory checks after compatible updates: owner35(20high/15moderate),
+customer20(14high/6moderate), website3moderate/0high; no critical. Owner production
+set has23(12high/11moderate). These are advisory-chain counts, not exploit counts.
+No forced Expo/Firebase downgrade or broad override. Full VAPT, final signing,
+store-console details and production deletion/backend broader-release prerequisites
+remain open. All source edits are uncommitted and repositories remain separate.
+
+Private receipts: backend/.artifacts/release-guidelines-20261026/ and existing
+owner/customer/website ignored verification folders. Current QR release receipts:
+qr-url-release-plan.json, qr-candidate-check.json, qr-promotion-result.json and
+owner-live-qr-request-evidence.json. Existing prepared0041-0048/state-adoption and
+worker restrictions from39 still apply; the QR release did not include them.
