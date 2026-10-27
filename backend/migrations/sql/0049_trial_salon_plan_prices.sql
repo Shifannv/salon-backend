@@ -36,17 +36,18 @@ REVOKE ALL ON public.salon_plan_prices FROM PUBLIC, anon, authenticated, service
 -- statement --
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.salon_plan_prices TO service_role;
 -- statement --
--- 3. Default discount pricing: 6 months = 10% off monthly, 12 months = 20% off monthly.
+-- 3. Default discount pricing: 6 months = 20% off monthly, 12 months = 30% off monthly,
+--    rounded to the rupee.
 --    Guard: only update if the price still equals the 0031 seed value, so an admin edit is
 --    never overwritten. Monthly prices stay unchanged.
-UPDATE public.subscription_plans SET price_amount = 1885.00
+UPDATE public.subscription_plans SET price_amount = 1675.00
   WHERE code = 'growth_6m' AND price_amount = 1499.00;
 -- statement --
-UPDATE public.subscription_plans SET price_amount = 3350.00
+UPDATE public.subscription_plans SET price_amount = 2932.00
   WHERE code = 'growth_12m' AND price_amount = 1999.00;
 -- statement --
-UPDATE public.subscription_plans SET price_amount = 3235.00
+UPDATE public.subscription_plans SET price_amount = 2875.00
   WHERE code = 'premium_6m' AND price_amount = 2499.00;
 -- statement --
-UPDATE public.subscription_plans SET price_amount = 5750.00
+UPDATE public.subscription_plans SET price_amount = 5032.00
   WHERE code = 'premium_12m' AND price_amount = 3499.00;

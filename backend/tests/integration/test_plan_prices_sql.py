@@ -218,13 +218,13 @@ async def test_clients_cannot_read_or_write_prices_directly(env):
 
 # ---------------------------------------------------------- discount prices
 async def test_the_migration_updated_six_and_twelve_month_prices(env):
-    """After 0049, 6m = 10% off monthly and 12m = 20% off monthly."""
+    """After 0049, 6m = 20% off monthly and 12m = 30% off monthly, rounded to the rupee."""
     who = await env.salon()
     plans = await _plans(env, who["salon_id"])
-    assert plans["growth_6m"]["price_amount"] == D("1885.00")
-    assert plans["growth_12m"]["price_amount"] == D("3350.00")
-    assert plans["premium_6m"]["price_amount"] == D("3235.00")
-    assert plans["premium_12m"]["price_amount"] == D("5750.00")
+    assert plans["growth_6m"]["price_amount"] == D("1675.00")
+    assert plans["growth_12m"]["price_amount"] == D("2932.00")
+    assert plans["premium_6m"]["price_amount"] == D("2875.00")
+    assert plans["premium_12m"]["price_amount"] == D("5032.00")
     # Monthly prices are unchanged.
     assert plans["growth_1m"]["price_amount"] == D("349.00")
     assert plans["premium_1m"]["price_amount"] == D("599.00")
@@ -233,44 +233,44 @@ async def test_the_migration_updated_six_and_twelve_month_prices(env):
 async def test_discount_percent_and_monthly_equivalent_for_default_prices(env):
     who = await env.salon()
     plans = await _plans(env, who["salon_id"])
-    # Growth 6m: 1885 / 6 months = 314.17 per month, vs 349 monthly → 10% off
-    assert plans["growth_6m"]["discount_percent"] == 10
-    assert plans["growth_6m"]["monthly_equivalent"] == D("314.17")
-    # Growth 12m: 3350 / 12 = 279.17, vs 349 → 20% off
-    assert plans["growth_12m"]["discount_percent"] == 20
-    assert plans["growth_12m"]["monthly_equivalent"] == D("279.17")
-    # Premium 6m: 3235 / 6 = 539.17, vs 599 → 10%
-    assert plans["premium_6m"]["discount_percent"] == 10
+    # Growth 6m: 1675 vs 349 x 6 = 2094 -> 20%; 1675 / 6 = 279.17 a month
+    assert plans["growth_6m"]["discount_percent"] == 20
+    assert plans["growth_6m"]["monthly_equivalent"] == D("279.17")
+    # Growth 12m: 2932 vs 349 x 12 = 4188 -> 30%; 2932 / 12 = 244.33 a month
+    assert plans["growth_12m"]["discount_percent"] == 30
+    assert plans["growth_12m"]["monthly_equivalent"] == D("244.33")
+    # Premium: 2875 vs 3594 -> 20%; 5032 vs 7188 -> 30%
+    assert plans["premium_6m"]["discount_percent"] == 20
+    assert plans["premium_12m"]["discount_percent"] == 30
     # Monthly plans have no discount
     assert plans["growth_1m"]["discount_percent"] is None
     assert plans["growth_1m"]["monthly_equivalent"] is None
 
 
 async def test_discount_adapts_to_a_custom_salon_override(env):
-    """When the salon has a cheaper 6m override, the discount changes against the monthly."""
+    """A salon's special 6m price is compared with the monthly price the same way."""
     who = await env.salon()
     admin = await _admin_id(env)
     plan_id = await env.plan("growth_6m")
-    # Set growth_6m to 1500 (a deeper discount vs 349/mo * 6 = 2094 → ~28%)
     async with env.session() as s:
         await SubscriptionPlanRepo(s).set_salon_plan_price(who["salon_id"], plan_id, D("1500.00"), admin)
     plans = await _plans(env, who["salon_id"])
     assert plans["growth_6m"]["price_amount"] == D("1500.00")
-    assert plans["growth_6m"]["discount_percent"] == 28  # floor((1 - 1500/(349*6)) * 100) = 28
+    assert plans["growth_6m"]["discount_percent"] == 28  # round((1 - 1500/2094) * 100) = 28
     assert plans["growth_6m"]["monthly_equivalent"] == D("250.00")
+    assert plans["growth_6m"]["default_price_amount"] == D("1675.00")
 
 
-async def test_an_admin_edited_price_is_not_overwritten_by_migration(env):
-    """When 0031 price was already changed by an admin, 0049 leaves it alone."""
-    # This is already true by construction (the SQL uses WHERE price_amount = <old>),
-    # but verify by checking that a salon whose growth_6m was set differently still works.
-    who = await env.salon()
-    admin = await _admin_id(env)
-    # The plan table price is already 1885. Set a salon override to 1000.
-    plan_id = await env.plan("growth_6m")
-    async with env.session() as s:
-        await SubscriptionPlanRepo(s).set_salon_plan_price(who["salon_id"], plan_id, D("1000.00"), admin)
-    plans = await _plans(env, who["salon_id"])
-    assert plans["growth_6m"]["price_amount"] == D("1000.00")
-    assert plans["growth_6m"]["default_price_amount"] == D("1885.00")
-
+async def test_an_admin_edited_plan_price_is_not_overwritten_by_the_migration(env):
+    """0049 only moves a price that still equals the 0031 seed value."""
+    await env.run("update subscription_plans set price_amount = 1777.00 where code = 'growth_6m'")
+    statements = MIGRATION.read_text(encoding="utf-8").split("\n-- statement --\n")
+    price_updates = [s for s in statements if "UPDATE public.subscription_plans" in s]
+    assert len(price_updates) == 4
+    for statement in price_updates:  # re-run only 0049's price step
+        await env.run(statement)
+    try:
+        assert await env.scalar(
+            "select price_amount from subscription_plans where code = 'growth_6m'") == D("1777.00")
+    finally:
+        await env.run("update subscription_plans set price_amount = 1675.00 where code = 'growth_6m'")

@@ -183,7 +183,7 @@ class FakeBillingRepo:
         self.salons = salons if salons is not None else {"owner-1": "salon-1"}
         self.plans = {"plan-g1": dict(self.PLAN),
                       "plan-g6": {**self.PLAN, "id": "plan-g6", "code": "growth_6m",
-                                  "price_amount": D("1885.00"), "billing_interval": "semiannual"}}
+                                  "price_amount": D("1675.00"), "billing_interval": "semiannual"}}
         self.rows: dict[str, dict[str, Any]] = {}
         self.subscription: dict[str, Any] | None = None
         self.idem: dict[tuple, dict[str, Any] | None] = {}

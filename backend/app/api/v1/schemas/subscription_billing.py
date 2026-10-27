@@ -40,7 +40,8 @@ class PurchasablePlanResponse(BaseModel):
     tax_inclusive: bool | None = None
     # Per-month cost for multi-month plans, used to show "₹X/mo". Null for monthly plans.
     monthly_equivalent: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
-    # Floor % saving vs the same tier's 1-month effective price. Null for monthly plans.
+    # % saving vs the same tier's 1-month effective price, rounded to the nearest whole percent
+    # (rupee-rounded prices make 10% read as 9.98%). Null for monthly plans.
     discount_percent: int | None = None
 
 

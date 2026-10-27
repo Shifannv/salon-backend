@@ -78,7 +78,7 @@ class SubscriptionBillingRepository(PaymentRepository):
                             then round(e.price_amount / e.months, 2)
                             else null end as monthly_equivalent,
                        case when e.months > 1 and m.price_amount > 0
-                            then floor(
+                            then round(
                               (1 - e.price_amount / (m.price_amount * e.months)) * 100
                             )::int
                             else null end as discount_percent
