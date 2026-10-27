@@ -20,6 +20,8 @@ class SubscriptionConfigResponse(BaseModel):
     native_purchase_allowed: Literal[False] = False
     public_key: str | None = None
     currency: str = "INR"
+    # The website page where a plan is bought; null until the operator configures one.
+    checkout_url: str | None = None
 
 
 class PurchasablePlanResponse(BaseModel):
@@ -28,11 +30,18 @@ class PurchasablePlanResponse(BaseModel):
     name: str
     description: str | None = None
     tier: int
+    # The price this salon pays: an admin-set price when there is one, else the plan price.
     price_amount: Decimal = Field(max_digits=10, decimal_places=2)
+    default_price_amount: Decimal = Field(max_digits=10, decimal_places=2)
+    custom_price: bool = False
     currency: str
     billing_interval: Literal["monthly", "quarterly", "semiannual", "yearly"]
     features: dict[str, Any] = Field(default_factory=dict)
     tax_inclusive: bool | None = None
+    # Per-month cost for multi-month plans, used to show "₹X/mo". Null for monthly plans.
+    monthly_equivalent: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
+    # Floor % saving vs the same tier's 1-month effective price. Null for monthly plans.
+    discount_percent: int | None = None
 
 
 class BillingPaymentResponse(BaseModel):

@@ -13,6 +13,14 @@
       "Bash(docker compose -f docker-compose.yml config:*)",
       "Bash(docker compose --env-file .env.gcp.example -f docker-compose.yml config:*)"
     ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/secrets/**)",
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ],
     "ask": [
       "Bash(git push:*)",
       "Bash(alembic upgrade:*)",
@@ -22,14 +30,6 @@
       "Bash(pip install:*)",
       "Bash(python -m pip install:*)",
       "Bash(npm install:*)"
-    ],
-    "deny": [
-      "Read(**/.env)",
-      "Read(**/.env.*)",
-      "Read(**/secrets/**)",
-      "Bash(rm -rf:*)",
-      "Bash(git push --force:*)",
-      "Bash(git push -f:*)"
     ]
   },
   "hooks": {
@@ -43,17 +43,6 @@
           {
             "type": "command",
             "command": "python .claude/hooks/skill_router.py session",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/skill_router.py prompt",
             "timeout": 10
           }
         ]

@@ -183,7 +183,7 @@ class FakeBillingRepo:
         self.salons = salons if salons is not None else {"owner-1": "salon-1"}
         self.plans = {"plan-g1": dict(self.PLAN),
                       "plan-g6": {**self.PLAN, "id": "plan-g6", "code": "growth_6m",
-                                  "price_amount": D("1499.00"), "billing_interval": "semiannual"}}
+                                  "price_amount": D("1885.00"), "billing_interval": "semiannual"}}
         self.rows: dict[str, dict[str, Any]] = {}
         self.subscription: dict[str, Any] | None = None
         self.idem: dict[tuple, dict[str, Any] | None] = {}
@@ -192,6 +192,7 @@ class FakeBillingRepo:
         self.events: list[tuple] = []
         self.anomalies: list[dict[str, Any]] = []
         self.applied_calls = 0
+        self.plan_list_calls: list[str | None] = []
         self.session = object()
 
     # transactions / identity
@@ -236,8 +237,13 @@ class FakeBillingRepo:
         self.anomalies.append(kw)
 
     # plans / subscription
-    async def list_purchasable_plans(self):
-        return [p for p in self.plans.values() if p["is_active"]]
+    async def list_purchasable_plans(self, salon_id=None):
+        self.plan_list_calls.append(salon_id)
+        return [
+            {**p, "default_price_amount": p["price_amount"], "custom_price": False,
+             "monthly_equivalent": None, "discount_percent": None}
+            for p in self.plans.values() if p["is_active"]
+        ]
 
     async def get_plan(self, plan_id):
         return self.plans.get(plan_id)

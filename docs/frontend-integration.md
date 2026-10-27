@@ -1,5 +1,12 @@
 # Frontend integration
 
+Canonical production API origin: `https://api.salones.in` (27 October 2026).
+Website server `API_BASE_URL` and both mobile apps' `EXPO_PUBLIC_API_URL` use this
+origin without `/v1`; existing adapters supply the versioned path. Swagger is
+`https://api.salones.in/docs`. The old hostname remains available for legacy
+installed builds. See the [migration receipt](../backend/docs/verification/API_DOMAIN_MIGRATION_2026-10-27.md)
+for deployment identities, verification, rollback and mobile-install boundaries.
+
 The new checkout/support contract is documented in
 [PRODUCTION_VERIFICATION.md](../backend/docs/PRODUCTION_VERIFICATION.md). Separate clients must
 adopt server quote totals, disabled-online-payment state, Pay at Salon instructions, typed

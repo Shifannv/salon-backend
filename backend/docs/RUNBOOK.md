@@ -2,6 +2,11 @@
 
 Run commands from `backend/`.
 
+Current production API: `https://api.salones.in`; Swagger: `/docs`; routes: `/v1`.
+It uses the existing Google HTTPS load balancer and Mumbai Cloud Run service
+`salon-api-production`. Keep the legacy hostname/certificate for older mobile
+builds. See [hostname migration and rollback](verification/API_DOMAIN_MIGRATION_2026-10-27.md).
+
 ## Local setup
 
 ```bash

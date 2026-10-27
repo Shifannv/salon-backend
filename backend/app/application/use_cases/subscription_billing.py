@@ -251,6 +251,7 @@ class SubscriptionBillingUseCases:
             "native_purchase_allowed": False,  # store policy: purchase happens on the website
             "public_key": None,
             "currency": "INR",
+            "checkout_url": self.settings.subscription_website_url,
         }
         if self.resolver.enabled:
             client = self.resolver.resolve().client_config()
@@ -262,7 +263,9 @@ class SubscriptionBillingUseCases:
     async def list_plans(self, actor: Profile) -> list[dict[str, Any]]:
         if actor.role not in {Role.owner, Role.super_admin}:
             raise ForbiddenError("Salon owner access required")
-        return await self.repository.list_purchasable_plans()
+        # An owner sees their own salon's prices; an admin has no salon, so sees the plan prices.
+        salon_id = await self._owner_salon(actor) if actor.role is Role.owner else None
+        return await self.repository.list_purchasable_plans(salon_id)
 
     # --------------------------------------------------------------- state
     @staticmethod

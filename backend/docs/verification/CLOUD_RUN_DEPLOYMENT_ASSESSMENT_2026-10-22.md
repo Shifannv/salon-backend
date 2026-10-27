@@ -2991,3 +2991,143 @@ owner/customer/website ignored verification folders. Current QR release receipts
 qr-url-release-plan.json, qr-candidate-check.json, qr-promotion-result.json and
 owner-live-qr-request-evidence.json. Existing prepared0041-0048/state-adoption and
 worker restrictions from39 still apply; the QR release did not include them.
+
+## 41. Production account-deletion gate checked (26 October)
+
+Store submission remains blocked by **production account deletion**, despite the
+public deletion page and the deletion endpoints in OpenAPI. This is a fresh
+read-only verification, not a production acceptance test:
+
+| Layer | Evidence | Result |
+| --- | --- | --- |
+| API | `https://apiv1.mudassirmhd.in/health` returned 200; live OpenAPI includes challenge, verify, confirm, status and admin-ledger routes; unauthenticated challenge returned 401 | Route and auth rejection only; no verified deletion |
+| Serving Cloud Run revision | `salon-api-production-qr-www-20261026` had 100% traffic in `saloon-505509/asia-south1` | Current API is serving; no erasure conclusion |
+| Signing configuration | The mounted `salon-production-env` secret has no nonempty `ACCOUNT_DELETION_SECRET` (only presence flags were printed, never values) | Source `AccountDeletionUseCases._secret()` raises service unavailable outside local/test before sending an OTP |
+| Worker | Only `salon-prod-notifications` worker pool exists in Mumbai; its entrypoint is `app.infrastructure.push.outbox_worker`. Only Run job is `salon-production-db-check`; old VM is TERMINATED | No deployed account-deletion worker to process an accepted request |
+| Database | Mumbai Supabase `wqjlgpnbiapcrlkxumcp` has deletion challenge/request tables and erasure helper, but `public.alembic_version` still has zero rows; grouped deletion-request count returned no rows | Tables alone do not establish prepared 0041–0048 schema/history or a completed deletion |
+| Local verification | 44 focused use-case/worker unit tests passed; 25 prepared-schema integration cases skipped without their opt-in PostgreSQL target | Source behavior only, not production acceptance |
+
+Do **not** start a real deletion challenge, set the signing secret alone, or turn on
+the worker against the current release. The secret without a worker would permit
+locking a user out while leaving erasure queued. The reviewed forward migrations,
+history-state adoption, source/image release, stable secret, worker configuration,
+and a disposable verified-account end-to-end deletion must be coordinated. The
+existing sealed review bundle explicitly denies execution approval; no migration,
+secret, worker, account or database row was changed in this check. Cashfree
+production remains deferred; owner closure with captured online payments is not
+accepted without a working refund-capable provider.
+
+The user has authorized one eventual permanent deletion test of a separate
+disposable customer-only account with no business/financial data. Its identity
+must be selected by the user through normal sign-in and verification after the
+coordinated release; the currently active Mentrex booking account and salon owner
+must not be used. This authorization is for the test account, not for skipping
+the migration/release gate or deleting any other account.
+
+Release order for a reviewable production deletion acceptance:
+
+1. Seal a fresh Mumbai database/media backup and independent catalog, ACL,
+   identity and Alembic-history evidence. Implement and review the separately
+   held state-adoption procedure; do not stamp an empty version table by hand.
+2. Rehearse the exact reviewed 0041–0048 forward chain against a restored copy
+   with original grants, then apply it to Mumbai only under a separate explicit
+   migration approval. Preserve the existing live API until compatibility is
+   proven for the schema transition.
+3. Build and check a candidate API image against the migrated schema. Configure
+   one stable `ACCOUNT_DELETION_SECRET` in Secret Manager and a bounded Cloud Run
+   maintenance job for `account-deletion`; the existing notification worker does
+   not process this queue. Verify Supabase admin, R2 and Redis prerequisites and
+   job execution before accepting any deletion request. A bounded job avoids an
+   always-running new worker pool, but schedule/latency and cost still need review.
+4. Use only the authorized disposable customer identity for OTP, confirm and
+   status-to-`completed` acceptance. Verify the Auth user and profile are absent,
+   retained records are anonymized, media/cache copies are handled, and unrelated
+   users remain intact. Then exercise the public deletion page and final apps.
+
+No approval for the migration, Secret Manager update, job creation/schedule or
+broader API promotion was inferred from the approval to erase a disposable test
+account after those release gates pass.
+
+## 42. Public website legal/QR browser follow-up (26 October)
+
+The earlier section40 website-publication statement is superseded: the user
+approved a reviewed Vercel candidate and conditional promotion. Project
+`salon-customer-web` (`prj_MATPZ41voAmtbEqbIVAyg0w736AN`) now serves the
+reviewed legal/contact/security update at `https://www.salones.in`. A follow-up
+browser check found that Cloudflare Email Address Obfuscation rewrote the
+`/account-deletion` support mail link while that route's nonce CSP blocked the
+injected decoder. A static, scoped `email_off` marker pair was added around the
+link; the local production build and zero-traffic candidate passed, then revision
+`dpl_F5K9b2C3CfVXd13Jv6XCtUVU3Jzu` was promoted under the existing website
+release authorization. Public mobile Playwright now confirms Home, Privacy,
+Terms and Delete Account return200, fit the viewport and expose the correct
+support mail link. This fixes contact access, **not backend erasure**.
+
+The same browser run found a separate live QR failure: `/s/<private test token>`
+returns HTML200 but remains on `Opening the salon's booking page…`. Cloudflare
+Rocket Loader is On and converts 16 Next.js scripts on this page to deferred
+nonstandard script types. Its own injected script is blocked by the route's
+nonce/strict-dynamic CSP; the deletion page also stays unhydrated. Cloudflare's
+published guidance recommends disabling Rocket Loader when it causes JavaScript
+issues. A CLI dry-run verified an exact `rocket_loader: off` request for the
+`salones.in` zone. The user approved this one reversible setting change. The
+Cloudflare CLI verified On, set it Off and read back Off; no other zone setting,
+DNS, cache rule, Worker or CSP was changed. Public mobile Playwright then saw
+no Rocket Loader-rewritten scripts on the six requested pages:
+`https://salones.in/`, `/scan`, `/book`, `/account-deletion`, `/privacy` and
+`/terms` each returned200, redirected normally to canonical `www`, hydrated
+where interactive and had no horizontal overflow. The existing private QR
+resolved to Mentrex with Buzz cut; pasting its link on `/scan` navigated to
+that booking page. On `/account-deletion`, clicking Send code with an empty
+phone showed local validation without requesting a code. These checks do
+**not** establish authenticated deletion, provider delivery or erasure.
+Cloudflare's separate analytics beacon produced CSP console errors on static
+public pages; no app navigation failure was observed, and the user prohibited
+further Cloudflare changes in this scope. The prior good website revision is
+`dpl_Hd3AoE2uMqVGBqmheUsahLQ5o72Z`.
+
+An initial candidate command was accidentally run from the nested app directory
+instead of the linked repository root. It created distinct Vercel project
+`walking-customer-web` (`prj_KFQbtP50ixJfTEvMNHmJPrs4wnJ4`) with one Ready
+deployment and its default `walking-customer-web.vercel.app` domain, but no
+environment variables or Salones custom domain. Production project identity was
+rechecked separately. Automatic approval review rejected irreversible project
+deletion without explicit authorization. The user's first scoped cleanup approval
+was conditional on *no* public domain or active production deployment; those
+conditions did not pass. After the findings were disclosed, the user explicitly
+approved deletion including the sole deployment and default domain. The CLI
+removed exactly this project; a subsequent lookup of its exact ID returned404.
+The separate live project's ID/name still resolved correctly. Deleted project:
+`walking-customer-web`; ID `prj_KFQbtP50ixJfTEvMNHmJPrs4wnJ4`; deployment
+count1; default domain removed `walking-customer-web.vercel.app`.
+
+## 43. Dedicated customer-only booking/history journey (26 October)
+
+On the updated standalone Android APK, the user selected a separate customer-only
+Google identity and entered its contact details personally. The app loaded live
+Mentrex service/staff/availability and created one Pay at Salon request for Buzz
+cut with Hafis, 27 October09:00, INR100. It appeared in the customer's My Bookings
+with Pending status. The owner initially had another salon workspace selected;
+the user switched to Mentrex through the normal app interface.
+
+Mentrex's owner Bookings page showed a Tomorrow/App new-booking update and unread
+badge1 while the dedicated card was offscreen. Opening the update selected the
+correct date, Upcoming and App filters. The card showed the correct service,
+staff, time, amount and Awaiting approval status; the bottom badge disappeared
+once the card became visible. No owner approval was performed.
+
+The customer cancelled only this request using Other / dedicated release-test
+cleanup. The app showed successful cancellation and retained the Cancelled card
+in customer history, with Pending0. A SELECT-only Mumbai query matched exactly
+one test booking and status `cancelled`. The owner app showed a cancellation
+banner, Awaiting approval0 and the Cancelled card in History. This closes the
+customer-only creation/history/cancellation acceptance gap for this journey.
+It does not establish paid checkout, refunds, native camera QR/check-in,
+collection/completion, all FCM states or the dual owner/customer history behavior.
+
+Observed UI follow-ups: the owner History card retained a New marker in the
+current session after the unread badge cleared; an empty Awaiting approval view
+used generic history wording. Those copy/marker details were recorded rather
+than silently counted as fully accepted. No additional app source/build change
+was made during these live checks. Private screenshots remain under ignored
+`.artifacts/release-guidelines-20261026/`; personal contacts are omitted here.

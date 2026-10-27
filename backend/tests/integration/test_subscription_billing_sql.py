@@ -9,6 +9,7 @@ atomic, idempotent, overlap-free activation the unit tests can only describe.
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -42,12 +43,28 @@ D = Decimal
 GRACE = 3
 
 
+async def _apply_prepared(url: str, *files: str) -> None:
+    """Apply later prepared SQL on top of the portable chain, as the other suites do."""
+
+    engine = create_async_engine(url, connect_args={"statement_cache_size": 0})
+    async with engine.begin() as conn:
+        for name in files:
+            source = Path(__file__).parents[2] / "migrations" / "sql" / name
+            for statement in source.read_text(encoding="utf-8").split("\n-- statement --\n"):
+                if statement.strip():
+                    await conn.execute(text(statement))
+    await engine.dispose()
+
+
 @pytest.fixture(scope="module")
 def db_url():
     database = "sub_billing_" + uuid4().hex
     asyncio.run(_build(database))
-    yield make_url(TEST_DB).set(database=database, drivername="postgresql+asyncpg").render_as_string(
+    url = make_url(TEST_DB).set(database=database, drivername="postgresql+asyncpg").render_as_string(
         hide_password=False)
+    # The checkout and plan queries read salon_plan_prices (0049).
+    asyncio.run(_apply_prepared(url, "0049_trial_salon_plan_prices.sql"))
+    yield url
     asyncio.run(_drop(database))
 
 
@@ -151,8 +168,9 @@ def env(db_url):
 # ============================================================ migrations / seed
 async def test_plans_are_seeded_with_decimal_prices_features_and_unknown_tax(env):
     rows = {r["code"]: r for r in (await _plans(env))}
-    expected = {"growth_1m": "349.00", "growth_6m": "1499.00", "growth_12m": "1999.00",
-                "premium_1m": "599.00", "premium_6m": "2499.00", "premium_12m": "3499.00"}
+    # After migration 0049 the 6m/12m prices were updated (10% / 20% off monthly).
+    expected = {"growth_1m": "349.00", "growth_6m": "1885.00", "growth_12m": "3350.00",
+                "premium_1m": "599.00", "premium_6m": "3235.00", "premium_12m": "5750.00"}
     for code, price in expected.items():
         assert str(rows[code]["price_amount"]) == price and rows[code]["currency"] == "INR"
         assert rows[code]["tax_inclusive"] is None

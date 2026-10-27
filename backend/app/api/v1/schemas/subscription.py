@@ -12,6 +12,27 @@ SubscriptionStatusLiteral = Literal[
 ]
 
 
+class PlanPriceSetRequest(BaseModel):
+    """The price one salon pays for one plan, instead of the plan's normal price."""
+
+    price_amount: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+
+
+class PlanPriceResponse(BaseModel):
+    salon_id: str
+    plan_id: str
+    plan_code: str
+    price_amount: Decimal = Field(max_digits=10, decimal_places=2)
+    default_price_amount: Decimal = Field(max_digits=10, decimal_places=2)
+    set_by: str | None = None
+    updated_at: datetime
+
+    @field_validator("salon_id", "plan_id", "set_by", mode="before")
+    @classmethod
+    def stringify_ids(cls, v: object) -> str | None:
+        return str(v) if v is not None else None
+
+
 class PlanResponse(BaseModel):
     id: str
     code: str

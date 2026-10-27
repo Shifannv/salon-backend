@@ -1,6 +1,7 @@
 """Subscription use cases — admin-only plan and subscription management."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from app.core.exceptions import ForbiddenError, ValidationError
@@ -41,6 +42,22 @@ class SubscriptionPlanUseCases:
     async def deactivate_plan(self, actor: Profile, plan_id: str) -> dict[str, Any]:
         _assert_admin(actor)
         return await self.repo.deactivate_plan(plan_id)
+
+    async def list_salon_prices(self, actor: Profile, salon_id: str) -> list[dict[str, Any]]:
+        _assert_admin(actor)
+        return await self.repo.list_salon_plan_prices(salon_id)
+
+    async def set_salon_price(
+        self, actor: Profile, salon_id: str, plan_id: str, price: Decimal
+    ) -> dict[str, Any]:
+        _assert_admin(actor)
+        if price <= 0:
+            raise ValidationError("A plan price must be greater than zero")
+        return await self.repo.set_salon_plan_price(salon_id, plan_id, price, str(actor.id))
+
+    async def clear_salon_price(self, actor: Profile, salon_id: str, plan_id: str) -> None:
+        _assert_admin(actor)
+        await self.repo.clear_salon_plan_price(salon_id, plan_id, str(actor.id))
 
 
 class SalonSubscriptionUseCases:
