@@ -5,10 +5,14 @@ backend workflow serves both mobile apps and the public deletion web page. Clien
 hold service-role credentials and never pick which account is deleted: the account is the
 verified JWT `sub`.
 
-Status: implemented; SQL **verified against a throwaway PostgreSQL 18** with the full
+Status: implemented in source; SQL **verified against a throwaway PostgreSQL 18** with the full
 migration chain (`tests/integration/test_account_deletion_sql.py`, opt-in via
-`ACCOUNT_DELETION_TEST_DB`). **Not staging-tested, not production-verified**, and the
-refund path has only ever run against a fake gateway (no payment provider is configured).
+`ACCOUNT_DELETION_TEST_DB`). **Not operational in production as checked on 26 October 2026**:
+the serving Cloud Run secret lacks `ACCOUNT_DELETION_SECRET`, no account-deletion worker
+is deployed, and the Mumbai database has an empty Alembic history table. The live
+OpenAPI advertises the routes, but a signed-in challenge would fail before sending a
+code. Do not submit the apps for store review on the assumption that deletion works.
+The refund path has only run against a fake gateway (no live payment provider is configured).
 
 Owner decisions this design implements: the salon becomes an **anonymised shell** (other
 customers keep their booking history); there is **no grace period**; an owner's **future

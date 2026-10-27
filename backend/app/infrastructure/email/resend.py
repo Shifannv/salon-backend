@@ -26,14 +26,16 @@ class ResendEmailGateway:
         if not self.enabled:
             raise ServiceUnavailableError("Email delivery is not configured")
         key = "email-" + hashlib.sha256(event_key.encode()).hexdigest()
+        payload = {"from": self.settings.resend_from_email, "to": [recipient], "subject": subject, "text": body}
+        if self.settings.resend_reply_to_email:
+            payload["reply_to"] = self.settings.resend_reply_to_email
         try:
             async with asyncio.timeout(_SEND_DEADLINE_SECONDS):
                 async with httpx.AsyncClient(timeout=10, transport=self.transport) as client:
                     response = await client.post("https://api.resend.com/emails", headers={
                         "Authorization": "Bearer " + self.settings.resend_api_key.get_secret_value(),
                         "Idempotency-Key": key,
-                    }, json={"from": self.settings.resend_from_email, "to": [recipient],
-                             "subject": subject, "text": body})
+                    }, json=payload)
             if response.is_error:
                 raise ServiceUnavailableError("Email provider request failed")
             message_id = response.json().get("id")

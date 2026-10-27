@@ -27,7 +27,9 @@ Migrations are never part of container startup. See [migration policy](migration
 5. After separate approval, load and verify the image; run `alembic current`, the explicitly reviewed policy/revision, and
    `current`; update the API, Redis and all workers using `gcp-vm-deploy.sh
    --local-image`. Verify API/database/Redis health, then mark the release current.
-6. Check `https://apiv1.mudassirmhd.in/health` from the runner, through Nginx/TLS.
+6. Check `https://api.salones.in/health` from the runner. Production currently uses
+   Cloud Run behind the Google HTTPS load balancer; the legacy VM workflow below
+   remains manually gated and must not be dispatched for this hostname migration.
 
 The Compose project stays `backend`, preserving the existing Redis volume. Runtime
 secrets stay in `~/salon-backend/backend/.env`; neither the artifact nor GitHub needs

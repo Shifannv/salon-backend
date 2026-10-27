@@ -2,13 +2,15 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, require_role
 from app.api.v1.schemas.subscription import (
     ManualSubscriptionCreateRequest,
     PlanCreateRequest,
+    PlanPriceResponse,
+    PlanPriceSetRequest,
     PlanResponse,
     PlanUpdateRequest,
     SubscriptionEventResponse,
@@ -102,6 +104,62 @@ async def deactivate_plan(
 ) -> PlanResponse:
     row = await _plan_uc(session).deactivate_plan(actor, str(plan_id))
     return PlanResponse(**row)
+
+
+# ── Per-salon plan prices ────────────────────────────────────────────────────
+
+
+@router.get(
+    "/salons/{salon_id}/plan-prices",
+    response_model=list[PlanPriceResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List a salon's special plan prices (admin)",
+    description="Plans with no row here are charged at their normal price.",
+)
+async def list_salon_plan_prices(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> list[PlanPriceResponse]:
+    rows = await _plan_uc(session).list_salon_prices(actor, str(salon_id))
+    return [PlanPriceResponse(**row) for row in rows]
+
+
+@router.put(
+    "/salons/{salon_id}/plan-prices/{plan_id}",
+    response_model=PlanPriceResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Set the price a salon pays for a plan (admin)",
+    description="Shown to the owner and used for the website checkout. The change is audited.",
+)
+async def set_salon_plan_price(
+    salon_id: UUID,
+    plan_id: UUID,
+    payload: PlanPriceSetRequest,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> PlanPriceResponse:
+    row = await _plan_uc(session).set_salon_price(
+        actor, str(salon_id), str(plan_id), payload.price_amount
+    )
+    return PlanPriceResponse(**row)
+
+
+@router.delete(
+    "/salons/{salon_id}/plan-prices/{plan_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="Return a salon to the normal plan price (admin)",
+    description="Idempotent. A checkout already started keeps the price it was created with.",
+)
+async def clear_salon_plan_price(
+    salon_id: UUID,
+    plan_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> Response:
+    await _plan_uc(session).clear_salon_price(actor, str(salon_id), str(plan_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Salon subscriptions ─────────────────────────────────────────────────────

@@ -8,7 +8,22 @@ Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory syst
 Latest continuation (2026-10-19): took over the payment/subscription/booking backend plan from Codex (docs only so far), shipped local WebP image variants, and cleaned the Claude tooling. Two local commits (28bf921 image + U06/U07 docs, b0957a5 .claude cleanup) are unpushed pending owner approval. Prepared migrations 0038-0040 and `alembic stamp` remain held.
 
 ## Status
-Latest backend continuation,25 October: approved selective closed-salon support
+In progress, 27 October (Claude session): store launch is blocked by production account
+deletion (assessment §41: no ACCOUNT_DELETION_SECRET, no deletion job, empty Alembic history).
+Codex is running "Prompt E": a restored-copy rehearsal of the CURRENT serving image +
+throwaway secret + `maintenance_job account-deletion` to test whether deletion can go live
+without the 0041–0048 chain. Resend Reply-To support shipped in c936cd0 (pushed; misleading
+commit message, also carries graphify cache files). Master plan (workstreams 1–6) lives in
+the Claude plan file; summary in Next steps. iOS and Cashfree are deferred by the user.
+Wrap: Ruff clean; pytest 1416 passed/165 skipped/0 failed.
+Prompt E result: FAIL (job module absent from serving image; owner erasure leaves support
+reply/quote/email-copy text). User chose the TARGETED HOTFIX (no migrations). Claude wrote it
+in git-ignored backend/.artifacts/deletion-hotfix-20261027/ (3 files vs serving digest
+dfb24746…: modified account_deletion_repository.py, new privacy.py, new maintenance_job.py;
+5 real-PG regression tests RED on serving, GREEN patched; Ruff clean; README there). Next: Codex
+rehearsal of the candidate on the restored Mumbai copy (Prompt G), then approved release.
+
+Earlier backend continuation,25 October: approved selective closed-salon support
 retention and numeric/boolean-only historical purchase benefits are prepared as0048.
 Full schema classification,25syntheticPG cases, MFA/HTTP denial, quote preservation,
 concurrent creation/email and missing0047/48 refusal pass. Full1542passed/36skipped;
@@ -84,7 +99,28 @@ Final backend suite1285 passed/95 skipped, one dependency deprecation warning; R
 - (Stale as of 2026-10-22: the public-discovery work was merged via PRs #83 and #85.) Earlier note: public discovery contract changes were uncommitted in the working tree (13 files + 2 new test files + contract doc). Nothing else active. Commits 28bf921 and b0957a5 are local only; `.claude/commands/rams.md` and `.claude/skills/learned/` are untracked on purpose. The Redis recovery work from 2026-10-16 was committed earlier.
 
 ## Next steps
-Current backend priorities (supersede the historical queue below):
+Store-launch priorities, 27 October (supersede everything below). Work split: Claude
+plans/codes/reviews; Codex runs GCP/Supabase/Vercel/Cloudflare/device tests from prompts.
+
+1. Review the Codex "Prompt E" report (restored-copy deletion rehearsal). PASS: Codex adds
+   ACCOUNT_DELETION_SECRET to Secret Manager `salon-production-env`, creates a Cloud Run Job
+   running `python -m app.infrastructure.maintenance_job account-deletion` plus Scheduler,
+   then erases the authorised disposable customer (written approval each step). FAIL: Claude
+   writes the state-adoption procedure + tests (never hand-stamp `alembic_version`).
+2. New chat: Resend MCP (plugin installed) → read-only check that salones.in is Verified and
+   whether `send.salones.in` → `send.forge.rmta.net` matches Resend's records. No sends.
+3. Codex adds RESEND_FROM_EMAIL / RESEND_REPLY_TO_EMAIL / SUPPORT_EMAIL / RESEND_DOMAIN_VERIFIED
+   to Secret Manager and an email maintenance job (values in backend/docs/PRODUCTION_VERIFICATION.md).
+4. Claude splits prepared unreleased backend work (field/photo cleanup, security fixes,
+   booking changes, finance) into store-critical vs later release; Codex builds/promotes.
+5. Owner repo (Claude): lingering "New" marker after read; empty booking-filter message.
+6. Dependency audit fixes (owner 20 high, customer 14 high), compatible updates only.
+7. Codex: EAS production signing, signed AABs, Play App Signing SHA-1 into Google OAuth Android
+   client; device acceptance of QR scan/check-in, pay-at-salon completion, FCM cold start.
+8. Claude drafts Data safety, listing text, reviewer notes, content rating. User: assets,
+   12 testers × 14 days closed test (personal account), off-device backup destination.
+
+Previous backend priorities (still valid inside step 1's FAIL path):
 
 1. Complete broader schema privacy classification/worker acceptance and the sealed
    current-state adoption review in backend/docs/migrations/MUMBAI_FORWARD_RECONCILIATION.md.
@@ -132,6 +168,10 @@ Earlier queued work (reassess after these gates):
 8. Optional: decide whether `.claude/skills/learned/` and `.claude/commands/rams.md` are kept, moved out or deleted.
 
 ## Decisions
+- 2026-10-27: store developer name is the user's personal name "Shifan Nv" (not a company); support support@salones.in. Legal identity "Shifan Nv / Salones" stays. Personal Play account → 12 testers × 14 days closed test applies if created after 13 Nov 2023.
+- 2026-10-27: iOS (no Mac/Apple account) and Cashfree/online payments are deferred; owner app is Google-only sign-in, so Apple guideline 4.8 needs Sign in with Apple before any iOS release.
+- 2026-10-27: test the fast deletion path (current image + secret + bounded job, restored copy) before writing state adoption; secret alone stays forbidden (locks users out with no erasure).
+
 - 2026-10-23: old pre-cleanup service manifests are historical receipts, not reusable deployment inputs. Refresh service metadata and retain approvedmin0/max1 in future releases. Revision cleanup does not guarantee zero total spend.
 
 - 2026-10-23: zero-traffic candidate approval does not authorize promotion, migration or data deletion. Candidate shares inherited runtime connections; tagged URL is not a separate staging database.
@@ -153,6 +193,7 @@ Earlier queued work (reassess after these gates):
 - 2026-10-16: integration tests stop at `0037_customer_processing_charge` (not `head`) because 0038–0040 are prepared-only Mumbai migrations requiring Supabase-managed pre-conditions; tested separately when the gates pass.
 
 ## Files touched
+- 2026-10-26/27 (Claude): backend/app/core/config.py, backend/app/infrastructure/email/resend.py, backend/tests/unit/test_checkout_email_telemetry.py, backend/docs/PRODUCTION_VERIFICATION.md, docs/agent-memory/shared/decisions.md (all in c936cd0); this progress file.
 - 2026-10-23: application/salon_photos.py, unit/test_salon_photo_limits.py (both under backend), existing deployment assessment section12, ignored candidate/test evidence and branch memory.
 
 - Current continuation: backend HTTP schemas, `platform_repository.py`, `account_deletion_repository.py`, new `application/salon_photos.py`, new 0041 revision/SQL, migration/photo/metadata regressions, `docs/BACKEND_API_REFERENCE.md`, existing deployment assessment and docs index. Separate frontend repositories contain corresponding UI/adapter/tests; do not copy their source into backend.
@@ -169,6 +210,7 @@ Earlier queued work (reassess after these gates):
 - backend/tests/unit/test_database_url_scheme.py (new regression test)
 
 ## Blockers and open questions
+- 2026-10-27: production account deletion unavailable (store blocker); awaiting Prompt E. Resend domain verification and Zoho mailbox setup not verified by Claude (user reports Zoho receiving works and Supabase SMTP saved). 165 tests skip locally (likely no opt-in Postgres; not confirmed). Commit c936cd0 message does not describe its Reply-To change.
 - 2026-10-23 continuation: category discovery deployment blocker resolved and native positive/negative checks passed. Owner full TypeScript remains blocked by pre-existing booking.schema.test.ts expectations. Optional PostgreSQL integration suites were not enabled in the latest full run. Project legacy ctx executable unavailable; repository memory fallback recorded. Updated verification APK is not a clean store build.
 
 - 2026-10-23: owner supplied current trial status/remaining-days confirmation; independent invoice costs and budget settings remain unverified. Other persistent cost drivers and business acceptance remain outstanding.
@@ -375,3 +417,20 @@ Earlier queued work (reassess after these gates):
   and fresh attestation before operator-approved forward release; then worker
   prerequisites/acceptance. User confirmed backend email configuration not replaced.
   Off-device portable recovery and legacy continuity remain unresolved; Cashfree deferred.
+
+- 2026-10-26 continuation: assessment41–43 records fresh production deletion blockers
+  (missing signing secret, no erasure job/worker, empty Alembic history), authorized
+  disposable-account test scope, published website legal/contact fix and approved
+  Cloudflare Rocket Loader Off acceptance. Six live apex routes now redirect to www
+  and render; scan-paste QR reaches Mentrex. Customer-only Pay at Salon request was
+  created, seen in both apps, unread badge cleared on card visibility, then cancelled
+  through customer UI; one matching production row is cancelled. No backend release,
+  migration, secret or erasure activation. Accidental Vercel project was removed only
+  after explicit expanded approval and verified404; live project retained. Next backend
+  gate is reviewed state-adoption implementation/release, not merely adding the secret.
+- 2026-10-27 (Claude): Phase 0 domain/email audit (apex 308→www, Zoho MX, Resend DKIM present, no client-side Resend key), Resend Reply-To fix + tests, per-repo Codex prompts, master store-launch plan; awaiting Codex Prompt E deletion rehearsal.
+- 2026-10-27: Codex rehearsal of hotfix rev1 FAILED (own-ticket cache, billing/anomaly/audit text, benefits). Rev2 in .artifacts/deletion-hotfix-20261027 fixes all but `benefits` (needs 0048): 7 real-PG tests, RED 2/GREEN 7, Ruff clean, still 3 files. Next: Codex Prompt H re-rehearsal + prod counts.
+- 2026-10-27: Codex Prompt H PASS (r2 candidate, benefits excluded; prod counts all zero). RELEASE_DRAFT.md in .artifacts/deletion-hotfix-r2-rehearsal-20261027 (unexecuted). Next: user approval -> fresh backup, secret v2, push, job, zero-traffic, disposable-account test via tag BEFORE promotion.
+- 2026-10-27: User accepted benefits gap + untested edge cases. Real OTP not implemented yet, so live deletion test is gated. Staged release approved: RELEASE_DRAFT steps 1-5 now (Prompt I: backup, secret v2, push, job, zero-traffic tagged revision); steps 6-8 (live disposable deletion on tagged URL, Scheduler, promote) wait for user to say OTP implemented.
+- 2026-10-27: Prompt I stopped at consumer gate: local compose container backend-account-deletion-worker-1 targets the Mumbai prod DB (crash-looping on DNS, unhealthy, no signing secret). User must stop it (docker stop, not remove) then re-run Prompt I. Local email/media/payment/notification workers also up 45h - user to check whether they target prod.
+- 2026-10-27: User-approved API hostname migration completed. api.salones.in DNS-only A uses existing IP/load balancer; new managed TLS ACTIVE after33.5min, old certificate/host retained. Exact serving image with only PUBLIC_API_BASE_URL changed now revision salon-api-production-api-domain-20261027 at100%; service max1/min0 retained. Exact-source Vercel rebuild dpl_HGNpHYpouqTNyKTADFJY5HsmTQkH promoted; www pages/BFF healthy. Both API origins7/7 checks, same119-path contract; staging403. All local API settings/templates and production EAS profiles updated. Backend1438pass176skip/Ruff; customer400tests+8release/type/lint; owner17API/type/lint. Local APK markers pass, no install/store/OTA; owner needed bundle --rerun. Owner ignored .env was rewritten with stale duplicate URLs during session, final reapplied targeted URL corrections; monitor concurrent saves. Receipt backend/docs/verification/API_DOMAIN_MIGRATION_2026-10-27.md holds rollback, APK hashes and limits. No new paid plan/load balancer, unrelated backend release, migration or worker activation.

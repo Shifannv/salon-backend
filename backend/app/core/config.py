@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     environment: str = "local"
     resend_api_key: SecretStr | None = None
     resend_from_email: str | None = None
+    resend_reply_to_email: str | None = None
     support_email: str | None = None
     resend_domain_verified: bool = False
     email_worker_poll_seconds: int = Field(default=10, ge=1, le=3600)
@@ -123,6 +124,8 @@ class Settings(BaseSettings):
     subscription_allow_live: bool = False
     # How long an unpaid checkout order stays open locally before the sweep expires it.
     subscription_order_ttl_seconds: int = Field(default=3600, ge=300, le=86400)
+    # Where owners buy a plan (the native apps cannot sell one: store policy). Shown by the apps.
+    subscription_website_url: str | None = Field(default=None, max_length=500)
     # Age of an open (created/authorized) billing row before the worker asks the provider.
     subscription_reconcile_after_seconds: int = Field(default=600, ge=60, le=86400)
 
@@ -223,7 +226,8 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("password_reset_redirect_url", "resend_from_email", "support_email", mode="before")
+    @field_validator("password_reset_redirect_url", "resend_from_email", "resend_reply_to_email", "support_email",
+                     mode="before")
     @classmethod
     def blank_optional_email_setting_is_unset(cls, value):
         return None if isinstance(value, str) and not value.strip() else value
@@ -238,6 +242,16 @@ class Settings(BaseSettings):
             or any(char in normalized for char in '[]\"\',\n\r\t ')):
             raise ValueError('WALKIN_BASE_URL must contain one HTTP(S) booking URL, not a list')
         return normalized
+
+    @field_validator("subscription_website_url", mode="before")
+    @classmethod
+    def normalize_subscription_website_url(cls, value: object) -> str | None:
+        text = str(value).strip() if value is not None else ""
+        if not text:
+            return None
+        if not text.startswith(("https://", "http://localhost", "http://127.0.0.1")):
+            raise ValueError("SUBSCRIPTION_WEBSITE_URL must be an https:// address")
+        return text
 
     @field_validator("subscription_grace_days", mode="before")
     @classmethod

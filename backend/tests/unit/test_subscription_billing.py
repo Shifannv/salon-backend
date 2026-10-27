@@ -330,7 +330,8 @@ def test_config_never_allows_native_purchase_and_exposes_only_the_public_key():
         _env_file=None, environment="test")), Settings(_env_file=None, environment="test"))
     assert off.config() == {"enabled": False, "provider": None, "mode": "one_time",
                             "renewal": "manual", "native_purchase_allowed": False,
-                            "public_key": None, "currency": "INR"}
+                            "public_key": None, "currency": "INR",
+                            "checkout_url": None}
 
 
 async def test_checkout_persists_the_row_before_calling_the_provider():
@@ -833,6 +834,9 @@ def test_every_new_owner_route_declares_a_response_model_and_requires_auth():
             assert op.get("security"), path
     amounts = schema["components"]["schemas"]["PurchasablePlanResponse"]["properties"]["price_amount"]
     assert "number" not in json.dumps(amounts) or amounts.get("anyOf")  # Decimal, not float
+    plan_props = schema["components"]["schemas"]["PurchasablePlanResponse"]["properties"]
+    assert "monthly_equivalent" in plan_props
+    assert "discount_percent" in plan_props
 
 
 def test_plan_prices_are_decimal_in_the_admin_schemas_too():

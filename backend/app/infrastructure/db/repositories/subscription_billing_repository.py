@@ -46,18 +46,49 @@ class SubscriptionBillingRepository(PaymentRepository):
         return dict(row)
 
     # ---------------------------------------------------------------- plans
-    async def list_purchasable_plans(self) -> list[dict[str, Any]]:
+    async def list_purchasable_plans(self, salon_id: str | None = None) -> list[dict[str, Any]]:
+        """Plans with the price THIS salon pays: an admin-set override, else the plan price.
+
+        ``monthly_equivalent`` and ``discount_percent`` compare multi-month plans against the
+        same tier's effective 1-month price so the app can show "Save 10%".
+        """
+
         result = await self.session.execute(
             text(
                 """
-                select id, code, name, description, tier, ranking_weight, price_amount,
-                       currency, billing_interval, features, tax_inclusive
-                from subscription_plans
-                where is_active and price_amount > 0
-                  and billing_interval in ('monthly', 'quarterly', 'semiannual', 'yearly')
-                order by tier asc, price_amount asc, code asc
+                with effective as (
+                  select p.id, p.code, p.name, p.description, p.tier, p.ranking_weight,
+                         coalesce(o.price_amount, p.price_amount) as price_amount,
+                         p.price_amount as default_price_amount,
+                         (o.price_amount is not null) as custom_price,
+                         p.currency, p.billing_interval, p.features, p.tax_inclusive,
+                         case p.billing_interval
+                           when 'monthly'    then 1
+                           when 'quarterly'  then 3
+                           when 'semiannual' then 6
+                           when 'yearly'     then 12
+                         end as months
+                  from subscription_plans p
+                  left join salon_plan_prices o on o.plan_id = p.id and o.salon_id = :salon
+                  where p.is_active and p.price_amount > 0
+                    and p.billing_interval in ('monthly', 'quarterly', 'semiannual', 'yearly')
+                )
+                select e.*,
+                       case when e.months > 1
+                            then round(e.price_amount / e.months, 2)
+                            else null end as monthly_equivalent,
+                       case when e.months > 1 and m.price_amount > 0
+                            then floor(
+                              (1 - e.price_amount / (m.price_amount * e.months)) * 100
+                            )::int
+                            else null end as discount_percent
+                from effective e
+                left join effective m
+                  on m.tier = e.tier and m.currency = e.currency and m.months = 1
+                order by e.tier asc, e.price_amount asc, e.code asc
                 """
-            )
+            ),
+            {"salon": salon_id},
         )
         return [_row(r) for r in result.mappings().all()]
 
@@ -126,10 +157,12 @@ class SubscriptionBillingRepository(PaymentRepository):
                     insert into subscription_billing_records
                       (salon_id, plan_id, plan_code, provider, receipt, amount, currency,
                        billing_interval, tax_inclusive, benefits, expires_at, created_by)
-                    select :s, p.id, p.code, :provider, :receipt, p.price_amount, p.currency,
+                    select :s, p.id, p.code, :provider, :receipt,
+                           coalesce(o.price_amount, p.price_amount), p.currency,
                            p.billing_interval, p.tax_inclusive, p.features,
                            now() + make_interval(secs => :ttl), :actor
                     from subscription_plans p
+                    left join salon_plan_prices o on o.plan_id = p.id and o.salon_id = :s
                     where p.id = :plan and p.is_active and p.price_amount > 0
                     returning {_BILLING_COLUMNS}
                     """

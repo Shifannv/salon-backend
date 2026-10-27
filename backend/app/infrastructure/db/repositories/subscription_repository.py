@@ -1,6 +1,10 @@
 """Subscription repository — SQL persistence for plans, subscriptions, events."""
 
+import hashlib
+import json
+from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,6 +79,82 @@ class SubscriptionPlanRepo:
 
     async def deactivate_plan(self, plan_id: str) -> dict[str, Any]:
         return await self.update_plan(plan_id, {"is_active": False})
+
+    # ── Per-salon prices ──────────────────────────────────────────────────
+    async def list_salon_plan_prices(self, salon_id: str) -> list[dict[str, Any]]:
+        result = await self.session.execute(
+            text("""
+                select o.salon_id, o.plan_id, p.code as plan_code,
+                       o.price_amount, p.price_amount as default_price_amount,
+                       o.set_by, o.updated_at
+                from salon_plan_prices o
+                join subscription_plans p on p.id = o.plan_id
+                where o.salon_id = :salon
+                order by p.tier asc, p.code asc
+            """),
+            {"salon": salon_id},
+        )
+        return [dict(r) for r in result.mappings().all()]
+
+    async def set_salon_plan_price(
+        self, salon_id: str, plan_id: str, price: Decimal, actor_id: str
+    ) -> dict[str, Any]:
+        """Upsert the price this salon pays for a plan, and record who changed it."""
+
+        if (
+            await self.session.execute(text("select 1 from salons where id = :s"), {"s": salon_id})
+        ).first() is None:
+            raise NotFoundError("Salon not found")
+        if (
+            await self.session.execute(
+                text("select 1 from subscription_plans where id = :p"), {"p": plan_id}
+            )
+        ).first() is None:
+            raise NotFoundError("Subscription plan not found")
+        await self.session.execute(
+            text("""
+                insert into salon_plan_prices (salon_id, plan_id, price_amount, set_by)
+                values (:salon, :plan, :price, :actor)
+                on conflict (salon_id, plan_id) do update
+                  set price_amount = excluded.price_amount, set_by = excluded.set_by,
+                      updated_at = now()
+            """),
+            {"salon": salon_id, "plan": plan_id, "price": price, "actor": actor_id},
+        )
+        await self._audit("admin_plan_price_set", salon_id, plan_id, str(price), actor_id)
+        await self.session.commit()
+        rows = [r for r in await self.list_salon_plan_prices(salon_id) if str(r["plan_id"]) == plan_id]
+        return rows[0]
+
+    async def clear_salon_plan_price(self, salon_id: str, plan_id: str, actor_id: str) -> None:
+        """Go back to the plan's normal price. Idempotent: clearing nothing is not an error."""
+
+        result = await self.session.execute(
+            text("delete from salon_plan_prices where salon_id = :s and plan_id = :p returning 1"),
+            {"s": salon_id, "p": plan_id},
+        )
+        if result.first() is not None:
+            await self._audit("admin_plan_price_cleared", salon_id, plan_id, None, actor_id)
+        await self.session.commit()
+
+    async def _audit(
+        self, event_type: str, salon_id: str, plan_id: str, price: str | None, actor_id: str
+    ) -> None:
+        digest = hashlib.sha256(
+            json.dumps(
+                {"salon": salon_id, "plan": plan_id, "price": price, "actor": actor_id},
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        await self.session.execute(
+            text("""
+                insert into subscription_events
+                  (provider_name, provider_event_reference, event_type, payload_hash,
+                   processing_status, processed_at)
+                values ('admin', :ref, :type, :hash, 'processed', now())
+            """),
+            {"ref": f"plan-price:{uuid4()}", "type": event_type, "hash": digest},
+        )
 
 
 class SalonSubscriptionRepo:

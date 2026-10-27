@@ -117,7 +117,7 @@ jobs:
     timeout-minutes: 30
     environment:
       name: production
-      url: https://apiv1.mudassirmhd.in
+      url: https://api.salones.in
     concurrency:
       group: production-vm
       cancel-in-progress: false
@@ -196,7 +196,7 @@ jobs:
       - name: Verify public HTTPS health
         run: |
           curl --fail --silent --show-error --retry 5 --retry-delay 5 \
-            --max-time 15 https://apiv1.mudassirmhd.in/health
+            --max-time 15 https://api.salones.in/health
       - name: Remove runner SSH credentials
         if: always()
         run: rm -f "$HOME/.ssh/deploy_key" "$HOME/.ssh/config" "$HOME/.ssh/known_hosts"
