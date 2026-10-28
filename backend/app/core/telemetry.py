@@ -3,13 +3,21 @@
 import re
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
 import structlog
 
 from app.core.logging import set_request_id
+
+if TYPE_CHECKING:
+    from app.core.config import Settings
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 @dataclass
@@ -32,11 +40,11 @@ _log = structlog.get_logger("api.timing")
 _REQUEST_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}\Z")
 
 
-def measure_external(provider):
+def measure_external(provider: str) -> Callable[[Callable[_P, Awaitable[_R]]], Callable[_P, Awaitable[_R]]]:
     """Time static provider names only; never capture arguments or response data."""
-    def decorate(function):
+    def decorate(function: Callable[_P, Awaitable[_R]]) -> Callable[_P, Awaitable[_R]]:
         @wraps(function)
-        async def timed(*args, **kwargs):
+        async def timed(*args: _P.args, **kwargs: _P.kwargs) -> _R:
             started = time.perf_counter()
             try:
                 return await function(*args, **kwargs)
@@ -49,7 +57,7 @@ def measure_external(provider):
     return decorate
 
 
-def scrub_sentry(event, hint=None):
+def scrub_sentry(event: dict[str, Any], hint: dict[str, Any] | None = None) -> dict[str, Any]:
     """Retain timing and stack locations, discard submitted data and exception values."""
     for key in ("user", "extra", "request", "breadcrumbs", "logentry", "message"):
         event.pop(key, None)
@@ -65,7 +73,7 @@ def scrub_sentry(event, hint=None):
     return event
 
 
-def init_sentry(settings):
+def init_sentry(settings: "Settings") -> bool:
     if not settings.sentry_dsn or not settings.sentry_dsn.get_secret_value():
         return False
     import sentry_sdk

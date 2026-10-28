@@ -20,7 +20,7 @@ from app.core.exceptions import (
 )
 from app.core.tokens import digest, digests_match, new_token
 from app.domain.entities.profile import Profile, Role
-from app.domain.services.authorization import is_super_admin
+from app.domain.services.authorization import require_super_admin
 
 _LOCAL_ENVIRONMENTS = {"local", "test"}
 _LOCAL_SECRET = "local-development-account-deletion-secret"
@@ -262,20 +262,17 @@ class AccountDeletionUseCases:
         }
 
     async def list_requests(self, actor: Profile, limit: int, offset: int) -> list[dict[str, Any]]:
-        if not is_super_admin(actor):
-            raise ForbiddenError("Super admin access required")
+        require_super_admin(actor)
         return await self.repository.list_requests(limit, offset)
 
     async def list_closed_salons(self, actor: Profile, limit: int, offset: int) -> list[dict[str, Any]]:
         """Salons closed by their owner's account deletion, for month-end financial review."""
-        if not is_super_admin(actor):
-            raise ForbiddenError("Super admin access required")
+        require_super_admin(actor)
         return await self.repository.list_closed_salons(limit, offset)
 
     async def closed_salon_statement(self, actor: Profile, salon_id: str) -> dict[str, Any]:
         """Month-by-month money totals of a closed salon; no booking or personal detail."""
-        if not is_super_admin(actor):
-            raise ForbiddenError("Super admin access required")
+        require_super_admin(actor)
         rows = await self.repository.closed_salon_monthly_statement(salon_id)
         if rows is None:
             raise NotFoundError("No closed salon with this id")

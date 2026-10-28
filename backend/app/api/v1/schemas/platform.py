@@ -1,1022 +1,133 @@
+"""Frontend-facing API schemas (compatibility re-exports).
+
+The models live in ``profile``, ``salon``, ``catalog``, ``booking`` and ``notification``;
+this module keeps the historical import path working.
+"""
+
+from app.api.v1.schemas.booking import (
+    AvailabilityResponse,
+    BarberCancelBookingRequest,
+    BarberCancellationReasonCode,
+    BookingCreateRequest,
+    BookingLineResponse,
+    BookingResponse,
+    CancelBookingRequest,
+    CancellationReasonCode,
+    CustomerCancellationReasonCode,
+    DelayBookingRequest,
+    NoShowBookingRequest,
+    PaymentRequest,
+    RejectBookingRequest,
+)
+from app.api.v1.schemas.catalog import (
+    LanguageResponse,
+    PublicStaffResponse,
+    ServiceCreateRequest,
+    ServiceDisplayName,
+    ServicePresentationRequest,
+    ServiceUpdateRequest,
+    StaffCreateRequest,
+    StaffResponse,
+    StaffServiceAssignRequest,
+    StaffServiceLanguagesRequest,
+    StaffServiceResponse,
+    StaffUpdateRequest,
+)
 from app.api.v1.schemas.media_urls import HostedMediaRequest
-
-"""Frontend-facing API schemas."""
-
-import re
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-from typing import Annotated, Any, ClassVar, Literal
-from urllib.parse import unquote, urlsplit
-from uuid import UUID
-
-from pydantic import (
-    AwareDatetime,
-    BaseModel,
-    BeforeValidator,
-    ConfigDict,
-    Field,
-    HttpUrl,
-    StrictBool,
-    StringConstraints,
-    TypeAdapter,
-    field_validator,
-    model_validator,
+from app.api.v1.schemas.notification import (
+    DeviceRegisterRequest,
+    DeviceRegisterResponse,
+    MarkAllNotificationsReadResponse,
+    NotificationResponse,
+)
+from app.api.v1.schemas.profile import (
+    ProfileResponse,
+    ProfileUpdateRequest,
+)
+from app.api.v1.schemas.salon import (
+    BlockedSlotCreateRequest,
+    BlockedSlotResponse,
+    CustomerAvailabilityResponse,
+    HolidayCreateRequest,
+    HolidayResponse,
+    ImageUploadUrlRequest,
+    ImageUploadUrlResponse,
+    OwnerPayoutAccountRequest,
+    OwnerPayoutAccountResponse,
+    OwnerSalonCompleteProfileRequest,
+    OwnerSalonResponse,
+    OwnerSalonSettingsRequest,
+    OwnerSalonUpdateRequest,
+    OwnerSetupStatusResponse,
+    PayoutHistoryEntryResponse,
+    PayoutSnapshotResponse,
+    QrCodeUrlResponse,
+    SalonDetailResponse,
+    SalonImageCreateRequest,
+    SalonImageResponse,
+    SalonImageUpdateRequest,
+    SalonPhotos,
+    SalonSummaryResponse,
+    ServiceResponse,
+    SetupItemResponse,
 )
 
-from app.application.salon_photos import visible_salon_photos
-from app.core.config import settings
-from app.domain.entities.payment import derive_payment_state
-from app.domain.services.checkout import online_checkout_available
-
-
-class ProfileUpdateRequest(HostedMediaRequest):
-    """Shared profile update request (PATCH /profiles/me).
-
-    Used by owners, staff, and customers — not customer-only despite the name.
-    Fields are all optional; only explicitly sent fields are written.
-    Sending ``null`` for a nullable field (e.g. ``phone``) clears it.
-    """
-
-    # These identifiers resolve to bundled assets in the customer and owner apps.
-    # They are bounded metadata, never uploaded binaries or inline image payloads.
-    avatar_references: ClassVar[frozenset[str]] = frozenset(
-        {f"__char__char-{index}" for index in range(1, 16)}
-        | {"avatar:curly", "avatar:beard", "avatar:geek"}
-    )
-
-    full_name: str | None = Field(default=None, min_length=1)
-    phone: str | None = None
-    avatar_url: str | None = None
-
-    @field_validator("full_name")
-    @classmethod
-    def full_name_cannot_be_cleared(cls, value: str | None) -> str:
-        if value is None or not value.strip():
-            raise ValueError("Name cannot be empty")
-        return value.strip()
-
-    @field_validator("phone")
-    @classmethod
-    def validate_indian_phone(cls, value: str | None) -> str | None:
-        """Normalize and reject obvious fake customer phone numbers."""
-
-        if value is None:
-            return None
-
-        raw = value.strip()
-        if raw.startswith("+91"):
-            digits = raw[3:]
-        else:
-            digits = raw
-
-        sequential_runs = {
-            "012345", "12345", "23456", "34567", "45678", "56789",
-            "98765", "87654", "76543", "65432", "54321", "43210",
-        }
-        if (
-            not digits.isdigit()
-            or len(digits) != 10
-            or digits[0] not in "6789"
-            or len(set(digits)) == 1
-            or digits[:2] * 5 == digits
-            or any(sequence in digits for sequence in sequential_runs)
-        ):
-            raise ValueError("Enter a valid 10-digit Indian mobile number")
-
-        return f"+91{digits}"
-
-
-class ProfileResponse(BaseModel):
-    """Profile response."""
-
-    id: str
-    role: str
-    full_name: str | None
-    email: str | None
-    phone: str | None
-    phone_verified: bool
-    avatar_url: str | None
-    is_active: bool
-
-
-class CustomerAvailabilityResponse(BaseModel):
-    """Backend-owned booking and payment capability, computed on every response (never cached).
-
-    ``payment_options`` lists only the methods this salon can be booked with right now: empty while the salon
-    is not accepting bookings, ``PAY_AT_SALON`` otherwise, plus ``PAY_ONLINE`` only when the platform's online
-    payment gateway is enabled. A customer-specific block (``pay_at_salon_temporarily_blocked`` and similar)
-    is not salon-level, so it is reported as a 409 error code when booking, not here.
-    """
-
-    accepts_bookings: bool = Field(default=True, description="False while the salon is paused or not bookable.")
-    payment_options: list[Literal["PAY_AT_SALON", "PAY_ONLINE"]] = Field(
-        default_factory=lambda: ["PAY_AT_SALON"],
-        description="Payment methods currently permitted for a new booking at this salon.",
-    )
-    online_payment_available: bool = Field(default=False, description="True only when PAY_ONLINE is listed.")
-    online_payment_unavailable_reason: str | None = Field(
-        default="Online payment coming soon.",
-        description="Customer-facing reason online payment is not offered; null when it is available.",
-    )
-
-    @model_validator(mode="after")
-    def customer_availability(self) -> "CustomerAvailabilityResponse":
-        from app.infrastructure.payments.resolver import get_payment_resolver
-        self.accepts_bookings = bool(getattr(self, "accepting_bookings", True))
-        self.online_payment_available = self.accepts_bookings and online_checkout_available(
-            get_payment_resolver().enabled, settings.booking_checkout_policy_version,
-        )
-        self.payment_options = (["PAY_AT_SALON"] if self.accepts_bookings else [])
-        if self.online_payment_available:
-            self.payment_options.append("PAY_ONLINE")
-        self.online_payment_unavailable_reason = (
-            None if self.online_payment_available else "Online payment coming soon."
-        )
-        return self
-
-
-class SalonSummaryResponse(CustomerAvailabilityResponse):
-    """Salon list response item.
-
-    Services are NOT embedded here. Call GET /salons/{salon_id}/services
-    to fetch services for a specific salon.
-    """
-
-    id: str
-    name: str
-    address: str | None = None
-    city: str | None = None
-    lat: float | None = None
-    lng: float | None = None
-    timezone: str
-    approval_mode: str
-    accepting_bookings: bool = True
-    profile_completed: bool
-    is_active: bool
-    working_hours: dict[str, Any] | None = None
-    image_url: str | None = None
-    starting_price: Decimal | None = None
-    distance_km: float | None = None
-
-
-class SalonImageResponse(BaseModel):
-    """Salon image response."""
-
-    id: str
-    salon_id: str
-    url: str
-    caption: str | None = None
-    is_main: bool
-    sort_order: int
-    created_at: datetime
-    updated_at: datetime
-
-    @field_validator("id", "salon_id", mode="before")
-    @classmethod
-    def _coerce_uuid_to_str(cls, value: Any) -> Any:
-        """asyncpg returns UUID identifiers; the HTTP contract uses strings."""
-        return str(value) if isinstance(value, UUID) else value
-
-
-def _visible_photos(value: Any) -> Any:
-    if not isinstance(value, list):
-        return value
-    return visible_salon_photos([image.model_dump() if isinstance(image, BaseModel) else image for image in value])
-
-
-SalonPhotos = Annotated[
-    list[SalonImageResponse], BeforeValidator(_visible_photos),
-    Field(max_length=3, description="One separate cover (is_main=true) and at most two distinct gallery slides."),
+__all__ = [
+    "AvailabilityResponse",
+    "BarberCancelBookingRequest",
+    "BarberCancellationReasonCode",
+    "BlockedSlotCreateRequest",
+    "BlockedSlotResponse",
+    "BookingCreateRequest",
+    "BookingLineResponse",
+    "BookingResponse",
+    "CancelBookingRequest",
+    "CancellationReasonCode",
+    "CustomerAvailabilityResponse",
+    "CustomerCancellationReasonCode",
+    "DelayBookingRequest",
+    "DeviceRegisterRequest",
+    "DeviceRegisterResponse",
+    "HolidayCreateRequest",
+    "HolidayResponse",
+    "HostedMediaRequest",
+    "ImageUploadUrlRequest",
+    "ImageUploadUrlResponse",
+    "LanguageResponse",
+    "MarkAllNotificationsReadResponse",
+    "NoShowBookingRequest",
+    "NotificationResponse",
+    "OwnerPayoutAccountRequest",
+    "OwnerPayoutAccountResponse",
+    "OwnerSalonCompleteProfileRequest",
+    "OwnerSalonResponse",
+    "OwnerSalonSettingsRequest",
+    "OwnerSalonUpdateRequest",
+    "OwnerSetupStatusResponse",
+    "PaymentRequest",
+    "PayoutHistoryEntryResponse",
+    "PayoutSnapshotResponse",
+    "ProfileResponse",
+    "ProfileUpdateRequest",
+    "PublicStaffResponse",
+    "QrCodeUrlResponse",
+    "RejectBookingRequest",
+    "SalonDetailResponse",
+    "SalonImageCreateRequest",
+    "SalonImageResponse",
+    "SalonImageUpdateRequest",
+    "SalonPhotos",
+    "SalonSummaryResponse",
+    "ServiceCreateRequest",
+    "ServiceDisplayName",
+    "ServicePresentationRequest",
+    "ServiceResponse",
+    "ServiceUpdateRequest",
+    "SetupItemResponse",
+    "StaffCreateRequest",
+    "StaffResponse",
+    "StaffServiceAssignRequest",
+    "StaffServiceLanguagesRequest",
+    "StaffServiceResponse",
+    "StaffUpdateRequest",
 ]
-
-
-class ServiceResponse(BaseModel):
-    """Service response."""
-
-    id: str
-    salon_id: str
-    subcategory_id: str
-    name: str
-    duration_minutes: int
-    price: Decimal
-    is_active: bool
-    category_name: str | None = None
-    subcategory_name: str | None = None
-    photo_url: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
-class SalonDetailResponse(CustomerAvailabilityResponse):
-    """Salon detail response.
-
-    Images are embedded here as they are always needed for the detail view.
-    Services and staff are NOT embedded — use the dedicated endpoints:
-      - GET /salons/{salon_id}/services
-      - GET /salons/{salon_id}/staff
-    """
-
-    id: str
-    name: str
-    address: str | None = None
-    city: str | None = None
-    lat: float | None = None
-    lng: float | None = None
-    timezone: str
-    working_hours: dict[str, Any]
-    approval_mode: str
-    accepting_bookings: bool = True
-    profile_completed: bool
-    is_active: bool
-    images: SalonPhotos = Field(default_factory=list)
-
-
-class OwnerSalonResponse(BaseModel):
-    """Owner salon response."""
-
-    id: str
-    owner_id: str
-    name: str
-    address: str | None = None
-    city: str | None = None
-    lat: float | None = None
-    lng: float | None = None
-    timezone: str
-    working_hours: dict[str, Any]
-    approval_mode: str
-    accepting_bookings: bool
-    slot_interval_minutes: int
-    qr_token: str
-    profile_completed: bool
-    approval_status: Literal["pending", "approved", "rejected"]
-    approved_at: datetime | None = None
-    approved_by: str | None = None
-    rejection_reason: str | None = None
-    is_active: bool
-    images: SalonPhotos = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
-
-
-class OwnerSalonUpdateRequest(BaseModel):
-    """Owner salon update request."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: str | None = None
-    address: str | None = None
-    city: str | None = None
-    lat: float | None = None
-    lng: float | None = None
-    timezone: str | None = None
-    working_hours: dict[str, Any] | None = None
-    approval_mode: Literal["auto", "manual"] | None = None
-
-
-    @field_validator("name", "address", "city")
-    @classmethod
-    def required_details_cannot_be_cleared(cls, value: str | None) -> str:
-        if value is None or not value.strip():
-            raise ValueError("This business detail cannot be empty")
-        return value.strip()
-
-
-class OwnerSalonCompleteProfileRequest(OwnerSalonUpdateRequest):
-    """Final onboarding payload used to submit an owner salon for admin review."""
-
-
-class OwnerSalonSettingsRequest(BaseModel):
-    """Owner salon settings request."""
-
-    approval_mode: Literal["auto", "manual"] | None = None
-    working_hours: dict[str, Any] | None = None
-    accepting_bookings: StrictBool | None = None
-
-
-class SalonImageCreateRequest(HostedMediaRequest):
-    """Create salon image request."""
-
-    url: str
-    caption: str | None = None
-    is_main: bool = False
-    sort_order: int = 0
-
-
-class SalonImageUpdateRequest(HostedMediaRequest):
-    """Update salon image request."""
-
-    url: str | None = None
-    caption: str | None = None
-    is_main: bool | None = None
-    sort_order: int | None = None
-
-
-class HolidayCreateRequest(BaseModel):
-    """Create salon holiday request."""
-
-    holiday_date: date
-    title: str | None = None
-    is_recurring: bool = False
-
-
-class HolidayResponse(BaseModel):
-    """Salon holiday response."""
-
-    id: str
-    salon_id: str
-    holiday_date: date
-    title: str | None = None
-    is_recurring: bool
-    created_at: datetime
-    updated_at: datetime
-
-    @field_validator("id", "salon_id", mode="before")
-    @classmethod
-    def _coerce_uuid_to_str(cls, v: Any) -> Any:
-        """DB returns UUID objects; coerce to str for Pydantic."""
-        if v is not None and not isinstance(v, str):
-            return str(v)
-        return v
-
-
-ServiceDisplayName = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)
-]
-
-
-class ServicePresentationRequest(BaseModel):
-    """Persisted salon-specific presentation; explicit null clears a value."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    category_name: ServiceDisplayName | None = None
-    subcategory_name: ServiceDisplayName | None = None
-    photo_url: str | None = Field(default=None, max_length=2048)
-
-    @field_validator("photo_url")
-    @classmethod
-    def validate_photo_url(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        try:
-            TypeAdapter(HttpUrl).validate_python(value)
-            parsed = urlsplit(value)
-            valid = (
-                parsed.scheme == "https" and parsed.hostname
-                and "." in parsed.hostname and parsed.hostname != "localhost"
-                and not parsed.username and not parsed.password
-                and not any(c.isspace() or ord(c) < 32 for c in value)
-                and "\\" not in value and parsed.port in (None, 443)
-                and not any(part in {".", ".."} for part in unquote(parsed.path).split("/"))
-                and "\\" not in unquote(parsed.path)
-            )
-        except ValueError:
-            valid = False
-        if not valid:
-            raise ValueError("photo_url must be a hosted HTTPS URL")
-        return value
-
-
-class ServiceCreateRequest(ServicePresentationRequest):
-    """Create service request."""
-
-    subcategory_id: str | None = None
-    name: str
-    duration_minutes: int = Field(gt=0)
-    price: Decimal = Field(ge=0)
-    is_active: bool = True
-
-
-class ServiceUpdateRequest(ServicePresentationRequest):
-    """Update service request; omitted fields retain their stored values."""
-
-    subcategory_id: str | None = None
-    name: str | None = None
-    duration_minutes: int | None = Field(default=None, gt=0)
-    price: Decimal | None = Field(default=None, ge=0)
-    is_active: bool | None = None
-
-    @field_validator("subcategory_id", "name", "duration_minutes", "price", "is_active")
-    @classmethod
-    def reject_explicit_null(cls, value: Any) -> Any:
-        if value is None:
-            raise ValueError("This service field cannot be null")
-        return value
-
-
-class StaffCreateRequest(HostedMediaRequest):
-    """Create staff request."""
-
-    profile_id: str | None = None
-    name: str
-    photo_url: str | None = None
-    specialization: str | None = None
-    experience: str | None = None
-    working_hours: dict[str, Any] | None = None
-
-
-class StaffUpdateRequest(HostedMediaRequest):
-    """Update staff request."""
-
-    profile_id: str | None = None
-    name: str | None = None
-    photo_url: str | None = None
-    specialization: str | None = None
-    experience: str | None = None
-    working_hours: dict[str, Any] | None = None
-    is_active: bool | None = None
-
-
-class StaffResponse(BaseModel):
-    """Staff response (owner-facing, includes full detail)."""
-
-    id: str
-    salon_id: str
-    profile_id: str | None = None
-    name: str
-    photo_url: str | None = None
-    specialization: str | None = None
-    experience: str | None = None
-    working_hours: dict[str, Any] | None = None
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-
-class PublicStaffResponse(BaseModel):
-    """Customer-facing staff/barber summary for salon detail and booking flow."""
-
-    id: str
-    name: str
-    photo_url: str | None = None
-    specialization: str | None = None
-
-
-class StaffServiceAssignRequest(BaseModel):
-    """Assign service to staff request."""
-
-    service_id: str
-    duration_minutes: int | None = Field(default=None, gt=0)
-    price_override: Decimal | None = Field(default=None, ge=0)
-    specialization: str | None = None
-
-
-class StaffServiceResponse(BaseModel):
-    """Staff service response."""
-
-    id: str
-    staff_id: str
-    service_id: str
-    duration_minutes: int | None = None
-    price_override: Decimal | None = None
-    specialization: str | None = None
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-
-class AvailabilityResponse(BaseModel):
-    """Available slot response.
-
-    Frontend ``TimeSlotPicker`` expects:
-      - ``id``         — stable key for the slot (formatted start time, e.g. "09:00 AM")
-      - ``time``       — human-readable label shown in the UI (same value as ``id``)
-      - ``barberName`` — optional barber context displayed beside the time chip
-
-    We also keep ``slot_start`` / ``slot_end`` for any consumer that needs the
-    raw datetimes.
-    """
-
-    slot_start: datetime
-    slot_end: datetime
-    # ── Frontend TimeSlotPicker fields ────────────────────────────────────────
-    id: str  # e.g. "09:00 AM" — stable key and display label
-    time: str  # same as id; explicit field for clarity
-    barberName: str | None = None  # camelCase to match the TS type verbatim
-
-
-class BookingCreateRequest(BaseModel):
-    """Create booking request."""
-
-    salon_id: str
-    staff_id: str
-    service_ids: list[str] = Field(min_length=1)
-    start_datetime: AwareDatetime
-    customer_name: str
-    customer_phone: str | None = None
-    source: Literal["app", "manual_walkin", "qr_walkin"] = "app"
-    notes: str | None = None
-    payment_preference: Literal["pay_at_salon", "pay_advance", "pay_full"] | None = None
-
-
-class BookingLineResponse(BaseModel):
-    """Booking service line response."""
-
-    service_id: str
-    service_name: str
-    duration_minutes: int
-    price: Decimal
-
-
-# Statuses that allow a customer (or salon) to cancel.
-_CANCELLABLE_STATUSES = frozenset({"pending", "confirmed"})
-
-
-class BookingResponse(BaseModel):
-    """Booking response."""
-
-    change_version: int = 0
-    committed_reschedules: int = 0
-    service_fulfilment_amount: Decimal | None = None
-    checkout_policy_version: str = "customer_processing_v1"
-
-    id: str
-    salon_id: str
-    staff_id: str
-    customer_id: str | None = None
-    customer_name: str
-    customer_phone: str | None = None
-    phone_verified: bool
-    source: str
-    status: str
-    start_datetime: datetime
-    end_datetime: datetime
-    estimated_end_datetime: datetime | None = None
-    total_duration_minutes: int
-    total_price: Decimal
-    payment_status: str
-    payment_method: str | None = None
-    payment_preference: str | None = None
-    # Money columns are a derived cache of the payment ledger (see PAYMENTS.md).
-    currency: str = "INR"
-    deposit_amount: Decimal | None = None
-    paid_amount: Decimal = Decimal("0")
-    refunded_amount: Decimal = Decimal("0")
-    payment_state: str = "unpaid"
-    payment_mode: str = "PAY_AT_SALON"
-    checkout_payment_status: str = "PAY_AT_SALON_PENDING"
-    service_amount: Decimal = Decimal("0")
-    online_processing_charge: Decimal = Decimal("0")
-    total_payable: Decimal = Decimal("0")
-    pending_amount_to_collect: Decimal = Decimal("0")
-    collection_instructions: str | None = None
-    rejection_reason: str | None = None
-    cancellation_reason: str | None = None
-    notes: str | None = None
-    services: list[BookingLineResponse] = Field(default_factory=list)
-    # ── Denormalized display fields (joined from salons + staff) ──────────
-    salon_name: str | None = None
-    salon_address: str | None = None
-    salon_image: str | None = None
-    staff_name: str | None = None
-    staff_photo_url: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    # ── Computed UI helper ────────────────────────────────────────────────
-    latest_payment_request_status: str | None = None
-    latest_payment_request_decision: str | None = None
-    latest_payment_request_reason: str | None = None
-    latest_cancellation_request_status: str | None = None
-    latest_cancellation_request_decision: str | None = None
-    latest_cancellation_request_reason: str | None = None
-    can_cancel: bool = False
-    can_request_cancellation: bool = False
-    can_confirm_payment: bool = False
-    can_record_payment: bool = False
-
-    @model_validator(mode="after")
-    def _set_can_cancel(self) -> "BookingResponse":
-        """Derive customer actions from the configured server policy."""
-
-        now = datetime.now(tz=self.start_datetime.tzinfo)
-        active = self.status in _CANCELLABLE_STATUSES
-        cutoff = self.start_datetime - timedelta(
-            minutes=settings.customer_cancellation_cutoff_minutes
-        )
-        self.can_cancel = active and now < cutoff
-        if self.checkout_policy_version == "u08-2026-10-23-v1":
-            self.can_cancel = active
-        self.can_request_cancellation = (
-            settings.allow_late_cancellation_requests
-            and active
-            and cutoff <= now < self.end_datetime
-            and self.latest_cancellation_request_status != "pending"
-        )
-        if self.checkout_policy_version == "u08-2026-10-23-v1":
-            self.can_request_cancellation = False
-        self.payment_state = derive_payment_state(
-            self.payment_status, self.paid_amount, self.refunded_amount
-        ).value
-        self.service_amount = self.total_price
-        self.payment_mode = "PAY_AT_SALON" if self.payment_preference in {None, "pay_at_salon"} else "PAY_ONLINE"
-        if self.payment_mode == "PAY_AT_SALON":
-            self.online_processing_charge = Decimal("0")
-            self.total_payable = self.total_price
-            self.pending_amount_to_collect = max(Decimal("0"), self.total_price - self.paid_amount + self.refunded_amount)
-            self.checkout_payment_status = "COLLECTED_AT_SALON" if self.payment_status == "paid" else "PAY_AT_SALON_PENDING"
-            self.collection_instructions = "Collect cash or direct UPI from customer before completing service."
-        else:
-            self.total_payable = self.total_price + self.online_processing_charge
-            self.checkout_payment_status = "PAID_ONLINE" if self.payment_status == "paid" else "UNPAID"
-        self.can_confirm_payment = (
-            self.status in {"confirmed", "completed"}
-            and self.payment_status == "unpaid"
-            and self.payment_preference == "pay_at_salon"
-            and now >= self.start_datetime
-            and self.latest_payment_request_status != "pending"
-        )
-        return self
-
-
-class DelayBookingRequest(BaseModel):
-    """Owner/staff request to record a delayed completion estimate."""
-
-    estimated_end_datetime: datetime
-    notify_affected_customers: bool = True
-
-    @field_validator("estimated_end_datetime")
-    @classmethod
-    def require_timezone(cls, value: datetime) -> datetime:
-        """Reject ambiguous local timestamps."""
-
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError("estimated_end_datetime must include a timezone offset")
-        return value
-
-
-class RejectBookingRequest(BaseModel):
-    """Reject booking request.
-
-    The barber must pick a reason so the customer knows why their booking
-    was declined.  Free-form text is the backing field; the UI is expected
-    to offer preset chips that map to localised strings.
-    """
-
-    rejection_reason: str = Field(
-        min_length=1,
-        max_length=500,
-        description="Human-readable reason shown to the customer in the push notification and booking detail screen.",
-    )
-
-
-# ── Cancellation reason codes ─────────────────────────────────────────────────
-# Customer-side codes — shown in the customer app cancellation flow UI.
-CustomerCancellationReasonCode = Literal[
-    "schedule_conflict",
-    "found_better",
-    "personal_emergency",
-    "booked_by_mistake",
-    "service_not_needed",
-    "other",
-]
-
-# Barber/owner-side codes — shown in the owner app when cancelling on behalf
-# of the salon.  These are intentionally different from customer codes.
-BarberCancellationReasonCode = Literal[
-    "barber_unavailable",
-    "salon_emergency",
-    "overbooking",
-    "customer_no_show",
-    "equipment_issue",
-    "other",
-]
-
-# Union kept for schema docs / OpenAPI — both sets share the same DB column.
-CancellationReasonCode = CustomerCancellationReasonCode | BarberCancellationReasonCode
-
-
-class CancelBookingRequest(BaseModel):
-    """Optional body for the customer cancel-booking endpoint.
-
-    Both fields are optional so customers who cancel without specifying a
-    reason (e.g. one-tap cancel) continue to work unchanged.
-    """
-
-    reason_code: CustomerCancellationReasonCode | None = Field(
-        default=None,
-        description="Structured reason chip from the customer cancellation flow UI.",
-    )
-    reason_text: str | None = Field(
-        default=None,
-        max_length=500,
-        description="Free-text note typed by the customer (may be empty).",
-    )
-
-
-class BarberCancelBookingRequest(BaseModel):
-    """Request body for the barber/owner cancel-booking endpoint.
-
-    ``reason_code`` is **required** when the salon cancels so the customer
-    always receives a clear, localised explanation.  ``reason_text`` is
-    optional additional context.
-
-    The combined human-readable string (e.g. ``"Barber unavailable — staffing
-    issue this week"``) is stored in ``bookings.cancellation_reason`` and sent
-    to the customer as a push notification body.
-    """
-
-    reason_code: BarberCancellationReasonCode = Field(
-        description="Structured reason chip shown to the customer.",
-    )
-    reason_text: str | None = Field(
-        default=None,
-        max_length=500,
-        description="Optional free-text note with additional context (shown to the customer).",
-    )
-
-
-class NoShowBookingRequest(BaseModel):
-    """Explicit salon attendance decision; the server enforces the grace period."""
-
-    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
-
-
-class PaymentRequest(BaseModel):
-    """Record booking payment request."""
-
-    payment_method: Literal["cash", "upi_direct"]
-
-
-class NotificationResponse(BaseModel):
-    """Notification response."""
-
-    id: str
-    user_id: str
-    booking_id: str | None = None
-    type: str | None = None
-    title: str
-    body: str | None = None
-    read: bool
-    read_at: datetime | None = None  # set when read flips true (migration 0002)
-    created_at: datetime
-
-    @field_validator("id", "user_id", "booking_id", mode="before")
-    @classmethod
-    def _coerce_uuid_to_str(cls, v: Any) -> Any:
-        """DB returns UUID objects; coerce to str for Pydantic."""
-        if v is not None and not isinstance(v, str):
-            return str(v)
-        return v
-
-
-class MarkAllNotificationsReadResponse(BaseModel):
-    """Number of unread notifications marked as read."""
-
-    updated_count: int = Field(ge=0)
-
-
-class DeviceRegisterRequest(BaseModel):
-    """Device registration request."""
-
-    token: str
-    platform: str | None = None
-    device_name: str | None = None
-
-
-class DeviceRegisterResponse(BaseModel):
-    """Device registration response."""
-
-    id: str
-    token: str
-    platform: str | None = None
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def _coerce_uuid_to_str(cls, v: Any) -> Any:
-        """DB returns UUID objects; coerce to str for Pydantic."""
-        if v is not None and not isinstance(v, str):
-            return str(v)
-        return v
-
-
-# ── Phase 3 additions ─────────────────────────────────────────────────────────
-
-
-class LanguageResponse(BaseModel):
-    """Language reference data response."""
-
-    code: str
-    name: str
-
-
-class StaffServiceLanguagesRequest(BaseModel):
-    """Set language codes for a staff service assignment (idempotent PUT)."""
-
-    language_codes: list[str] = Field(
-        description="ISO 639-1 codes, e.g. ['en', 'ml']. Replaces the current list."
-    )
-
-
-class BlockedSlotCreateRequest(BaseModel):
-    """Create a blocked slot (staff-scoped or salon-wide)."""
-
-    staff_id: str | None = Field(
-        default=None,
-        description="Staff member to block. Leave null for a salon-wide block.",
-    )
-    start_datetime: datetime
-    end_datetime: datetime
-    block_type: Literal["leave", "break", "lunch", "training", "holiday", "other"] = "other"
-    reason: str | None = None
-    is_full_day: bool = False
-    is_recurring: bool = False
-    recurrence_rule: str | None = Field(
-        default=None, description="iCal RRULE string. Stored but not yet interpreted."
-    )
-    recurrence_end: date | None = None
-
-
-class BlockedSlotResponse(BaseModel):
-    """Blocked slot response."""
-
-    id: str
-    staff_id: str | None = None
-    salon_id: str | None = None
-    start_datetime: datetime
-    end_datetime: datetime
-    block_type: str
-    reason: str | None = None
-    is_full_day: bool
-    is_recurring: bool
-    recurrence_rule: str | None = None
-    recurrence_end: date | None = None
-    created_at: datetime
-    updated_at: datetime
-
-
-
-# ── Image upload ───────────────────────────────────────────────────────────────
-
-
-class ImageUploadUrlRequest(BaseModel):
-    """Request body for generating a short-lived backend upload capability.
-
-    The client PUTs image bytes to the backend validation gateway using the returned URL.
-    """
-
-    content_type: str = Field(
-        default="image/jpeg",
-        description="MIME type of the image to upload (e.g. 'image/jpeg', 'image/png').",
-    )
-    filename: str = Field(
-        min_length=1,
-        description="Original filename (e.g. 'cover.jpg'). Used only to derive the file extension.",
-    )
-
-    @field_validator("content_type")
-    @classmethod
-    def validate_content_type(cls, value: str) -> str:
-        """Reject MIME types that are not supported image formats."""
-        from app.application.ports.storage_gateway import _ALLOWED_CONTENT_TYPES
-
-        if value not in _ALLOWED_CONTENT_TYPES:
-            allowed = ", ".join(sorted(_ALLOWED_CONTENT_TYPES))
-            raise ValueError(
-                f"Unsupported content_type '{value}'. Allowed types: {allowed}"
-            )
-        return value
-
-
-class ImageUploadUrlResponse(BaseModel):
-    """Response containing the signed upload URL and resulting public URL.
-
-    Upload flow:
-    1. POST /v1/salons/me/images/upload-url  → receive upload_url + public_url
-    2. PUT <upload_url> with the image binary and a 'Content-Type: <mime>' header
-    3. POST /v1/salons/me/images { "url": "<public_url>", ... } to record in DB
-    """
-
-    upload_url: str = Field(description="Signed PUT URL. Client must PUT to this within expires_in seconds.")
-    result_url: str | None = Field(default=None, description="Read-only URL (cannot upload). GET it after PUT for WebP variant URLs and metadata.")
-    public_url: str = Field(description="Permanent public URL of the uploaded object. Store this in the DB.")
-    expires_in: int = Field(description="Upload URL TTL in seconds.")
-
-
-_UPI_RE = re.compile(r"^[A-Za-z0-9._-]{2,255}@[A-Za-z]{2,64}$")
-_IFSC_RE = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
-_ACCOUNT_RE = re.compile(r"^[0-9]{9,18}$")
-
-
-def _blank_to_none(value: Any) -> Any:
-    """Strip strings; a blank string is treated like an explicit null (clear)."""
-
-    if isinstance(value, str):
-        value = value.strip()
-        return value or None
-    return value
-
-
-class OwnerPayoutAccountRequest(BaseModel):
-    """Partial update of the owner's payout destination (merge semantics).
-
-    Omitted fields keep their stored value; an explicit ``null`` clears the field.
-    Error messages never include the submitted value.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    account_holder_name: str | None = None
-    upi_id: str | None = None
-    bank_name: str | None = None
-    bank_account_number: str | None = None
-    ifsc: str | None = None
-
-    @field_validator("account_holder_name", mode="after")
-    @classmethod
-    def _holder(cls, value: str | None) -> str | None:
-        value = _blank_to_none(value)
-        if value is not None and not 2 <= len(value) <= 100:
-            raise ValueError("Account holder name must be 2-100 characters")
-        return value
-
-    @field_validator("upi_id", mode="after")
-    @classmethod
-    def _upi(cls, value: str | None) -> str | None:
-        value = _blank_to_none(value)
-        if value is None:
-            return None
-        if not _UPI_RE.fullmatch(value):
-            raise ValueError("Enter a valid UPI ID such as name@bank")
-        return value.lower()
-
-    @field_validator("bank_name", mode="after")
-    @classmethod
-    def _bank(cls, value: str | None) -> str | None:
-        value = _blank_to_none(value)
-        if value is not None and len(value) > 100:
-            raise ValueError("Bank name must be at most 100 characters")
-        return value
-
-    @field_validator("bank_account_number", mode="after")
-    @classmethod
-    def _account(cls, value: str | None) -> str | None:
-        value = _blank_to_none(value)
-        if value is not None and not _ACCOUNT_RE.fullmatch(value):
-            raise ValueError("Account number must be 9-18 digits")
-        return value
-
-    @field_validator("ifsc", mode="after")
-    @classmethod
-    def _ifsc(cls, value: str | None) -> str | None:
-        value = _blank_to_none(value)
-        if value is None:
-            return None
-        value = value.upper()
-        if not _IFSC_RE.fullmatch(value):
-            raise ValueError("Enter a valid 11-character IFSC code")
-        return value
-
-
-class OwnerPayoutAccountResponse(BaseModel):
-    """Masked payout account. The full account number is never returned."""
-
-    configured: bool
-    account_holder_name: str | None = None
-    upi_id: str | None = None
-    bank_name: str | None = None
-    bank_account_last4: str | None = None
-    ifsc: str | None = None
-    has_upi: bool
-    has_bank: bool
-    updated_at: datetime | None = None
-
-
-class PayoutSnapshotResponse(BaseModel):
-    """Point-in-time payout destination; the account number is last four digits only."""
-
-    account_holder_name: str | None = None
-    upi_id: str | None = None
-    bank_name: str | None = None
-    ifsc: str | None = None
-    bank_account_last4: str | None = None
-
-
-class PayoutHistoryEntryResponse(BaseModel):
-    """One change to the payout destination."""
-
-    id: str
-    changed_at: datetime
-    action: Literal["created", "updated"]
-    changed_fields: list[str] = Field(default_factory=list)
-    changed_by_name: str | None = None
-    before: PayoutSnapshotResponse | None = None
-    after: PayoutSnapshotResponse
-
-
-class SetupItemResponse(BaseModel):
-    """One step of the new-owner setup checklist."""
-
-    key: Literal["profile_basics", "working_hours", "photos", "services", "staff", "payout"]
-    title: str
-    description: str
-    done: bool
-    action: Literal["business_profile", "working_hours", "photos", "services", "staff", "payout"]
-
-
-class OwnerSetupStatusResponse(BaseModel):
-    """Authoritative checklist of what a new owner still has to finish."""
-
-    completed_count: int
-    total_count: int
-    is_complete: bool
-    items: list[SetupItemResponse]

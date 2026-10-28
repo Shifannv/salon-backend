@@ -4,10 +4,10 @@ from app.api.v1.schemas.media_urls import HostedMediaRequest
 
 from datetime import datetime
 from typing import Any, Literal
-from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt
 
+from app.api.v1.schemas.common import IdStr, UuidAsStr
 from app.api.v1.schemas.platform import SalonPhotos, ServiceResponse, StaffResponse
 
 # ── Admin salon schemas ───────────────────────────────────────────────────────
@@ -25,8 +25,8 @@ class AdminCreateSalonRequest(BaseModel):
 class AdminSalonResponse(BaseModel):
     """Admin view of a salon (includes owner info)."""
 
-    id: str
-    owner_id: str
+    id: IdStr
+    owner_id: IdStr
     owner_email: str | None = None
     owner_name: str | None = None
     owner_phone: str | None = None
@@ -48,7 +48,7 @@ class AdminSalonResponse(BaseModel):
     # --- admin approval gate (added by migration 0015) ---
     approval_status: Literal["pending", "approved", "rejected"]
     approved_at: datetime | None = None
-    approved_by: str | None = None
+    approved_by: IdStr | None = None
     rejection_reason: str | None = None
     # --- super-admin discovery ranking (migration 0017); higher ranks first ---
     display_priority: int = 0
@@ -56,12 +56,7 @@ class AdminSalonResponse(BaseModel):
     home_placement: Literal["top", "normal", "below", "random"] = "normal"
     created_at: datetime
     updated_at: datetime
-    updated_by: str | None = None
-
-    @field_validator("id", "owner_id", "approved_by", "updated_by", mode="before")
-    @classmethod
-    def stringify_ids(cls, value: object) -> str | None:
-        return str(value) if value is not None else None
+    updated_by: IdStr | None = None
 
 
 class AdminApproveSalonRequest(BaseModel):
@@ -129,7 +124,7 @@ class CategoryUpdateRequest(HostedMediaRequest):
 class CategoryResponse(BaseModel):
     """Service category response."""
 
-    id: str
+    id: UuidAsStr
     name: str
     slug: str
     image_url: str | None = None
@@ -138,11 +133,6 @@ class CategoryResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def stringify_uuid(cls, value: object) -> object:
-        return str(value) if isinstance(value, UUID) else value
 
 
 class SubcategoryCreateRequest(HostedMediaRequest):
@@ -170,8 +160,8 @@ class SubcategoryUpdateRequest(HostedMediaRequest):
 class SubcategoryResponse(BaseModel):
     """Service subcategory response."""
 
-    id: str
-    category_id: str
+    id: UuidAsStr
+    category_id: UuidAsStr
     name: str
     slug: str
     image_url: str | None = None
@@ -180,11 +170,6 @@ class SubcategoryResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
-    @field_validator("id", "category_id", mode="before")
-    @classmethod
-    def stringify_uuid(cls, value: object) -> object:
-        return str(value) if isinstance(value, UUID) else value
 
 
 class LanguageResponse(BaseModel):

@@ -22,10 +22,10 @@ Read this site's existing auth, API client, layout and design tokens first, and 
   - **Ended:** "Trial ended" or "Plan ended", with the backend's `wall_messages[0]` text.
 - **Interval toggle:** Monthly, 6 months, Yearly. Each toggle shows a "Save N%" badge, using the smallest `discount_percent` among the plans for that interval.
 - **Plan cards:** Growth (tier 1) and Premium (tier 2) for the selected interval. Each card shows:
-  - the price, from `price_amount` formatted as INR with no decimals (₹1,885);
+  - the price, from `price_amount` formatted as INR with no decimals (₹1,675);
   - the period ("per 6 months");
-  - "₹314 a month", from `monthly_equivalent`, when present;
-  - a "Save 10%" pill;
+  - "₹279 a month", from `monthly_equivalent`, when present;
+  - a "Save 20%" pill;
   - the features list;
   - a **"Special price for your salon"** tag plus the struck-through `default_price_amount` when `custom_price` is true;
   - a **"Current plan"** badge on the active tier;
@@ -40,7 +40,7 @@ Read this site's existing auth, API client, layout and design tokens first, and 
    - `GET /v1/salons/me/subscription`.
 3. **Unknown or missing `plan`:** show "This plan is not available" and a link to `/subscription`.
 4. **Order summary:** plan name, period, price, "Save N%", and the special-price tag if any. Show "Prices are in INR." Do not claim GST is included, because `tax_inclusive` may be null.
-5. **"Pay ₹1,885":**
+5. **"Pay ₹1,675":**
    - Call `POST /v1/salons/me/subscription/checkout`.
    - Open Razorpay Checkout with the returned `client_payload`.
    - On success, call `POST /v1/salons/me/subscription/verify`.
@@ -51,7 +51,7 @@ Read this site's existing auth, API client, layout and design tokens first, and 
 
 - **Base URL:** `https://api.salones.in/v1`, taken from the site's existing env variable. Do not hard-code it.
 - **Auth:** `Authorization: Bearer <supabase access_token>` on every call.
-- **Money:** amounts arrive as strings (`"1885.00"`). Parse them to numbers only for display. Never send a price to the backend.
+- **Money:** amounts arrive as strings (`"1675.00"`). Parse them to numbers only for display. Never send a price to the backend.
 
 | Call | Notes |
 |---|---|

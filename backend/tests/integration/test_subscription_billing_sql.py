@@ -168,9 +168,9 @@ def env(db_url):
 # ============================================================ migrations / seed
 async def test_plans_are_seeded_with_decimal_prices_features_and_unknown_tax(env):
     rows = {r["code"]: r for r in (await _plans(env))}
-    # After migration 0049 the 6m/12m prices were updated (10% / 20% off monthly).
-    expected = {"growth_1m": "349.00", "growth_6m": "1885.00", "growth_12m": "3350.00",
-                "premium_1m": "599.00", "premium_6m": "3235.00", "premium_12m": "5750.00"}
+    # After migration 0049 the 6m/12m prices were updated (20% / 30% off monthly).
+    expected = {"growth_1m": "349.00", "growth_6m": "1675.00", "growth_12m": "2932.00",
+                "premium_1m": "599.00", "premium_6m": "2875.00", "premium_12m": "5032.00"}
     for code, price in expected.items():
         assert str(rows[code]["price_amount"]) == price and rows[code]["currency"] == "INR"
         assert rows[code]["tax_inclusive"] is None

@@ -5,29 +5,26 @@ of ``PaymentGatewayResolver``: booking collection and subscription billing are e
 credentialed and failing independently.
 """
 
-import importlib
-import re
 from functools import lru_cache
 
 from app.application.ports.subscription_provider import SubscriptionProvider
 from app.core.config import Settings
 from app.core.config import settings as default_settings
 from app.core.exceptions import PaymentProviderNotConfiguredError
+from app.infrastructure.adapter_loader import load_adapter
 from app.infrastructure.subscriptions.null import NullSubscriptionProvider
-
-_MODULE_NAME = re.compile(r"[a-z][a-z0-9_]*")
 
 
 def build_subscription_provider(settings: Settings) -> SubscriptionProvider:
     provider = settings.subscription_provider
     if provider == "none":
         return NullSubscriptionProvider()
-    if not _MODULE_NAME.fullmatch(provider):
-        raise PaymentProviderNotConfiguredError("Subscription provider is misconfigured")
-    try:
-        module = importlib.import_module(f"app.infrastructure.subscriptions.{provider}")
-    except ModuleNotFoundError as exc:
-        raise PaymentProviderNotConfiguredError("Subscription adapter is not installed") from exc
+    module = load_adapter(
+        "app.infrastructure.subscriptions",
+        provider,
+        misconfigured="Subscription provider is misconfigured",
+        not_installed="Subscription adapter is not installed",
+    )
     return module.create_provider(settings)
 
 

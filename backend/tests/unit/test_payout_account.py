@@ -326,10 +326,10 @@ async def test_reads_never_provision_a_salon():
 
 def test_repository_never_selects_the_full_account_number():
     source = (Path(__file__).resolve().parents[2] / "app/infrastructure/db/repositories"
-              / "platform_repository.py").read_text(encoding="utf-8")
+              / "platform" / "payouts.py").read_text(encoding="utf-8")
     start = source.index("async def get_payout_account")
-    end = source.index("async def update_owner_salon")
-    block = source[start:end]
+    following = source.find("\n    async def ", start + 1)
+    block = source[start:following if following != -1 else len(source)]
     assert "salon_payout_account_masked" in block
     assert not re.search(r"select[^;]*bbank_account_numberb[^;]*from salon_payout_accounts",
                          block, re.DOTALL)

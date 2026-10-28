@@ -117,6 +117,11 @@ class Settings(BaseSettings):
     # Subscription credentials, deliberately separate from the booking RAZORPAY_* settings.
     subscription_razorpay_key_id: str | None = None
     subscription_razorpay_key_secret: SecretStr | None = None
+    # Cashfree subscription revenue uses its own credentials; booking collection stays independent.
+    subscription_cashfree_client_id: str | None = None
+    subscription_cashfree_client_secret: SecretStr | None = None
+    subscription_cashfree_environment: Literal["sandbox", "production"] = "sandbox"
+    subscription_cashfree_api_version: str = "2026-01-01"
     # Days an expired period keeps the promotion benefit. NO default (a commercial rule):
     # required when the provider is enabled; 0 is a valid explicit "no grace".
     subscription_grace_days: int | None = Field(default=None, ge=0, le=90)
@@ -138,6 +143,16 @@ class Settings(BaseSettings):
     booking_checkout_policy_version: Literal["customer_processing_v1", "u08-2026-10-23-v1"] = "customer_processing_v1"
     # In-memory synthetic adapter only; never permitted on shared/staging/production runtimes.
     payment_fake_enabled: bool = False
+    # Customer/owner WhatsApp + SMS messaging. 'none' sends nothing. No real provider adapter
+    # exists yet (none is selected, funded or approved); 'fake' is an in-process stand-in for
+    # local/test only. Resend stays transactional email and is never used for this.
+    messaging_provider: str = "none"
+    messaging_fake_enabled: bool = False
+    # "Your service is complete" message to a walk-in customer. Off until a provider, consent
+    # wording and a persistent usage store are approved.
+    customer_completion_message_enabled: bool = False
+    # Premium: provider-accepted sends per salon per local calendar month, no carry-over.
+    messaging_monthly_cap: int = Field(default=300, ge=1, le=10000)
     # 'platform_collect' = provider-side split settlement (funds stay in the provider's
     # escrow; the provider splits to each salon's linked account). 'direct_to_salon' is
     # reserved for per-salon credentials, which do not exist yet, so boot refuses it.
@@ -284,6 +299,27 @@ class Settings(BaseSettings):
             if host.endswith(suffix):
                 self.r2_account_id = host.removesuffix(suffix)
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_messaging_settings(self) -> "Settings":
+        """Refuse to run messaging against a provider that does not exist."""
+
+        self.messaging_provider = (self.messaging_provider or "none").strip().lower()
+        if self.messaging_fake_enabled and self.environment not in {"local", "test"}:
+            raise ValueError("MESSAGING_FAKE_ENABLED is restricted to local/test environments")
+        if self.messaging_provider == "fake":
+            if not self.messaging_fake_enabled:
+                raise ValueError("MESSAGING_PROVIDER=fake requires MESSAGING_FAKE_ENABLED=true")
+        elif self.messaging_provider != "none":
+            raise ValueError(
+                f"MESSAGING_PROVIDER={self.messaging_provider!r} has no adapter in "
+                "app/infrastructure/messaging/"
+            )
+        if self.customer_completion_message_enabled and self.messaging_provider == "none":
+            raise ValueError(
+                "CUSTOMER_COMPLETION_MESSAGE_ENABLED requires a MESSAGING_PROVIDER other than none"
+            )
         return self
 
     @model_validator(mode="after")
@@ -448,6 +484,23 @@ class Settings(BaseSettings):
                 self.subscription_allow_live
             ):
                 raise ValueError("A live Razorpay key requires SUBSCRIPTION_ALLOW_LIVE=true")
+        if provider == "cashfree":
+            if not self.subscription_cashfree_client_id or not self.subscription_cashfree_client_secret:
+                raise ValueError(
+                    "SUBSCRIPTION_PROVIDER=cashfree requires SUBSCRIPTION_CASHFREE_CLIENT_ID "
+                    "and SUBSCRIPTION_CASHFREE_CLIENT_SECRET"
+                )
+            if self.subscription_cashfree_environment == "production" and not self.subscription_allow_live:
+                raise ValueError("Live Cashfree subscriptions require SUBSCRIPTION_ALLOW_LIVE=true")
+            if not self.subscription_website_url:
+                raise ValueError("Cashfree subscriptions require SUBSCRIPTION_WEBSITE_URL")
+            if (
+                self.booking_payments_enabled and self.payment_provider == "cashfree"
+                and self.cashfree_client_secret
+                and self.subscription_cashfree_client_secret.get_secret_value()
+                == self.cashfree_client_secret.get_secret_value()
+            ):
+                raise ValueError("Booking and subscription Cashfree webhook credentials must be distinct")
         if self.subscription_grace_days is None:
             raise ValueError(
                 "SUBSCRIPTION_GRACE_DAYS must be set when SUBSCRIPTION_PROVIDER is enabled "

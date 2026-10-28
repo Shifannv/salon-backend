@@ -28,14 +28,11 @@ from sqlalchemy.dialects.postgresql.asyncpg import dialect as asyncpg_dialect
 # pyformat -- the bug only reproduces against the dialect the app actually uses.
 _DIALECT = asyncpg_dialect()
 
-REPOSITORY_PATH = (
-    Path(__file__).parent.parent
-    / "app"
-    / "infrastructure"
-    / "db"
-    / "repositories"
-    / "platform_repository.py"
+REPOSITORY_DIR = (
+    Path(__file__).parent.parent / "app" / "infrastructure" / "db" / "repositories"
 )
+# The repository is a facade over the ``platform`` mixin package; the SQL lives in the mixins.
+REPOSITORY_PATHS = [REPOSITORY_DIR / "platform_repository.py", *sorted((REPOSITORY_DIR / "platform").glob("*.py"))]
 
 # A bind parameter immediately followed by `::` -- the exact shape that fails to compile.
 _UNSAFE_CAST_PATTERN = re.compile(r":[a-zA-Z_][a-zA-Z0-9_]*::")
@@ -49,7 +46,7 @@ def _sql_string_literals() -> list[str]:
     file is written as `text(\"\"\"...\"\"\")`.
     """
 
-    source = REPOSITORY_PATH.read_text(encoding="utf-8")
+    source = "\n".join(path.read_text(encoding="utf-8") for path in REPOSITORY_PATHS)
     return re.findall(r'"""(.*?)"""', source, re.DOTALL)
 
 

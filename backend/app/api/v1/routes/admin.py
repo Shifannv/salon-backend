@@ -49,7 +49,7 @@ def _admin_use_cases(session: AsyncSession, auth_admin: AuthAdminGateway) -> Adm
 
 async def _notify_owner(
     *,
-    user_id: str,
+    user_id: UUID,
     notification_type: str,
     title: str,
     body: str,
@@ -57,7 +57,7 @@ async def _notify_owner(
 ) -> None:
     """Persist and push an owner notification that is not tied to a booking."""
     await enqueue_and_deliver_notification(
-        user_id=user_id,
+        user_id=str(user_id),
         booking_id=None,
         notification_type=notification_type,
         title=title,
@@ -185,7 +185,7 @@ async def reject_salon(
     summary="Update salon (admin)",
 )
 async def update_salon(
-    salon_id: str,
+    salon_id: UUID,
     payload: AdminUpdateSalonRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
@@ -194,7 +194,7 @@ async def update_salon(
     """Update admin-editable salon fields."""
 
     salon = await _admin_use_cases(session, auth_admin).update_salon(
-        actor, salon_id, payload.model_dump(exclude_unset=True)
+        actor, str(salon_id), payload.model_dump(exclude_unset=True)
     )
     return AdminSalonResponse(**salon)
 
@@ -206,15 +206,41 @@ async def update_salon(
     summary="Deactivate salon and ban owner",
 )
 async def deactivate_salon(
-    salon_id: str,
+    salon_id: UUID,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
 ) -> AdminDeactivateSalonResponse:
     """Soft-delete the salon and ban the owner's Supabase Auth account."""
 
-    result = await _admin_use_cases(session, auth_admin).deactivate_salon(actor, salon_id)
+    result = await _admin_use_cases(session, auth_admin).deactivate_salon(actor, str(salon_id))
+    await cache.delete_prefix(f"salon:{salon_id}:")
+    await cache.delete_prefix("walkin:qr:")
     return AdminDeactivateSalonResponse(**result)
+
+
+@router.post(
+    "/salons/{salon_id}/reactivate",
+    response_model=AdminSalonResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reactivate salon and owner",
+)
+async def reactivate_salon(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
+) -> AdminSalonResponse:
+    """Restore an inactive salon and lift the owner's Supabase Auth ban."""
+
+    salon = await _admin_use_cases(session, auth_admin).reactivate_salon(
+        actor, str(salon_id)
+    )
+    await cache.delete_prefix(f"salon:{salon_id}:")
+    await cache.delete_prefix("walkin:qr:")
+    return AdminSalonResponse(**salon)
 
 
 # ── Service catalog management ────────────────────────────────────────────────
@@ -263,7 +289,7 @@ async def create_category(
     summary="Update service category",
 )
 async def update_category(
-    category_id: str,
+    category_id: UUID,
     payload: CategoryUpdateRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
@@ -272,7 +298,7 @@ async def update_category(
     """Update a service category."""
 
     row = await _catalog_use_cases(session).update_category(
-        actor, category_id, payload.model_dump(exclude_unset=True)
+        actor, str(category_id), payload.model_dump(exclude_unset=True)
     )
     await cache.delete("catalog:categories:active")
     await cache.delete(f"catalog:subcategories:active:{category_id}")
@@ -286,14 +312,14 @@ async def update_category(
     summary="Deactivate service category",
 )
 async def deactivate_category(
-    category_id: str,
+    category_id: UUID,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> CategoryResponse:
     """Soft-delete a service category."""
 
-    row = await _catalog_use_cases(session).deactivate_category(actor, category_id)
+    row = await _catalog_use_cases(session).deactivate_category(actor, str(category_id))
     await cache.delete("catalog:categories:active")
     await cache.delete(f"catalog:subcategories:active:{category_id}")
     return CategoryResponse(**row)
@@ -306,7 +332,7 @@ async def deactivate_category(
     summary="List subcategories (admin)",
 )
 async def list_subcategories(
-    category_id: str,
+    category_id: UUID,
     include_inactive: bool = False,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
@@ -314,7 +340,7 @@ async def list_subcategories(
     """List all subcategories for a category."""
 
     rows = await _catalog_use_cases(session).list_subcategories(
-        actor, category_id, include_inactive
+        actor, str(category_id), include_inactive
     )
     return [SubcategoryResponse(**row) for row in rows]
 
@@ -345,7 +371,7 @@ async def create_subcategory(
     summary="Update service subcategory",
 )
 async def update_subcategory(
-    subcategory_id: str,
+    subcategory_id: UUID,
     payload: SubcategoryUpdateRequest,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
@@ -354,7 +380,7 @@ async def update_subcategory(
     """Update a service subcategory."""
 
     row = await _catalog_use_cases(session).update_subcategory(
-        actor, subcategory_id, payload.model_dump(exclude_unset=True)
+        actor, str(subcategory_id), payload.model_dump(exclude_unset=True)
     )
     await cache.delete_prefix("catalog:subcategories:")
     return SubcategoryResponse(**row)
@@ -367,14 +393,14 @@ async def update_subcategory(
     summary="Deactivate service subcategory",
 )
 async def deactivate_subcategory(
-    subcategory_id: str,
+    subcategory_id: UUID,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> SubcategoryResponse:
     """Soft-delete a service subcategory."""
 
-    row = await _catalog_use_cases(session).deactivate_subcategory(actor, subcategory_id)
+    row = await _catalog_use_cases(session).deactivate_subcategory(actor, str(subcategory_id))
     await cache.delete_prefix("catalog:subcategories:")
     return SubcategoryResponse(**row)
 

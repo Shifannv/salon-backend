@@ -1,6 +1,7 @@
 """Per-salon plan prices and the website checkout address (no database: SQL is covered by the
 real-PostgreSQL test in tests/integration/test_subscription_billing_sql.py)."""
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -29,12 +30,17 @@ class FakePlanRepo:
     def __init__(self) -> None:
         self.set_calls: list[tuple] = []
         self.cleared: list[tuple] = []
+        self.last_valid_until = None
 
     async def list_salon_plan_prices(self, salon_id: str) -> list[dict[str, Any]]:
         return []
 
-    async def set_salon_plan_price(self, salon_id, plan_id, price, actor_id):
+    async def get_plan(self, plan_id: str) -> dict[str, Any]:
+        return {"id": plan_id, "price_amount": D("349.00")}
+
+    async def set_salon_plan_price(self, salon_id, plan_id, price, actor_id, valid_until=None):
         self.set_calls.append((salon_id, plan_id, price, actor_id))
+        self.last_valid_until = valid_until
         return {"salon_id": salon_id, "plan_id": plan_id, "price_amount": price}
 
     async def clear_salon_plan_price(self, salon_id, plan_id, actor_id):
@@ -111,6 +117,42 @@ async def test_a_super_admin_sets_a_price_and_the_change_is_attributed_to_them()
     assert repo.cleared == [("salon-1", "plan-1", "admin-1")]
 
 
+async def test_a_super_admin_can_set_a_percentage_and_the_backend_calculates_the_amount():
+    repo = FakePlanRepo()
+    admin = profile(Role.super_admin, "admin-1")
+    await SubscriptionPlanUseCases(repo).set_salon_price(
+        admin, "salon-1", "plan-1", offer_discount_percent=20
+    )
+    assert repo.set_calls == [("salon-1", "plan-1", D("279.20"), "admin-1")]
+
+
+async def test_an_offer_can_end_on_a_future_date():
+    repo = FakePlanRepo()
+    admin = profile(Role.super_admin, "admin-1")
+    until = datetime.now(UTC) + timedelta(days=10)
+    await SubscriptionPlanUseCases(repo).set_salon_price(admin, "s", "p", D("249.00"), valid_until=until)
+    assert repo.last_valid_until == until
+
+
+async def test_an_offer_cannot_end_in_the_past():
+    repo = FakePlanRepo()
+    with pytest.raises(ValidationError):
+        await SubscriptionPlanUseCases(repo).set_salon_price(
+            profile(Role.super_admin, "a"), "s", "p", D("249.00"),
+            valid_until=datetime.now(UTC) - timedelta(minutes=1),
+        )
+    assert repo.set_calls == []
+
+
+async def test_an_offer_amount_must_be_below_the_normal_price():
+    repo = FakePlanRepo()
+    with pytest.raises(ValidationError):
+        await SubscriptionPlanUseCases(repo).set_salon_price(
+            profile(Role.super_admin, "a"), "s", "p", D("349.00")
+        )
+    assert repo.set_calls == []
+
+
 @pytest.mark.parametrize("price", [D("0"), D("-1")])
 async def test_a_price_must_be_above_zero(price):
     repo = FakePlanRepo()
@@ -128,3 +170,10 @@ def test_the_request_rejects_unusable_prices(price):
 def test_the_request_accepts_whole_rupees_and_paise():
     assert PlanPriceSetRequest(price_amount="249").price_amount == D("249")
     assert PlanPriceSetRequest(price_amount="249.50").price_amount == D("249.50")
+
+
+def test_the_request_accepts_exactly_one_offer_input():
+    assert PlanPriceSetRequest(offer_discount_percent=20).offer_discount_percent == 20
+    for payload in ({}, {"price_amount": "249", "offer_discount_percent": 20}):
+        with pytest.raises(PydanticValidationError):
+            PlanPriceSetRequest(**payload)

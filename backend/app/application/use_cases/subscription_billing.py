@@ -20,6 +20,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlencode
 
 from app.application.ports.subscription_provider import (
     ProviderOrder,
@@ -390,6 +391,8 @@ class SubscriptionBillingUseCases:
             actor.id, scope, key, fingerprint, self.settings.payment_idempotency_ttl_seconds
         )
         if replay is not None:
+            if replay.get("provider") != provider.provider_name:
+                raise ConflictError("This payment belongs to a different provider; contact support")
             return replay
 
         plan = await self.repository.get_plan(plan_id)
@@ -410,6 +413,9 @@ class SubscriptionBillingUseCases:
         record = await self.repository.get_open_billing(salon_id)
         resumed = False
         if record is not None:
+            if record["provider"] != provider.provider_name:
+                await self._abandon(actor, scope, key)
+                raise ConflictError("An existing payment uses a different provider; contact support before paying")
             expired = record["expires_at"] <= datetime.now(UTC)
             if str(record["plan_id"]) == str(plan["id"]) and not expired:
                 resumed = True  # a crash/timeout or a second tab: finish the same order
@@ -462,6 +468,17 @@ class SubscriptionBillingUseCases:
             plan_id=str(record["plan_id"]),
             amount=Money(record["amount"]),
             currency=record["currency"],
+            customer_id=str(actor.id),
+            customer_phone=actor.phone,
+            customer_email=actor.email,
+            customer_name=actor.full_name,
+            return_url=(
+                f"{self.settings.subscription_website_url}"
+                f"{'&' if '?' in self.settings.subscription_website_url else '?'}"
+                f"{urlencode({'plan': record['plan_code']})}"
+                if self.settings.subscription_website_url else None
+            ),
+            expires_at=record["expires_at"],
         )
         try:
             order: ProviderOrder | None = None
@@ -486,7 +503,7 @@ class SubscriptionBillingUseCases:
             # e.g. the resumed order was paid meanwhile: free the key so the owner can verify/retry
             await self._abandon(actor, scope, key)
             raise
-        except (PaymentProviderError, ValueError) as exc:
+        except (PaymentProviderError, ValueError, ValidationError) as exc:
             await self.repository.finish_unpaid(str(record["id"]), "failed")
             await self._abandon(actor, scope, key)
             if isinstance(exc, ValueError):

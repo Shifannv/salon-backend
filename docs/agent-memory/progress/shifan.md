@@ -1,5 +1,11 @@
 # Progress: shifan
 
+## Latest scoped subscription release — 28 October 2026
+
+User-authorized percentage deployment completed: production `salon-api-production-subpct-20261028` at 100%, private staging verified, rollback `salon-api-production-api-domain-20261027`. Nine subscription/configuration/row-helper files were overlaid on the previously serving image; broad refactor and Cashfree code were excluded. 0049 was already applied; only additive 0050 was applied after encrypted/hash-verified backup. Prices and existing trials preserved. Website percentage UI was already in production; no website redeployment.
+
+Live Mentrex: 20% -> INR 399.20 against normal INR 499; amount INR 349.30 -> 30%. Owner app and real production review matched, including Choose Growth navigation. Production browser owner/salon/plan UUIDs matched DB and remained identical after a full Chrome restart and website logout/re-login (user signed in themselves). Private plans were 401 while logged out. Read-only deployed SQL proved another salon receives normal INR 499, no custom offer. Temporary overrides restored to zero via guarded test cleanup with verification audit events. No payment, manual activation, booking mutation or Cashfree enablement. Exact candidate 95 tests, scoped Ruff, image and staged/live smoke passed. Report: `backend/docs/verification/subscription-percentage-release-2026-10-28.md`; owner private receipts: `.tmp/subscription-release-20261028/`. Older status below predates this release.
+
 ## Goal
 Continue owner/customer verification, profile/photo fixes, matching notification cards and live push checks. Keep service taxonomy; user now explicitly approved removal of only business-profile category. Historical work below remains for context.
 
@@ -8,20 +14,12 @@ Set up the Claude Code workspace (.claude/, CLAUDE.md) and the agent-memory syst
 Latest continuation (2026-10-19): took over the payment/subscription/booking backend plan from Codex (docs only so far), shipped local WebP image variants, and cleaned the Claude tooling. Two local commits (28bf921 image + U06/U07 docs, b0957a5 .claude cleanup) are unpushed pending owner approval. Prepared migrations 0038-0040 and `alembic stamp` remain held.
 
 ## Status
-In progress, 27 October (Claude session): store launch is blocked by production account
-deletion (assessment §41: no ACCOUNT_DELETION_SECRET, no deletion job, empty Alembic history).
-Codex is running "Prompt E": a restored-copy rehearsal of the CURRENT serving image +
-throwaway secret + `maintenance_job account-deletion` to test whether deletion can go live
-without the 0041–0048 chain. Resend Reply-To support shipped in c936cd0 (pushed; misleading
-commit message, also carries graphify cache files). Master plan (workstreams 1–6) lives in
-the Claude plan file; summary in Next steps. iOS and Cashfree are deferred by the user.
-Wrap: Ruff clean; pytest 1416 passed/165 skipped/0 failed.
-Prompt E result: FAIL (job module absent from serving image; owner erasure leaves support
-reply/quote/email-copy text). User chose the TARGETED HOTFIX (no migrations). Claude wrote it
-in git-ignored backend/.artifacts/deletion-hotfix-20261027/ (3 files vs serving digest
-dfb24746…: modified account_deletion_repository.py, new privacy.py, new maintenance_job.py;
-5 real-PG regression tests RED on serving, GREEN patched; Ruff clean; README there). Next: Codex
-rehearsal of the candidate on the restored Mumbai copy (Prompt G), then approved release.
+In progress, 28 October (Claude session): deletion hotfix staged release paused at step 2
+(secret version 2 created; semantic verification prompt sent to Codex). Steps 3-5 (image
+push, Cloud Run Job, zero-traffic tagged revision) not yet run. Traffic 100% on
+salon-api-production-api-domain-20261027. Migration 0049 applied to prod DB; staging
+sub0049-28f6e94-20261027 healthy; owner plan-response smoke pending. iOS and Cashfree deferred.
+Wrap: Ruff clean; pytest 1438 passed/180 skipped/0 failed.
 
 Earlier backend continuation,25 October: approved selective closed-salon support
 retention and numeric/boolean-only historical purchase benefits are prepared as0048.
@@ -102,11 +100,11 @@ Final backend suite1285 passed/95 skipped, one dependency deprecation warning; R
 Store-launch priorities, 27 October (supersede everything below). Work split: Claude
 plans/codes/reviews; Codex runs GCP/Supabase/Vercel/Cloudflare/device tests from prompts.
 
-1. Review the Codex "Prompt E" report (restored-copy deletion rehearsal). PASS: Codex adds
-   ACCOUNT_DELETION_SECRET to Secret Manager `salon-production-env`, creates a Cloud Run Job
-   running `python -m app.infrastructure.maintenance_job account-deletion` plus Scheduler,
-   then erases the authorised disposable customer (written approval each step). FAIL: Claude
-   writes the state-adoption procedure + tests (never hand-stamp `alembic_version`).
+1. Review Codex's report on the semantic check of secret version 2 plus steps 3-5 (push,
+   Cloud Run Job empty-queue run, zero-traffic tag deletion-r2-review). Evidence folder:
+   backend/.artifacts/deletion-r2-approved-stage-20261027/. If the check fails, do not use
+   version 2. Steps 6-8 (disposable deletion via tagged URL, Scheduler, promote) wait until the
+   user says "OTP implemented" and gives separate written approval.
 2. New chat: Resend MCP (plugin installed) → read-only check that salones.in is Verified and
    whether `send.salones.in` → `send.forge.rmta.net` matches Resend's records. No sends.
 3. Codex adds RESEND_FROM_EMAIL / RESEND_REPLY_TO_EMAIL / SUPPORT_EMAIL / RESEND_DOMAIN_VERIFIED
@@ -434,3 +432,5 @@ Earlier queued work (reassess after these gates):
 - 2026-10-27: User accepted benefits gap + untested edge cases. Real OTP not implemented yet, so live deletion test is gated. Staged release approved: RELEASE_DRAFT steps 1-5 now (Prompt I: backup, secret v2, push, job, zero-traffic tagged revision); steps 6-8 (live disposable deletion on tagged URL, Scheduler, promote) wait for user to say OTP implemented.
 - 2026-10-27: Prompt I stopped at consumer gate: local compose container backend-account-deletion-worker-1 targets the Mumbai prod DB (crash-looping on DNS, unhealthy, no signing secret). User must stop it (docker stop, not remove) then re-run Prompt I. Local email/media/payment/notification workers also up 45h - user to check whether they target prod.
 - 2026-10-27: User-approved API hostname migration completed. api.salones.in DNS-only A uses existing IP/load balancer; new managed TLS ACTIVE after33.5min, old certificate/host retained. Exact serving image with only PUBLIC_API_BASE_URL changed now revision salon-api-production-api-domain-20261027 at100%; service max1/min0 retained. Exact-source Vercel rebuild dpl_HGNpHYpouqTNyKTADFJY5HsmTQkH promoted; www pages/BFF healthy. Both API origins7/7 checks, same119-path contract; staging403. All local API settings/templates and production EAS profiles updated. Backend1438pass176skip/Ruff; customer400tests+8release/type/lint; owner17API/type/lint. Local APK markers pass, no install/store/OTA; owner needed bundle --rerun. Owner ignored .env was rewritten with stale duplicate URLs during session, final reapplied targeted URL corrections; monitor concurrent saves. Receipt backend/docs/verification/API_DOMAIN_MIGRATION_2026-10-27.md holds rollback, APK hashes and limits. No new paid plan/load balancer, unrelated backend release, migration or worker activation.
+- 2026-10-27 20:12 IST subscription continuation: user explicitly accepted verified local recovery copies because hosted backups absent/PITR off. Scoped encrypted exports 19:49:28 IST outside repo; exact0049 applied once transactionally20:01:34 IST,13statements, no Alembic/history writes. RLS/grants/prices/default500 verified; seven started trials retain120. Shared DB change affects production defaults/data, production code remains api-domain-20261027 at100%. New staging sub0049-28f6e94-20261027 ready100%, private IAM; health/DB/Redis/config/OpenAPI/CORS pass, both production hostshealthy. Ruff clean1438pass180skip; owner plan-response test pending genuine owner session. Next: complete owner smoke, then wait explicit go production. Do not rerun0049 or activate unrelated workers. Report backend/docs/verification/SUBSCRIPTION_0049_STAGING_2026-10-27.md; no commit/push.
+- 2026-10-28: Deletion hotfix staged release step 2 stopped twice on secret version checks. First: guard correctly blocked because version 1 had a blank ACCOUNT_DELETION_SECRET= placeholder. Second: version 2 created with correct key/value but byte-exact readback failed due to Secret Manager line-ending normalisation (expected transport behaviour). Semantic verification (key-value equality ignoring line endings; key once, value ≥32 chars, other keys preserved, no new keys) approved by user. Revised Codex prompt sent to resume semantic check on version 2 and continue steps 3-5. Steps 3-5 still NOT run; traffic 100% on salon-api-production-api-domain-20261027. Ruff clean; 1438 passed/180 skipped.

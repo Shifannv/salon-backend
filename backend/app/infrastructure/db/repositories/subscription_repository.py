@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+from collections.abc import Collection
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
@@ -10,6 +12,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.infrastructure.db.rows import one_dict_or_none
+
+# Columns update_subscription_status may set alongside ``status`` (names go into SQL text).
+_STATUS_EXTRA_COLUMNS = frozenset({"cancelled_at"})
 
 
 class SubscriptionPlanRepo:
@@ -86,7 +92,11 @@ class SubscriptionPlanRepo:
             text("""
                 select o.salon_id, o.plan_id, p.code as plan_code,
                        o.price_amount, p.price_amount as default_price_amount,
-                       o.set_by, o.updated_at
+                       case when p.price_amount > o.price_amount
+                            then round((1 - o.price_amount / p.price_amount) * 100)::int
+                            else null end as offer_discount_percent,
+                       o.set_by, o.updated_at, o.valid_until,
+                       (o.valid_until is not null and o.valid_until <= now()) as expired
                 from salon_plan_prices o
                 join subscription_plans p on p.id = o.plan_id
                 where o.salon_id = :salon
@@ -97,7 +107,12 @@ class SubscriptionPlanRepo:
         return [dict(r) for r in result.mappings().all()]
 
     async def set_salon_plan_price(
-        self, salon_id: str, plan_id: str, price: Decimal, actor_id: str
+        self,
+        salon_id: str,
+        plan_id: str,
+        price: Decimal,
+        actor_id: str,
+        valid_until: datetime | None = None,
     ) -> dict[str, Any]:
         """Upsert the price this salon pays for a plan, and record who changed it."""
 
@@ -113,13 +128,13 @@ class SubscriptionPlanRepo:
             raise NotFoundError("Subscription plan not found")
         await self.session.execute(
             text("""
-                insert into salon_plan_prices (salon_id, plan_id, price_amount, set_by)
-                values (:salon, :plan, :price, :actor)
+                insert into salon_plan_prices (salon_id, plan_id, price_amount, set_by, valid_until)
+                values (:salon, :plan, :price, :actor, :until)
                 on conflict (salon_id, plan_id) do update
                   set price_amount = excluded.price_amount, set_by = excluded.set_by,
-                      updated_at = now()
+                      valid_until = excluded.valid_until, updated_at = now()
             """),
-            {"salon": salon_id, "plan": plan_id, "price": price, "actor": actor_id},
+            {"salon": salon_id, "plan": plan_id, "price": price, "actor": actor_id, "until": valid_until},
         )
         await self._audit("admin_plan_price_set", salon_id, plan_id, str(price), actor_id)
         await self.session.commit()
@@ -175,8 +190,7 @@ class SalonSubscriptionRepo:
             """),
             {"salon_id": salon_id},
         )
-        row = result.mappings().one_or_none()
-        return dict(row) if row else None
+        return one_dict_or_none(result)
 
     async def create_subscription(self, values: dict[str, Any]) -> dict[str, Any]:
         result = await self.session.execute(
@@ -194,23 +208,53 @@ class SalonSubscriptionRepo:
         return dict(result.mappings().one())
 
     async def update_subscription_status(
-        self, subscription_id: str, status: str, **kwargs: Any
+        self,
+        subscription_id: str,
+        status: str,
+        *,
+        allowed_from: Collection[str] | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
+        """Move a subscription to ``status``.
+
+        With ``allowed_from`` the UPDATE only matches rows currently in one of those
+        states (atomic guard). A miss on an existing row is a no-op when it already
+        holds ``status`` (idempotent repeat) and a ``ConflictError`` otherwise.
+        """
+        unknown = set(kwargs) - _STATUS_EXTRA_COLUMNS
+        if unknown:
+            raise ValueError(f"Unsupported subscription columns: {sorted(unknown)}")
         extra_sets = "".join(f", {k} = :{k}" for k in kwargs)
+        guard = " and cast(status as text) = any(:allowed)" if allowed_from is not None else ""
+        params: dict[str, Any] = {"id": subscription_id, "status": status, **kwargs}
+        if allowed_from is not None:
+            params["allowed"] = [str(s) for s in allowed_from]
         result = await self.session.execute(
             text(f"""
                 update salon_subscriptions
                 set status = cast(:status as subscription_status){extra_sets}
-                where id = :id
+                where id = :id{guard}
                 returning *
             """),
-            {"id": subscription_id, "status": status, **kwargs},
+            params,
         )
-        row = result.mappings().one_or_none()
-        if row is None:
+        row = one_dict_or_none(result)
+        if row is not None:
+            await self.session.commit()
+            return row
+        current = one_dict_or_none(
+            await self.session.execute(
+                text("select * from salon_subscriptions where id = :id"),
+                {"id": subscription_id},
+            )
+        )
+        if current is None:
             raise NotFoundError("Subscription not found")
-        await self.session.commit()
-        return dict(row)
+        if str(current["status"]) == str(status):
+            return current
+        raise ConflictError(
+            f"Subscription cannot move from '{current['status']}' to '{status}'"
+        )
 
     async def get_active_promotion_weight(self, salon_id: str) -> int:
         result = await self.session.execute(

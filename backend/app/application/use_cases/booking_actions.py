@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import BackgroundTasks
 
+from app.application.use_cases.paging import paging_kwargs
 from app.application.use_cases.workspace import assert_approved_workspace
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError
@@ -45,7 +46,12 @@ class BookingActionRequestUseCases:
         return item
 
     async def list_requests(
-        self, actor: Profile, request_status: str | None
+        self,
+        actor: Profile,
+        request_status: str | None,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """List requests in an authenticated salon workspace."""
 
@@ -53,7 +59,7 @@ class BookingActionRequestUseCases:
             raise ForbiddenError("Salon workspace access required")
         await assert_approved_workspace(self.repository, actor)
         return await self.repository.list_booking_action_requests(
-            actor.id, request_status
+            actor.id, request_status, **paging_kwargs(limit, offset)
         )
 
     async def respond(

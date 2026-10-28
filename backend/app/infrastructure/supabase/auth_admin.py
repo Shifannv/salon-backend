@@ -70,6 +70,21 @@ class SupabaseAuthAdminGateway(AuthAdminGateway):
                 f"Could not ban Supabase Auth user {user_id}: {response.status_code}"
             )
 
+    async def unban_user(self, user_id: str) -> None:
+        """Lift an existing Supabase Auth ban."""
+
+        base_url, headers = self._admin_base()
+        import httpx  # on first use, to keep it out of cold start
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.put(
+                f"{base_url}/auth/v1/admin/users/{user_id}",
+                json={"ban_duration": "none"},
+                headers=headers,
+            )
+        if response.is_error:
+            raise ServiceUnavailableError("Authentication provider could not reactivate the user")
+
     async def get_user(self, user_id: str) -> AuthUserContacts | None:
         """Return the provider's verified contacts for a user."""
 

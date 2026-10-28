@@ -59,6 +59,12 @@ class SubscriptionOrderRequest:
     amount: Money
     currency: str = "INR"
     description: str | None = None
+    customer_id: str | None = None
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    customer_name: str | None = None
+    return_url: str | None = None
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +126,7 @@ class SubscriptionClientConfig:
     """What a WEB checkout needs. Never contains a secret."""
 
     provider: str
-    public_key: str
+    public_key: str | None
 
 
 class SubscriptionProvider(ABC):

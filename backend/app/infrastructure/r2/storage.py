@@ -163,7 +163,7 @@ class R2StorageGateway(ImageFamilies, StorageGateway):
         except Exception as exc:
             raise ValidationError("Photo is missing or has not passed image validation") from exc
 
-    def _head_sync(self, path: str) -> dict:
+    def _head_sync(self, path: str) -> dict[str, Any]:
         return self._get_client().head_object(Bucket=self.settings.r2_bucket, Key=path)
 
     def _list_sync(self, params: dict) -> dict:

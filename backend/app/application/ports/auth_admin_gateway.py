@@ -68,6 +68,10 @@ class AuthAdminGateway(ABC):
         """
 
     @abstractmethod
+    async def unban_user(self, user_id: str) -> None:
+        """Lift a Supabase Auth ban so the user can sign in again."""
+
+    @abstractmethod
     async def get_user(self, user_id: str) -> AuthUserContacts | None:
         """Return the provider's verified contacts for a user, or None if absent."""
 

@@ -140,7 +140,12 @@ async def set_salon_plan_price(
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> PlanPriceResponse:
     row = await _plan_uc(session).set_salon_price(
-        actor, str(salon_id), str(plan_id), payload.price_amount
+        actor,
+        str(salon_id),
+        str(plan_id),
+        price=payload.price_amount,
+        offer_discount_percent=payload.offer_discount_percent,
+        valid_until=payload.valid_until,
     )
     return PlanPriceResponse(**row)
 

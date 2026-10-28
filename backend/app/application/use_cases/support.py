@@ -1,24 +1,27 @@
 """Authorized support requests and replies, saved atomically with business email."""
 
-import hashlib
-import json
+from typing import Any
 
-from app.core.exceptions import ForbiddenError, IdempotencyKeyRequiredError, NotFoundError
-from app.domain.entities.profile import Role
+from app.application.use_cases.idempotency import check_idempotency_key_length, fingerprint_of
+from app.core.exceptions import ForbiddenError, NotFoundError
+from app.domain.entities.profile import Profile, Role
 
 
 class SupportUseCases:
-    def __init__(self, repository, settings):
+    def __init__(self, repository: Any, settings: Any) -> None:
         self.repository = repository
         self.settings = settings
 
-    async def begin(self, actor, scope, key, values):
-        if not key or not 8 <= len(key) <= 200:
-            raise IdempotencyKeyRequiredError("Idempotency-Key must be 8-200 characters")
-        digest = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()
+    async def begin(
+        self, actor: Profile, scope: str, key: str | None, values: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        check_idempotency_key_length(key, max_len=200, reject_blank=False)
+        digest = fingerprint_of(values)
         return await self.repository.begin_idempotent(actor.id, scope, key, digest, 86400)
 
-    async def create(self, actor, values, key):
+    async def create(
+        self, actor: Profile, values: dict[str, Any], key: str | None
+    ) -> dict[str, Any]:
         if actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer or owner access required")
         await self.repository.lock_active_author(actor.id)
@@ -39,7 +42,7 @@ class SupportUseCases:
         await self.repository.commit()
         return result
 
-    async def read(self, actor, ticket_id):
+    async def read(self, actor: Profile, ticket_id: str) -> dict[str, Any]:
         ticket = await self.repository.get_ticket(ticket_id)
         if ticket and (ticket.get("retained_restricted") or ticket.get("privacy_restricted")) and actor.role != Role.super_admin:
             raise NotFoundError("Support ticket not found")
@@ -48,7 +51,9 @@ class SupportUseCases:
             raise NotFoundError("Support ticket not found")
         return {**ticket, "messages": await self.repository.messages(ticket_id)}
 
-    async def reply(self, actor, ticket_id, body, key):
+    async def reply(
+        self, actor: Profile, ticket_id: str, body: str, key: str | None
+    ) -> dict[str, Any]:
         if actor.role not in {Role.owner, Role.super_admin}:
             raise ForbiddenError("Owner or admin access required")
         await self.repository.lock_active_author(actor.id)

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 
 BillingIntervalLiteral = Literal["monthly", "quarterly", "semiannual", "yearly"]
 SubscriptionStatusLiteral = Literal[
@@ -13,9 +13,20 @@ SubscriptionStatusLiteral = Literal[
 
 
 class PlanPriceSetRequest(BaseModel):
-    """The price one salon pays for one plan, instead of the plan's normal price."""
+    """Set a salon offer using either its final amount or its discount percentage."""
 
-    price_amount: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    price_amount: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    offer_discount_percent: int | None = Field(default=None, ge=1, le=99)
+    valid_until: AwareDatetime | None = Field(
+        default=None,
+        description="When the offer ends, with a timezone. Omit to keep it until an admin clears it.",
+    )
+
+    @model_validator(mode="after")
+    def require_one_offer_input(self) -> "PlanPriceSetRequest":
+        if (self.price_amount is None) == (self.offer_discount_percent is None):
+            raise ValueError("Provide exactly one of price_amount or offer_discount_percent")
+        return self
 
 
 class PlanPriceResponse(BaseModel):
@@ -24,8 +35,11 @@ class PlanPriceResponse(BaseModel):
     plan_code: str
     price_amount: Decimal = Field(max_digits=10, decimal_places=2)
     default_price_amount: Decimal = Field(max_digits=10, decimal_places=2)
+    offer_discount_percent: int | None = None
     set_by: str | None = None
     updated_at: datetime
+    valid_until: datetime | None = None
+    expired: bool = False
 
     @field_validator("salon_id", "plan_id", "set_by", mode="before")
     @classmethod

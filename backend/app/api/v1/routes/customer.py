@@ -2,6 +2,7 @@
 
 from dataclasses import asdict
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -204,7 +205,7 @@ async def nearby_salons(
     summary="Get salon details",
 )
 async def get_salon(
-    salon_id: str,
+    salon_id: UUID,
     session: AsyncSession = Depends(get_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> SalonDetailResponse:
@@ -213,10 +214,10 @@ async def get_salon(
     cache_key = f"salon:{salon_id}:detail"
     cached = await cache.get(cache_key)
     if cached is not None:
-        await _use_cases(session).assert_public_salon(salon_id)
+        await _use_cases(session).assert_public_salon(str(salon_id))
         return SalonDetailResponse(**cached)
 
-    salon = await _use_cases(session).get_salon(salon_id)
+    salon = await _use_cases(session).get_salon(str(salon_id))
     await cache.set(cache_key, salon, ttl=180)
     return SalonDetailResponse(**salon)
 
@@ -228,7 +229,7 @@ async def get_salon(
     summary="List salon services",
 )
 async def list_salon_services(
-    salon_id: str,
+    salon_id: UUID,
     session: AsyncSession = Depends(get_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> list[ServiceResponse]:
@@ -237,10 +238,10 @@ async def list_salon_services(
     cache_key = f"salon:{salon_id}:services"
     cached = await cache.get(cache_key)
     if cached is not None:
-        await _use_cases(session).assert_public_salon(salon_id)
+        await _use_cases(session).assert_public_salon(str(salon_id))
         return [ServiceResponse(**row) for row in cached]
 
-    rows = await _use_cases(session).list_salon_services(salon_id)
+    rows = await _use_cases(session).list_salon_services(str(salon_id))
     await cache.set(cache_key, rows, ttl=180)
     return [ServiceResponse(**row) for row in rows]
 
@@ -252,7 +253,7 @@ async def list_salon_services(
     summary="List salon staff",
 )
 async def list_salon_staff(
-    salon_id: str,
+    salon_id: UUID,
     session: AsyncSession = Depends(get_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> list[PublicStaffResponse]:
@@ -261,10 +262,10 @@ async def list_salon_staff(
     cache_key = f"salon:{salon_id}:staff"
     cached = await cache.get(cache_key)
     if cached is not None:
-        await _use_cases(session).assert_public_salon(salon_id)
+        await _use_cases(session).assert_public_salon(str(salon_id))
         return [PublicStaffResponse(**row) for row in cached]
 
-    rows = await _use_cases(session).list_salon_staff(salon_id)
+    rows = await _use_cases(session).list_salon_staff(str(salon_id))
     await cache.set(cache_key, rows, ttl=180)
     return [PublicStaffResponse(**row) for row in rows]
 
@@ -313,7 +314,7 @@ async def list_public_categories(
     ),
 )
 async def list_public_subcategories(
-    category_id: str = Path(description="The service category UUID"),
+    category_id: UUID = Path(description="The service category UUID"),
     session: AsyncSession = Depends(get_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> list[SubcategoryResponse]:
@@ -325,7 +326,7 @@ async def list_public_subcategories(
         return [SubcategoryResponse(**item) for item in cached]
 
     repo = PlatformRepository(session)
-    rows = await repo.list_subcategories(category_id, include_inactive=False)
+    rows = await repo.list_subcategories(str(category_id), include_inactive=False)
     results = [
         {**row, "id": str(row["id"]), "category_id": str(row["category_id"])}
         for row in rows

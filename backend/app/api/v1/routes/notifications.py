@@ -1,6 +1,8 @@
 """Notification and device API routes."""
 
-from fastapi import APIRouter, Depends, Response, status
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor
@@ -28,12 +30,14 @@ def _use_cases(session: AsyncSession) -> NotificationUseCases:
     summary="List notifications",
 )
 async def list_notifications(
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[NotificationResponse]:
     """List notifications owned by the actor."""
 
-    rows = await _use_cases(session).list_notifications(actor)
+    rows = await _use_cases(session).list_notifications(actor, limit=limit, offset=offset)
     return [NotificationResponse(**row) for row in rows]
 
 
@@ -44,13 +48,13 @@ async def list_notifications(
     summary="Mark notification read",
 )
 async def mark_notification_read(
-    notification_id: str,
+    notification_id: UUID,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> NotificationResponse:
     """Mark one notification as read."""
 
-    row = await _use_cases(session).mark_read(actor, notification_id)
+    row = await _use_cases(session).mark_read(actor, str(notification_id))
     return NotificationResponse(**row)
 
 

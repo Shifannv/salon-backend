@@ -17,6 +17,7 @@ the upstream service reports as permanently invalid.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -39,6 +40,32 @@ _EXPO_TOKEN_PREFIX = "ExponentPushToken["
 # Android channel created by the owner app (high importance, audible). Apps that do not
 # define it (e.g. the customer app) fall back to their default channel, so this is safe.
 _ANDROID_CHANNEL_ID = "salon-alerts-v3"
+
+# Legacy error-code fragments that mean the FCM token can never receive pushes again.
+_PERMANENT_FCM_ERROR_FRAGMENTS = ("registration-token-not-registered", "invalid-argument")
+
+
+def _token_ref(token: str) -> str:
+    """Short non-reversible reference to a push token, safe to log."""
+
+    return hashlib.sha256(token.encode()).hexdigest()[:8]
+
+
+def _is_permanent_fcm_error(exc: Exception) -> bool:
+    """True when Firebase reports the registration token as unregistered or invalid."""
+
+    try:
+        from firebase_admin import exceptions as fb_exceptions  # type: ignore[import]
+        from firebase_admin import messaging  # type: ignore[import]
+
+        if isinstance(
+            exc, (messaging.UnregisteredError, fb_exceptions.InvalidArgumentError)
+        ):
+            return True
+    except ImportError:
+        pass  # firebase-admin absent: fall back to the message fragments below
+    message = str(exc)
+    return any(fragment in message for fragment in _PERMANENT_FCM_ERROR_FRAGMENTS)
 
 
 class FCMGateway(PushGateway):
@@ -163,8 +190,8 @@ class FCMGateway(PushGateway):
                     if details.get("error") == "DeviceNotRegistered":
                         await self._deactivate_token(token)
         except Exception as exc:
-            error_msg = str(exc)
-            logger.warning("Expo push failed for token %s: %s", token[:40], error_msg)
+            error_msg = type(exc).__name__
+            logger.warning("Expo push failed for token %s: %s", _token_ref(token), error_msg)
 
         await self._write_delivery(str(notification["id"]), token, delivered, error_msg)
 
@@ -194,8 +221,9 @@ class FCMGateway(PushGateway):
             error_msg = None
         except Exception as exc:
             delivered = False
-            error_msg = str(exc)
-            if "registration-token-not-registered" in error_msg or "invalid-argument" in error_msg:
+            error_msg = type(exc).__name__
+            logger.warning("FCM push failed for token %s: %s", _token_ref(token), error_msg)
+            if _is_permanent_fcm_error(exc):
                 await self._deactivate_token(token)
 
         await self._write_delivery(str(notification["id"]), token, delivered, error_msg)
@@ -239,10 +267,10 @@ class FCMGateway(PushGateway):
             self._app = firebase_admin.get_app()
             return self._app
         except ValueError:
-            pass
+            pass  # no default app yet: expected on first use, initialise it below
 
         cred = credentials.Certificate(
-            json.loads(self.settings.firebase_credentials_json)  # type: ignore[arg-type]
+            json.loads(self.settings.firebase_credentials_json)  # type: ignore[arg-type]  # guarded non-empty by _send_fcm
         )
         self._app = firebase_admin.initialize_app(cred)
         return self._app

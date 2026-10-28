@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_auth_admin_gateway, get_authenticated_session, get_current_actor
+from app.api.deps import (
+    get_auth_admin_gateway,
+    get_authenticated_session,
+    get_cache,
+    get_current_actor,
+)
 from app.application.use_cases.admin import AdminUseCases
 from app.application.use_cases.booking_actions import BookingActionRequestUseCases, ClosureUseCases
 from app.application.use_cases.platform import BookingUseCases, OwnerUseCases
@@ -56,6 +61,43 @@ async def test_decisions_record_verified_admin_and_trim_reason_without_banning_o
     with pytest.raises(ValidationError):
         await uc.reject_salon(make_super_admin(), "salon-001", "   ")
     gateway.ban_user.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_super_admin_reactivates_salon_and_unbans_owner_before_database_activation():
+    repo = make_mock_repo()
+    repo.admin_get_salon.return_value = {
+        "id": "salon-001",
+        "owner_id": "owner-001",
+        "is_active": False,
+    }
+    repo.admin_reactivate_salon = AsyncMock(
+        return_value={"id": "salon-001", "owner_id": "owner-001", "is_active": True}
+    )
+    gateway = AsyncMock()
+
+    result = await AdminUseCases(repo, gateway).reactivate_salon(
+        make_super_admin(), "salon-001"
+    )
+
+    assert result["is_active"] is True
+    gateway.unban_user.assert_awaited_once_with("owner-001")
+    repo.admin_reactivate_salon.assert_awaited_once_with("salon-001")
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_reactivate_salon():
+    repo = make_mock_repo()
+    repo.admin_reactivate_salon = AsyncMock()
+    gateway = AsyncMock()
+
+    with pytest.raises(ForbiddenError):
+        await AdminUseCases(repo, gateway).reactivate_salon(
+            make_profile(role=Role.owner), "salon-001"
+        )
+
+    gateway.unban_user.assert_not_awaited()
+    repo.admin_reactivate_salon.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -128,11 +170,54 @@ def test_admin_approval_routes_enforce_use_case_authorization():
     try:
         client = TestClient(app)
         path = "/v1/admin/salons/00000000-0000-0000-0000-000000000001"
-        for suffix, body in [("approve", None), ("reject", {"rejection_reason": "Fix setup"})]:
+        for suffix, body in [
+            ("approve", None),
+            ("reject", {"rejection_reason": "Fix setup"}),
+            ("reactivate", None),
+        ]:
             response = client.post(f"{path}/{suffix}", json=body)
             assert response.status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_reactivate_http_contract_returns_salon_and_invalidates_public_caches():
+    from unittest.mock import patch
+
+    async def session():
+        yield object()
+
+    salon = {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "owner_id": "00000000-0000-0000-0000-000000000002",
+        "name": "Salon",
+        "timezone": "UTC",
+        "approval_mode": "auto",
+        "profile_completed": False,
+        "is_active": True,
+        "approval_status": "pending",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+    }
+    use_cases = AsyncMock()
+    use_cases.reactivate_salon.return_value = salon
+    cache = AsyncMock()
+    app.dependency_overrides[get_current_actor] = lambda: make_super_admin()
+    app.dependency_overrides[get_authenticated_session] = session
+    app.dependency_overrides[get_auth_admin_gateway] = lambda: object()
+    app.dependency_overrides[get_cache] = lambda: cache
+    try:
+        with patch("app.api.v1.routes.admin._admin_use_cases", return_value=use_cases):
+            response = TestClient(app).post(
+                "/v1/admin/salons/00000000-0000-0000-0000-000000000001/reactivate"
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is True
+    cache.delete_prefix.assert_any_await("salon:00000000-0000-0000-0000-000000000001:")
+    cache.delete_prefix.assert_any_await("walkin:qr:")
 
 
 def test_owner_salon_response_exposes_approved_at_for_the_verified_celebration():

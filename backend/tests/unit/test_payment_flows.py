@@ -391,8 +391,9 @@ async def test_reconcile_applies_provider_truth_and_expires_unpaid_intents():
 
 # -------------------------------------------------------- manual receipt path
 def test_platform_repository_no_longer_writes_payment_status_directly():
-    source = (Path(__file__).resolve().parents[2] / "app/infrastructure/db/repositories"
-              / "platform_repository.py").read_text(encoding="utf-8")
+    repo_dir = Path(__file__).resolve().parents[2] / "app/infrastructure/db/repositories"
+    source = "\n".join(f.read_text(encoding="utf-8") for f in
+                       [repo_dir / "platform_repository.py", *sorted((repo_dir / "platform").glob("*.py"))])
     assert not re.search(r"set\s+payment_status", source)
     assert "payment_method = 'cash'" not in source
     assert "insert into booking_payments" in source
@@ -495,4 +496,4 @@ def test_migration_heads_are_linear():
         revisions[rev] = down.group(1) if down else None
     parents = [d for d in revisions.values() if d]
     assert len(parents) == len(set(parents)), "two revisions share a parent (branch)"
-    assert [r for r in revisions if r not in parents] == ["0049_trial_salon_plan_prices"]
+    assert [r for r in revisions if r not in parents] == ["0050_plan_price_valid_until"]

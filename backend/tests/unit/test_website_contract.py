@@ -50,7 +50,7 @@ def qr_client():
     cache = InMemoryCache()
     actor = make_profile()
     uc = AsyncMock(unsafe=True)
-    uc.assert_public_qr_token.side_effect = lambda token: {"qr-a": "salon-a", "qr-b": "salon-b"}[token]
+    uc.assert_public_qr_token.side_effect = lambda token: {"qr-a": "11111111-1111-4111-8111-11111111111a", "qr-b": "11111111-1111-4111-8111-11111111111b"}[token]
     async def validate_context(actor, token, values):
         salon_id = await uc.assert_public_qr_token(token)
         if values["salon_id"] != salon_id:
@@ -58,7 +58,7 @@ def qr_client():
         return salon_id
     uc.validate_booking_context.side_effect = validate_context
     uc.resolve_qr_token.side_effect = lambda token: {
-        "id": {"qr-a": "salon-a", "qr-b": "salon-b"}[token],
+        "id": {"qr-a": "11111111-1111-4111-8111-11111111111a", "qr-b": "11111111-1111-4111-8111-11111111111b"}[token],
         "name": token, "timezone": "UTC", "approval_mode": "auto",
     }
     app.dependency_overrides[get_current_actor] = lambda: actor
@@ -76,10 +76,10 @@ def qr_client():
 def test_qr_cache_cannot_return_other_salon_and_fresh_bypasses_cache(qr_client):
     client, cache, uc = qr_client
     cache._store["walkin:qr:qr-a"] = {
-        "id": "salon-b", "name": "Wrong", "timezone": "UTC", "approval_mode": "auto",
+        "id": "11111111-1111-4111-8111-11111111111b", "name": "Wrong", "timezone": "UTC", "approval_mode": "auto",
     }
-    assert client.get("/v1/walkin/qr-a").json()["id"] == "salon-a"
-    assert client.get("/v1/walkin/qr-b").json()["id"] == "salon-b"
+    assert client.get("/v1/walkin/qr-a").json()["id"] == "11111111-1111-4111-8111-11111111111a"
+    assert client.get("/v1/walkin/qr-b").json()["id"] == "11111111-1111-4111-8111-11111111111b"
     client.get("/v1/walkin/qr-a?fresh=true")
     assert uc.resolve_qr_token.await_count == 3
 
@@ -95,10 +95,10 @@ def test_invalid_qr_cannot_send_otp(qr_client):
 
 def test_qr_route_forwards_retries_to_database_idempotency(qr_client):
     client, cache, _ = qr_client
-    payload = {"salon_id": "salon-a", "staff_id": "staff-a", "service_ids": ["service-a"],
+    payload = {"salon_id": "11111111-1111-4111-8111-11111111111a", "staff_id": "22222222-2222-4222-8222-222222222222", "service_ids": ["33333333-3333-4333-8333-333333333333"],
                "start_datetime": datetime.now(UTC).isoformat(), "customer_name": "Customer"}
     use_cases = AsyncMock()
-    use_cases.create_walkin_booking.return_value = make_booking(salon_id="salon-a")
+    use_cases.create_walkin_booking.return_value = make_booking(salon_id="11111111-1111-4111-8111-11111111111a")
     headers = {"Idempotency-Key": "same-attempt"}
     with patch("app.api.v1.routes.walkin.WalkInUseCases", return_value=use_cases):
         assert client.post("/v1/walkin/qr-a/bookings", json=payload, headers=headers).status_code == 201
@@ -111,8 +111,8 @@ def test_qr_route_forwards_retries_to_database_idempotency(qr_client):
         assert client.post("/v1/walkin/qr-a/bookings", json=changed, headers=headers).status_code == 409
         use_cases.create_walkin_booking.side_effect = None
         assert client.post("/v1/walkin/qr-b/bookings", json=payload, headers=headers).status_code == 422
-        use_cases.create_walkin_booking.return_value = make_booking(salon_id="salon-b")
-        assert client.post("/v1/walkin/qr-b/bookings", json={**payload, "salon_id": "salon-b"},
+        use_cases.create_walkin_booking.return_value = make_booking(salon_id="11111111-1111-4111-8111-11111111111b")
+        assert client.post("/v1/walkin/qr-b/bookings", json={**payload, "salon_id": "11111111-1111-4111-8111-11111111111b"},
                            headers=headers).status_code == 201
     assert not any(key.startswith("idempotency:") for key in cache._store)
 
@@ -121,7 +121,7 @@ def test_qr_replay_revalidates_publication(qr_client):
     client, cache, uc = qr_client
     cache._store["idempotency:walkin:v2:user-001:qr-a:key"] = {}
     uc.assert_public_qr_token.side_effect = NotFoundError("Salon not found")
-    payload = {"salon_id": "salon-a", "staff_id": "staff-a", "service_ids": ["service-a"],
+    payload = {"salon_id": "11111111-1111-4111-8111-11111111111a", "staff_id": "22222222-2222-4222-8222-222222222222", "service_ids": ["33333333-3333-4333-8333-333333333333"],
                "start_datetime": datetime.now(UTC).isoformat(), "customer_name": "Customer"}
     assert client.post("/v1/walkin/qr-a/bookings", json=payload,
                        headers={"Idempotency-Key": "key"}).status_code == 404

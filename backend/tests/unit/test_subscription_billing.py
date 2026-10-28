@@ -371,6 +371,19 @@ async def test_checkout_replay_returns_the_stored_response_without_a_second_orde
         await uc.checkout(owner(), "plan-g6", "key-12345678")
 
 
+async def test_provider_switch_never_resumes_or_replays_an_order_through_another_gateway():
+    uc, repo, provider = make()
+    body = await uc.checkout(owner(), "plan-g1", "key-12345678")
+    repo.rows[body["billing_id"]]["provider"] = "other"
+    with pytest.raises(ConflictError, match="different provider"):
+        await uc.checkout(owner(), "plan-g1", "key-another123")
+    assert provider.calls.count("create") == 1
+    replay = repo.idem[(owner().id, "sub-checkout:salon-1", "key-12345678")]
+    replay["provider"] = "other"
+    with pytest.raises(ConflictError, match="different provider"):
+        await uc.checkout(owner(), "plan-g1", "key-12345678")
+
+
 async def test_checkout_requires_a_key_and_an_enabled_provider():
     uc, _, _ = make()
     for bad in (None, "", "short"):

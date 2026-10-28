@@ -11,6 +11,7 @@ from app.infrastructure.db.session import AsyncSessionLocal
 from app.infrastructure.email.resend import ResendEmailGateway
 
 _log = logging.getLogger(__name__)
+_BUSY_SLEEP_SECONDS = 0.1  # pause between events while the queue still has work
 
 
 async def deliver_once(session_factory=AsyncSessionLocal, gateway=None):
@@ -52,8 +53,8 @@ async def deliver_once(session_factory=AsyncSessionLocal, gateway=None):
         try:
             provider_id = await gateway.send(recipient=current["recipient"], subject=current["subject"],
                                              body=current["body"], event_key=current["event_key"])
-        except Exception:
-            _log.error("ALERT email_delivery failed event_id=%s", current["id"])
+        except Exception as exc:
+            _log.error("ALERT email_delivery failed event_id=%s error=%s", current["id"], type(exc).__name__)
             await session.execute(text("""
                 update email_events set status=case when attempts >= :max then 'failed' else 'pending' end,
                   last_error_code='provider_unavailable',locked_at=null,
@@ -71,10 +72,10 @@ async def main():
     while True:
         try:
             worked = await deliver_once()
-        except Exception:
-            _log.error("ALERT email_delivery worker_unavailable")
+        except Exception as exc:
+            _log.error("ALERT email_delivery worker_unavailable error=%s", type(exc).__name__)
             worked = False
-        await asyncio.sleep(0.1 if worked else settings.email_worker_poll_seconds)
+        await asyncio.sleep(_BUSY_SLEEP_SECONDS if worked else settings.email_worker_poll_seconds)
 
 
 if __name__ == "__main__":

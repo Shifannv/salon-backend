@@ -155,6 +155,7 @@ def make_mock_repo() -> MagicMock:
         "admin_create_salon",
         "admin_update_salon",
         "admin_deactivate_salon",
+        "admin_reactivate_salon",
         "list_categories",
         "get_category",
         "create_category",
