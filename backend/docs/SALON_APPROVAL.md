@@ -24,7 +24,9 @@ is `super_admin`. The API provides:
 - `POST /v1/admin/salons/{salon_id}/reject` with
   `{"rejection_reason":"Please correct the address"}`: reject without banning.
 - Existing update/deactivate endpoints remain available; deactivation disables the
-  salon and owner's account separately from rejection.
+  salon and owner's account separately from rejection. `POST
+  /v1/admin/salons/{salon_id}/reactivate` restores salon and owner access without
+  changing approval, discovery, onboarding, or subscription state.
 
 A rejected owner corrects setup and calls complete-profile again. This resets only
 the rejected salon to pending and clears the reason. Calling complete-profile on an

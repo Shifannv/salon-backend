@@ -170,6 +170,17 @@ class AdminUseCases:
         await self.auth_admin.ban_user(owner_id)
         return result
 
+    async def reactivate_salon(self, actor: Profile, salon_id: str) -> dict[str, Any]:
+        """Restore an inactive salon and its owner's sign-in access."""
+
+        self._assert_admin(actor)
+        salon = await self.approval_repository.admin_get_salon(salon_id)
+        owner_id = str(salon["owner_id"])
+        # Restore provider access first. If the DB step fails, the still-inactive profile
+        # continues to deny application access and a retry is safe.
+        await self.auth_admin.unban_user(owner_id)
+        return await self.repository.admin_reactivate_salon(salon_id)
+
     async def approve_salon(
         self,
         actor: Profile,

@@ -210,11 +210,37 @@ async def deactivate_salon(
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
 ) -> AdminDeactivateSalonResponse:
     """Soft-delete the salon and ban the owner's Supabase Auth account."""
 
     result = await _admin_use_cases(session, auth_admin).deactivate_salon(actor, str(salon_id))
+    await cache.delete_prefix(f"salon:{salon_id}:")
+    await cache.delete_prefix("walkin:qr:")
     return AdminDeactivateSalonResponse(**result)
+
+
+@router.post(
+    "/salons/{salon_id}/reactivate",
+    response_model=AdminSalonResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reactivate salon and owner",
+)
+async def reactivate_salon(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
+) -> AdminSalonResponse:
+    """Restore an inactive salon and lift the owner's Supabase Auth ban."""
+
+    salon = await _admin_use_cases(session, auth_admin).reactivate_salon(
+        actor, str(salon_id)
+    )
+    await cache.delete_prefix(f"salon:{salon_id}:")
+    await cache.delete_prefix("walkin:qr:")
+    return AdminSalonResponse(**salon)
 
 
 # ── Service catalog management ────────────────────────────────────────────────

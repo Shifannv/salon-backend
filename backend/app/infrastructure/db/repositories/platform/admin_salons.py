@@ -193,6 +193,29 @@ class AdminSalonsMixin:
         await self.session.commit()
         return dict(row)
 
+    async def admin_reactivate_salon(self, salon_id: str) -> dict[str, Any]:
+        """Reactivate a salon and its local owner profile atomically."""
+
+        result = await self.session.execute(
+            text(
+                """
+                update salons set is_active = true
+                where id = :salon_id
+                returning owner_id
+                """
+            ),
+            {"salon_id": salon_id},
+        )
+        owner_id = result.scalar_one_or_none()
+        if owner_id is None:
+            raise NotFoundError("Salon not found")
+        await self.session.execute(
+            text("update profiles set is_active = true where id = :owner_id"),
+            {"owner_id": str(owner_id)},
+        )
+        await self.session.commit()
+        return await self.admin_get_salon(salon_id)
+
     # ------------------------------------------------------------------
     # Admin — catalog (service categories & subcategories)
     # ------------------------------------------------------------------

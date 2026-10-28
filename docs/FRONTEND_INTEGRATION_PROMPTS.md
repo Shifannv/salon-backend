@@ -340,7 +340,10 @@ home_placement top/normal/random/below and display_priority. Explain hidden disc
 does not disable an approved direct QR, and random is a stable shuffled group. Preview
 with public home/search APIs; keep shuffle_seed stable and use server ordering.
 Salon deactivation is a separate confirmed action that also disables/bans the owner;
-there is no current reactivate API. Explain existing-booking consequences.
+POST /v1/admin/salons/{id}/reactivate restores salon and owner access without changing
+approval, discovery or subscription state. Explain existing-booking consequences. Do not
+offer admin hard deletion: permanent owner-data erasure requires the verified account-
+deletion flow and its retention/anonymization rules.
 
 Wire admin category/subcategory management and supported subscription plan/current
 subscription/event controls. Label /subscription/test as manual/test activation,

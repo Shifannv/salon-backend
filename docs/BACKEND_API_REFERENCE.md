@@ -581,6 +581,7 @@ Available to all authenticated roles (customer, owner, staff).
 | POST | `/v1/admin/salons/{salon_id}/approve` | Approve Salon | 200 |
 | POST | `/v1/admin/salons/{salon_id}/reject` | Reject Salon | 200 |
 | POST | `/v1/admin/salons/{salon_id}/deactivate` | Deactivate salon and ban owner | 200 |
+| POST | `/v1/admin/salons/{salon_id}/reactivate` | Reactivate salon and owner | 200 |
 | GET | `/v1/admin/catalog/categories` | List service categories (admin) | 200 |
 | POST | `/v1/admin/catalog/categories` | Create service category | 201 |
 | PATCH | `/v1/admin/catalog/categories/{category_id}` | Update service category | 200 |
@@ -725,6 +726,30 @@ Soft-delete the salon and ban the owner's Supabase Auth account.
 **Success 200:** `application/json`: [AdminDeactivateSalonResponse](#model-admindeactivatesalonresponse).
 
 **Source:** [backend/app/api/v1/routes/admin.py](../backend/app/api/v1/routes/admin.py) (`deactivate_salon`).
+
+### POST `/v1/admin/salons/{salon_id}/reactivate`
+
+**Purpose:** Reactivate a deactivated salon and restore its owner's access.
+
+**Access:** Bearer; route role gate: super_admin; application scope checks also apply.
+
+Lifts the owner's Supabase Auth ban, activates the local owner profile and salon, and
+invalidates public salon and QR caches. It does not change approval, discovery,
+subscription, or onboarding state.
+
+| Parameter | Location | Required | Type | Declared constraints/default |
+| --- | --- | --- | --- | --- |
+| `salon_id` | path | yes | string (uuid) |  |
+
+**Body:** No declared request-body model.
+
+**Success 200:** `application/json`: [AdminSalonResponse](#model-adminsalonresponse).
+
+**Source:** [backend/app/api/v1/routes/admin.py](../backend/app/api/v1/routes/admin.py) (`reactivate_salon`).
+
+There is intentionally no admin `DELETE /salons/{salon_id}` route. Permanent owner-data
+erasure uses the verified account-deletion flow and preserves or anonymizes retained
+booking and financial records according to `backend/docs/ACCOUNT_DELETION.md`.
 
 ### GET `/v1/admin/catalog/categories`
 

@@ -236,8 +236,11 @@ table writes. The customer app must consume the same surface=home/search contrac
 
 Treat deactivation as a separate, high-impact action:
 POST /v1/admin/salons/{id}/deactivate disables the salon and bans the owner.
-Require an explicit confirmation and explain existing-booking implications. There is
-no current reactivate endpoint; do not label this as a reversible discovery toggle.
+Require an explicit confirmation and explain existing-booking implications.
+POST /v1/admin/salons/{id}/reactivate restores the salon and owner access but does not
+change approval, discovery, onboarding or subscription state. There is intentionally no
+admin hard-delete route; verified permanent owner-data erasure uses the account-deletion
+flow so retained bookings and financial records are handled correctly.
 
 SUBSCRIPTIONS: CURRENT CONTRACT AND FUTURE BOUNDARY
 
