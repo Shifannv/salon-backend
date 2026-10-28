@@ -1,5 +1,11 @@
 # Progress: shifan
 
+## Latest scoped subscription release — 28 October 2026
+
+User-authorized percentage deployment completed: production `salon-api-production-subpct-20261028` at 100%, private staging verified, rollback `salon-api-production-api-domain-20261027`. Nine subscription/configuration/row-helper files were overlaid on the previously serving image; broad refactor and Cashfree code were excluded. 0049 was already applied; only additive 0050 was applied after encrypted/hash-verified backup. Prices and existing trials preserved. Website percentage UI was already in production; no website redeployment.
+
+Live Mentrex: 20% -> INR 399.20 against normal INR 499; amount INR 349.30 -> 30%. Owner app and real production review matched, including Choose Growth navigation. Production browser owner/salon/plan UUIDs matched DB and remained identical after a full Chrome restart and website logout/re-login (user signed in themselves). Private plans were 401 while logged out. Read-only deployed SQL proved another salon receives normal INR 499, no custom offer. Temporary overrides restored to zero via guarded test cleanup with verification audit events. No payment, manual activation, booking mutation or Cashfree enablement. Exact candidate 95 tests, scoped Ruff, image and staged/live smoke passed. Report: `backend/docs/verification/subscription-percentage-release-2026-10-28.md`; owner private receipts: `.tmp/subscription-release-20261028/`. Older status below predates this release.
+
 ## Goal
 Continue owner/customer verification, profile/photo fixes, matching notification cards and live push checks. Keep service taxonomy; user now explicitly approved removal of only business-profile category. Historical work below remains for context.
 

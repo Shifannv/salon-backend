@@ -143,6 +143,16 @@ class Settings(BaseSettings):
     booking_checkout_policy_version: Literal["customer_processing_v1", "u08-2026-10-23-v1"] = "customer_processing_v1"
     # In-memory synthetic adapter only; never permitted on shared/staging/production runtimes.
     payment_fake_enabled: bool = False
+    # Customer/owner WhatsApp + SMS messaging. 'none' sends nothing. No real provider adapter
+    # exists yet (none is selected, funded or approved); 'fake' is an in-process stand-in for
+    # local/test only. Resend stays transactional email and is never used for this.
+    messaging_provider: str = "none"
+    messaging_fake_enabled: bool = False
+    # "Your service is complete" message to a walk-in customer. Off until a provider, consent
+    # wording and a persistent usage store are approved.
+    customer_completion_message_enabled: bool = False
+    # Premium: provider-accepted sends per salon per local calendar month, no carry-over.
+    messaging_monthly_cap: int = Field(default=300, ge=1, le=10000)
     # 'platform_collect' = provider-side split settlement (funds stay in the provider's
     # escrow; the provider splits to each salon's linked account). 'direct_to_salon' is
     # reserved for per-salon credentials, which do not exist yet, so boot refuses it.
@@ -289,6 +299,27 @@ class Settings(BaseSettings):
             if host.endswith(suffix):
                 self.r2_account_id = host.removesuffix(suffix)
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_messaging_settings(self) -> "Settings":
+        """Refuse to run messaging against a provider that does not exist."""
+
+        self.messaging_provider = (self.messaging_provider or "none").strip().lower()
+        if self.messaging_fake_enabled and self.environment not in {"local", "test"}:
+            raise ValueError("MESSAGING_FAKE_ENABLED is restricted to local/test environments")
+        if self.messaging_provider == "fake":
+            if not self.messaging_fake_enabled:
+                raise ValueError("MESSAGING_PROVIDER=fake requires MESSAGING_FAKE_ENABLED=true")
+        elif self.messaging_provider != "none":
+            raise ValueError(
+                f"MESSAGING_PROVIDER={self.messaging_provider!r} has no adapter in "
+                "app/infrastructure/messaging/"
+            )
+        if self.customer_completion_message_enabled and self.messaging_provider == "none":
+            raise ValueError(
+                "CUSTOMER_COMPLETION_MESSAGE_ENABLED requires a MESSAGING_PROVIDER other than none"
+            )
         return self
 
     @model_validator(mode="after")

@@ -1,5 +1,7 @@
 # Codex prompt: deploy migration 0049 and the subscription backend to GCP
 
+> Current status, 28 October 2026: percentage offers are deployed to production and live-verified, including the same owner/salon UUID after browser restart and logout/re-login. See `backend/docs/verification/subscription-percentage-release-2026-10-28.md` for the exact image, rollback, additive 0050 migration and cleanup evidence. This document below is historical; do not rerun 0049 or reset current prices.
+
 > Cashfree checkout follow-up (28 October 2026): the new one-time Cashfree subscription adapter and website integration are documented in `backend/docs/SUBSCRIPTION_CASHFREE_SETUP.md`. This older 0049 runbook alone does not enable that flow. Check the currently deployed contract and migration state before using it; never rerun 0049 if already applied or overwrite later admin price changes with the historical expected prices below. Merchant credentials belong in backend deployment secrets, not the owner app. Cashfree sandbox acceptance and production activation remain separate release gates.
 
 Paste everything below the line into Codex. It runs with your gcloud CLI.
