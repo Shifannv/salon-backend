@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from app.application.use_cases.paging import paging_kwargs
 from app.domain.entities.profile import Profile
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
@@ -12,10 +13,16 @@ class NotificationUseCases:
     def __init__(self, repository: PlatformRepository) -> None:
         self.repository = repository
 
-    async def list_notifications(self, actor: Profile) -> list[dict[str, Any]]:
-        """List actor notifications."""
+    async def list_notifications(
+        self, actor: Profile, *, limit: int | None = None, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """List actor notifications, newest first.
 
-        return await self.repository.list_notifications(actor.id)
+        Without ``limit`` the repository applies its safety ceiling; ``limit`` and
+        ``offset`` are forwarded only when the caller set them.
+        """
+
+        return await self.repository.list_notifications(actor.id, **paging_kwargs(limit, offset))
 
     async def mark_read(self, actor: Profile, notification_id: str) -> dict[str, Any]:
         """Mark notification as read."""

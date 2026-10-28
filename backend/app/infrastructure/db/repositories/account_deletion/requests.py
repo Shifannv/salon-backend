@@ -9,7 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import DeletionBlockedError, InvalidVerificationCodeError
 from app.core.tokens import digests_match
 from app.infrastructure.db.json_utils import decode_json
-from app.infrastructure.db.repositories.account_deletion.constants import *
+from app.infrastructure.db.repositories.account_deletion.constants import (
+    _OWNED_SALONS,
+    SHELL_SALON_NAME,
+)
 from app.infrastructure.db.repositories.payment_repository import _SETTLED
 
 

@@ -16,6 +16,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.domain.entities.profile import Profile, Role
+from app.domain.services.authorization import is_owner_or_staff
 from app.domain.services.booking_policy import can_record_payment
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
@@ -199,7 +200,7 @@ class BookingUseCases:
         self, actor: Profile, booking_id: str, *, no_show: bool,
         idempotency_key: str | None, reason: str | None = None,
         background_tasks: BackgroundTasks | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         await assert_approved_workspace(self.repository, actor)
         if no_show and (not isinstance(reason, str) or not reason.strip()):
             raise ValidationError("A reason is required when marking a customer as a no-show")

@@ -51,6 +51,7 @@ from app.domain.entities.provider_finance import (
     require_positive_money,
 )
 from app.domain.value_objects.money import Money
+from app.infrastructure.webhook_signing import header
 
 _TEST_SIGNING_KEY = b"public-fake-provider-test-key-v1"
 _REFERENCE = re.compile(r"fake_[a-z]+_[0-9a-f]{32}\Z")
@@ -356,7 +357,7 @@ class FakeProvider(PaymentGateway, PayoutProvider, ProviderFeeReconciler):
         return MockWebhook(body, {"x-fake-signature": signature})
 
     def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
-        signature = next((v for k, v in headers.items() if k.lower() == "x-fake-signature"), "")
+        signature = header(headers, "x-fake-signature") or ""
         if not isinstance(signature, str) or not re.fullmatch(r"[0-9a-f]{64}", signature):
             return False
         expected = hmac.new(_TEST_SIGNING_KEY, raw_body, hashlib.sha256).hexdigest()

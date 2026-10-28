@@ -5,7 +5,14 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.db.repositories.account_deletion.constants import *
+from app.infrastructure.db.repositories.account_deletion.constants import (
+    _OWNED_SALONS,
+    CLOSURE_NOTICE_BASE,
+    CLOSURE_NOTICE_MANUAL,
+    CLOSURE_NOTICE_ONLINE,
+    CLOSURE_REFUND_KEY,
+    SALON_CLOSED_REASON,
+)
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )

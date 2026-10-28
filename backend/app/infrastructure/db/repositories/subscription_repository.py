@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, NotFoundError
 from app.infrastructure.db.rows import one_dict_or_none
 
+# Columns update_subscription_status may set alongside ``status`` (names go into SQL text).
+_STATUS_EXTRA_COLUMNS = frozenset({"cancelled_at"})
+
 
 class SubscriptionPlanRepo:
     def __init__(self, session: AsyncSession) -> None:
@@ -187,8 +190,7 @@ class SalonSubscriptionRepo:
             """),
             {"salon_id": salon_id},
         )
-        row = result.mappings().one_or_none()
-        return dict(row) if row else None
+        return one_dict_or_none(result)
 
     async def create_subscription(self, values: dict[str, Any]) -> dict[str, Any]:
         result = await self.session.execute(
@@ -219,6 +221,9 @@ class SalonSubscriptionRepo:
         states (atomic guard). A miss on an existing row is a no-op when it already
         holds ``status`` (idempotent repeat) and a ``ConflictError`` otherwise.
         """
+        unknown = set(kwargs) - _STATUS_EXTRA_COLUMNS
+        if unknown:
+            raise ValueError(f"Unsupported subscription columns: {sorted(unknown)}")
         extra_sets = "".join(f", {k} = :{k}" for k in kwargs)
         guard = " and cast(status as text) = any(:allowed)" if allowed_from is not None else ""
         params: dict[str, Any] = {"id": subscription_id, "status": status, **kwargs}

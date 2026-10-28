@@ -1,4 +1,7 @@
-"""Cashfree Payment Gateway + Easy Split adapter: the ONLY module that knows Cashfree's wire format.
+"""Cashfree booking Payment Gateway + Easy Split adapter.
+
+Platform subscription revenue uses the separate subscriptions/cashfree.py adapter and
+SUBSCRIPTION_CASHFREE_* credentials; enabling this booking adapter is not required for it.
 
 Deleting this file removes Cashfree without touching the payment core (``PAYMENT_PROVIDER`` is
 resolved by module name; see ``resolver.py``).

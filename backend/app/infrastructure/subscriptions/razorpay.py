@@ -23,11 +23,9 @@ Conventions:
 """
 
 import hashlib
-import hmac
 import json
 import logging
 from collections.abc import Mapping
-from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import httpx
@@ -47,7 +45,14 @@ from app.application.ports.subscription_provider import (
 from app.core.config import Settings
 from app.core.exceptions import PaymentOutcomeUnknownError, PaymentProviderError
 from app.domain.value_objects.money import Money
-from app.infrastructure.webhook_signing import header, hex_hmac
+from app.infrastructure.gateway_common import (
+    error_code_of,
+    from_paise,
+    to_paise,
+    verify_order_payment_signature,
+    verify_webhook_signature,
+)
+from app.infrastructure.webhook_signing import header
 
 logger = logging.getLogger(__name__)
 
@@ -73,14 +78,6 @@ _EVENT_KINDS = {
     "refund.processed": SubscriptionEventKind.refund_processed,
     "refund.failed": SubscriptionEventKind.refund_failed,
 }
-
-
-def to_paise(amount: Money) -> int:
-    return int((amount.amount * 100).to_integral_value(ROUND_HALF_UP))
-
-
-def from_paise(paise: int | str | Decimal) -> Money:
-    return Money((Decimal(paise) / 100).quantize(Decimal("0.01"), ROUND_HALF_UP))
 
 
 class RazorpaySubscriptionProvider(SubscriptionProvider):
@@ -129,11 +126,7 @@ class RazorpaySubscriptionProvider(SubscriptionProvider):
             logger.warning("Subscription provider unreachable: %s %s", method, path)
             raise PaymentOutcomeUnknownError("Subscription provider is unreachable") from exc
         if response.status_code >= 400:
-            code = None
-            try:
-                code = (response.json().get("error") or {}).get("code")
-            except ValueError:
-                pass
+            code = error_code_of(response)
             logger.warning(
                 "Subscription provider rejected %s: status=%s code=%s",
                 method,
@@ -249,14 +242,12 @@ class RazorpaySubscriptionProvider(SubscriptionProvider):
 
     # ------------------------------------------------------------- verification
     def verify_client_callback(self, order_ref: str, payment_ref: str, signature: str) -> bool:
-        expected = hex_hmac(self._key_secret, f"{order_ref}|{payment_ref}".encode())
-        return hmac.compare_digest(expected, signature or "")
+        return verify_order_payment_signature(self._key_secret, order_ref, payment_ref, signature)
 
     def verify_webhook_signature(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
-        signature = header(headers, "x-razorpay-signature")
-        if not signature or not self._webhook_secret:
-            return False
-        return hmac.compare_digest(hex_hmac(self._webhook_secret, raw_body), signature)
+        return verify_webhook_signature(
+            self._webhook_secret, raw_body, headers, "x-razorpay-signature"
+        )
 
     def parse_event(
         self, raw_body: bytes, headers: Mapping[str, str]

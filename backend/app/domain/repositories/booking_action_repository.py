@@ -22,7 +22,12 @@ class BookingActionRepository(Protocol):
         """Create one eligible customer request and its owner notification."""
 
     async def list_booking_action_requests(
-        self, actor_id: str, request_status: str | None
+        self,
+        actor_id: str,
+        request_status: str | None,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """List action requests scoped to an owner/staff workspace."""
 

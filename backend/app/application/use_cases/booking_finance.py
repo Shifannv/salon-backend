@@ -4,12 +4,13 @@ from decimal import Decimal
 from typing import Any
 
 from app.application.ports.booking_finance import BookingFinanceGateway
-from app.core.exceptions import ForbiddenError, IdempotencyKeyRequiredError
+from app.application.use_cases.idempotency import check_idempotency_key_length
+from app.core.exceptions import ForbiddenError
 from app.domain.entities.profile import Profile, Role
 
 
 class BookingFinanceUseCases:
-    def __init__(self, repository: BookingFinanceGateway):
+    def __init__(self, repository: BookingFinanceGateway) -> None:
         self.repository = repository
 
     async def statement(self, actor: Profile, booking_id: str, *, admin: bool = False) -> dict[str, Any]:
@@ -23,7 +24,6 @@ class BookingFinanceUseCases:
                       action: str, amount: Decimal, reference: str) -> dict[str, Any]:
         if actor.role != Role.super_admin:
             raise ForbiddenError("Finance administrator access required")
-        if key is None or not 8 <= len(key) <= 128 or not key.strip():
-            raise IdempotencyKeyRequiredError("Idempotency-Key must be 8-128 characters")
+        check_idempotency_key_length(key, max_len=128)
         await self.repository.command(booking_id, version, key, action, amount, reference)
         return await self.repository.statement(booking_id, actor.id, admin=True)

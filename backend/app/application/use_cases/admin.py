@@ -9,9 +9,9 @@ from app.application.ports.auth_admin_gateway import AuthAdminGateway
 from app.application.ports.salon_approval_repository import SalonApprovalRepository
 from app.application.ports.storage_gateway import StorageGateway
 from app.application.use_cases.media_publication import validate_media_reference
-from app.core.exceptions import ConflictError, ForbiddenError, ValidationError
+from app.core.exceptions import ConflictError, ValidationError
 from app.domain.entities.profile import Profile
-from app.domain.services.authorization import is_super_admin
+from app.domain.services.authorization import require_super_admin
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 _log = logging.getLogger(__name__)
@@ -49,8 +49,7 @@ class AdminUseCases:
         self.notify_owner = notify_owner
 
     def _assert_admin(self, actor: Profile) -> None:
-        if not is_super_admin(actor):
-            raise ForbiddenError("Super admin access required")
+        require_super_admin(actor)
 
     async def create_salon_owner(
         self,
@@ -140,8 +139,11 @@ class AdminUseCases:
         self, owner_id: str, title: str, body: str, data: dict[str, Any], salon_id: Any
     ) -> None:
         """Best-effort delivery; a push problem must never undo (or fail) the decision."""
+        notifier = self.notify_owner
+        if notifier is None:  # _push_decision already guards this
+            return
         try:
-            await self.notify_owner(  # type: ignore[misc]  # guarded in _push_decision
+            await notifier(
                 user_id=owner_id,
                 notification_type="approval_status",
                 title=title,
@@ -240,8 +242,7 @@ class CatalogAdminUseCases:
         await validate_media_reference(self.repository, self.storage_gateway, values.get("image_url"), "salon-images/")
 
     def _assert_admin(self, actor: Profile) -> None:
-        if not is_super_admin(actor):
-            raise ForbiddenError("Super admin access required")
+        require_super_admin(actor)
 
     # Categories
 

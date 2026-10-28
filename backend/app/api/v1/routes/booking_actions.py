@@ -1,6 +1,7 @@
 """Booking action-request and closure workflow routes."""
 
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +41,7 @@ def _closure_use_cases(session: AsyncSession) -> ClosureUseCases:
     summary="Claim a Pay at Salon payment",
 )
 async def create_payment_confirmation_request(
-    booking_id: str,
+    booking_id: UUID,
     background_tasks: BackgroundTasks,
     payload: BookingActionCreateRequest = BookingActionCreateRequest(),
     actor: Profile = Depends(get_current_actor),
@@ -50,11 +51,10 @@ async def create_payment_confirmation_request(
 
     row = await _action_use_cases(session).create_customer_request(
         actor,
-        booking_id,
+        str(booking_id),
         "payment_confirmation",
         payload.reason,
         background_tasks,
-        payment_method=payload.payment_method,
     )
     return BookingActionRequestResponse(**row)
 
@@ -66,7 +66,7 @@ async def create_payment_confirmation_request(
     summary="Request cancellation after the immediate cutoff",
 )
 async def create_cancellation_request(
-    booking_id: str,
+    booking_id: UUID,
     background_tasks: BackgroundTasks,
     payload: BookingActionCreateRequest = BookingActionCreateRequest(),
     actor: Profile = Depends(get_current_actor),
@@ -76,7 +76,7 @@ async def create_cancellation_request(
 
     row = await _action_use_cases(session).create_customer_request(
         actor,
-        booking_id,
+        str(booking_id),
         "cancellation",
         payload.reason,
         background_tasks,
@@ -94,12 +94,16 @@ async def list_booking_action_requests(
     request_status: Literal["pending", "resolved"] | None = Query(
         default=None, alias="status"
     ),
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[BookingActionRequestResponse]:
     """Return only requests belonging to the actor's salon workspace."""
 
-    rows = await _action_use_cases(session).list_requests(actor, request_status)
+    rows = await _action_use_cases(session).list_requests(
+        actor, request_status, limit=limit, offset=offset
+    )
     return [BookingActionRequestResponse(**row) for row in rows]
 
 
@@ -110,7 +114,7 @@ async def list_booking_action_requests(
     summary="Resolve a booking action request",
 )
 async def respond_booking_action_request(
-    request_id: str,
+    request_id: UUID,
     payload: BookingActionRespondRequest,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
@@ -120,10 +124,11 @@ async def respond_booking_action_request(
 
     row = await _action_use_cases(session).respond(
         actor,
-        request_id,
+        str(request_id),
         payload.decision,
         payload.reason,
         background_tasks,
+        payment_method=payload.payment_method,
     )
     return BookingActionRequestResponse(**row)
 

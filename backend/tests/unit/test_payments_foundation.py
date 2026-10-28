@@ -354,18 +354,23 @@ def test_payment_endpoints_are_in_openapi():
     assert "/v1/webhooks/{provider}" not in paths  # dormant by default
 
 
+SALON_ID = "11111111-1111-4111-8111-111111111111"
+STAFF_ID = "22222222-2222-4222-8222-222222222222"
+SERVICE_ID = "33333333-3333-4333-8333-333333333333"
+
+
 def test_create_booking_request_accepts_new_preferences():
     from app.api.v1.schemas.platform import BookingCreateRequest
 
     for value in ("pay_at_salon", "pay_advance", "pay_full", None):
         BookingCreateRequest(
-            salon_id="s", staff_id="t", service_ids=["x"],
+            salon_id=SALON_ID, staff_id=STAFF_ID, service_ids=[SERVICE_ID],
             start_datetime="2030-01-01T10:00:00+00:00", customer_name="A",
             payment_preference=value,
         )
     with pytest.raises(PydanticValidationError):
         BookingCreateRequest(
-            salon_id="s", staff_id="t", service_ids=["x"],
+            salon_id=SALON_ID, staff_id=STAFF_ID, service_ids=[SERVICE_ID],
             start_datetime="2030-01-01T10:00:00+00:00", customer_name="A",
             payment_preference="pay_later",
         )

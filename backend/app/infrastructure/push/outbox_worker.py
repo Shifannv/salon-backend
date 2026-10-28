@@ -10,6 +10,7 @@ from app.infrastructure.db.session import AsyncSessionLocal
 from app.infrastructure.push.fcm_gateway import FCMGateway
 
 _log = logging.getLogger(__name__)
+_POLL_SECONDS = 15  # pause between outbox polls
 
 
 async def deliver_notification_outbox_event(outbox_id: str) -> None:
@@ -80,7 +81,7 @@ async def run_forever() -> None:
             await drain_notification_outbox()
         except Exception:
             _log.exception("Notification outbox poll failed")
-        await asyncio.sleep(15)
+        await asyncio.sleep(_POLL_SECONDS)
 
 
 if __name__ == "__main__":

@@ -41,3 +41,12 @@ def require_active(actor: Profile) -> None:
 
     if not actor.is_active:
         raise ForbiddenError("This account is inactive")
+
+
+def require_super_admin(actor: Profile) -> None:
+    """Reject non-super-admin actors before admin use cases proceed."""
+
+    from app.core.exceptions import ForbiddenError
+
+    if not is_super_admin(actor):
+        raise ForbiddenError("Super admin access required")

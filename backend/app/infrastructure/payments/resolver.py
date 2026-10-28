@@ -15,9 +15,8 @@ Gateways are kept in a registry keyed by provider name:
   tagged with the business domain its own secret authorises.
 """
 
-import importlib
-import re
 from functools import lru_cache
+from types import ModuleType
 
 from app.application.ports.payment_gateway import PaymentGateway
 from app.application.ports.payment_provider import PayoutProvider, ProviderFeeReconciler
@@ -30,19 +29,18 @@ from app.core.exceptions import (
     PaymentProviderNotConfiguredError,
 )
 from app.domain.entities.payment import SettlementModel, WebhookDomain
+from app.infrastructure.adapter_loader import load_adapter
 from app.infrastructure.payments.null import NullPaymentGateway
 from app.infrastructure.subscriptions.resolver import build_subscription_provider
 
-_MODULE_NAME = re.compile(r"[a-z][a-z0-9_]*")
 
-
-def _adapter_module(provider: str):
-    if not _MODULE_NAME.fullmatch(provider):
-        raise PaymentProviderNotConfiguredError("Payment provider is misconfigured")
-    try:
-        return importlib.import_module(f"app.infrastructure.payments.{provider}")
-    except ModuleNotFoundError as exc:
-        raise PaymentProviderNotConfiguredError("Payment provider adapter is not installed") from exc
+def _adapter_module(provider: str) -> ModuleType:
+    return load_adapter(
+        "app.infrastructure.payments",
+        provider,
+        misconfigured="Payment provider is misconfigured",
+        not_installed="Payment provider adapter is not installed",
+    )
 
 
 def build_gateway(settings: Settings) -> PaymentGateway:

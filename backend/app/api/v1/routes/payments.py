@@ -51,7 +51,7 @@ async def booking_quote(
 
 def _use_cases(session: AsyncSession | None, resolver: PaymentGatewayResolver) -> BookingPaymentUseCases:
     if session is None:  # config endpoint: no database access at all
-        return BookingPaymentUseCases(None, resolver, settings)  # type: ignore[arg-type]
+        return BookingPaymentUseCases.config_only(resolver, settings)
     return BookingPaymentUseCases(
         PaymentRepository(session), resolver, settings, PlatformRepository(session)
     )

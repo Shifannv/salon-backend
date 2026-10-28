@@ -117,6 +117,11 @@ class Settings(BaseSettings):
     # Subscription credentials, deliberately separate from the booking RAZORPAY_* settings.
     subscription_razorpay_key_id: str | None = None
     subscription_razorpay_key_secret: SecretStr | None = None
+    # Cashfree subscription revenue uses its own credentials; booking collection stays independent.
+    subscription_cashfree_client_id: str | None = None
+    subscription_cashfree_client_secret: SecretStr | None = None
+    subscription_cashfree_environment: Literal["sandbox", "production"] = "sandbox"
+    subscription_cashfree_api_version: str = "2026-01-01"
     # Days an expired period keeps the promotion benefit. NO default (a commercial rule):
     # required when the provider is enabled; 0 is a valid explicit "no grace".
     subscription_grace_days: int | None = Field(default=None, ge=0, le=90)
@@ -448,6 +453,23 @@ class Settings(BaseSettings):
                 self.subscription_allow_live
             ):
                 raise ValueError("A live Razorpay key requires SUBSCRIPTION_ALLOW_LIVE=true")
+        if provider == "cashfree":
+            if not self.subscription_cashfree_client_id or not self.subscription_cashfree_client_secret:
+                raise ValueError(
+                    "SUBSCRIPTION_PROVIDER=cashfree requires SUBSCRIPTION_CASHFREE_CLIENT_ID "
+                    "and SUBSCRIPTION_CASHFREE_CLIENT_SECRET"
+                )
+            if self.subscription_cashfree_environment == "production" and not self.subscription_allow_live:
+                raise ValueError("Live Cashfree subscriptions require SUBSCRIPTION_ALLOW_LIVE=true")
+            if not self.subscription_website_url:
+                raise ValueError("Cashfree subscriptions require SUBSCRIPTION_WEBSITE_URL")
+            if (
+                self.booking_payments_enabled and self.payment_provider == "cashfree"
+                and self.cashfree_client_secret
+                and self.subscription_cashfree_client_secret.get_secret_value()
+                == self.cashfree_client_secret.get_secret_value()
+            ):
+                raise ValueError("Booking and subscription Cashfree webhook credentials must be distinct")
         if self.subscription_grace_days is None:
             raise ValueError(
                 "SUBSCRIPTION_GRACE_DAYS must be set when SUBSCRIPTION_PROVIDER is enabled "

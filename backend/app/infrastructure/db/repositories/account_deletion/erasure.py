@@ -10,7 +10,12 @@ from app.infrastructure.account_deletion.privacy import (
     personal_text_pattern,
     quoted_text_pattern,
 )
-from app.infrastructure.db.repositories.account_deletion.constants import *
+from app.infrastructure.db.repositories.account_deletion.constants import (
+    _OWNED_SALONS,
+    ANONYMISED_NOTIFICATION_TITLE,
+    REMOVED_TEXT,
+    SALON_CLOSED_REASON,
+)
 
 
 class _ErasureMixin:

@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.api.v1.schemas.common import MoneyNumber, UuidParam
 from app.api.v1.schemas.platform import BookingResponse
 
 BookingActionKind = Literal["payment_confirmation", "cancellation"]
@@ -44,7 +45,7 @@ class BookingActionRequestResponse(BaseModel):
     customer_name: str
     service_names: list[str] = Field(default_factory=list)
     start_datetime: datetime
-    total_price: float = Field(ge=0)
+    total_price: MoneyNumber = Field(ge=0, json_schema_extra={"minimum": 0.0})
     reason: str | None = None
     decision: str | None = None
     decision_reason: str | None = None
@@ -58,7 +59,7 @@ class ClosurePreviewRequest(BaseModel):
 
     kind: Literal["holiday", "leave"]
     holiday_date: date | None = None
-    staff_id: str | None = None
+    staff_id: UuidParam | None = None
     start_datetime: datetime | None = None
     end_datetime: datetime | None = None
 
@@ -86,7 +87,7 @@ class ClosureApplyRequest(ClosurePreviewRequest):
     """Confirmed closure with the exact previewed bookings and owner reason."""
 
     reason: str = Field(min_length=1, max_length=500)
-    affected_booking_ids: list[str] = Field(default_factory=list)
+    affected_booking_ids: list[UuidParam] = Field(default_factory=list)
     resolution: Literal["cancel"] = "cancel"
     title: str | None = Field(default=None, max_length=200)
 

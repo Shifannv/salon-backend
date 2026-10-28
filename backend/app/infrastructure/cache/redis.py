@@ -120,7 +120,7 @@ class RedisCache(CacheGateway):
             logger.info("Redis cache connected at %s", _redacted_target(redis_url))
             return cls(client)
         except Exception as exc:
-            logger.warning("Redis unavailable (%s) — cache disabled", exc)
+            logger.warning("Redis unavailable (%s) — cache disabled", type(exc).__name__)
             return cls(None)
 
     @property
@@ -185,7 +185,7 @@ class RedisCache(CacheGateway):
             versions = dict(_read_versions.get() or {})
             versions.pop(logical_key, None)
             _read_versions.set(versions)
-            logger.debug("Redis GET error for key %s: %s", key, exc)
+            logger.debug("Redis GET error for key %s: %s", key, type(exc).__name__)
             return None
         finally:
             if current is not None:
@@ -213,7 +213,7 @@ class RedisCache(CacheGateway):
             await self._client.setex(key, ttl, json.dumps(value, default=str))
         except Exception as exc:
             self._mark_unsafe()
-            logger.debug("Redis SET error for key %s: %s", key, exc)
+            logger.debug("Redis SET error for key %s: %s", key, type(exc).__name__)
 
     async def delete(self, key: str) -> None:
         """Remove a key (e.g. after a catalog write invalidates the cache)."""
@@ -290,7 +290,7 @@ class RedisCache(CacheGateway):
             self._mark_unsafe()
             if strict:
                 raise ServiceUnavailableError("Authentication temporarily unavailable. Please try again.") from exc
-            logger.debug("Redis rate limit error for %s: %s", key, exc)
+            logger.debug("Redis rate limit error for %s: %s", key, type(exc).__name__)
             return True, limit
 
     async def close(self) -> None:

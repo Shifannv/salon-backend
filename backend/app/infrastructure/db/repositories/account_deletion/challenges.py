@@ -6,7 +6,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.infrastructure.db.repositories.account_deletion.constants import *
+from app.infrastructure.db.repositories.account_deletion.constants import (
+    _CHALLENGE_COLUMNS,
+    _OWNED_SALONS,
+)
 
 
 class _ChallengeMixin:

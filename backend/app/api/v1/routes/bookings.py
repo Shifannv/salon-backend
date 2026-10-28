@@ -70,19 +70,19 @@ async def change_booking(
 
 
 @router.post("/bookings/{booking_id}/check-in", response_model=BookingResponse, status_code=status.HTTP_200_OK)
-async def check_in(booking_id: str, actor: Profile = Depends(get_current_actor),
+async def check_in(booking_id: UUID, actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
     key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
-    return BookingResponse(**await _use_cases(session).mark_attendance(actor, booking_id, no_show=False, idempotency_key=key))
+    return BookingResponse(**await _use_cases(session).mark_attendance(actor, str(booking_id), no_show=False, idempotency_key=key))
 
 
 @router.post("/bookings/{booking_id}/no-show", response_model=BookingResponse, status_code=status.HTTP_200_OK)
-async def no_show(booking_id: str, payload: NoShowBookingRequest, background_tasks: BackgroundTasks,
+async def no_show(booking_id: UUID, payload: NoShowBookingRequest, background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
     key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
     return BookingResponse(**await _use_cases(session).mark_attendance(
-        actor, booking_id, no_show=True, idempotency_key=key,
+        actor, str(booking_id), no_show=True, idempotency_key=key,
         reason=payload.reason, background_tasks=background_tasks,
     ))
 
@@ -101,14 +101,16 @@ def _use_cases(session: AsyncSession) -> BookingUseCases:
     description="Delegates to the `get_available_slots` Postgres function. Never cached. Public — no auth required.",
 )
 async def availability(
-    staff_id: str,
+    staff_id: UUID,
     booking_date: date = Query(alias="date"),
-    service_ids: list[str] = Query(min_length=1),
+    service_ids: list[UUID] = Query(min_length=1),
     session: AsyncSession = Depends(get_session),
 ) -> list[AvailabilityResponse]:
     """Return availability from the database slot function — public, no auth required."""
 
-    rows = await _use_cases(session).availability(staff_id, booking_date, service_ids)
+    rows = await _use_cases(session).availability(
+        str(staff_id), booking_date, [str(s) for s in service_ids]
+    )
     return [AvailabilityResponse(**row) for row in rows]
 
 
@@ -178,13 +180,13 @@ async def list_bookings(
     summary="Get booking details",
 )
 async def get_booking(
-    booking_id: str,
+    booking_id: UUID,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
     """Return a booking visible to the actor."""
 
-    row = await _use_cases(session).get_booking(actor, booking_id)
+    row = await _use_cases(session).get_booking(actor, str(booking_id))
     return BookingResponse(**row)
 
 
@@ -195,14 +197,14 @@ async def get_booking(
     summary="Approve booking",
 )
 async def approve_booking(
-    booking_id: str,
+    booking_id: UUID,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
     """Approve a pending booking. Notifies the customer via push."""
 
-    row = await _use_cases(session).approve(actor, booking_id, background_tasks)
+    row = await _use_cases(session).approve(actor, str(booking_id), background_tasks)
     return BookingResponse(**row)
 
 
@@ -213,7 +215,7 @@ async def approve_booking(
     summary="Reject booking",
 )
 async def reject_booking(
-    booking_id: str,
+    booking_id: UUID,
     payload: RejectBookingRequest,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
@@ -222,7 +224,7 @@ async def reject_booking(
     """Reject a booking with a reason. Notifies the customer via push."""
 
     row = await _use_cases(session).reject(
-        actor, booking_id, payload.rejection_reason, background_tasks
+        actor, str(booking_id), payload.rejection_reason, background_tasks
     )
     return BookingResponse(**row)
 
@@ -234,7 +236,7 @@ async def reject_booking(
     summary="Complete booking",
 )
 async def complete_booking(
-    booking_id: str,
+    booking_id: UUID,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
@@ -242,7 +244,7 @@ async def complete_booking(
 ) -> BookingResponse:
     """Complete a booking. Notifies the customer via push."""
 
-    row = await _use_cases(session).complete(actor, booking_id, background_tasks, idempotency_key=idempotency_key)
+    row = await _use_cases(session).complete(actor, str(booking_id), background_tasks, idempotency_key=idempotency_key)
     return BookingResponse(**row)
 
 
@@ -253,7 +255,7 @@ async def complete_booking(
     summary="Record a booking delay",
 )
 async def delay_booking(
-    booking_id: str,
+    booking_id: UUID,
     payload: DelayBookingRequest,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
@@ -263,7 +265,7 @@ async def delay_booking(
 
     row = await _use_cases(session).delay(
         actor,
-        booking_id,
+        str(booking_id),
         payload.estimated_end_datetime,
         payload.notify_affected_customers,
         background_tasks,
@@ -284,7 +286,7 @@ async def delay_booking(
     ),
 )
 async def cancel_booking(
-    booking_id: str,
+    booking_id: UUID,
     background_tasks: BackgroundTasks,
     payload: CancelBookingRequest = CancelBookingRequest(),
     actor: Profile = Depends(get_current_actor),
@@ -294,7 +296,7 @@ async def cancel_booking(
 
     row = await _use_cases(session).cancel(
         actor,
-        booking_id,
+        str(booking_id),
         background_tasks,
         reason_code=payload.reason_code,
         reason_text=payload.reason_text,
@@ -316,7 +318,7 @@ async def cancel_booking(
     ),
 )
 async def barber_cancel_booking(
-    booking_id: str,
+    booking_id: UUID,
     payload: BarberCancelBookingRequest,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
@@ -326,7 +328,7 @@ async def barber_cancel_booking(
 
     row = await _use_cases(session).barber_cancel(
         actor,
-        booking_id,
+        str(booking_id),
         background_tasks,
         reason_code=payload.reason_code,
         reason_text=payload.reason_text,
@@ -341,7 +343,7 @@ async def barber_cancel_booking(
     summary="Record booking payment",
 )
 async def record_payment(
-    booking_id: str,
+    booking_id: UUID,
     payload: PaymentRequest,
     background_tasks: BackgroundTasks,
     actor: Profile = Depends(get_current_actor),
@@ -351,6 +353,6 @@ async def record_payment(
     """Record booking payment."""
 
     row = await _use_cases(session).record_payment(
-        actor, booking_id, payload.payment_method, background_tasks, idempotency_key=idempotency_key
+        actor, str(booking_id), payload.payment_method, background_tasks, idempotency_key=idempotency_key
     )
     return BookingResponse(**row)
