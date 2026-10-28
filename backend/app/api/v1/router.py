@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.v1.routes import (
     account_deletion,
     admin,
+    admin_insights,
     auth,
     booking_actions,
     booking_finance,
@@ -47,6 +48,7 @@ api_v1_router.include_router(booking_actions.router, tags=["booking actions"])
 api_v1_router.include_router(notifications.router, tags=["notifications"])
 api_v1_router.include_router(walkin.router, prefix="/walkin", tags=["walkin"])
 api_v1_router.include_router(subscriptions.router, prefix="/admin", tags=["subscriptions"])
+api_v1_router.include_router(admin_insights.router, prefix="/admin", tags=["admin insights"])
 api_v1_router.include_router(subscription_billing.router, tags=["subscription billing"])
 
 # The webhook path 404s unless a payment OR subscription webhook provider is configured.

@@ -34,6 +34,8 @@ class PurchasablePlanResponse(BaseModel):
     price_amount: Decimal = Field(max_digits=10, decimal_places=2)
     default_price_amount: Decimal = Field(max_digits=10, decimal_places=2)
     custom_price: bool = False
+    # Salon-specific saving vs this plan's normal price. Separate from duration savings below.
+    offer_discount_percent: int | None = None
     currency: str
     billing_interval: Literal["monthly", "quarterly", "semiannual", "yearly"]
     features: dict[str, Any] = Field(default_factory=dict)

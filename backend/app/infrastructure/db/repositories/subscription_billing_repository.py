@@ -70,10 +70,16 @@ class SubscriptionBillingRepository(PaymentRepository):
                          end as months
                   from subscription_plans p
                   left join salon_plan_prices o on o.plan_id = p.id and o.salon_id = :salon
+                    and (o.valid_until is null or o.valid_until > now())
                   where p.is_active and p.price_amount > 0
                     and p.billing_interval in ('monthly', 'quarterly', 'semiannual', 'yearly')
                 )
                 select e.*,
+                       case when e.custom_price and e.default_price_amount > e.price_amount
+                            then round(
+                              (1 - e.price_amount / e.default_price_amount) * 100
+                            )::int
+                            else null end as offer_discount_percent,
                        case when e.months > 1
                             then round(e.price_amount / e.months, 2)
                             else null end as monthly_equivalent,
@@ -163,6 +169,7 @@ class SubscriptionBillingRepository(PaymentRepository):
                            now() + make_interval(secs => :ttl), :actor
                     from subscription_plans p
                     left join salon_plan_prices o on o.plan_id = p.id and o.salon_id = :s
+                    and (o.valid_until is null or o.valid_until > now())
                     where p.id = :plan and p.is_active and p.price_amount > 0
                     returning {_BILLING_COLUMNS}
                     """

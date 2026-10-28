@@ -1,7 +1,7 @@
 # Explicit migration policy
 
 The portable CI revision is **0037_customer_processing_charge**. The actual Alembic
-repository head is **0049_trial_salon_plan_prices**, prepared and not released.
+repository head is **0050_plan_price_valid_until**, prepared and not released.
 The guarded Mumbai approval/manifest target remains **0040_fastapi_only_access**;
 it does not authorize the later photo/description, business-category, attendance,
 checkout-policy, booking-change or finance-outcome revisions.
