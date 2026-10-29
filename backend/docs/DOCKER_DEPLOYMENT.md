@@ -1,8 +1,10 @@
 # Docker deployment
 
-Deploy with GitHub Actions to the GCP VM, or manually with Docker Compose.
-The workflow verifies branch pushes and pull requests; only `main` can deploy.
-See [CI/CD setup](CI_CD.md) for the required GitHub secrets and VM configuration.
+Production currently uses Cloud Run. The exact-actor manual workflow prepares only
+zero-traffic candidates from reviewed latest main; traffic requires separate
+explicit approval. See [CI/CD setup](CI_CD.md) for OIDC and protection gates.
+The VM/Compose procedures below remain historical recovery material, not the
+normal production deployment path. Do not run them as part of Cloud Run releases.
 
 Use `backend/` as the Docker build context.
 Use Docker Compose v2 with `up --wait` and `--wait-timeout` support.

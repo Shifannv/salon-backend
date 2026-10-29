@@ -1,4 +1,149 @@
-# GitHub Actions to the GCP VM
+# Backend CI and manual Cloud Run candidates on GitHub Free
+
+Canonical repository: https://github.com/Shifannv/salon-backend. Keep the previous
+repository as `upstream`; do not rewrite either main history. Production uses
+`saloon-505509 / asia-south1 / salon-api-production`. Both https://api.salones.in
+and https://apiv1.mudassirmhd.in must continue working. Website API_BASE_URL stays
+https://api.salones.in. DNS, TLS, load balancer, scaling and runtime secrets are
+outside this change.
+
+## CI
+
+`.github/workflows/backend.yml` runs on pushes and pull requests, and is reusable
+by CD; manual CI runs are also supported. Jobs `Lint and tests` and `Build and smoke test image` install declared
+requirements, run pip check, Ruff, shell syntax and the full pytest suite with a
+disposable PostgreSQL 18 service. It builds backend/Dockerfile using backend/ as
+context, validates Compose, and verifies nonroot/custom-port health and worker
+imports. Actions are pinned to full commit SHAs. No production credentials are
+needed. Tests apply existing prepared SQL only to disposable localhost databases;
+the remote migration policy remains unchanged.
+
+The active workflow no longer contains a production VM deployment job or VM
+artifact transfer. Historical scripts remain for recovery and must not be run as
+normal production releases.
+
+## GitHub prerequisites
+
+Settings → Environments → New environment → `production`:
+
+1. Select custom deployment branches and add only branch `main`; no tag policies.
+2. Add the nonsecret variables below at production environment scope.
+3. Do not add GCP JSON keys or application credentials.
+
+The owner explicitly chose GitHub Free and private visibility. Rulesets, branch
+protection and required environment reviewers are not relied upon. The production
+environment now exists with custom deployment branches. Do not change billing or
+visibility, ask for an upgrade, or represent main as protected. Review PRs and CI
+manually before merging; deployment remains limited to the exact owner actor.
+
+| Variable | Verified value/status |
+| --- | --- |
+| GCP_PROJECT_ID | saloon-505509; configured |
+| GCP_REGION | asia-south1; configured |
+| GCP_CLOUD_RUN_SERVICE | salon-api-production; configured |
+| GCP_ARTIFACT_REGISTRY_REPOSITORY | salon-production; configured |
+| GCP_WORKLOAD_IDENTITY_PROVIDER | projects/283739091709/locations/global/workloadIdentityPools/salon-github/providers/salon-backend |
+| GCP_DEPLOY_SERVICE_ACCOUNT | salon-github-deploy@saloon-505509.iam.gserviceaccount.com |
+
+These identifiers are not secrets. Database URLs, Supabase/JWT/payment/Firebase
+credentials remain in Cloud Run/Secret Manager, never GitHub. See the exact
+[approved IAM configuration](CLOUD_RUN_OIDC_IAM_PROPOSAL.md). All six variables
+are configured and read back in production; its sole allowed branch is main.
+The four target identifiers also remain at repository scope with identical values.
+No environment secrets were created.
+
+The approved pool, provider, deployment account and four resource-scoped bindings
+were created/read back. The account has no user-managed keys or project-wide
+grants. Security Token Service API (sts.googleapis.com) remains disabled; API
+activation was outside the approved resource list and was not performed. It must
+be separately authorized/enabled before a future real federation exchange. No
+OIDC exchange or deployment workflow dispatch has been attempted.
+
+## Manual candidate workflow
+
+The current authorization explicitly forbids dispatch, candidate creation and
+traffic changes. For a future separately authorized release, review and merge
+this PR with green CI, then dispatch **Cloud Run production candidate** on latest
+main. Set `approve_deployment=true`, type exactly `DEPLOY api.salones.in`, and
+supply `commit_sha` equal to the full selected/latest main SHA. Also supply the
+full **proven source commit of the serving image** as `baseline_commit`.
+
+The workflow requires workflow_dispatch, refs/heads/main, actor ID 172572480,
+explicit approval, exact typed confirmation, supplied SHA equal to github.sha,
+and API verification that it is still latest main. CI and image checks pass in
+the same run through a reusable workflow. It uses environment production,
+concurrency group production-cloud-run with cancel-in-progress=false, main-only
+environment policy, clean exact checkout, target identifiers and zero migration
+differences from baseline. No push, PR or feature-branch event can deploy.
+It then authenticates through GitHub OIDC/WIF, never a service-account JSON key.
+Permissions are contents:read, id-token:write, plus actions:read solely to inspect
+environment branch policy. No Actions write permission or production application
+secret is used.
+
+The serving image must have a matching OCI source revision label. As audited,
+image `sha256:76ce6bec396732f0ac82957248547eead50f662bbc35fce3a42cbdfdb728a9d7`
+has no OCI revision/source labels. **Do not guess a baseline SHA.** Establish
+verifiable serving-image/source provenance separately before a first candidate;
+the workflow currently refuses this missing baseline. Any migration difference
+also stops deployment; a separately reviewed backup/target/approval is required.
+No Alembic upgrade/stamp, schema write or production data mutation is performed.
+
+The candidate script builds the exact checked-out commit with OCI revision/source
+labels, smoke-tests locally, pushes a unique tag to existing Artifact Registry,
+resolves its digest, pulls and checks its source labels, and rechecks latest main
+and unchanged service metadata before deployment. It calls only an image update
+with `--no-traffic`, a unique revision suffix and review tag. No env, secret,
+service account, CPU/memory/concurrency/min/max/ingress setting is replaced.
+It compares runtime configuration privately and verifies normal traffic unchanged.
+Raw service/command output and environment values are not logged or uploaded.
+
+Candidate read-only checks: Ready, /health, /health/db (SELECT 1), /health/redis
+(PING), /docs, and a parsed /openapi.json with contract hash/path count. Compare
+expected routes and existing production paths/operations/schema fields before
+accepting the candidate; schema changes require separate contract review. This
+structural comparison does not prove every application's behavior. No owner,
+customer, checkout, booking, payment or deletion mutation runs. Any failed check
+holds promotion. A retained zero-traffic revision/tag is not deleted automatically.
+
+Download `cloud-run-candidate-<commit>-<run>-<attempt>` to review
+`candidate-result.json`: exact SHA, immutable image, candidate revision/URL,
+previous revision/image, every smoke result, migration differences and rollback
+command. A successful result is `PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL`.
+The workflow never promotes traffic. Ask the owner explicitly:
+
+Request the owner's separate exact approval message:
+**PROMOTE CLOUD RUN CANDIDATE**
+
+## After explicit traffic approval
+
+Only after the exact approval above, use the tested revision without rebuilding. Revalidate its
+digest, latest main and unchanged previous production traffic first. Only then:
+
+```bash
+gcloud run services update-traffic salon-api-production --project=saloon-505509 \
+  --region=asia-south1 --to-revisions=TESTED_CANDIDATE_REVISION=100
+```
+
+Check api.salones.in /health, /health/db, /health/redis, and
+apiv1.mudassirmhd.in /health. If any fails, immediately execute the exact
+`rollback_command` in the retained receipt, then verify both origins. Keep the
+previous revision. Do not use `--to-latest`, rebuild, migrate, delete old revisions,
+remove tags/hostnames or mutate secrets as part of promotion/rollback.
+
+## Worker coverage
+
+CI verifies worker imports; candidate deployment covers the API process only.
+The audit found worker pool `salon-prod-notifications` and job
+`salon-production-db-check`, and no Mumbai Scheduler jobs. This establishes neither
+worker health nor coverage for email, media cleanup, payment reconciliation or
+account deletion. No worker is upgraded, executed or activated by this workflow.
+Unrelated account-deletion release gates remain in effect.
+
+## Historical VM recovery guide — inactive
+
+The following older procedure is retained as historical recovery material. Its
+workflow job/artifact path is removed from active CI. Do not dispatch it for normal
+Cloud Run production or treat its migration instructions as approval.
 
 The workflow in [backend.yml](../../.github/workflows/backend.yml) tests all branch pushes
 and pull requests.

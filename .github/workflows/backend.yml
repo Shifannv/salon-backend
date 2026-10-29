@@ -1,35 +1,16 @@
-name: Backend CI/CD
+name: Backend CI
 
 on:
+  workflow_call:
+  workflow_dispatch:
   pull_request:
   push:
-  workflow_dispatch:
-    inputs:
-      approve_deployment:
-        description: 'Explicitly request production deployment (separate protected-environment approval required)'
-        type: boolean
-        default: false
-      migration_approval_id:
-        description: 'Reviewed migration approval reference; no default approval'
-        type: string
-      migration_target:
-        description: 'Explicit reviewed revision; none refuses deployment'
-        type: choice
-        options: ['none', '0040_fastapi_only_access']
-        default: 'none'
-      mumbai_project_confirmation:
-        description: 'Required only for Mumbai; enter the exact reviewed project reference'
-        type: string
-      approval_manifest_on_vm:
-        description: 'Mumbai approved manifest under /home/<user>/salon-backend/approvals/<review>/manifest.json'
-        type: string
-
 permissions:
   contents: read
 
 jobs:
   test:
-    name: Portable CI through 0037
+    name: Lint and tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
@@ -62,7 +43,7 @@ jobs:
       - run: python -m pip check
       - name: Verify explicit portable migration policy (no prepared Mumbai execution)
         run: python -m pytest -q tests/unit/test_migration_policy.py
-      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py
+      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: python -m pytest -q --junitxml=test-results.xml
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -90,113 +71,3 @@ jobs:
             --env-file backend/.env.gcp.example -f backend/docker-compose.yml config --quiet
       - name: Verify non-root runtime and custom port
         run: bash backend/scripts/check-container.sh "$RELEASE_IMAGE"
-      - name: Package tested release
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: |
-          mkdir -p release/scripts
-          printf '%s\n' "$RELEASE_IMAGE" > release/image-ref
-          docker save "$RELEASE_IMAGE" | gzip > release/image.tar.gz
-          python3 backend/scripts/docker_image_ids.py release/image.tar.gz "$RELEASE_IMAGE" \
-            "$(docker image inspect --format '{{.Id}}' "$RELEASE_IMAGE")" > release/image-id
-          cp backend/docker-compose.yml release/
-          cp backend/scripts/gcp-vm-{deploy,release,release-compose}.sh release/scripts/
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        with:
-          name: vm-release
-          path: release/
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
-  deploy:
-    name: Deploy production VM
-    needs: image
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.approve_deployment
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment:
-      name: production
-      url: https://api.salones.in
-    concurrency:
-      group: production-vm
-      cancel-in-progress: false
-    steps:
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: vm-release
-          path: release
-      - name: Reject superseded releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          main_sha="$(curl --fail --silent --show-error \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/main" | jq -r '.object.sha')"
-          if [[ "$main_sha" != "$GITHUB_SHA" ]]; then
-            echo "This release has been superseded on main. Deploy the latest main run."
-            exit 1
-          fi
-      - name: Configure verified SSH access
-        env:
-          VM_HOST: ${{ secrets.VM_HOST }}
-          VM_USER: ${{ secrets.VM_USER }}
-          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
-          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
-        run: |
-          test -n "$VM_SSH_KEY" && test -n "$VM_KNOWN_HOSTS"
-          [[ "$VM_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
-          [[ "$VM_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$VM_SSH_KEY" > "$HOME/.ssh/deploy_key"
-          printf '%s\n' "$VM_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
-          cat > "$HOME/.ssh/config" <<EOF
-          Host production-vm
-            HostName $VM_HOST
-            User $VM_USER
-            Port 22
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking yes
-            ConnectTimeout 15
-            ServerAliveInterval 30
-            ServerAliveCountMax 4
-          EOF
-          chmod 600 "$HOME/.ssh/config"
-      - name: Transfer tested release
-        run: |
-          release_id="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          echo "RELEASE_ID=$release_id" >> "$GITHUB_ENV"
-          ssh production-vm "mkdir -p ~/salon-backend/releases/$release_id"
-          scp -r release/. "production-vm:salon-backend/releases/$release_id/"
-      - name: Apply explicitly selected reviewed migrations and deploy services
-        env:
-          APPROVAL_ID: ${{ inputs.migration_approval_id }}
-          MIGRATION_TARGET: ${{ inputs.migration_target }}
-          MUMBAI_CONFIRMATION: ${{ inputs.mumbai_project_confirmation }}
-          APPROVAL_MANIFEST: ${{ inputs.approval_manifest_on_vm }}
-        run: |
-          [[ "$APPROVAL_ID" =~ ^[a-zA-Z0-9_.:-]+$ ]] || { echo 'Explicit migration approval reference is required'; exit 1; }
-          case "$MIGRATION_TARGET" in
-            0040_fastapi_only_access)
-              policy=mumbai
-              [[ "$MUMBAI_CONFIRMATION" == wqjlgpnbiapcrlkxumcp ]]
-              [[ "$APPROVAL_MANIFEST" =~ ^/home/[a-z_][a-z0-9_-]*/salon-backend/approvals/[a-zA-Z0-9_-]+/manifest.json$ ]]
-              ;;
-            *) echo 'An explicit reviewed migration target is required; head is refused'; exit 1 ;;
-          esac
-          ssh production-vm bash -s -- "$RELEASE_ID" "$policy" "$MIGRATION_TARGET" "$APPROVAL_ID" "$MUMBAI_CONFIRMATION" "$APPROVAL_MANIFEST" <<'REMOTE'
-          set -euo pipefail
-          export SALON_MIGRATION_POLICY="$2" SALON_MIGRATION_REVISION="$3" SALON_MIGRATION_APPROVAL_ID="$4"
-          export SALON_MUMBAI_PROJECT="$5" SALON_MIGRATION_MANIFEST="$6"
-          exec bash "$HOME/salon-backend/releases/$1/scripts/gcp-vm-release.sh"
-          REMOTE
-      - name: Verify public HTTPS health
-        run: |
-          curl --fail --silent --show-error --retry 5 --retry-delay 5 \
-            --max-time 15 https://api.salones.in/health
-      - name: Remove runner SSH credentials
-        if: always()
-        run: rm -f "$HOME/.ssh/deploy_key" "$HOME/.ssh/config" "$HOME/.ssh/known_hosts"

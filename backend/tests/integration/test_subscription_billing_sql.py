@@ -62,8 +62,8 @@ def db_url():
     asyncio.run(_build(database))
     url = make_url(TEST_DB).set(database=database, drivername="postgresql+asyncpg").render_as_string(
         hide_password=False)
-    # The checkout and plan queries read salon_plan_prices (0049).
-    asyncio.run(_apply_prepared(url, "0049_trial_salon_plan_prices.sql"))
+    # Checkout reads salon_plan_prices and its optional offer expiry (0049/0050).
+    asyncio.run(_apply_prepared(url, "0049_trial_salon_plan_prices.sql", "0050_plan_price_valid_until.sql"))
     yield url
     asyncio.run(_drop(database))
 
