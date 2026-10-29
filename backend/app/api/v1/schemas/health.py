@@ -9,6 +9,13 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class VersionResponse(BaseModel):
+    """Non-secret, immutable image identity."""
+
+    version: str
+    commit_sha: str
+
+
 class DatabaseHealthResponse(BaseModel):
     """Database health-check response."""
 

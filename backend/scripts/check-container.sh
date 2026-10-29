@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Isolated smoke check: no production credentials, published ports, or live database.
 image="${1:?Usage: bash scripts/check-container.sh IMAGE}"
+expected_commit="${2:-unknown}"
 container="salon-api-check-$$"
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -19,6 +20,7 @@ for ((attempt = 0; attempt < 60; attempt++)); do
   if [[ "$health" == "healthy" ]]; then
     docker exec "$container" python -c \
       "import importlib, os, pathlib; assert os.getuid() != 0; assert pathlib.Path('migrations/sql/001_supabase_schema.sql').is_file(); [importlib.import_module(module) for module in ('app.infrastructure.push.outbox_worker', 'app.infrastructure.media.cleanup_worker', 'app.infrastructure.account_deletion.worker', 'app.infrastructure.account_deletion.health', 'app.infrastructure.payments.webhook_worker')]"
+    docker exec "$container" python -c 'import json,sys,urllib.request; r=json.load(urllib.request.urlopen("http://127.0.0.1:8080/version")); assert r["commit_sha"]==sys.argv[1] and r["version"]=="0.1.0"' "$expected_commit"
     docker exec "$container" alembic heads
     # Negative guard check: rejects before DB connection or migration execution.
     if guard_output="$(docker exec --env DATABASE_URL=postgresql+asyncpg://postgres:synthetic@127.0.0.1:1/postgres \

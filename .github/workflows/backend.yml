@@ -2,6 +2,11 @@ name: Backend CI
 
 on:
   workflow_call:
+    outputs:
+      image_artifact_id:
+        value: ${{ jobs.image.outputs.artifact_id }}
+      image_artifact_digest:
+        value: ${{ jobs.image.outputs.artifact_digest }}
   workflow_dispatch:
   pull_request:
   push:
@@ -34,6 +39,9 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
@@ -43,10 +51,10 @@ jobs:
       - run: python -m pip check
       - name: Verify explicit portable migration policy (no prepared Mumbai execution)
         run: python -m pytest -q tests/unit/test_migration_policy.py
-      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py scripts/cloud_run_auto.py
+      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py scripts/cloud_run_auto.py scripts/ci_image_bundle.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: python -m pytest -q --junitxml=test-results.xml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
         if: always()
         with:
           name: portable-ci-test-results
@@ -55,19 +63,35 @@ jobs:
 
   image:
     name: Build and smoke test image
+    outputs:
+      artifact_id: ${{ steps.bundle.outputs.artifact-id }}
+      artifact_digest: ${{ steps.bundle.outputs.artifact-digest }}
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Build release image
         run: |
           image="salon-platform-api:sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "RELEASE_IMAGE=$image" >> "$GITHUB_ENV"
-          docker build --pull --platform linux/amd64 --tag "$image" backend
+          docker build --pull --platform linux/amd64 --build-arg SOURCE_COMMIT="$GITHUB_SHA" --tag "$image" backend
       - name: Validate deployment Compose configuration
         run: |
           COMPOSE_ENV_FILE=.env.gcp.example docker compose \
             --env-file backend/.env.gcp.example -f backend/docker-compose.yml config --quiet
       - name: Verify non-root runtime and custom port
-        run: bash backend/scripts/check-container.sh "$RELEASE_IMAGE"
+        run: bash backend/scripts/check-container.sh "$RELEASE_IMAGE" "$GITHUB_SHA"
+      - name: Export the exact tested image and provenance
+        run: python3 backend/scripts/ci_image_bundle.py create "$RELEASE_IMAGE" ci-bundle
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
+        id: bundle
+        with:
+          name: ci-image-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-bundle/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7

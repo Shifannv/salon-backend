@@ -71,3 +71,4 @@ backend/.pytest_tmp/
 backend\graphify-out\cache
 # Release receipts are generated after a clean-source preflight, never source inputs.
 /candidate-result.json
+/.release-image/
