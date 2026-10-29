@@ -41,8 +41,9 @@ Remove-Item -LiteralPath $runTemp -Recurse -Force
 
 ```bash
 cd backend
-python -m pytest
 python -m ruff check app tests migrations
+python -m pytest -q
+cd ..
 ```
 
 ## Docker
