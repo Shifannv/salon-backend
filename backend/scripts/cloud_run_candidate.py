@@ -17,11 +17,16 @@ import tarfile
 import tempfile
 import urllib.error
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPOSITORY = "Shifannv/salon-backend"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
+BOOTSTRAP_REVISION = "salon-api-production-subpct-20261028"
+IMAGE_ROOT = "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@"
+BOOTSTRAP_INDEX = IMAGE_ROOT + "sha256:ee92c2f588acbab37e905162cc8346d5eeea387046521db4c2c52eb717858f69"
+BOOTSTRAP_PLATFORM = IMAGE_ROOT + "sha256:76ce6bec396732f0ac82957248547eead50f662bbc35fce3a42cbdfdb728a9d7"
+BOOTSTRAP_MANIFEST = Path(__file__).resolve().parents[1] / "deployments/bootstrap-subpct-20261028.json"
 
 
 def require(condition: bool, message: str) -> None:
@@ -55,6 +60,100 @@ def latest_main() -> str:
     return commit
 
 
+def bootstrap_enabled() -> bool:
+    value = os.environ.get("BOOTSTRAP_BASELINE", "false")
+    require(value in {"true", "false"}, "Invalid bootstrap selection")
+    return value == "true"
+
+
+def bootstrap_manifest() -> dict:
+    data = json.loads(BOOTSTRAP_MANIFEST.read_text(encoding="utf-8"))
+    require(data.get("schema_version") == 1 and data.get("source_kind") == "hybrid-overlay", "Invalid bootstrap attestation")
+    require(data.get("revision") == BOOTSTRAP_REVISION and data.get("index_image") == BOOTSTRAP_INDEX
+            and data.get("platform_image") == BOOTSTRAP_PLATFORM, "Bootstrap attestation target differs")
+    require(data.get("project") == "saloon-505509" and data.get("region") == "asia-south1"
+            and data.get("service") == "salon-api-production", "Bootstrap target differs")
+    files = data.get("files", {})
+    require(bool(files) and {"requirements.txt", "alembic.ini"} <= files.keys(), "Incomplete bootstrap inventory")
+    for name, digest in files.items():
+        parts = PurePosixPath(name).parts
+        require(not PurePosixPath(name).is_absolute() and ".." not in parts
+                and not any(part.startswith(".env") for part in parts), "Unsafe inventory path")
+        require(name in {"requirements.txt", "alembic.ini"} or name.startswith(("app/", "migrations/")), "Unexpected inventory root")
+        require(re.fullmatch(r"[0-9a-f]{64}", digest) is not None, "Invalid inventory hash")
+    return data
+
+
+def git_blob(commit: str, name: str) -> bytes:
+    result = subprocess.run(["git", "show", commit + ":" + name], capture_output=True, check=False)
+    require(result.returncode == 0, "Cannot read reviewed source blob")
+    return result.stdout
+
+
+def bootstrap_migration_changes(data: dict, commit: str) -> list[str]:
+    # No migration allow-list or bypass: compare real packaged bytes to selected Git.
+    current = command("git", "ls-tree", "-r", "--name-only", commit, "--", "backend/migrations").splitlines()
+    expected = {"backend/" + name: digest for name, digest in data["files"].items()
+                if name.startswith("migrations/") and "__pycache__" not in PurePosixPath(name).parts}
+    runtime_files = [name for name in current if not name.startswith("backend/migrations/reviews/")]
+    actual = {}
+    for name in runtime_files:
+        content = git_blob(commit, name)
+        lf = content.replace(b"\r\n", b"\n")
+        # Equivalent checkout line endings do not represent a schema change.
+        actual[name] = {hashlib.sha256(blob).hexdigest() for blob in [content, lf, lf.replace(b"\n", b"\r\n")]}
+    changes = {name for name in expected.keys() | actual.keys() if expected.get(name) not in actual.get(name, set())}
+    # Historical review material is not packaged in the image. Pin its separate
+    # Git reference; this is not a claim that the hybrid image equals that commit.
+    review_reference = data["overlay_reference_commit"]
+    require(SHA.fullmatch(review_reference) is not None, "Full review metadata reference required")
+    changes.update(command("git", "diff", "--name-only", review_reference, commit,
+                           "--", "backend/migrations/reviews").splitlines())
+    return sorted(changes)
+
+
+def platform_image(image: str, manifest: dict) -> str:
+    require(image.count("@") == 1 and DIGEST.fullmatch(image.split("@", 1)[1]) is not None,
+            "An immutable registry image is required")
+    if "manifests" not in manifest:
+        require(manifest.get("config") is not None and manifest.get("layers") is not None, "Invalid image manifest")
+        return image
+    matches = [row for row in manifest["manifests"] if row.get("platform", {}).get("os") == "linux"
+               and row.get("platform", {}).get("architecture") == "amd64"]
+    require(len(matches) == 1 and DIGEST.fullmatch(matches[0].get("digest", "")) is not None,
+            "Registry must contain exactly one linux/amd64 image")
+    return image.split("@", 1)[0] + "@" + matches[0]["digest"]
+
+
+def image_inventory(image: str) -> dict[str, str]:
+    container = command("docker", "create", "--network=none", image)
+    require(re.fullmatch(r"[0-9a-f]{64}", container) is not None, "Invalid inspection container")
+    files = {}
+    try:
+        for root in ["app", "migrations", "requirements.txt", "alembic.ini"]:
+            result = subprocess.run(["docker", "cp", container + ":/app/" + root, "-"], capture_output=True, check=False)
+            require(result.returncode == 0, "Cannot inspect selected image files")
+            with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
+                for entry in archive:
+                    require(entry.isdir() or entry.isfile(), "Image inventory contains a link or special file")
+                    if entry.isdir():
+                        continue
+                    parts = PurePosixPath(entry.name).parts
+                    require(parts and parts[0] == root and ".." not in parts
+                            and not any(part.startswith(".env") for part in parts), "Unsafe image inventory path")
+                    require(entry.size <= 10_000_000 and entry.name not in files, "Invalid inventory member")
+                    files[entry.name] = hashlib.sha256(archive.extractfile(entry).read()).hexdigest()
+    finally:
+        # Only our newly created stopped container; never delete images/revisions.
+        subprocess.run(["docker", "rm", container], capture_output=True, check=False)
+    return dict(sorted(files.items()))
+
+
+def verify_bootstrap(data: dict, revision: str, image: str, files: dict[str, str]) -> None:
+    require(revision == BOOTSTRAP_REVISION and image == BOOTSTRAP_PLATFORM, "Bootstrap allowed only for the pinned legacy release")
+    require(data["files"] == files, "Serving image inventory differs from reviewed attestation")
+
+
 def preflight() -> str:
     require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Wrong repository")
     require(os.environ.get("GITHUB_REF") == "refs/heads/main", "Only main can deploy")
@@ -67,11 +166,21 @@ def preflight() -> str:
     require(SHA.fullmatch(commit) is not None, "Full source SHA required")
     require(command("git", "rev-parse", "HEAD") == commit, "Checkout differs from selected commit")
     require(not command("git", "status", "--porcelain"), "Working tree must be clean")
-    baseline = os.environ["BASELINE_COMMIT"]
-    require(SHA.fullmatch(baseline) is not None, "Full proven deployed source SHA required")
-    require(command("git", "cat-file", "-t", baseline) == "commit", "Baseline commit missing")
-    require(not command("git", "diff", "--name-only", baseline, commit, "--", "backend/migrations"),
-            "Migration differences require separate reviewed backup, target and approval; candidate refused")
+    baseline = os.environ.get("BASELINE_COMMIT", "")
+    if bootstrap_enabled():
+        require(not baseline, "Bootstrap must not invent a Git baseline commit")
+        require(os.environ.get("BOOTSTRAP_CONFIRMATION") == "BOOTSTRAP " + BOOTSTRAP_REVISION,
+                "Exact bootstrap confirmation required")
+        changes = bootstrap_migration_changes(bootstrap_manifest(), commit)
+        if changes:
+            print(json.dumps({"migration_differences": changes}))
+        require(not changes, "Migration differences require separate reviewed backup, target and approval; bootstrap refused")
+    else:
+        require(not os.environ.get("BOOTSTRAP_CONFIRMATION"), "Unexpected bootstrap confirmation")
+        require(SHA.fullmatch(baseline) is not None, "Full proven deployed source SHA required")
+        require(command("git", "cat-file", "-t", baseline) == "commit", "Baseline commit missing")
+        require(not command("git", "diff", "--name-only", baseline, commit, "--", "backend/migrations"),
+                "Migration differences require separate reviewed backup, target and approval; candidate refused")
     environment = github("environments/production")
     policy = environment.get("deployment_branch_policy") or {}
     require(policy.get("custom_branch_policies") is True, "Production must allow main only")
@@ -149,8 +258,14 @@ def candidate() -> None:
     command("gcloud", "auth", "configure-docker", registry, "--quiet")
     command("docker", "pull", previous_image)
     previous_labels = json.loads(command("docker", "image", "inspect", previous_image))[0]["Config"].get("Labels") or {}
-    require(previous_labels.get("org.opencontainers.image.revision") == os.environ["BASELINE_COMMIT"],
-            "Serving image lacks matching proven source label; review baseline provenance separately")
+    if bootstrap_enabled():
+        attestation = bootstrap_manifest()
+        index = json.loads(command("docker", "buildx", "imagetools", "inspect", BOOTSTRAP_INDEX, "--raw"))
+        require(platform_image(BOOTSTRAP_INDEX, index) == previous_image, "Serving platform is not in the pinned release index")
+        verify_bootstrap(attestation, previous, previous_image, image_inventory(previous_image))
+    else:
+        require(previous_labels.get("org.opencontainers.image.revision") == os.environ["BASELINE_COMMIT"],
+                "Serving image lacks matching proven source label; review baseline provenance separately")
     with urllib.request.urlopen("https://api.salones.in/openapi.json", timeout=60) as response:
         baseline_contract = json.load(response)
     require(bool(baseline_contract.get("paths")), "Cannot establish serving OpenAPI baseline")
@@ -176,6 +291,9 @@ def candidate() -> None:
     digest = registry_image["image_summary"]["digest"]
     require(DIGEST.fullmatch(digest) is not None, "Invalid image digest")
     immutable = image.rsplit(":", 1)[0] + "@" + digest
+    index_image = immutable
+    index = json.loads(command("docker", "buildx", "imagetools", "inspect", index_image, "--raw"))
+    immutable = platform_image(index_image, index)
     # Inspect the registry digest, not just a local tag, to verify source identity.
     command("docker", "pull", immutable)
     labels = json.loads(command("docker", "image", "inspect", immutable))[0]["Config"].get("Labels") or {}
@@ -184,7 +302,8 @@ def candidate() -> None:
     latest_main()
     require(before["metadata"]["resourceVersion"] == describe()["metadata"]["resourceVersion"],
             "Service changed during build; inspect and dispatch again")
-    receipt = {"status": "STARTED", "commit": commit, "image": immutable, "digest": digest,
+    receipt = {"status": "STARTED", "commit": commit, "image": immutable, "digest": immutable.split("@", 1)[1],
+               "index_image": index_image, "index_digest": digest, "baseline_kind": "bootstrap-attestation" if bootstrap_enabled() else "git-commit",
                "previous_revision": previous, "previous_image": previous_image, "candidate_revision": service + "-" + suffix,
                "migration_differences": [], "production_traffic_promoted": False, "smoke": {},
                "worker_coverage": "API image only; no worker deployment or execution; see CI_CD.md",
@@ -238,7 +357,7 @@ def candidate() -> None:
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             summary = {"commit": commit, "actor": os.environ.get("GITHUB_ACTOR"),
                        "actor_id": os.environ["GITHUB_ACTOR_ID"], "target_project": project,
-                       "target_service": service, "image_digest": digest,
+                       "target_service": service, "image_digest": receipt["digest"],
                        "current_serving_revision": previous, "rollback_revision": previous,
                        "confirmation": os.environ["DEPLOY_CONFIRMATION"], "status": receipt["status"]}
             with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as output:

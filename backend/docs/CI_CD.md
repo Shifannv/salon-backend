@@ -80,12 +80,13 @@ Permissions are contents:read, id-token:write, plus actions:read solely to inspe
 environment branch policy. No Actions write permission or production application
 secret is used.
 
-The serving image must have a matching OCI source revision label. As audited,
-image `sha256:76ce6bec396732f0ac82957248547eead50f662bbc35fce3a42cbdfdb728a9d7`
-has no OCI revision/source labels. **Do not guess a baseline SHA.** Establish
-verifiable serving-image/source provenance separately before a first candidate;
-the workflow currently refuses this missing baseline. Any migration difference
-also stops deployment; a separately reviewed backup/target/approval is required.
+Normal releases require a matching OCI source revision label. The old hybrid
+image has none: **do not guess a baseline SHA**. The separately reviewed,
+digest-pinned [legacy bootstrap](CLOUD_RUN_BOOTSTRAP.md) can verify that exact
+image through its complete selected-file inventory. It adds explicit bootstrap
+selection/confirmation and does not bypass migration checks. Current schema
+differences still block release; see [required review](CLOUD_RUN_SCHEMA_RECONCILIATION.md).
+Any migration difference requires separate reviewed backup/target/approval.
 No Alembic upgrade/stamp, schema write or production data mutation is performed.
 
 The candidate script builds the exact checked-out commit with OCI revision/source

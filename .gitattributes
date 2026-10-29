@@ -3,4 +3,6 @@
 *.yaml text eol=lf
 Dockerfile text eol=lf
 *.dockerignore text eol=lf
+# Fake-provider fixtures are byte-exact signed webhook bodies on every platform.
+backend/tests/fixtures/providers/fake/*.json text eol=lf
 backend/migrations/reviews/migration-mumbai-review-2026-10-15/privilege-matrix.csv text eol=lf
