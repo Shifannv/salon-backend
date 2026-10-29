@@ -1,4 +1,4 @@
-"""Outbound customer/owner messaging port (WhatsApp and SMS). Provider-neutral.
+"""Outbound owner SMS alert port. Provider-neutral.
 
 No real provider exists yet: ``MESSAGING_PROVIDER`` defaults to ``none`` and only a fake adapter
 is available, for local/test. Resend is transactional email only and is never used here.
@@ -7,7 +7,7 @@ is available, for local/test. Resend is transactional email only and is never us
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-Channel = Literal["whatsapp", "sms"]
+Channel = Literal["sms"]  # WhatsApp is out of scope until separately approved
 
 
 @dataclass(frozen=True)

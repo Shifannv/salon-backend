@@ -57,13 +57,7 @@ def test_messaging_is_off_by_default() -> None:
     settings = Settings(_env_file=None, environment="test")
 
     assert settings.messaging_provider == "none"
-    assert settings.customer_completion_message_enabled is False
     assert settings.messaging_monthly_cap == 300
-
-
-def test_completion_messages_cannot_be_enabled_without_a_provider() -> None:
-    with pytest.raises(ValidationError, match="requires a MESSAGING_PROVIDER"):
-        Settings(_env_file=None, environment="test", customer_completion_message_enabled=True)
 
 
 def test_only_the_fake_messaging_provider_exists_and_only_in_local_or_test() -> None:
@@ -77,6 +71,5 @@ def test_only_the_fake_messaging_provider_exists_and_only_in_local_or_test() -> 
         )
     ok = Settings(
         _env_file=None, environment="test", messaging_provider="fake", messaging_fake_enabled=True,
-        customer_completion_message_enabled=True,
     )
     assert ok.messaging_provider == "fake"

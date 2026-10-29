@@ -143,14 +143,12 @@ class Settings(BaseSettings):
     booking_checkout_policy_version: Literal["customer_processing_v1", "u08-2026-10-23-v1"] = "customer_processing_v1"
     # In-memory synthetic adapter only; never permitted on shared/staging/production runtimes.
     payment_fake_enabled: bool = False
-    # Customer/owner WhatsApp + SMS messaging. 'none' sends nothing. No real provider adapter
+    # Owner SMS alerts (Premium `sms_alerts`). 'none' sends nothing. No real provider adapter
     # exists yet (none is selected, funded or approved); 'fake' is an in-process stand-in for
-    # local/test only. Resend stays transactional email and is never used for this.
+    # local/test only. Resend stays transactional email and is never used for this. WhatsApp to
+    # customers is out of scope until a separate decision.
     messaging_provider: str = "none"
     messaging_fake_enabled: bool = False
-    # "Your service is complete" message to a walk-in customer. Off until a provider, consent
-    # wording and a persistent usage store are approved.
-    customer_completion_message_enabled: bool = False
     # Premium: provider-accepted sends per salon per local calendar month, no carry-over.
     messaging_monthly_cap: int = Field(default=300, ge=1, le=10000)
     # 'platform_collect' = provider-side split settlement (funds stay in the provider's
@@ -315,10 +313,6 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"MESSAGING_PROVIDER={self.messaging_provider!r} has no adapter in "
                 "app/infrastructure/messaging/"
-            )
-        if self.customer_completion_message_enabled and self.messaging_provider == "none":
-            raise ValueError(
-                "CUSTOMER_COMPLETION_MESSAGE_ENABLED requires a MESSAGING_PROVIDER other than none"
             )
         return self
 

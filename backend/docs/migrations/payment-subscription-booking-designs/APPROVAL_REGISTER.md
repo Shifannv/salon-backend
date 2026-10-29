@@ -1,6 +1,6 @@
 # Approval decision register
 
-Revised: 2026-10-19 (Asia/Calcutta). **Prior policy approvals recorded; U06 and U07 added; unaccepted TP01 technical defaults remain Approval required. Implementation/execution held.**
+Revised: 2026-10-19 (Asia/Calcutta). **Prior policy approvals recorded; U06 and U07 added; owner finance F01-F12 added (2026-10-29); unaccepted TP01 technical defaults remain Approval required. Implementation/execution held.**
 
 This file records explicit user policy approvals and remaining choices; it grants
 no implementation, provider-access or execution authorization. C01-C26 in the
@@ -1485,6 +1485,34 @@ unresolved subdecisions. Provider verification names account scope/environment,
 source integrity and verifier; legal holds name valid basis and review/end.
 A policy approval, provider confirmation and execution approval are different
 records. This register is not an execution manifest or a new retention exception.
+
+## Owner finance decisions F01-F12 (user, 2026-10-29)
+
+Recorded as given by the product owner. **Do not ask these again** unless a later decision
+conflicts. They answer the open questions in `finance/FINANCE_PHASE0_DISCOVERY.md` section 9 and
+the assumptions in `finance/FINANCE_PHASE1_DESIGN.md` section 0, and where they differ they win.
+
+| ID | Decision | Status |
+| --- | --- | --- |
+| F01 | **Amounts in paise.** All financial amounts are whole integer paise. 1 rupee = 100 paise. | Approved |
+| F02 | **Internal fields are never shown.** Platform/salon allocation, gateway fees, Cashfree fees and internal platform percentages are never shown to salon owners or staff. Staff never see commission rules or other staff's earnings. The owner sees and configures a staff commission rule only inside a restricted Staff Earnings / Commission Settings area. The Daily Ledger and Analytics show only salon-operational totals, and staff earned amounts where permitted. | Approved (changed from the recommendation) |
+| F03 | **Opening cash.** First ledger day: the owner enters it once. Later days: it is the previous closed day's counted cash. If the prior day was not closed the system must **not** assume zero or carry forward silently: the owner confirms or reconciles it. Any later correction is an audited adjustment with a reason. | Approved |
+| F04 | **Who writes.** Salon owner only. Staff and salon managers cannot add expenses or close or reopen a day. A platform super-admin may audit records where authorized but must not create or alter a salon's ledger entries through the owner workflow. | Approved |
+| F05 | **Plan access.** Trial, Growth and Premium all get the Daily Ledger and Staff Earnings. Premium-only remains for SMS alerts. When a trial or subscription ends the salon keeps read-only access to past finance records and every financial write is locked. | Approved |
+| F06 | **Retention after account deletion.** Requires accountant/legal input. No duration is invented. Personal identity is erased or anonymized where approved; necessary financial evidence is kept only for the required period. **The purge design stays blocked until the user supplies the period.** | Approval required |
+| F07 | **Commission precedence.** 1 staff + specific service, 2 staff-wide, 3 service-wide, 4 salon default, 5 no rule = zero commission. The selected rule is snapshotted when the service completes; later rule changes never rewrite past earnings. | Approved |
+| F08 | **SMS feature name.** Keep `sms_alerts`. Premium-only through subscription entitlement. Do not rename it to `premium_sms_alerts`. | Approved |
+| F09 | **WhatsApp.** Not approved and out of scope. Build SMS alerts only; send no WhatsApp message to customers. It needs separate customer consent, provider review, template approval, cost/quota and privacy wording, and a separate future decision. It does not count toward the 300 monthly SMS quota because it is not being built. | Not approved |
+| F10 | **Changing a service's staff.** Only before the service is completed. After completion the original allocation is never edited: a genuine correction is an audited earning adjustment/reversal plus a replacement record. | Approved |
+| F11 | **Expired trial or subscription.** The owner keeps read-only access to historical Daily Ledger and Staff Earnings. No new expenses, payment receipts, day close, commission changes or financial edits while access is expired. Prior records are never deleted or hidden because a subscription ended. | Approved |
+| F12 | **Cash refunds.** A generic "cash adjustment out" is not the long-term refund workflow. A proper `Cash Refund` action/financial event must be built before any public refund workflow launches: linked to the original booking/receipt, with amount, actor, timestamp, reason and audit history. Until it exists a generic adjustment must not be presented as a customer refund and stays restricted to audited internal corrections. | Approved (changed from the recommendation) |
+
+What these changed in the build (2026-10-29): migration 0051's owner routes now allow reads after
+a plan ends and refuse every write (F05, F11); the daily ledger reports `can_write`; opening cash
+needs owner confirmation when the previous day is unclosed (F03); the dormant WhatsApp
+"service completed" message code and its setting were removed (F09); the adjustment sheet no
+longer mentions customer refunds (F12). Not yet built: staff earnings and commission settings
+(F02, F07, F10), the Cash Refund event (F12) and the retention purge (F06).
 
 ## Verification boundary and stopping point
 

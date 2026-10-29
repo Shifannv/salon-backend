@@ -26,21 +26,28 @@ Endpoints (owner only, `/v1`, integer paise, writes need `Idempotency-Key`):
   events). It changes booking completion, so it needs its own review and tests. The commission
   scope question (Phase 0 Q7) is still unanswered.
 - **Premium SMS persistence** (usage, intents, inbound actions). Waits for a provider, sender
-  identity, consent wording and cost approval (Phase 4).
-- **Admin access.** The routes are `/salons/me/...`, which has no meaning for an admin with no
-  salon. Phase 1 assumed "owner and approved admin"; this build is owner only.
+  identity and cost approval (Phase 4). WhatsApp is out of scope (F09): the dormant "service
+  completed" WhatsApp message code was removed.
+- **Admin access.** Owner only, as decided (F04). A super-admin may audit where authorized but
+  never writes through the owner workflow.
 
 ## Deviations from the Phase 1 design (each deliberate)
 
 1. **Owner only**, not admin (above).
-2. **Trial counts as Growth.** A salon on its free trial has no subscription row, so its plan
-   features are empty. Enforcing `daily_ledger` literally would lock out every trial owner, so the
-   gate is: the paid plan includes `daily_ledger`, or the trial is active (started, not expired,
-   not at its booking limit). Expired or exhausted trials are refused with `entitlement_required`.
+2. **Trial counts as Growth, and an ended plan is read-only (F05, F11).** A salon on its free
+   trial has no subscription row, so its plan features are empty; enforcing `daily_ledger`
+   literally would lock out every trial owner. Writes need the paid plan to include
+   `daily_ledger`, or the trial to be active (started, not expired, not at its booking limit);
+   otherwise they are refused with `entitlement_required`. **Reads are always allowed to the
+   owner**, so past records stay visible, and the daily ledger reports `can_write` for the app.
    **This is the first server-side enforcement of a plan feature in the backend.**
 3. **Cash adjustments gained `reverses_id`** (mirror rule: opposite direction, same amount).
-4. **Opening cash** is the previous close's counted cash plus the net cash of any unclosed days
-   since. Only the very first close accepts an owner-entered opening amount; later closes reject it.
+4. **Opening cash (F03).** If the day before was closed, its counted cash is the opening and a
+   client cannot restate it. Otherwise (first ever close, or an unclosed day in between) the
+   opening is **never assumed or carried silently**: the ledger reports `needs_confirmation` with
+   the last count plus the cash that moved since as a *suggestion*, and closing the day requires
+   the owner to state `opening_cash_paise` (`opening_cash_required` if missing). A re-count of the
+   same day keeps the opening the owner already confirmed.
 5. **Day-close idempotency** replays the stored close; a different body is `idempotency_key_reuse`.
 
 ## Gaps found while testing (read these)
@@ -48,8 +55,11 @@ Endpoints (owner only, `/v1`, integer paise, writes need `Idempotency-Key`):
 - **Manual cash and UPI receipts cannot be refunded in the platform today.** The database requires a
   manual receipt to stay `captured` (`ck_booking_payments_manual_is_settled`) and its own refund
   trigger would move it out of that state. The ledger's refund figures therefore read zero for
-  manual receipts. Until a manual-refund feature exists, cash returned to a customer is recorded as
-  a cash adjustment (out) with a reason. The refund query is in place and tested with seeded data.
+  manual receipts. **A proper `Cash Refund` financial event is required before any public refund
+  workflow launches (F12)**: linked to the original booking/receipt, with amount, actor,
+  timestamp, reason and audit history. Until it exists, the generic cash adjustment is for audited
+  *internal corrections only* and must not be presented as a customer refund. The refund query is in
+  place and tested with seeded data.
 - **Gateway (online) payments are not in the cash book.** Receipts are manual rows only (cash and
   direct UPI). That matches "no Cashfree, no online payment" and must be revisited if that changes.
 - **`needs_review`** is true when a completed booking is marked paid but has no receipt row, or a
@@ -84,3 +94,15 @@ years remain undecided (Phase 0 Q6), so no purge exists.
 - `tests/integration/test_owner_finance_erasure.py`: the real erasure on the prepared schema 0038..0051.
 - `tests/unit/test_finance_design_fixtures.py`: the 700-rupee example, now also pinned to the production rules.
 - `tests/unit/test_migration_policy.py` and `test_payment_flows.py`: head pins updated to 0051 (no guard weakened).
+
+## API additions since the Phase 1 contract (2026-10-29)
+
+| Change | Why |
+| --- | --- |
+| `GET /salons/me/ledger/daily` adds `expenses_total_paise` | The server sums cash and non-cash expenses, so no client adds money figures together. |
+| `GET /salons/me/ledger/daily` adds `can_write` | `false` once the trial or plan has ended (F05, F11): reads stay open, every write returns 403 `entitlement_required`. |
+| `opening_cash_source` gains `needs_confirmation` | The day before was not closed; `opening_cash_paise` is only a suggestion (F03). |
+| New error `opening_cash_required` (422) | Closing a day whose opening is `not_set` or `needs_confirmation` needs `opening_cash_paise`; it is never assumed. |
+| `entitlement_required` now means "writes locked", not "no access" | Reads are always allowed to the owner. |
+
+Owner-app record: [FINANCE_PHASE3_OWNER_APP.md](FINANCE_PHASE3_OWNER_APP.md).

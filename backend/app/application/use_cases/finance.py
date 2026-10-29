@@ -21,6 +21,7 @@ from app.core.exceptions import (
     ExpenseAlreadyReversedError,
     ForbiddenError,
     NotFoundError,
+    OpeningCashRequiredError,
     SalonApprovalRequiredError,
     ValidationError,
 )
@@ -48,7 +49,10 @@ class FinanceUseCases:
         self._clock = clock or (lambda: datetime.now(UTC))
 
     # ------------------------------------------------------------------ access
-    async def _salon(self, actor: Profile) -> dict[str, Any]:
+    async def _salon(self, actor: Profile, *, write: bool = False) -> dict[str, Any]:
+        """The owner's approved salon. Reading is always allowed to the owner, so past records stay
+        visible after a trial or plan ends; any write needs the plan (or trial) to still be active."""
+
         if actor.role is not Role.owner:
             raise ForbiddenError("Salon owner access required")
         salon = await self.repository.owner_salon(actor.id)
@@ -57,9 +61,12 @@ class FinanceUseCases:
         if not salon["profile_completed"] or salon["approval_status"] != "approved":
             raise SalonApprovalRequiredError("Super admin approval is required for daily business")
         access = await self.repository.plan_access(str(salon["id"]), self._clock())
-        if not finance_allowed(now=self._clock(), **access):
-            raise EntitlementRequiredError("Your plan does not include the daily ledger")
-        return salon
+        can_write = finance_allowed(now=self._clock(), **access)
+        if write and not can_write:
+            raise EntitlementRequiredError(
+                "Your trial or plan has ended: your finance records stay here, read-only"
+            )
+        return {**salon, "can_write": can_write}
 
     def _not_future(self, moment: datetime) -> None:
         if moment.tzinfo is None:
@@ -103,7 +110,7 @@ class FinanceUseCases:
         figures = await self._figures(salon_id, timezone, local_date)
         opening, source = await self.repository.opening_cash(salon_id, local_date, timezone)
         close = await self.repository.latest_close(salon_id, local_date)
-        if close is not None and source == "not_set":
+        if close is not None and source != "previous_close":
             opening, source = int(close["opening_cash_paise"]), "entered_at_close"
         return {
             "date": local_date,
@@ -121,6 +128,8 @@ class FinanceUseCases:
                 "cash_paise": _paise(figures, "cash_expenses"),
                 "non_cash_paise": _paise(figures, "non_cash_expenses"),
             },
+            # Summed here so no client ever has to add two money figures together.
+            "expenses_total_paise": _paise(figures, "cash_expenses") + _paise(figures, "non_cash_expenses"),
             "cash_adjustments": {
                 "in_paise": _paise(figures, "adjustments_in"),
                 "out_paise": _paise(figures, "adjustments_out"),
@@ -130,6 +139,8 @@ class FinanceUseCases:
             "expected_closing_cash_paise": self._cash_expected(opening, figures),
             "close": self._close_view(close),
             "needs_review": bool(figures["paid_without_receipt"] or figures["refund_pending"]),
+            # False once the trial or plan has ended: the records stay readable, nothing can be added.
+            "can_write": salon["can_write"],
         }
 
     async def ledger_range(self, actor: Profile, first: date, last: date) -> dict[str, Any]:
@@ -168,7 +179,7 @@ class FinanceUseCases:
         difference_reason: str | None, opening_cash_paise: int | None, idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, write=True)
         salon_id, timezone = str(salon["id"]), salon["timezone"]
         if local_date > today_in(timezone, self._clock()):
             raise DayInFutureError("A day cannot be closed before it has started")
@@ -181,15 +192,23 @@ class FinanceUseCases:
         if await self.repository.stored_close(salon_id, key, digest) is not None:
             return await self.daily_ledger(actor, local_date)
         opening, source = await self.repository.opening_cash(salon_id, local_date, timezone)
-        if source == "previous_close" and opening_cash_paise is not None:
-            raise ValidationError("Opening cash is carried forward from the previous close")
-        if source == "not_set":
-            opening = opening_cash_paise or 0
+        previous = await self.repository.latest_close(salon_id, local_date)
+        if source == "previous_close":
+            if opening_cash_paise is not None:
+                raise ValidationError("Opening cash is carried forward from the previous close")
+        else:
+            # First ledger day, or the day before was never closed: the owner states the drawer
+            # cash at the start of the day. It is never assumed to be zero or carried silently.
+            if opening_cash_paise is not None:
+                opening = opening_cash_paise
+            elif previous is not None:
+                opening = int(previous["opening_cash_paise"])  # a re-count keeps the confirmed opening
+            else:
+                raise OpeningCashRequiredError("Confirm the cash in the drawer when this day began")
         figures = await self._figures(salon_id, timezone, local_date)
         expected = self._cash_expected(opening, figures)
         if actual_cash_paise != expected and not reason_is_written(reason):
             raise DifferenceReasonRequiredError("Counted cash differs from expected: write the reason")
-        previous = await self.repository.latest_close(salon_id, local_date)
         await self.repository.add_close({
             "salon_id": salon_id, "local_date": local_date,
             "revision": (previous["revision"] + 1) if previous else 1,
@@ -206,7 +225,7 @@ class FinanceUseCases:
         occurred_at: datetime, idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, write=True)
         self._not_future(occurred_at)
         reason = reason.strip()
         digest = fingerprint_of({"op": "adjust", "direction": direction, "amount": amount_paise,
@@ -226,7 +245,7 @@ class FinanceUseCases:
         occurred_at: datetime, note: str | None, idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, write=True)
         self._not_future(occurred_at)
         note = (note or "").strip() or None
         digest = fingerprint_of({"op": "expense", "category": category, "amount": amount_paise,
@@ -245,7 +264,7 @@ class FinanceUseCases:
         self, actor: Profile, expense_id: str, *, idempotency_key: str | None
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, write=True)
         salon_id = str(salon["id"])
         original = await self.repository.get_expense(salon_id, expense_id)
         if original is None:

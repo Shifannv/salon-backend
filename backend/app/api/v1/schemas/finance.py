@@ -111,14 +111,18 @@ class DailyLedgerResponse(_Response):
     outstanding_due_paise: int
     refunds: MoneySplit
     expenses: MoneySplit
+    expenses_total_paise: int
     cash_adjustments: AdjustmentTotals
     opening_cash_paise: int
-    opening_cash_source: Literal["previous_close", "entered_at_close", "not_set"]
+    # needs_confirmation: the day before was not closed, so opening_cash_paise is only a suggestion.
+    opening_cash_source: Literal["previous_close", "entered_at_close", "needs_confirmation", "not_set"]
     expected_closing_cash_paise: int
     close: DayCloseView | None
     # True while a completed booking has no receipt or a refund is still pending: do not show
     # these totals as final.
     needs_review: bool
+    # False when the trial or plan has ended: records stay readable, every write is refused.
+    can_write: bool = True
 
 
 class LedgerRangeDay(_Response):

@@ -100,31 +100,41 @@ async def test_ledger_reads_real_sales_receipts_expenses_and_closes_the_day(env,
 
         after = (await http.get("/v1/salons/me/ledger/daily", params={"date": day})).json()
         assert after["expenses"] == {"cash_paise": 5000, "non_cash_paise": 20000}
+        assert after["expenses_total_paise"] == 25000  # the server's sum, so no client adds money
         assert after["cash_adjustments"] == {"in_paise": 2500, "out_paise": 0}
         # Expenses never reduce completed sales, and a non-cash expense never touches cash.
         assert after["gross_completed_sales_paise"] == 50000
         assert after["expected_closing_cash_paise"] == 25000 - 5000 + 2500
 
         # The server computes expected cash; a difference needs a written reason.
+        # The first ever close needs the owner to state the opening cash; it is never assumed.
+        unstated = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=key(),
+                                   json={"actual_cash_paise": 22000})
+        assert unstated.status_code == 422 and unstated.json()["error"]["code"] == "opening_cash_required"
+
         short = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=key(),
-                                json={"actual_cash_paise": 22000})
+                                json={"actual_cash_paise": 22000, "opening_cash_paise": 0})
         assert short.status_code == 422 and short.json()["error"]["code"] == "difference_reason_required"
 
         close_key = key()
         closed = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=close_key,
-                                 json={"actual_cash_paise": 22000, "difference_reason": "Tip jar emptied"})
+                                 json={"actual_cash_paise": 22000, "opening_cash_paise": 0,
+                                       "difference_reason": "Tip jar emptied"})
         assert closed.status_code == 200, closed.text
         body = closed.json()
         assert body["status"] == "closed"
         assert body["close"]["revision"] == 1 and body["close"]["difference_paise"] == -500
 
         replay = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=close_key,
-                                 json={"actual_cash_paise": 22000, "difference_reason": "Tip jar emptied"})
+                                 json={"actual_cash_paise": 22000, "opening_cash_paise": 0,
+                                       "difference_reason": "Tip jar emptied"})
         assert replay.status_code == 200 and replay.json()["close"]["revision"] == 1
 
+        # A re-count keeps the opening the owner already confirmed; it is not asked for again.
         again = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=key(),
                                 json={"actual_cash_paise": 22500})
         assert again.status_code == 200 and again.json()["close"]["revision"] == 2
+        assert again.json()["opening_cash_paise"] == 0
 
         rows = await env.sql("select count(*) as n from salon_day_closes where salon_id = :s", s=f["salon"])
         assert rows[0]["n"] == 2
@@ -137,7 +147,7 @@ async def test_retrying_a_close_replays_it_even_after_the_cash_book_moved_on(env
     async with http:
         day = today().isoformat()
         retry_key = key()
-        body = {"actual_cash_paise": 25000}  # exactly the expected cash: no reason needed
+        body = {"actual_cash_paise": 25000, "opening_cash_paise": 0}  # exactly expected: no reason needed
         first = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=retry_key, json=body)
         assert first.status_code == 200 and first.json()["close"]["revision"] == 1
         # The cash book changes after the close...
@@ -253,7 +263,7 @@ async def test_validation_rejects_bad_money_dates_and_unknown_fields(env, monkey
         assert backwards.status_code == 422
 
 
-async def test_opening_cash_is_carried_forward_and_entered_only_once(env, monkeypatch):
+async def test_opening_cash_is_carried_forward_but_never_silently_across_an_unclosed_day(env, monkeypatch):
     f = await trial_salon(env)
     http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
     first_day = today() - timedelta(days=2)
@@ -261,16 +271,27 @@ async def test_opening_cash_is_carried_forward_and_entered_only_once(env, monkey
         opened = await http.post(f"/v1/salons/me/ledger/days/{first_day}/close", headers=key(),
                                  json={"actual_cash_paise": 100000, "opening_cash_paise": 100000})
         assert opened.status_code == 200 and opened.json()["opening_cash_paise"] == 100000
-        # The next day starts from the counted cash; a client cannot restate it.
-        refused = await http.post(f"/v1/salons/me/ledger/days/{first_day + timedelta(days=1)}/close",
+
+        # The very next day starts from the counted cash; a client cannot restate it.
+        next_day = first_day + timedelta(days=1)
+        refused = await http.post(f"/v1/salons/me/ledger/days/{next_day}/close",
                                   headers=key(), json={"actual_cash_paise": 100000, "opening_cash_paise": 5})
         assert refused.status_code == 422
-        carried = (await http.get("/v1/salons/me/ledger/daily",
-                                  params={"date": (first_day + timedelta(days=1)).isoformat()})).json()
+        carried = (await http.get("/v1/salons/me/ledger/daily", params={"date": next_day.isoformat()})).json()
         assert carried["opening_cash_paise"] == 100000 and carried["opening_cash_source"] == "previous_close"
-        # An unclosed day in between still flows through: the opening for today is derived, not lost.
-        later = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
-        assert later["opening_cash_paise"] == 100000
+
+        # Yesterday was never closed: today's opening is only a suggestion the owner must confirm.
+        unconfirmed = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
+        assert unconfirmed["opening_cash_source"] == "needs_confirmation"
+        assert unconfirmed["opening_cash_paise"] == 100000  # last count plus the cash that moved since
+        silent = await http.post(f"/v1/salons/me/ledger/days/{today()}/close", headers=key(),
+                                 json={"actual_cash_paise": 100000})
+        assert silent.status_code == 422 and silent.json()["error"]["code"] == "opening_cash_required"
+        confirmed = await http.post(f"/v1/salons/me/ledger/days/{today()}/close", headers=key(),
+                                    json={"actual_cash_paise": 99000, "opening_cash_paise": 99000})
+        assert confirmed.status_code == 200, confirmed.text
+        assert confirmed.json()["opening_cash_paise"] == 99000
+        assert confirmed.json()["opening_cash_source"] == "entered_at_close"
 
 
 async def test_range_returns_each_day_and_totals(env, monkeypatch):
@@ -308,21 +329,47 @@ async def test_only_the_salons_owner_with_an_eligible_plan_can_use_it(env, monke
             ):
                 assert response.status_code == 403, response.text
 
-    # No trial and no subscription: the plan does not include the ledger.
+    # No trial and no plan, an ended trial and an exhausted trial: the records stay readable and
+    # every write is refused, so a salon never loses sight of its own finance history.
     nothing = await env.seed()
     await env.sql("delete from salon_access where salon_id = :s", s=nothing["salon"])  # approval starts a trial
-    http, _ = await client_for(env, monkeypatch, make_owner(nothing["owner"]))
-    async with http:
-        denied = await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})
-        assert denied.status_code == 403 and denied.json()["error"]["code"] == "entitlement_required"
-
-    # An expired trial and an exhausted trial are not entitled either.
-    for days, limit, counted in ((-1, 500, 0), (30, 10, 10)):
-        expired = await trial_salon(env, days=days, limit=limit, counted=counted)
-        http, _ = await client_for(env, monkeypatch, make_owner(expired["owner"]))
+    ended = [nothing, await trial_salon(env, days=-1), await trial_salon(env, days=30, limit=10, counted=10)]
+    for salon in ended:
+        http, _ = await client_for(env, monkeypatch, make_owner(salon["owner"]))
         async with http:
-            response = await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})
-            assert response.status_code == 403 and response.json()["error"]["code"] == "entitlement_required"
+            read = await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})
+            assert read.status_code == 200 and read.json()["can_write"] is False
+            assert (await http.get("/v1/salons/me/expenses")).status_code == 200
+            assert (await http.get("/v1/salons/me/ledger/range", params={
+                "from": today().isoformat(), "to": today().isoformat()})).status_code == 200
+            writes = (
+                await http.post("/v1/salons/me/expenses", headers=key(), json={
+                    "category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now()}),
+                await http.post("/v1/salons/me/ledger/adjustments", headers=key(), json={
+                    "direction": "in", "amount_paise": 100, "reason": "Float", "occurred_at": iso_now()}),
+                await http.post(f"/v1/salons/me/ledger/days/{today()}/close", headers=key(),
+                                json={"actual_cash_paise": 0, "opening_cash_paise": 0}),
+                await http.post(f"/v1/salons/me/expenses/{uuid4()}/reverse", headers=key()),
+            )
+            for response in writes:
+                assert response.status_code == 403, response.text
+                assert response.json()["error"]["code"] == "entitlement_required"
+    assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s",
+                          s=nothing["salon"]))[0]["n"] == 0
+
+    # Records written while the salon was entitled stay visible after the trial ends.
+    kept = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(kept["owner"]))
+    async with http:
+        made = await http.post("/v1/salons/me/expenses", headers=key(), json={
+            "category": "rent", "amount_paise": 12345, "payment_method": "non_cash", "occurred_at": iso_now(minutes=1)})
+        assert made.status_code == 201
+        await env.sql("update salon_access set trial_ends_at = now() - interval '1 hour', "
+                      "trial_started_at = now() - interval '10 days' where salon_id = :s", s=kept["salon"])
+        listing = (await http.get("/v1/salons/me/expenses")).json()["expenses"]
+        assert [row["amount_paise"] for row in listing] == [12345]
+        ledger = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
+        assert ledger["expenses_total_paise"] == 12345 and ledger["can_write"] is False
 
 
 async def test_a_salon_never_sees_or_reverses_another_salons_records(env, monkeypatch):
