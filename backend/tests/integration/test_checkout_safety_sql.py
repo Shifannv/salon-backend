@@ -39,7 +39,7 @@ async def _install_booking_window(database: str) -> None:
         Path(__file__).parents[2]
         / "migrations"
         / "sql"
-        / "0044_booking_window_30_days.sql"
+        / "0052_booking_window_30_days.sql"
     )
     try:
         async with engine.begin() as connection:

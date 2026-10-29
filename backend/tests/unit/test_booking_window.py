@@ -24,7 +24,7 @@ def test_booking_window_sql_uses_salon_local_rolling_dates() -> None:
         Path(__file__).resolve().parents[2]
         / "migrations"
         / "sql"
-        / "0044_booking_window_30_days.sql"
+        / "0052_booking_window_30_days.sql"
     )
     sql = sql_path.read_text(encoding="utf-8")
 
