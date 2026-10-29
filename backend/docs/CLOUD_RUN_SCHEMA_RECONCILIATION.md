@@ -51,3 +51,10 @@ It creates three append-only finance tables, indexes, RLS/grants and triggers.
 It is forward-only because future finance records cannot be discarded by
 downgrade. This hash/count is review evidence, not execution approval. Applying
 only 0051 cannot establish compatibility with all remaining source differences.
+
+## Local rehearsal follow-up
+
+See [29 October restored-copy rehearsal](SCHEMA_REHEARSAL_20261029.md) for the later
+848ac73 source, proposed 43-statement finance correction, recovery verification and
+measured retention effects. The historical 5903d47 hash above is not the current
+0051 execution input. No production SQL or release was performed.

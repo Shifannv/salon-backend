@@ -78,7 +78,7 @@ CREATE TABLE public.salon_day_closes (
 --   1. created_by -> NULL (the profile is deleted; ON DELETE SET NULL performs this update), and
 --   2. redacting free text (title, note, reason, difference_reason) while app.finance_redaction = 'on'.
 -- Redaction can only blank a column (NULL) or set the marker 'Removed'; it can never write new text.
--- Every other column is frozen, and DELETE is never allowed. difference_paise is excluded from the
+-- Every other column is frozen, and DELETE/TRUNCATE are never allowed. difference_paise is excluded from the
 -- comparison only because it is a stored generated column that PostgreSQL computes AFTER BEFORE
 -- triggers run; it derives from actual_cash_paise and expected_cash_paise, which stay frozen.
 CREATE FUNCTION public.guard_finance_append_only() RETURNS trigger
@@ -89,7 +89,7 @@ DECLARE
   frozen_old jsonb;
   col text;
 BEGIN
-  IF TG_OP = 'DELETE' THEN
+  IF TG_OP IN ('DELETE', 'TRUNCATE') THEN
     RAISE EXCEPTION 'finance_records_are_append_only' USING ERRCODE = 'P0001';
   END IF;
   frozen_new := to_jsonb(NEW) - 'created_by' - 'difference_paise' - free_text;
@@ -119,6 +119,15 @@ CREATE TRIGGER salon_cash_adjustments_append_only BEFORE UPDATE OR DELETE ON pub
 -- statement --
 CREATE TRIGGER salon_day_closes_append_only BEFORE UPDATE OR DELETE ON public.salon_day_closes
   FOR EACH ROW EXECUTE FUNCTION public.guard_finance_append_only();
+-- statement --
+CREATE TRIGGER salon_expenses_no_truncate BEFORE TRUNCATE ON public.salon_expenses
+  FOR EACH STATEMENT EXECUTE FUNCTION public.guard_finance_append_only();
+-- statement --
+CREATE TRIGGER salon_cash_adjustments_no_truncate BEFORE TRUNCATE ON public.salon_cash_adjustments
+  FOR EACH STATEMENT EXECUTE FUNCTION public.guard_finance_append_only();
+-- statement --
+CREATE TRIGGER salon_day_closes_no_truncate BEFORE TRUNCATE ON public.salon_day_closes
+  FOR EACH STATEMENT EXECUTE FUNCTION public.guard_finance_append_only();
 -- statement --
 -- A reversal mirrors exactly one earlier expense: same salon, category, amount, method, name and
 -- date. Dating it on the original's day keeps a cancelled mistake from disturbing any other day.
