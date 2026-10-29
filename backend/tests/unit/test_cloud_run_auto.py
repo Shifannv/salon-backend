@@ -120,9 +120,9 @@ def rollout(auto, monkeypatch):
         current["etag"] = "etag-2"
 
     monkeypatch.setattr(auto, "patch_traffic", patch)
-    monkeypatch.setattr(auto, "public_health", lambda: health(auto))
+    monkeypatch.setattr(auto, "public_health", lambda **kwargs: health(auto))
     receipt = {"candidate_revision": "salon-api-production-new", "previous_revision": "salon-api-production-old",
-               "verified_resource_version": "v1", "production_traffic_promoted": False}
+               "verified_resource_version": "v1", "production_traffic_promoted": False, "commit": "a" * 40, "previous_commit": "b" * 40}
     return receipt, current, calls
 
 
@@ -139,7 +139,7 @@ def test_verified_candidate_promotes_and_keeps_existing_tags(auto, rollout):
 def test_health_or_ambiguous_patch_failure_rolls_back_same_revision(auto, rollout, monkeypatch, failure):
     receipt, current, calls = rollout
     checks = iter([health(auto, False), health(auto, failure != "unhealthy_rollback")])
-    monkeypatch.setattr(auto, "public_health", lambda: next(checks))
+    monkeypatch.setattr(auto, "public_health", lambda **kwargs: next(checks))
     if failure == "timeout_after_acceptance":
         original = auto.patch_traffic
 
@@ -149,7 +149,7 @@ def test_health_or_ambiguous_patch_failure_rolls_back_same_revision(auto, rollou
                 raise TimeoutError("synthetic timeout after patch accepted")
 
         monkeypatch.setattr(auto, "patch_traffic", patch)
-        monkeypatch.setattr(auto, "public_health", lambda: health(auto))
+        monkeypatch.setattr(auto, "public_health", lambda **kwargs: health(auto))
     with pytest.raises((RuntimeError, TimeoutError)):
         auto.promote(receipt)
     assert receipt["status"] == ("ROLLBACK_HEALTH_FAILED" if failure == "unhealthy_rollback" else "ROLLED_BACK")
@@ -160,7 +160,7 @@ def test_health_or_ambiguous_patch_failure_rolls_back_same_revision(auto, rollou
 def test_concurrent_external_change_is_not_overwritten(auto, rollout, monkeypatch):
     receipt, current, calls = rollout
 
-    def changed_health():
+    def changed_health(**kwargs):
         current["template"]["serviceAccount"] = "externally-changed"
         return health(auto, False)
 
@@ -197,7 +197,7 @@ def test_failed_rollback_reports_unknown_live_traffic(auto, rollout, monkeypatch
         original(service, targets)
 
     monkeypatch.setattr(auto, "patch_traffic", patch)
-    monkeypatch.setattr(auto, "public_health", lambda: health(auto, False))
+    monkeypatch.setattr(auto, "public_health", lambda **kwargs: health(auto, False))
     with pytest.raises(RuntimeError, match="rollback denied"):
         auto.promote(receipt)
     assert receipt["status"] == "ROLLBACK_FAILED_OPERATOR_ACTION_REQUIRED"
@@ -244,7 +244,7 @@ def test_baseline_without_exact_source_label_is_refused(auto, monkeypatch, label
 
 
 def valid_receipt(auto):
-    return {"status": "PASS_CANDIDATE_VERIFIED", "ready": True, "commit": "a" * 40, "migration_differences": [],
+    return {"status": "PASS_CANDIDATE_VERIFIED", "ready": True, "api_identity": {"commit_sha": "a" * 40}, "commit": "a" * 40, "migration_differences": [],
             "smoke": {path: {"pass": True} for path in auto.SMOKES}, "openapi_sha256": "b" * 64,
             "openapi_contract_checks": "Expected routes and existing paths/operations/schema fields preserved",
             "image": auto.release.IMAGE_ROOT + "sha256:" + "c" * 64, "digest": "sha256:" + "c" * 64,

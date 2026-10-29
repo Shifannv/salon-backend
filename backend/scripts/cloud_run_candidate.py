@@ -17,8 +17,10 @@ import tarfile
 import tempfile
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
+DEPLOYMENT_STARTED = False
 REPOSITORY = "Shifannv/salon-backend"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
@@ -51,6 +53,11 @@ def github(path: str) -> dict:
             return json.load(response)
     except urllib.error.HTTPError as error:
         raise RuntimeError(f"GitHub preflight denied (HTTP {error.code}); do not bypass protection") from None
+
+
+def deployment_commit() -> str:
+    # Once remote mutation begins, a newer push must not interrupt verification/rollback.
+    return os.environ["GITHUB_SHA"] if DEPLOYMENT_STARTED else latest_main()
 
 
 def latest_main() -> str:
@@ -166,7 +173,7 @@ def identity(*, automatic: bool = False) -> str:
         require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "Manual dispatch required")
         require(os.environ.get("APPROVE_DEPLOYMENT") == "true", "Explicit candidate approval required")
         require(os.environ.get("DEPLOY_CONFIRMATION") == "DEPLOY api.salones.in", "Exact typed confirmation required")
-    commit = latest_main()
+    commit = deployment_commit() if automatic else latest_main()
     require(os.environ.get("REQUESTED_COMMIT") == commit, "Supplied commit must equal workflow SHA")
     require(SHA.fullmatch(commit) is not None, "Full source SHA required")
     require(command("git", "rev-parse", "HEAD") == commit, "Checkout differs from selected commit")
@@ -248,7 +255,10 @@ def verify_contract(baseline: dict, candidate: dict) -> None:
             require(shape == current["properties"][field], "Existing schema field changed; review separately")
 
 
-def candidate(*, automatic: bool = False) -> dict:
+def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> dict:
+    global DEPLOYMENT_STARTED
+    if automatic:
+        require(tested_bundle is not None, "Automatic release requires the exact CI-tested image")
     commit = preflight(automatic=automatic)
     project, region, service = (os.environ[key] for key in ["GCP_PROJECT_ID", "GCP_REGION", "GCP_CLOUD_RUN_SERVICE"])
 
@@ -285,17 +295,26 @@ def candidate(*, automatic: bool = False) -> dict:
     suffix = f"gh-{commit[:8]}-{run_id}-{attempt}"
     tag = f"gh-{run_id}-{attempt}"
     image = f"{registry}/{project}/{os.environ['GCP_ARTIFACT_REGISTRY_REPOSITORY']}/api:{commit}-{run_id}-{attempt}"
-    # Archive tracked commit contents: ignored/untracked files cannot enter the image.
-    archive = subprocess.run(["git", "archive", "--format=tar", commit, "backend"], capture_output=True, check=False)
-    require(archive.returncode == 0, "Cannot archive reviewed source")
-    with tempfile.TemporaryDirectory(prefix="salon-reviewed-") as directory:
-        with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as source:
-            source.extractall(directory, filter="data")
-        command("docker", "build", "--pull", "--platform=linux/amd64", "--label", f"org.opencontainers.image.revision={commit}",
-                "--label", f"org.opencontainers.image.source=https://github.com/{REPOSITORY}", "--tag", image,
-                str(Path(directory) / "backend"))
-    command("bash", "backend/scripts/check-container.sh", image)
+    ci_metadata = None
+    if automatic:
+        require(tested_bundle is not None, "Automatic release requires the exact CI-tested image")
+        import ci_image_bundle
+        ci_metadata = ci_image_bundle.load(tested_bundle)
+        command("docker", "tag", ci_metadata["image_ref"], image)
+    else:
+        # Archive tracked commit contents: ignored/untracked files cannot enter the image.
+        archive = subprocess.run(["git", "archive", "--format=tar", commit, "backend"], capture_output=True, check=False)
+        require(archive.returncode == 0, "Cannot archive reviewed source")
+        with tempfile.TemporaryDirectory(prefix="salon-reviewed-") as directory:
+            with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as source:
+                source.extractall(directory, filter="data")
+            command("docker", "build", "--pull", "--platform=linux/amd64", "--build-arg", f"SOURCE_COMMIT={commit}", "--label", f"org.opencontainers.image.revision={commit}",
+                    "--label", f"org.opencontainers.image.source=https://github.com/{REPOSITORY}", "--tag", image,
+                    str(Path(directory) / "backend"))
+        command("bash", "backend/scripts/check-container.sh", image, commit)
     latest_main()
+    if automatic:
+        DEPLOYMENT_STARTED = True
     command("docker", "push", image)
     registry_image = cloud("artifacts", "docker", "images", "describe", image)
     digest = registry_image["image_summary"]["digest"]
@@ -304,18 +323,28 @@ def candidate(*, automatic: bool = False) -> dict:
     index_image = immutable
     index = json.loads(command("docker", "buildx", "imagetools", "inspect", index_image, "--raw"))
     immutable = platform_image(index_image, index)
+    if ci_metadata is not None:
+        platform_manifest = json.loads(command("docker", "buildx", "imagetools", "inspect", immutable, "--raw"))
+        require(platform_manifest.get("config", {}).get("digest") == ci_metadata["config_digest"], "Registry image differs from tested CI config")
     # Inspect the registry digest, not just a local tag, to verify source identity.
     command("docker", "pull", immutable)
-    labels = json.loads(command("docker", "image", "inspect", immutable))[0]["Config"].get("Labels") or {}
+    registry_state = json.loads(command("docker", "image", "inspect", immutable))[0]
+    if ci_metadata is not None:
+        require(registry_state.get("RootFS", {}).get("Layers") == ci_metadata["layer_diff_ids"], "Registry layers differ from CI")
+    labels = registry_state["Config"].get("Labels") or {}
     require(labels.get("org.opencontainers.image.revision") == commit, "Image source SHA mismatch")
     require(labels.get("org.opencontainers.image.source") == f"https://github.com/{REPOSITORY}", "Image repository mismatch")
-    latest_main()
+    deployment_commit() if automatic else latest_main()
     require(before["metadata"]["resourceVersion"] == describe()["metadata"]["resourceVersion"],
             "Service changed during build; inspect and dispatch again")
     receipt = {"status": "STARTED", "commit": commit, "image": immutable, "digest": immutable.split("@", 1)[1],
                "index_image": index_image, "index_digest": digest, "baseline_kind": "bootstrap-attestation" if bootstrap_enabled() else "git-commit",
                "previous_revision": previous, "previous_image": previous_image, "candidate_revision": service + "-" + suffix,
                "migration_differences": [], "production_traffic_promoted": False, "smoke": {},
+               "deployment_started_at_utc": datetime.now(UTC).isoformat(),
+               "migration_target": "unchanged-from-proven-baseline:" + os.environ.get("BASELINE_COMMIT", "bootstrap"),
+               "ci_artifact_id": os.environ.get("CI_IMAGE_ARTIFACT_ID"),
+               "ci_artifact_digest": os.environ.get("CI_IMAGE_ARTIFACT_DIGEST"),
                "worker_coverage": "API image only; no worker deployment or execution; see CI_CD.md",
                "rollback_command": f"gcloud run services update-traffic {service} --project={project} --region={region} --to-revisions={previous}=100"}
     path = Path("candidate-result.json")
@@ -334,11 +363,17 @@ def candidate(*, automatic: bool = False) -> dict:
         url = next(row["url"] for row in after["status"]["traffic"] if row.get("tag") == tag)
         require(url.startswith("https://") and url.endswith(".run.app"), "Unexpected candidate URL")
         receipt["candidate_url"] = url
-        for endpoint in ["/health", "/health/db", "/health/redis", "/docs", "/openapi.json"]:
+        for endpoint in ["/health/ready", "/version", "/health", "/health/db", "/health/redis", "/docs", "/openapi.json"]:
             try:
                 with urllib.request.urlopen(url + endpoint, timeout=60) as response:
                     body = response.read()
                     receipt["smoke"][endpoint] = {"status": response.status, "pass": response.status == 200}
+                    if endpoint == "/version":
+                        identity = json.loads(body)
+                        require(identity.get("commit_sha") == commit and identity.get("version") == "0.1.0", "Candidate API commit identity differs")
+                        receipt["api_identity"] = identity
+                    if endpoint == "/health/ready":
+                        require(json.loads(body).get("status") == "ok", "Candidate readiness body differs")
                     if endpoint == "/openapi.json":
                         contract = json.loads(body)
                         try:
@@ -355,7 +390,7 @@ def candidate(*, automatic: bool = False) -> dict:
             except (OSError, ValueError) as error:
                 receipt["smoke"][endpoint] = {"error_type": type(error).__name__, "pass": False}
         require(all(row["pass"] for row in receipt["smoke"].values()), "Candidate smoke failed; production traffic untouched")
-        latest_main()
+        deployment_commit() if automatic else latest_main()
         final = describe()
         verify_unchanged(before, final)
         receipt["verified_resource_version"] = final["metadata"]["resourceVersion"]

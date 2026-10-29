@@ -13,6 +13,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 
 import cloud_run_candidate as release
@@ -20,9 +21,9 @@ import cloud_run_candidate as release
 RESOURCE = "projects/saloon-505509/locations/asia-south1/services/salon-api-production"
 API = "https://run.googleapis.com/v2/"
 REVISION = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
-SMOKES = {"/health", "/health/db", "/health/redis", "/docs", "/openapi.json"}
+SMOKES = {"/health/ready", "/version", "/health", "/health/db", "/health/redis", "/docs", "/openapi.json"}
 PUBLIC_CHECKS = [(host, path) for host in ("https://api.salones.in", "https://apiv1.mudassirmhd.in")
-                 for path in ("/health", "/health/db", "/health/redis")]
+                 for path in ("/health/ready", "/version", "/health", "/health/db", "/health/redis")]
 
 
 def cloud(*args: str) -> dict:
@@ -96,15 +97,21 @@ def configuration(service: dict) -> dict:
     return {key: value for key, value in service.items() if key not in output}
 
 
-def public_health() -> dict:
+def public_health(*, expected_commit: str | None = None) -> dict:
     checks = {}
     for host, path in PUBLIC_CHECKS:
         try:
             with urllib.request.urlopen(host + path, timeout=20) as response:
-                checks[host + path] = {"status": response.status, "pass": response.status == 200}
+                passed = response.status == 200
+                if path == "/version":
+                    body = json.load(response)
+                    passed = passed and expected_commit is not None and body.get("commit_sha") == expected_commit and body.get("version") == "0.1.0"
+                elif path == "/health/ready":
+                    passed = passed and json.load(response).get("status") == "ok"
+                checks[host + path] = {"status": response.status, "pass": passed}
         except urllib.error.HTTPError as error:
             checks[host + path] = {"status": error.code, "pass": False}
-        except OSError as error:
+        except (OSError, ValueError) as error:
             checks[host + path] = {"error_type": type(error).__name__, "pass": False}
         if not checks[host + path]["pass"]:
             break  # Roll back immediately; do not wait for five more potentially slow probes.
@@ -137,10 +144,11 @@ def baseline() -> str:
 def verified_receipt(receipt: dict) -> None:
     release.require(receipt.get("status") == "PASS_CANDIDATE_VERIFIED" and receipt.get("ready") is True,
                     "Only a verified automatic candidate may promote")
-    release.require(receipt.get("commit") == release.latest_main(), "Candidate source differs from latest main")
+    release.require(receipt.get("commit") == release.deployment_commit(), "Candidate source differs from latest main")
     release.require(receipt.get("migration_differences") == [], "Migration differences forbid promotion")
     smoke = receipt.get("smoke", {})
     release.require(set(smoke) == SMOKES and all(row.get("pass") is True for row in smoke.values()), "Incomplete candidate smoke")
+    release.require(receipt.get("api_identity", {}).get("commit_sha") == receipt["commit"], "API identity not verified")
     release.require(bool(receipt.get("openapi_sha256")) and receipt.get("openapi_contract_checks")
                     == "Expected routes and existing paths/operations/schema fields preserved", "Contract not verified")
     image = receipt.get("image", "")
@@ -164,7 +172,7 @@ def promote(receipt: dict) -> None:
                     "Production traffic is not settled on previous revision")
     # Bridge the v1 candidate receipt to the v2 etag without accepting an intervening edit.
     release.require(describe()["metadata"]["resourceVersion"] == receipt["verified_resource_version"], "Service changed")
-    release.latest_main()
+    release.deployment_commit()
     promoted_targets = targets(before, candidate)
     receipt["status"] = "PROMOTION_REQUESTED"
     receipt["promotion_attempted"] = True
@@ -174,7 +182,7 @@ def promote(receipt: dict) -> None:
         release.require(desired(current) == resolved(current) == [(candidate, 100)], "Candidate traffic did not settle")
         receipt["production_traffic_promoted"] = True
         release.require(configuration(before) == configuration(current), "Runtime configuration changed during promotion")
-        checks = public_health()
+        checks = public_health(expected_commit=receipt["commit"])
         receipt["production_smoke"] = checks
         release.require(all_healthy(checks), "Production health failed; rollback required")
         receipt["status"] = "PASS_PRODUCTION_PROMOTED"
@@ -195,7 +203,7 @@ def promote(receipt: dict) -> None:
                 restored = api("GET", RESOURCE)
                 release.require(desired(restored) == resolved(restored) == [(previous, 100)], "Rollback traffic did not settle")
                 receipt["production_traffic_promoted"] = False
-                receipt["rollback_smoke"] = public_health()
+                receipt["rollback_smoke"] = public_health(expected_commit=receipt.get("previous_commit"))
                 receipt["status"] = "ROLLED_BACK" if all_healthy(receipt["rollback_smoke"]) else "ROLLBACK_HEALTH_FAILED"
         except Exception:
             receipt["production_traffic_promoted"] = None
@@ -204,13 +212,67 @@ def promote(receipt: dict) -> None:
         raise
 
 
+def output(name: str, value: str) -> None:
+    if os.environ.get("GITHUB_OUTPUT"):
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+            stream.write(name + "=" + value + "\n")
+
+
+def gate() -> bool:
+    enabled = (os.environ.get("AUTO_DEPLOY_ENABLED") == "true"
+               and os.environ.get("GITHUB_REPOSITORY") == release.REPOSITORY
+               and os.environ.get("GITHUB_EVENT_NAME") == "push"
+               and os.environ.get("GITHUB_REF") == "refs/heads/main"
+               and os.environ.get("GITHUB_ACTOR_ID") == "172572480")
+    if enabled:
+        # vars context may inherit repo/org values: prove the production-environment scope.
+        variable = release.github("environments/production/variables/AUTO_DEPLOY_ENABLED")
+        enabled = isinstance(variable, dict) and variable.get("name") == "AUTO_DEPLOY_ENABLED" and variable.get("value") == "true"
+    output("enabled", str(enabled).lower())
+    if not enabled:
+        print("Automatic deployment disabled or context ineligible; no cloud authentication or deployment.")
+    return enabled
+
+
+def guard() -> bool:
+    if not gate():
+        output("eligible", "false")
+        return False
+    try:
+        commit = release.identity(automatic=True)
+    except RuntimeError as error:
+        if str(error) != "main advanced; run again for latest main":
+            raise
+        output("eligible", "false")
+        print("SKIPPED_SUPERSEDED: newer main exists; production untouched.")
+        return False
+    release.require(os.environ.get("GITHUB_TRIGGERING_ACTOR", os.environ.get("GITHUB_ACTOR"))
+                    == os.environ.get("GITHUB_ACTOR"), "Only original approved actor may retry")
+    pulls = release.github("commits/" + commit + "/pulls?per_page=100")
+    release.require(isinstance(pulls, list) and any(pr.get("merged_at")
+                    and pr.get("merge_commit_sha") == commit and pr.get("base", {}).get("ref") == "main"
+                    and pr.get("base", {}).get("repo", {}).get("full_name") == release.REPOSITORY for pr in pulls),
+                    "Selected main commit must be the exact result of a merged PR")
+    output("eligible", "true")
+    return True
+
+
 def deploy() -> None:
-    release.identity(automatic=True)
+    if not guard():
+        return
+    import ci_image_bundle
+    bundle = Path(".release-image")
+    ci_image_bundle.download(bundle)
     os.environ["BASELINE_COMMIT"] = baseline()
-    receipt = release.candidate(automatic=True)
+    previous_health = public_health(expected_commit=os.environ["BASELINE_COMMIT"])
+    release.require(all_healthy(previous_health), "Previous revision health/identity is not established")
+    receipt = release.candidate(automatic=True, tested_bundle=bundle)
+    receipt["previous_commit"] = os.environ["BASELINE_COMMIT"]
+    receipt["previous_health"] = previous_health
     try:
         promote(receipt)
     finally:
+        receipt["deployment_finished_at_utc"] = datetime.now(UTC).isoformat()
         Path("candidate-result.json").write_text(json.dumps(receipt, indent=2) + "\n")
         print(json.dumps(receipt, indent=2))
         if os.environ.get("GITHUB_STEP_SUMMARY"):
@@ -220,8 +282,8 @@ def deploy() -> None:
 
 if __name__ == "__main__":
     try:
-        release.require(len(sys.argv) == 2 and sys.argv[1] in {"guard", "deploy"}, "Expected guard or deploy")
-        release.identity(automatic=True) if sys.argv[1] == "guard" else deploy()
+        release.require(len(sys.argv) == 2 and sys.argv[1] in {"gate", "guard", "deploy"}, "Expected guard or deploy")
+        gate() if sys.argv[1] == "gate" else guard() if sys.argv[1] == "guard" else deploy()
     except Exception as error:
         print(str(error) if type(error) is RuntimeError else f"Stopped: {type(error).__name__}; details suppressed", file=sys.stderr)
         sys.exit(1)

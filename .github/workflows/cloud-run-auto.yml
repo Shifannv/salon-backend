@@ -4,24 +4,43 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-
-# Share the lock with manual candidates. Never cancel a release during rollback.
 concurrency:
   group: production-cloud-run
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   ci:
-    if: github.repository == 'Shifannv/salon-backend' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
     uses: ./.github/workflows/backend.yml
     permissions:
       contents: read
 
-  release:
+  gate:
     needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      enabled: ${{ steps.activation.outputs.enabled }}
+    env:
+      AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read only the authoritative production-environment gate
+        id: activation
+        run: python3 backend/scripts/cloud_run_auto.py gate
+
+  release:
+    needs: [ci, gate]
+    if: needs.gate.outputs.enabled == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     environment:
@@ -31,6 +50,7 @@ jobs:
       contents: read
       id-token: write
       actions: read
+      pull-requests: read
     env:
       AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
       BOOTSTRAP_BASELINE: 'false'
@@ -41,39 +61,31 @@ jobs:
       GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
       REQUESTED_COMMIT: ${{ github.sha }}
       GH_TOKEN: ${{ github.token }}
+      CI_IMAGE_ARTIFACT_ID: ${{ needs.ci.outputs.image_artifact_id }}
+      CI_IMAGE_ARTIFACT_DIGEST: ${{ needs.ci.outputs.image_artifact_digest }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Check one-time activation switch
-        id: activation
-        shell: bash
-        run: |
-          if [[ "$AUTO_DEPLOY_ENABLED" == 'true' ]]; then
-            echo 'enabled=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'enabled=false' >> "$GITHUB_OUTPUT"
-            echo 'Automatic release is disabled. CI passed; no GCP authentication or deployment attempted.' >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Validate main push, exact actor, target and environment policy
-        if: steps.activation.outputs.enabled == 'true'
+      - name: Admit exact merged latest main after waiting for the production lock
+        id: admit
         run: python3 backend/scripts/cloud_run_auto.py guard
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
-        if: steps.activation.outputs.enabled == 'true'
+        if: steps.admit.outputs.eligible == 'true'
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           create_credentials_file: true
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
-        if: steps.activation.outputs.enabled == 'true'
+        if: steps.admit.outputs.eligible == 'true'
       - name: Verify source, test candidate, promote and roll back on health failure
-        if: steps.activation.outputs.enabled == 'true'
+        if: steps.admit.outputs.eligible == 'true'
         run: python3 backend/scripts/cloud_run_auto.py deploy
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && steps.activation.outputs.enabled == 'true'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
+        if: always() && steps.admit.outputs.eligible == 'true'
         with:
           name: cloud-run-auto-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: candidate-result.json

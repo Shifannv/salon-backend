@@ -1,16 +1,28 @@
 """Health-check API routes."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_cache
-from app.api.v1.schemas.health import DatabaseHealthResponse, HealthResponse, RedisHealthResponse
+from app.api.v1.schemas.health import (
+    DatabaseHealthResponse,
+    HealthResponse,
+    RedisHealthResponse,
+    VersionResponse,
+)
 from app.application.ports.cache_gateway import CacheGateway
+from app.core.build_info import API_VERSION, source_commit
 from app.core.exceptions import ServiceUnavailableError
 from app.infrastructure.db.session import get_probe_session
 
 router = APIRouter()
+
+
+@router.get("/version", response_model=VersionResponse, status_code=status.HTTP_200_OK, tags=["health"])
+async def version(response: Response) -> VersionResponse:
+    response.headers["Cache-Control"] = "no-store"
+    return VersionResponse(version=API_VERSION, commit_sha=source_commit())
 
 
 @router.get(

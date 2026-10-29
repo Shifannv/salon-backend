@@ -17,6 +17,12 @@ COPY --chown=app:app app ./app
 COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app alembic.ini ./
 
+ARG SOURCE_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$SOURCE_COMMIT \
+      org.opencontainers.image.source="https://github.com/Shifannv/salon-backend"
+RUN python -c "import pathlib,re,sys; v=sys.argv[1]; assert v == 'unknown' or re.fullmatch('[0-9a-f]{40}',v); pathlib.Path('/app/build-commit').write_text(v,encoding='ascii')" "$SOURCE_COMMIT" \
+    && chmod 444 /app/build-commit
+
 # Precompile app bytecode so a cold instance does not compile it on every start.
 # The image is immutable, so unchecked-hash pycs also skip the source timestamp checks.
 RUN python -m compileall -q -j 0 --invalidation-mode unchecked-hash app
