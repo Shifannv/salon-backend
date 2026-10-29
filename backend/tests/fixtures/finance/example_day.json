@@ -1,0 +1,42 @@
+{
+  "_comment": "Design fixture for docs/finance/FINANCE_PHASE1_DESIGN.md. All amounts are integer paise. Salon timezone Asia/Kolkata. This is the 700-rupee example from the product brief.",
+  "timezone": "Asia/Kolkata",
+  "local_date": "2026-10-29",
+  "opening_cash_paise": 100000,
+  "booking": {
+    "id": "booking-1",
+    "services": [
+      {"service_id": "haircut", "value_paise": 30000, "staff": "Hafis"},
+      {"service_id": "beard", "value_paise": 20000, "staff": "Shuhail"},
+      {"service_id": "colour", "value_paise": 20000, "staff": "Hafis"}
+    ]
+  },
+  "receipts": [
+    {"method": "cash", "amount_paise": 40000},
+    {"method": "upi_direct", "amount_paise": 30000}
+  ],
+  "policies": {
+    "Hafis": {"commission_type": "PERCENT_OF_SERVICE_VALUE", "rate_basis_points": 4000},
+    "Shuhail": {"commission_type": "FIXED_PER_SERVICE", "fixed_amount_paise": 3000}
+  },
+  "refunds": [
+    {"service_id": "haircut", "method": "cash", "amount_paise": 10000}
+  ],
+  "expenses": [
+    {"id": "e1", "entry_type": "expense", "category": "supplies", "payment_method": "cash", "amount_paise": 5000, "reverses_id": null},
+    {"id": "e2", "entry_type": "expense", "category": "utilities", "payment_method": "non_cash", "amount_paise": 20000, "reverses_id": null}
+  ],
+  "expected": {
+    "gross_completed_sales_paise": 70000,
+    "cash_collected_paise": 40000,
+    "non_cash_received_paise": 30000,
+    "outstanding_due_paise": 0,
+    "cash_refunds_paise": 10000,
+    "cash_expenses_paise": 5000,
+    "expected_closing_cash_paise": 125000,
+    "staff": {
+      "Hafis": {"services_completed": 2, "attributable_value_paise": 50000, "earned_paise": 20000, "haircut_reversal_paise": 4000},
+      "Shuhail": {"services_completed": 1, "attributable_value_paise": 20000, "earned_paise": 3000, "haircut_reversal_paise": 0}
+    }
+  }
+}
