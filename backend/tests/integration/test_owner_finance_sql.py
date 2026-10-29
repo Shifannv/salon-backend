@@ -176,6 +176,26 @@ class TestExpenses:
 
 
 class TestAppendOnly:
+    @pytest.mark.parametrize("role", ["postgres", "service_role"])
+    @pytest.mark.parametrize("table", ["salon_expenses", "salon_cash_adjustments", "salon_day_closes"])
+    async def test_truncate_is_refused_even_for_owner_and_backend_roles(self, env, role, table):
+        f = await env.seed()
+        if table == "salon_expenses":
+            await expense(env, f["salon"])
+        elif table == "salon_cash_adjustments":
+            await adjustment(env, f["salon"])
+        else:
+            await close(env, f["salon"])
+        before = (await env.sql(f"select count(*) as n from {table}"))[0]["n"]
+        async with env.session() as session:
+            await session.execute(text(f"set local role {role}"))
+            message = "finance_records_are_append_only" if role == "postgres" else "permission denied"
+            with pytest.raises(DBAPIError, match=message):
+                await session.execute(text(f"truncate table {table}"))
+            await session.rollback()
+        after = (await env.sql(f"select count(*) as n from {table}"))[0]["n"]
+        assert after == before
+
     async def test_rows_cannot_be_edited_or_deleted(self, env):
         f = await env.seed()
         row = await expense(env, f["salon"])
