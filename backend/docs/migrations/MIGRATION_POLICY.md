@@ -17,7 +17,7 @@ never be interpreted as an approved production migration target.
 
 0051 adds the owner finance cash book: `salon_expenses`, `salon_cash_adjustments` and
 `salon_day_closes` (append-only, integer paise, row-level security with no public access) plus
-two read-path indexes. It is additive, changes no existing table, and its downgrade refuses
+two read-path indexes, an expense name (`title`) and a per-salon change cursor (`seq`) for the owner app's local-first sync. It is additive, changes no existing table, and its downgrade refuses
 because the tables hold financial records. Tested only on disposable local PostgreSQL (the
 portable chain plus every prepared sidecar). Prepared only: not applied to Mumbai, staging or
 production, and never through `alembic upgrade` or `stamp`.

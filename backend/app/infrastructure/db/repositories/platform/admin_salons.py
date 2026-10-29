@@ -9,6 +9,8 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
 )
+from app.domain.services.trial_limits import TrialLimits
+from app.infrastructure.db.repositories.trial_repository import SalonTrialRepository
 
 
 class AdminSalonsMixin:
@@ -147,9 +149,19 @@ class AdminSalonsMixin:
         return await self.admin_get_salon(salon_id)
 
     async def admin_set_salon_approval(
-        self, salon_id: str, approval_status: str, actor_id: str, reason: str | None
+        self, salon_id: str, approval_status: str, actor_id: str, reason: str | None,
+        *, trial_limits: TrialLimits | None = None,
     ) -> dict[str, Any]:
         """Write the decision atomically; preserve the first approval timestamp on retries."""
+        first_trial = False
+        if trial_limits is not None and approval_status == "approved":
+            await self.session.execute(text(
+                "select id from salons where id=:salon for no key update"
+            ), {"salon": salon_id})
+            started = (await self.session.execute(text(
+                "select trial_started_at from salon_access where salon_id=:salon for update"
+            ), {"salon": salon_id})).scalar_one_or_none()
+            first_trial = started is None
         result = await self.session.execute(
             text("""
                 update salons
@@ -167,6 +179,10 @@ class AdminSalonsMixin:
         )
         if result.scalar_one_or_none() is None:
             raise ConflictError("Salon is no longer eligible for review")
+        if first_trial:
+            # The existing approval trigger starts the trial. Override its initial allowance
+            # before the same transaction commits; retries preserve already-granted trials.
+            await SalonTrialRepository(self.session).apply_limits(salon_id, trial_limits, actor_id)
         await self.session.commit()
         return await self.admin_get_salon(salon_id)
 

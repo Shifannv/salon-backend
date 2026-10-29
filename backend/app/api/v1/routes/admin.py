@@ -3,7 +3,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
@@ -15,6 +15,7 @@ from app.api.deps import (
     require_role,
 )
 from app.api.v1.schemas.admin import (
+    AdminApproveSalonRequest,
     AdminCreateSalonRequest,
     AdminDeactivateSalonResponse,
     AdminRejectSalonRequest,
@@ -33,6 +34,7 @@ from app.application.ports.auth_admin_gateway import AuthAdminGateway
 from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.admin import AdminUseCases, CatalogAdminUseCases
 from app.domain.entities.profile import Profile, Role
+from app.domain.services.trial_limits import TrialLimits
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.push.outbox_worker import enqueue_and_deliver_notification
 
@@ -153,12 +155,14 @@ async def get_salon_onboarding(
 async def approve_salon(
     salon_id: UUID,
     background_tasks: BackgroundTasks,
+    payload: AdminApproveSalonRequest | None = Body(default=None),
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
     auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
 ) -> AdminSalonResponse:
     salon = await _admin_use_cases(session, auth_admin).approve_salon(
-        actor, str(salon_id), background_tasks
+        actor, str(salon_id), background_tasks,
+        trial_limits=TrialLimits(payload.trial_days, payload.trial_booking_limit) if payload else None,
     )
     return AdminSalonResponse(**salon)
 

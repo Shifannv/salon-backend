@@ -1,4 +1,4 @@
-"""Owner finance cash book: expenses, cash adjustments and day closes (append-only)."""
+"""Owner finance cash book: expenses, cash adjustments, day closes (append-only) and auto-repeat rules."""
 
 from pathlib import Path
 
@@ -20,6 +20,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Money records are never dropped by a rollback: fix forward, or restore from a backup.
     raise RuntimeError(
-        "0051 is forward-only: salon_expenses, salon_cash_adjustments and salon_day_closes hold "
+        "0051 is forward-only: salon_expenses, salon_cash_adjustments, salon_day_closes and "
+        "salon_expense_rules hold "
         "financial records and cannot be removed by a downgrade"
     )

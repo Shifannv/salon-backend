@@ -12,9 +12,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from app.application.use_cases.idempotency import fingerprint_of, require_idempotency_key
 from app.core.exceptions import (
+    AppError,
     DayInFutureError,
     DifferenceReasonRequiredError,
     EntitlementRequiredError,
@@ -22,6 +25,7 @@ from app.core.exceptions import (
     ForbiddenError,
     NotFoundError,
     OpeningCashRequiredError,
+    RuleOccurrenceError,
     SalonApprovalRequiredError,
     ValidationError,
 )
@@ -31,7 +35,9 @@ from app.domain.services.finance_ledger import (
     expected_closing_cash,
     finance_allowed,
     local_day_bounds,
+    month_bounds,
     reason_is_written,
+    rule_applies_on,
     today_in,
 )
 
@@ -91,10 +97,11 @@ class FinanceUseCases:
         )
 
     @staticmethod
-    def _close_view(close: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _close_view(close: dict[str, Any] | None, expected_now: int) -> dict[str, Any] | None:
         if close is None:
             return None
         return {
+            "changed_since_close": int(close["expected_cash_paise"]) != expected_now,
             "revision": close["revision"],
             "opening_cash_paise": close["opening_cash_paise"],
             "expected_cash_paise": close["expected_cash_paise"],
@@ -137,7 +144,7 @@ class FinanceUseCases:
             "opening_cash_paise": opening,
             "opening_cash_source": source,
             "expected_closing_cash_paise": self._cash_expected(opening, figures),
-            "close": self._close_view(close),
+            "close": self._close_view(close, self._cash_expected(opening, figures)),
             "needs_review": bool(figures["paid_without_receipt"] or figures["refund_pending"]),
             # False once the trial or plan has ended: the records stay readable, nothing can be added.
             "can_write": salon["can_write"],
@@ -240,25 +247,118 @@ class FinanceUseCases:
         return {**row, "replayed": replayed}
 
     # ------------------------------------------------------------------ expenses
+    def _expense_values(
+        self, actor: Profile, salon_id: str, *, key: str, title: str, category: str, amount_paise: int,
+        payment_method: str, occurred_at: datetime, note: str | None,
+    ) -> dict[str, Any]:
+        self._not_future(occurred_at)
+        title = title.strip()
+        note = (note or "").strip() or None
+        digest = fingerprint_of({"op": "expense", "title": title, "category": category, "amount": amount_paise,
+                                 "method": payment_method, "at": occurred_at.astimezone(UTC).isoformat(),
+                                 "note": note})
+        return {
+            "salon_id": salon_id, "entry_type": "expense", "reverses_id": None, "title": title,
+            "category": category, "amount_paise": amount_paise, "payment_method": payment_method,
+            "occurred_at": occurred_at, "note": note, "created_by": actor.id, "key": key, "hash": digest,
+        }
+
     async def add_expense(
-        self, actor: Profile, *, category: str, amount_paise: int, payment_method: str,
+        self, actor: Profile, *, title: str, category: str, amount_paise: int, payment_method: str,
         occurred_at: datetime, note: str | None, idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
         salon = await self._salon(actor, write=True)
-        self._not_future(occurred_at)
-        note = (note or "").strip() or None
-        digest = fingerprint_of({"op": "expense", "category": category, "amount": amount_paise,
-                                 "method": payment_method, "at": occurred_at.isoformat(), "note": note})
+        values = self._expense_values(
+            actor, str(salon["id"]), key=key, title=title, category=category, amount_paise=amount_paise,
+            payment_method=payment_method, occurred_at=occurred_at, note=note,
+        )
         await self.repository.lock_salon(str(salon["id"]))
-        row, replayed = await self.repository.add_expense({
-            "salon_id": str(salon["id"]), "entry_type": "expense", "reverses_id": None,
-            "category": category, "amount_paise": amount_paise, "payment_method": payment_method,
-            "occurred_at": occurred_at, "note": note, "created_by": actor.id, "key": key, "hash": digest,
-        })
+        row, replayed = await self.repository.add_expense(values)
         await self.repository.commit()
         reversed_since = replayed and await self.repository.reversal_of(str(row["id"])) is not None
         return {**row, "reversed": reversed_since, "replayed": replayed}
+
+    async def _check_rule_occurrence(self, salon: dict[str, Any], client_id: str, item: dict[str, Any]) -> None:
+        """An id ``rule:<rule>:<date>`` may only record a day that rule really covers, with the rule's own
+        details. A phone with an out-of-date copy cannot add days after the owner stopped it, or days
+        the rule does not repeat on, so the same logical day can never be recorded under two ids."""
+
+        try:
+            _, rule_part, day_part = client_id.split(":")
+            rule_id, day = str(UUID(rule_part)), date.fromisoformat(day_part)
+        except ValueError as error:
+            raise RuleOccurrenceError("Not a valid repeating-expense day") from error
+        zone = ZoneInfo(salon["timezone"])
+        rule = await self.repository.get_rule(str(salon["id"]), rule_id)
+        if rule is None:
+            raise RuleOccurrenceError("That repeating expense does not exist")
+        stopped_on = rule["stopped_at"].astimezone(zone).date() if rule["stopped_at"] else None
+        same = (
+            item["occurred_at"].astimezone(zone).date() == day
+            and item["title"].strip() == rule["title"] and item["category"] == rule["category"]
+            and item["amount_paise"] == rule["amount_paise"] and item["payment_method"] == rule["payment_method"]
+            and ((item.get("note") or "").strip() or None) == rule["note"]
+        )
+        if not same or not rule_applies_on(rule["frequency"], rule["start_date"], day) or (
+            stopped_on is not None and day > stopped_on
+        ):
+            raise RuleOccurrenceError("That day is not part of this repeating expense")
+
+    async def add_expenses_batch(self, actor: Profile, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Record up to 50 expenses in one call. Each item stands alone: a refused item never blocks
+        the others, and sending the same ``client_id`` again replays the stored record."""
+
+        salon = await self._salon(actor, write=True)
+        salon_id = str(salon["id"])
+        await self.repository.lock_salon(salon_id)
+        results: list[dict[str, Any]] = []
+        for item in items:
+            client_id = item["client_id"]
+            try:
+                if client_id.startswith("rule:"):
+                    await self._check_rule_occurrence(salon, client_id, item)
+                values = self._expense_values(
+                    actor, salon_id, key=client_id, title=item["title"], category=item["category"],
+                    amount_paise=item["amount_paise"], payment_method=item["payment_method"],
+                    occurred_at=item["occurred_at"], note=item.get("note"),
+                )
+                row, replayed = await self.repository.add_expense_isolated(values)
+            except AppError as error:
+                results.append({"client_id": client_id, "status": "rejected", "code": error.code, "expense": None})
+                continue
+            reversed_since = replayed and await self.repository.reversal_of(str(row["id"])) is not None
+            results.append({
+                "client_id": client_id, "status": "replayed" if replayed else "created", "code": None,
+                "expense": {**row, "reversed": reversed_since, "replayed": replayed},
+            })
+        await self.repository.commit()
+        return results
+
+    async def expense_changes(self, actor: Profile, *, after: int, limit: int) -> dict[str, Any]:
+        salon = await self._salon(actor)
+        rows, has_more = await self.repository.expense_changes(str(salon["id"]), after, limit)
+        return {
+            "expenses": rows,
+            "next_cursor": int(rows[-1]["seq"]) if rows else after,
+            "has_more": has_more,
+        }
+
+    async def expense_summary(self, actor: Profile, month: str) -> dict[str, Any]:
+        salon = await self._salon(actor)
+        timezone = salon["timezone"]
+        try:
+            start, end = month_bounds(month, timezone)
+        except ValueError as error:
+            raise ValidationError("month must look like 2026-10") from error
+        rows = await self.repository.expense_days(str(salon["id"]), start, end, timezone)
+        days = [
+            {"date": row["day"], "cash_paise": int(row["cash"]), "non_cash_paise": int(row["non_cash"]),
+             "total_paise": int(row["cash"]) + int(row["non_cash"]), "count": int(row["live"])}
+            for row in rows
+        ]
+        totals = {key: sum(day[key] for day in days) for key in ("cash_paise", "non_cash_paise", "total_paise", "count")}
+        return {"month": month, "timezone": timezone, "days": days, "totals": totals}
 
     async def reverse_expense(
         self, actor: Profile, expense_id: str, *, idempotency_key: str | None
@@ -266,13 +366,15 @@ class FinanceUseCases:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
         salon = await self._salon(actor, write=True)
         salon_id = str(salon["id"])
+        await self.repository.lock_salon(salon_id)
+        # Read the original only once the lock is held, so an erasure running at the same time
+        # cannot change it between the read and the mirror entry.
         original = await self.repository.get_expense(salon_id, expense_id)
         if original is None:
             raise NotFoundError("Expense not found")
         if original["entry_type"] != "expense":
             raise ValidationError("Only an expense can be reversed")
         digest = fingerprint_of({"op": "reverse", "id": str(original["id"])})
-        await self.repository.lock_salon(salon_id)
         existing = await self.repository.reversal_of(str(original["id"]))
         if existing is not None:
             if existing["idempotency_key"] == key and existing["request_hash"] == digest:
@@ -280,8 +382,10 @@ class FinanceUseCases:
             raise ExpenseAlreadyReversedError("This expense has already been reversed")
         row, replayed = await self.repository.add_expense({
             "salon_id": salon_id, "entry_type": "reversal", "reverses_id": str(original["id"]),
-            "category": original["category"], "amount_paise": original["amount_paise"],
-            "payment_method": original["payment_method"], "occurred_at": self._clock(),
+            "title": original["title"], "category": original["category"],
+            "amount_paise": original["amount_paise"], "payment_method": original["payment_method"],
+            # The cancellation lands on the day of the expense it cancels, never on today.
+            "occurred_at": original["occurred_at"],
             "note": None, "created_by": actor.id, "key": key, "hash": digest,
         })
         await self.repository.commit()

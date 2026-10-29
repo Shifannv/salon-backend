@@ -16,18 +16,45 @@ from app.api.v1.schemas.subscription import (
     SubscriptionEventResponse,
     SubscriptionResponse,
 )
+from app.api.v1.schemas.trial import SalonTrialResponse, TrialUpdateRequest
+from app.application.use_cases.salon_trials import SalonTrialUseCases
 from app.application.use_cases.subscription import (
     SalonSubscriptionUseCases,
     SubscriptionPlanUseCases,
 )
 from app.domain.entities.profile import Profile, Role
+from app.domain.services.trial_limits import TrialLimits
 from app.infrastructure.db.repositories.subscription_repository import (
     SalonSubscriptionRepo,
     SubscriptionEventRepo,
     SubscriptionPlanRepo,
 )
+from app.infrastructure.db.repositories.trial_repository import SalonTrialRepository
 
 router = APIRouter()
+
+
+@router.get("/salons/{salon_id}/trial", response_model=SalonTrialResponse, status_code=200)
+async def get_salon_trial(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> SalonTrialResponse:
+    row = await SalonTrialUseCases(SalonTrialRepository(session)).get(actor, str(salon_id))
+    return SalonTrialResponse(**row)
+
+
+@router.put("/salons/{salon_id}/trial", response_model=SalonTrialResponse, status_code=200)
+async def update_salon_trial(
+    salon_id: UUID,
+    payload: TrialUpdateRequest,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> SalonTrialResponse:
+    row = await SalonTrialUseCases(SalonTrialRepository(session)).update(
+        actor, str(salon_id), TrialLimits(payload.trial_days, payload.trial_booking_limit)
+    )
+    return SalonTrialResponse(**row)
 
 
 def _plan_uc(session: AsyncSession) -> SubscriptionPlanUseCases:

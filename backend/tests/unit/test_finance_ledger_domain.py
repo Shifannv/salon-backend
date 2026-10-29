@@ -12,6 +12,7 @@ from app.domain.services.finance_ledger import (
     expected_closing_cash,
     finance_allowed,
     local_day_bounds,
+    month_bounds,
     reason_is_written,
     today_in,
 )
@@ -117,3 +118,61 @@ class TestPlanGate:
 
     def test_a_trial_without_a_booking_limit_is_judged_on_its_dates_alone(self):
         assert finance_allowed(features={}, entitlement_active=False, trial=trial(limit=None), now=NOW)
+
+
+class TestMonthBounds:
+    def test_a_salon_month_is_its_local_calendar_month(self):
+        start, end = month_bounds("2026-10", "Asia/Kolkata")
+        assert start == datetime(2026, 9, 30, 18, 30, tzinfo=UTC)
+        assert end == datetime(2026, 10, 31, 18, 30, tzinfo=UTC)
+
+    def test_december_rolls_into_january(self):
+        _, end = month_bounds("2026-12", "Asia/Kolkata")
+        assert end == datetime(2026, 12, 31, 18, 30, tzinfo=UTC)
+        assert month_bounds("2027-01", "Asia/Kolkata")[0] == end
+
+    def test_months_neither_overlap_nor_leave_a_gap(self):
+        assert month_bounds("2026-03", "America/New_York")[1] == month_bounds("2026-04", "America/New_York")[0]
+
+    @pytest.mark.parametrize("bad", ["", "2026", "2026-13", "2026-00", "26-10", "2026-1", "2026/10", "abcd-ef", "2026-10-01"])
+    def test_anything_but_year_dash_month_is_refused(self, bad):
+        with pytest.raises(ValueError):
+            month_bounds(bad, "Asia/Kolkata")
+
+
+class TestRuleAppliesOn:
+    """Must agree day for day with the owner app's expense-rules.ts (dueDates)."""
+
+    def test_daily_never_before_the_start(self):
+        from datetime import date
+
+        from app.domain.services.finance_ledger import rule_applies_on
+
+        assert rule_applies_on("daily", date(2026, 10, 27), date(2026, 10, 27))
+        assert not rule_applies_on("daily", date(2026, 10, 27), date(2026, 10, 26))
+
+    def test_weekly_repeats_on_the_start_weekday(self):
+        from datetime import date
+
+        from app.domain.services.finance_ledger import rule_applies_on
+
+        days = [d for d in range(1, 31) if rule_applies_on("weekly", date(2026, 10, 1), date(2026, 10, d))]
+        assert days == [1, 8, 15, 22, 29]
+
+    def test_monthly_uses_the_last_day_of_a_short_month(self):
+        from datetime import date
+
+        from app.domain.services.finance_ledger import rule_applies_on
+
+        assert rule_applies_on("monthly", date(2026, 8, 31), date(2026, 9, 30))
+        assert not rule_applies_on("monthly", date(2026, 8, 31), date(2026, 9, 29))
+        assert rule_applies_on("monthly", date(2028, 1, 31), date(2028, 2, 29))
+        assert rule_applies_on("monthly", date(2027, 1, 31), date(2027, 2, 28))
+
+    def test_unknown_frequency_never_applies(self):
+        from datetime import date
+
+        from app.domain.services.finance_ledger import rule_applies_on
+
+        assert not rule_applies_on("yearly", date(2026, 1, 1), date(2026, 1, 1))
+

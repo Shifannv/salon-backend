@@ -12,6 +12,7 @@ from app.application.use_cases.media_publication import validate_media_reference
 from app.core.exceptions import ConflictError, ValidationError
 from app.domain.entities.profile import Profile
 from app.domain.services.authorization import require_super_admin
+from app.domain.services.trial_limits import TrialLimits
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 _log = logging.getLogger(__name__)
@@ -186,6 +187,8 @@ class AdminUseCases:
         actor: Profile,
         salon_id: str,
         background_tasks: BackgroundTasks | None = None,
+        *,
+        trial_limits: TrialLimits | None = None,
     ) -> dict[str, Any]:
         """Approve a pending salon — owner's workspace becomes fully accessible.
 
@@ -194,9 +197,14 @@ class AdminUseCases:
         """
         self._assert_admin(actor)
         before = await self._assert_reviewable(salon_id)
-        updated = await self.approval_repository.admin_set_salon_approval(
-            salon_id, "approved", actor.id, None
-        )
+        if trial_limits is None:
+            updated = await self.approval_repository.admin_set_salon_approval(
+                salon_id, "approved", actor.id, None
+            )
+        else:
+            updated = await self.approval_repository.admin_set_salon_approval(
+                salon_id, "approved", actor.id, None, trial_limits=trial_limits
+            )
         if before.get("approval_status") != "approved":
             await self._push_decision(
                 before,

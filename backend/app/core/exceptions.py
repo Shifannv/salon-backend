@@ -114,6 +114,12 @@ class ValidationError(AppError):
     code = "validation_error"
 
 
+class RuleOccurrenceError(ValidationError):
+    """An expense claiming to be a repeating expense's day that the rule does not allow."""
+
+    code = "rule_occurrence_invalid"
+
+
 class QrSalonMismatchError(ValidationError):
     """The request names a salon other than the one the scanned QR token belongs to."""
 

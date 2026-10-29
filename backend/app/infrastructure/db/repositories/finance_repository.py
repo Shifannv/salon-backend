@@ -11,16 +11,17 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import IdempotencyKeyReuseError
+from app.core.exceptions import IdempotencyKeyReuseError, ValidationError
 from app.domain.entities.subscription import derive_entitlement
 from app.domain.services.finance_ledger import TrialState, local_day_bounds
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )
 
-_WRITABLE = frozenset({"salon_expenses", "salon_cash_adjustments", "salon_day_closes"})
+_WRITABLE = frozenset({"salon_expenses", "salon_cash_adjustments", "salon_day_closes", "salon_expense_rules"})
 _PAISE = "round({col} * 100)::bigint"
 # Statuses that still count as money received: a refund moves a payment out of 'captured', but
 # the receipt happened, and the refund is subtracted separately.
@@ -122,7 +123,12 @@ class FinanceRepository:
         }
 
     async def lock_salon(self, salon_id: str) -> None:
-        await self.session.execute(text("select id from salons where id = :s for update"), {"s": salon_id})
+        """Serialise finance writers for one salon. NO KEY UPDATE, not UPDATE: every booking and
+        payment insert takes KEY SHARE on the salon row, which FOR UPDATE would block."""
+
+        await self.session.execute(
+            text("select id from salons where id = :s for no key update"), {"s": salon_id}
+        )
 
     # ---------------------------------------------------------------- ledger reads
     async def day_figures(self, salon_id: str, start: datetime, end: datetime) -> dict[str, Any]:
@@ -218,13 +224,74 @@ class FinanceRepository:
         result = await self.session.execute(
             text(
                 """insert into salon_expenses(salon_id, entry_type, reverses_id, category, amount_paise,
-                     payment_method, occurred_at, note, created_by, idempotency_key, request_hash)
+                     payment_method, occurred_at, title, note, created_by, idempotency_key, request_hash)
                    values(:salon_id, :entry_type, :reverses_id, :category, :amount_paise, :payment_method,
-                          :occurred_at, :note, :created_by, :key, :hash) returning *"""
+                          :occurred_at, :title, :note, :created_by, :key, :hash) returning *"""
             ),
             values,
         )
         return _row(result.mappings().one()), False
+
+    async def add_expense_isolated(self, values: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """``add_expense`` inside a savepoint: one bad item of a batch cannot undo the others."""
+
+        try:
+            async with self.session.begin_nested():
+                return await self.add_expense(values)
+        except IntegrityError as error:
+            raise ValidationError("This expense could not be recorded") from error
+        except DBAPIError as error:
+            # Only a constraint or guard failure is a verdict on this expense. A lock timeout, a
+            # deadlock or a dropped connection is not: let it surface so the phone tries again.
+            sqlstate = str(getattr(error.orig, "sqlstate", "") or getattr(error.orig, "pgcode", "") or "")
+            if sqlstate.startswith(("22", "23")) or sqlstate == "P0001":
+                raise ValidationError("This expense could not be recorded") from error
+            raise
+
+    async def expense_changes(self, salon_id: str, after: int, limit: int) -> tuple[list[dict[str, Any]], bool]:
+        """Entries recorded after ``after`` in the order they were recorded, and whether more remain."""
+
+        result = await self.session.execute(
+            text(
+                """select e.*, exists (select 1 from salon_expenses r where r.reverses_id = e.id) as reversed
+                   from salon_expenses e where e.salon_id = :s and e.seq > :after
+                   order by e.seq limit :l"""
+            ),
+            {"s": salon_id, "after": after, "l": limit + 1},
+        )
+        rows = [_row(r) for r in result.mappings()]
+        return rows[:limit], len(rows) > limit
+
+    async def expense_days(self, salon_id: str, start: datetime, end: datetime, timezone: str) -> list[dict[str, Any]]:
+        """Per salon-local day: net cash and non-cash spend and the number of live expenses.
+
+        A cancelling entry carries the date of the expense it cancels, so a day nets out on its own.
+        """
+
+        result = await self.session.execute(
+            text(
+                """select (e.occurred_at at time zone cast(:tz as text))::date as day,
+                          coalesce(sum(case e.entry_type when 'expense' then e.amount_paise else -e.amount_paise end)
+                                   filter (where e.payment_method = 'cash'), 0)::bigint as cash,
+                          coalesce(sum(case e.entry_type when 'expense' then e.amount_paise else -e.amount_paise end)
+                                   filter (where e.payment_method = 'non_cash'), 0)::bigint as non_cash,
+                          coalesce(sum(case e.entry_type when 'expense' then 1 else -1 end), 0)::bigint as live
+                   from salon_expenses e
+                   where e.salon_id = :s and e.occurred_at >= :a and e.occurred_at < :b
+                   group by 1 having sum(case e.entry_type when 'expense' then 1 else -1 end) > 0
+                   order by 1"""
+            ),
+            {"s": salon_id, "a": start, "b": end, "tz": timezone},
+        )
+        return [_row(r) for r in result.mappings()]
+
+    async def get_rule(self, salon_id: str, rule_id: str) -> dict[str, Any] | None:
+        result = await self.session.execute(
+            text("select * from salon_expense_rules where salon_id = :s and id = :i"),
+            {"s": salon_id, "i": rule_id},
+        )
+        row = result.mappings().first()
+        return _row(row) if row else None
 
     async def get_expense(self, salon_id: str, expense_id: str) -> dict[str, Any] | None:
         result = await self.session.execute(

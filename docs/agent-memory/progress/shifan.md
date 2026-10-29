@@ -1,5 +1,11 @@
 # Progress: shifan
 
+## Per-salon trials — 29 October 2026, source only
+
+User requested super-admin-selected trial duration/booking allowance before approval and adjustments under Subscriptions. Implemented optional approval limits in the existing transaction, admin GET/PUT `/salons/{salon_id}/trial`, existing-counter preservation and bounded recount, consistent quota/date markers and truthful audit. Approval retries never restart/change an existing trial; the editor cannot start an unstarted trial or alter paid subscriptions. No schema migration: reuses existing salon_access and eligibility. Security review's salon/booking lock conflict fixed with FOR NO KEY UPDATE and real concurrent-lock regression.
+
+Website approval fields and confirmed trial editor implemented; owner app refreshes on Subscription entry and both clients display custom allowance/end date and restored trials after an expired paid plan. Full backend unit1654/Ruff pass, six disposable PostgreSQL cases pass (78 combined targeted); website554/40files plus build/types/scoped lint; owner29 focused tests/types/scoped lint. No production deployment, real salon trial mutation, migration, new APK install or commit/push. Preserve concurrent user finance changes. Contract and release boundaries: `backend/docs/SALON_TRIAL_CONFIGURATION.md`.
+
 ## Latest scoped subscription release — 28 October 2026
 
 User-authorized percentage deployment completed: production `salon-api-production-subpct-20261028` at 100%, private staging verified, rollback `salon-api-production-api-domain-20261027`. Nine subscription/configuration/row-helper files were overlaid on the previously serving image; broad refactor and Cashfree code were excluded. 0049 was already applied; only additive 0050 was applied after encrypted/hash-verified backup. Prices and existing trials preserved. Website percentage UI was already in production; no website redeployment.

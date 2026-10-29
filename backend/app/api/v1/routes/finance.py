@@ -17,13 +17,22 @@ from app.api.v1.schemas.finance import (
     AdjustmentResponse,
     DailyLedgerResponse,
     DayCloseRequest,
+    ExpenseBatchRequest,
+    ExpenseBatchResponse,
+    ExpenseChangesResponse,
     ExpenseCreateRequest,
     ExpenseListResponse,
     ExpenseResponse,
+    ExpenseRuleCreateRequest,
+    ExpenseRuleListResponse,
+    ExpenseRuleResponse,
+    ExpenseSummaryResponse,
     LedgerRangeResponse,
 )
+from app.application.use_cases.expense_rules import ExpenseRuleUseCases
 from app.application.use_cases.finance import FinanceUseCases
 from app.domain.entities.profile import Profile
+from app.infrastructure.db.repositories.expense_rule_repository import ExpenseRuleRepository
 from app.infrastructure.db.repositories.finance_repository import FinanceRepository
 
 router = APIRouter()
@@ -118,11 +127,60 @@ async def add_expense(
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> ExpenseResponse:
     body = await _use_cases(session).add_expense(
-        actor, category=payload.category, amount_paise=payload.amount_paise,
+        actor, title=payload.title, category=payload.category, amount_paise=payload.amount_paise,
         payment_method=payload.payment_method, occurred_at=payload.occurred_at,
         note=payload.note, idempotency_key=idempotency_key,
     )
     return ExpenseResponse(**body)
+
+
+@router.post(
+    "/salons/me/expenses/batch",
+    response_model=ExpenseBatchResponse,
+    summary="Record up to 50 expenses at once (the phone's saved entries)",
+    description=(
+        "Each item carries its own `client_id`, which is its idempotency key: sending the same item again "
+        "replays it. A refused item never blocks the others; see each result's `status` and `code`. "
+        "The whole call is 403 `entitlement_required` once the trial or plan has ended."
+    ),
+)
+async def add_expenses_batch(
+    payload: ExpenseBatchRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ExpenseBatchResponse:
+    results = await _use_cases(session).add_expenses_batch(
+        actor, [item.model_dump() for item in payload.items]
+    )
+    return ExpenseBatchResponse(results=results)
+
+
+@router.get(
+    "/salons/me/expenses/changes",
+    response_model=ExpenseChangesResponse,
+    summary="Expense entries recorded after a cursor, oldest first",
+    description="Pass `next_cursor` back as `after`. An empty answer keeps the same cursor. Readable after the plan ends.",
+)
+async def expense_changes(
+    after: int = Query(default=0, ge=0, le=2**63 - 1),
+    limit: int = Query(default=200, ge=1, le=500),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ExpenseChangesResponse:
+    return ExpenseChangesResponse(**await _use_cases(session).expense_changes(actor, after=after, limit=limit))
+
+
+@router.get(
+    "/salons/me/expenses/summary",
+    response_model=ExpenseSummaryResponse,
+    summary="Per-day and month expense totals for one salon-local month (YYYY-MM)",
+)
+async def expense_summary(
+    month: str = Query(),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ExpenseSummaryResponse:
+    return ExpenseSummaryResponse(**await _use_cases(session).expense_summary(actor, month))
 
 
 @router.get(
@@ -160,3 +218,57 @@ async def reverse_expense(
         actor, str(expense_id), idempotency_key=idempotency_key
     )
     return ExpenseResponse(**body)
+
+
+def _rule_use_cases(session: AsyncSession) -> ExpenseRuleUseCases:
+    return ExpenseRuleUseCases(ExpenseRuleRepository(session))
+
+
+@router.get(
+    "/salons/me/expense-rules",
+    response_model=ExpenseRuleListResponse,
+    summary="Repeating expenses (active first). Readable after the plan ends.",
+)
+async def list_expense_rules(
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ExpenseRuleListResponse:
+    return ExpenseRuleListResponse(**await _rule_use_cases(session).list_rules(actor))
+
+
+@router.post(
+    "/salons/me/expense-rules",
+    response_model=ExpenseRuleResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a repeating expense",
+    description=(
+        "Requires `Idempotency-Key`. A rule records nothing itself: the app adds each due day as an "
+        "expense with the client id `rule:<id>:<date>`. A rule cannot be edited; stop it and create another."
+    ),
+)
+async def add_expense_rule(
+    payload: ExpenseRuleCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ExpenseRuleResponse:
+    body = await _rule_use_cases(session).add_rule(
+        actor, title=payload.title, category=payload.category, amount_paise=payload.amount_paise,
+        payment_method=payload.payment_method, note=payload.note, frequency=payload.frequency,
+        start_date=payload.start_date, idempotency_key=idempotency_key,
+    )
+    return ExpenseRuleResponse(**body)
+
+
+@router.post(
+    "/salons/me/expense-rules/{rule_id}/stop",
+    response_model=ExpenseRuleResponse,
+    summary="Stop a repeating expense (expenses it already added stay)",
+)
+async def stop_expense_rule(
+    rule_id: UUID,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ExpenseRuleResponse:
+    return ExpenseRuleResponse(**await _rule_use_cases(session).stop_rule(actor, str(rule_id)))
+

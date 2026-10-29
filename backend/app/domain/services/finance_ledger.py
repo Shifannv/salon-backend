@@ -7,6 +7,8 @@ received, refunds, expenses and amounts still due stay separate numbers.
 
 from __future__ import annotations
 
+import calendar
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -55,6 +57,33 @@ def local_day_bounds(local_date: date, timezone: str) -> tuple[datetime, datetim
     start = datetime(local_date.year, local_date.month, local_date.day, tzinfo=zone)
     end = datetime.combine(local_date + timedelta(days=1), datetime.min.time(), tzinfo=zone)
     return start.astimezone(UTC), end.astimezone(UTC)
+
+
+def month_bounds(month: str, timezone: str) -> tuple[datetime, datetime]:
+    """The half-open UTC interval [start, end) covering one salon-local calendar month ("2026-10")."""
+
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+        raise ValueError("month must look like 2026-10")
+    year, number = int(month[:4]), int(month[5:])
+    zone = ZoneInfo(timezone)
+    start = datetime(year, number, 1, tzinfo=zone)
+    following = datetime(year + 1, 1, 1, tzinfo=zone) if number == 12 else datetime(year, number + 1, 1, tzinfo=zone)
+    return start.astimezone(UTC), following.astimezone(UTC)
+
+
+def rule_applies_on(frequency: str, start: date, day: date) -> bool:
+    """Whether a repeating expense falls on ``day``. Weekly repeats on the start date's weekday, monthly
+    on its day of the month (a shorter month uses its last day). Mirrors the owner app exactly."""
+
+    if day < start:
+        return False
+    if frequency == "daily":
+        return True
+    if frequency == "weekly":
+        return (day - start).days % 7 == 0
+    if frequency == "monthly":
+        return day.day == min(start.day, calendar.monthrange(day.year, day.month)[1])
+    return False
 
 
 def today_in(timezone: str, now: datetime) -> date:
