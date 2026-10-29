@@ -1,0 +1,76 @@
+name: Cloud Run production candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      approve_deployment:
+        description: 'Approve a zero-traffic candidate only; this never promotes traffic'
+        required: true
+        type: boolean
+        default: false
+      baseline_commit:
+        description: 'Full proven source SHA of the currently serving image (must match its OCI label)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salon-production-cloud-run
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    if: github.ref == 'refs/heads/main' && inputs.approve_deployment
+    uses: ./.github/workflows/backend.yml
+    permissions:
+      contents: read
+
+  candidate:
+    needs: ci
+    if: github.ref == 'refs/heads/main' && inputs.approve_deployment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment:
+      name: production
+      url: https://api.salones.in
+    permissions:
+      contents: read
+      id-token: write
+      actions: read # Read environment reviewer and branch policies; no Actions write access.
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      GCP_CLOUD_RUN_SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
+      GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+      BASELINE_COMMIT: ${{ inputs.baseline_commit }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate latest main and protected production environment
+        run: python3 backend/scripts/cloud_run_candidate.py preflight
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      - name: Build and deploy exact source by immutable digest; test without traffic
+        run: python3 backend/scripts/cloud_run_candidate.py candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: cloud-run-candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate-result.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Candidate requires separate human traffic approval
+        run: |
+          echo 'Promote this tested candidate to 100% production traffic?' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No production traffic was assigned by this workflow. Review candidate-result.json first.' >> "$GITHUB_STEP_SUMMARY"

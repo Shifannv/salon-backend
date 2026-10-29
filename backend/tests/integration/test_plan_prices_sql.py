@@ -16,7 +16,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from support_subscription import FakeProvider
 from test_payment_ledger_sql import TEST_DB, _build, _drop
-from test_subscription_billing_sql import Env
+from test_subscription_billing_sql import Env, _apply_prepared
 
 from app.core.exceptions import NotFoundError
 from app.infrastructure.db.repositories.subscription_billing_repository import (
@@ -47,6 +47,8 @@ def db_url():
     url = make_url(TEST_DB).set(database=database, drivername="postgresql+asyncpg").render_as_string(
         hide_password=False)
     asyncio.run(_apply_0049(url))
+    # Repository reads the optional offer expiry introduced by 0050.
+    asyncio.run(_apply_prepared(url, "0050_plan_price_valid_until.sql"))
     yield url
     asyncio.run(_drop(database))
 
