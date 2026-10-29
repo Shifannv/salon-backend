@@ -106,3 +106,51 @@ years remain undecided (Phase 0 Q6), so no purge exists.
 | `entitlement_required` now means "writes locked", not "no access" | Reads are always allowed to the owner. |
 
 Owner-app record: [FINANCE_PHASE3_OWNER_APP.md](FINANCE_PHASE3_OWNER_APP.md).
+
+## Expense v2: custom name, batch push, change feed, month summary (2026-10-29)
+
+Built for the owner app's local-first Expenses tab: the phone keeps expenses on the device and syncs
+in batches, so it does not call the API on every view or tap. The backend stays the authority and
+every expense still reaches the Daily Ledger.
+
+| Endpoint (owner only, `/v1`) | Purpose |
+| --- | --- |
+| `POST /salons/me/expenses/batch` | Up to 50 items, each `{client_id, title, category, amount_paise, payment_method, occurred_at, note?}`. `client_id` is the item's idempotency key. Each item stands alone: results are `created`, `replayed` or `rejected` (with a `code`); a refused item never blocks the rest. Whole call is 403 `entitlement_required` once the plan has ended. |
+| `GET /salons/me/expenses/changes?after=N&limit=` | Entries (expenses and cancelling entries) recorded after cursor N, oldest first, with `next_cursor` and `has_more`. An empty answer keeps the cursor. Readable after the plan ends. |
+| `GET /salons/me/expenses/summary?month=YYYY-MM` | Server-computed per-day and month totals (cash, non-cash, total, count) in the salon's time zone, net of cancellations. The app adds nothing up. |
+
+Schema changes to **0051 (edited in place)**: `title` (the owner's own name for the expense, 1-80
+characters, free text redacted on erasure), `seq` (identity change cursor, `UNIQUE (salon_id, seq)`),
+the append-only trigger and the reversal mirror trigger extended, partial `created_by` indexes, no
+TRUNCATE for `service_role`, no public access to the sequence.
+
+**Editing 0051 in place is safe only while it has never been applied anywhere**, including local
+Supabase, CI snapshots and the Mumbai environment, and is not recorded in a migration-history table.
+That was true when this was written (every test ran on throwaway databases). If it has been applied
+anywhere, add a 0052 instead (ADD COLUMN needs a backfill because `title` is NOT NULL).
+
+### A bug in Phase 2, found while designing this, and fixed
+A cancelling entry was dated "now". Cancelling yesterday's mistaken 500-rupee expense today made
+today's expenses -500 and inflated today's expected cash for money that never moved. A cancelling
+entry now carries the **original's date, title, amount and method** (the mirror trigger enforces all
+of it), so a cancellation nets out on its own day and never disturbs another. Because a day can now
+change after it was closed, the daily ledger reports `close.changed_since_close`; the stored count is
+never rewritten.
+
+### Review (database-reviewer, 2026-10-29) and what was done
+- Cursor: `seq` order equals commit order only because every writer takes the salon lock first. The
+  lock is now `FOR NO KEY UPDATE`: `FOR UPDATE` would have blocked every booking and payment insert
+  (they take `KEY SHARE` on the salon row). A test proves a booking-style `KEY SHARE` is not blocked
+  while another finance writer is.
+- Redaction can now only blank a column or set `Removed`; it can never write new text, and the
+  permission is switched off again when the scrub ends.
+- A lock timeout, deadlock or dropped connection is no longer reported as a refused expense (the
+  phone would have discarded a valid one); only constraint and guard failures are verdicts.
+- A cancellation reads the original only after taking the lock; a retry written in another time zone
+  is the same request; the cursor has an upper bound (422, not 500); erasure skips an older copy of
+  the table that has no `title` column.
+- Not changed: the erasure race the reviewer raised is already covered, because `erase_database`
+  locks the owner's salons `FOR UPDATE` before scrubbing, which conflicts with finance writes.
+- Unverified: which database role the production backend connects as (RLS is on with no policy, so
+  it must be the owner or a BYPASSRLS role such as `postgres`/`service_role`). The new tables use the
+  same grants as `booking_payments`.

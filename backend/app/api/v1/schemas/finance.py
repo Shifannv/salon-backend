@@ -18,11 +18,56 @@ class _Request(BaseModel):
 
 
 class ExpenseCreateRequest(_Request):
+    title: str = Field(min_length=1, max_length=80)
     category: ExpenseCategory
     amount_paise: int = Paise
     payment_method: ExpenseMethod
     occurred_at: datetime
     note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("title")
+    @classmethod
+    def title_has_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("title must contain a visible character")
+        return value
+
+    @field_validator("occurred_at")
+    @classmethod
+    def occurred_at_has_a_time_zone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("occurred_at must include a time zone")
+        return value
+
+
+class ExpenseBatchItem(ExpenseCreateRequest):
+    """One expense of a batch. ``client_id`` is its idempotency key: stable across retries."""
+
+    client_id: str = Field(min_length=8, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+
+
+class ExpenseBatchRequest(_Request):
+    items: list[ExpenseBatchItem] = Field(min_length=1, max_length=50)
+
+
+ExpenseFrequency = Literal["daily", "weekly", "monthly"]
+
+
+class ExpenseRuleCreateRequest(_Request):
+    title: str = Field(min_length=1, max_length=80)
+    category: ExpenseCategory
+    amount_paise: int = Paise
+    payment_method: ExpenseMethod
+    note: str | None = Field(default=None, max_length=500)
+    frequency: ExpenseFrequency
+    start_date: date
+
+    @field_validator("title")
+    @classmethod
+    def title_has_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("title must contain a visible character")
+        return value
 
 
 class AdjustmentCreateRequest(_Request):
@@ -52,6 +97,8 @@ class _Response(BaseModel):
 
 class ExpenseResponse(_Response):
     id: UUID
+    seq: int
+    title: str
     entry_type: Literal["expense", "reversal"]
     reverses_id: UUID | None
     category: ExpenseCategory
@@ -69,6 +116,66 @@ class ExpenseListResponse(_Response):
     expenses: list[ExpenseResponse]
     limit: int
     offset: int
+
+
+class ExpenseBatchResult(_Response):
+    client_id: str
+    status: Literal["created", "replayed", "rejected"]
+    code: str | None = None
+    expense: ExpenseResponse | None = None
+
+
+class ExpenseBatchResponse(_Response):
+    results: list[ExpenseBatchResult]
+
+
+class ExpenseChangesResponse(_Response):
+    expenses: list[ExpenseResponse]
+    # Pass this back as `after` to continue; unchanged when nothing new arrived.
+    next_cursor: int
+    has_more: bool
+
+
+class ExpenseDaySummary(_Response):
+    date: date
+    cash_paise: int
+    non_cash_paise: int
+    total_paise: int
+    count: int
+
+
+class ExpenseSummaryTotals(_Response):
+    cash_paise: int
+    non_cash_paise: int
+    total_paise: int
+    count: int
+
+
+class ExpenseSummaryResponse(_Response):
+    month: str
+    timezone: str
+    days: list[ExpenseDaySummary]
+    totals: ExpenseSummaryTotals
+
+
+class ExpenseRuleResponse(_Response):
+    id: UUID
+    title: str
+    category: ExpenseCategory
+    amount_paise: int
+    payment_method: ExpenseMethod
+    note: str | None
+    frequency: ExpenseFrequency
+    start_date: date
+    active: bool
+    stopped_at: datetime | None
+    created_at: datetime
+    replayed: bool = False
+
+
+class ExpenseRuleListResponse(_Response):
+    rules: list[ExpenseRuleResponse]
+    can_write: bool
 
 
 class AdjustmentResponse(_Response):
@@ -92,6 +199,9 @@ class AdjustmentTotals(_Response):
 
 
 class DayCloseView(_Response):
+    # True when this day's figures have changed since it was closed (an expense entered or
+    # cancelled for that day afterwards). The stored count is never rewritten.
+    changed_since_close: bool = False
     revision: int
     opening_cash_paise: int
     expected_cash_paise: int

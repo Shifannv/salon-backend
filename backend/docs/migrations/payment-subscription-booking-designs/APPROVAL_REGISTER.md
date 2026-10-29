@@ -1514,6 +1514,14 @@ needs owner confirmation when the previous day is unclosed (F03); the dormant Wh
 longer mentions customer refunds (F12). Not yet built: staff earnings and commission settings
 (F02, F07, F10), the Cash Refund event (F12) and the retention purge (F06).
 
+### F13 - Owner expense book is local-first (recorded 2026-10-29)
+- The owner types their own expense name; entries are kept on the phone and synced to the backend in
+  batches (client id is the idempotency key). The backend stays the financial authority.
+- Header totals on the Expenses tab are expenses only; the app sums nothing (server month summary).
+- Cancelling an expense is dated on the original day, so it never disturbs another day's cash.
+- Auto-repeat rules are a later phase (E4). Migration 0051 was edited in place because it had never
+  been applied anywhere; see FINANCE_PHASE2_IMPLEMENTATION.md.
+
 ## Verification boundary and stopping point
 
 Only local Markdown links/anchors, section/decision/field numbering and whitespace

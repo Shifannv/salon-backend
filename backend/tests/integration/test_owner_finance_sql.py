@@ -2,7 +2,7 @@
 
 import asyncio
 import hashlib
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -48,15 +48,20 @@ async def env(cashbook_db):
 
 
 async def expense(env, salon, **overrides):
+    """Insert one expense row. A reversal takes the original's date unless ``at`` says otherwise."""
     values = {
         "salon": salon, "kind": "expense", "reverses": None, "category": "supplies", "amount": 5000,
-        "method": "cash", "note": "towels", "by": None, "key": "key-" + uuid4().hex,
+        "method": "cash", "note": "towels", "title": "Towels", "by": None, "key": "key-" + uuid4().hex,
+        "at": None,
     }
     values.update(overrides)
     rows = await env.sql(
         """insert into salon_expenses(salon_id, entry_type, reverses_id, category, amount_paise,
-             payment_method, occurred_at, note, created_by, idempotency_key, request_hash)
-           values(:salon, :kind, :reverses, :category, :amount, :method, now(), :note, :by, :key, :hash)
+             payment_method, occurred_at, note, title, created_by, idempotency_key, request_hash)
+           values(:salon, :kind, :reverses, :category, :amount, :method,
+                  coalesce(cast(:at as timestamptz),
+                           (select occurred_at from salon_expenses where id = :reverses), now()),
+                  :note, :title, :by, :key, :hash)
            returning id""",
         hash=digest(values["key"]), **values,
     )
@@ -91,6 +96,46 @@ class TestExpenses:
         original = await expense(env, f["salon"])
         await expense(env, f["salon"], kind="reversal", reverses=original)
         await refused(expense(env, f["salon"], kind="reversal", reverses=original), "reverses_id")
+
+    async def test_a_reversal_lands_on_the_same_day_as_the_expense_it_cancels(self, env):
+        f = await env.seed()
+        original = await expense(env, f["salon"], at=datetime(2026, 10, 27, 6, 30, tzinfo=UTC))
+        await refused(
+            expense(env, f["salon"], kind="reversal", reverses=original, at=datetime(2026, 10, 29, 6, 30, tzinfo=UTC)),
+            "expense_reversal_mismatch",
+        )
+        reversal = await expense(env, f["salon"], kind="reversal", reverses=original)  # inherits the date
+        rows = await env.sql("select occurred_at from salon_expenses where id in (:a, :b)", a=original, b=reversal)
+        assert len({row["occurred_at"] for row in rows}) == 1
+
+    async def test_a_reversal_must_carry_the_same_name(self, env):
+        f = await env.seed()
+        original = await expense(env, f["salon"], title="Tea")
+        await refused(expense(env, f["salon"], kind="reversal", reverses=original, title="Coffee"),
+                      "expense_reversal_mismatch")
+        await expense(env, f["salon"], kind="reversal", reverses=original, title="Tea")
+
+    @pytest.mark.parametrize("title", ["", "   ", None, "x" * 81])
+    async def test_every_expense_needs_a_name_of_one_to_eighty_characters(self, env, title):
+        f = await env.seed()
+        await refused(expense(env, f["salon"], title=title), "title")
+
+    async def test_a_name_of_eighty_characters_is_accepted(self, env):
+        f = await env.seed()
+        await expense(env, f["salon"], title="x" * 80)
+
+    async def test_the_change_sequence_only_ever_goes_up_per_salon_and_cannot_be_chosen(self, env):
+        f = await env.seed()
+        first, second = await expense(env, f["salon"]), await expense(env, f["salon"])
+        rows = await env.sql(
+            "select id, seq from salon_expenses where id in (:a, :b) order by seq", a=first, b=second)
+        assert [str(r["id"]) for r in rows] == [first, second]
+        assert rows[0]["seq"] < rows[1]["seq"]
+        await refused(env.sql(
+            """insert into salon_expenses(salon_id, seq, entry_type, category, amount_paise, payment_method,
+                 occurred_at, title, idempotency_key, request_hash)
+               values(:s, 5, 'expense', 'other', 100, 'cash', now(), 'x', 'seq-key-1234', :h)""",
+            s=f["salon"], h=digest("seq-key-1234")), "seq")
 
     async def test_a_reversal_cannot_target_another_salons_expense(self, env):
         mine, theirs = await env.seed(), await env.seed()
@@ -143,16 +188,34 @@ class TestAppendOnly:
 
     async def test_free_text_can_be_redacted_only_inside_an_erasure_transaction(self, env):
         f = await env.seed()
-        row = await expense(env, f["salon"], note="advance to Hafis")
+        row = await expense(env, f["salon"], note="advance to Hafis", title="Hafis advance")
         await refused(env.sql("update salon_expenses set note = null where id = :i", i=row),
+                      "finance_records_are_append_only")
+        await refused(env.sql("update salon_expenses set title = 'Removed' where id = :i", i=row),
                       "finance_records_are_append_only")
         async with env.session() as session:
             await session.execute(text("select set_config('app.finance_redaction', 'on', true)"))
-            await session.execute(text("update salon_expenses set note = null where id = :i"), {"i": row})
+            await session.execute(
+                text("update salon_expenses set note = null, title = 'Removed' where id = :i"), {"i": row})
             await session.commit()
-        assert (await env.sql("select note, amount_paise from salon_expenses where id = :i", i=row))[0] == {
-            "note": None, "amount_paise": 5000,
+        assert (await env.sql("select note, title, amount_paise from salon_expenses where id = :i", i=row))[0] == {
+            "note": None, "title": "Removed", "amount_paise": 5000,
         }
+
+    async def test_redaction_can_only_blank_text_it_can_never_write_new_text(self, env):
+        f = await env.seed()
+        row = await expense(env, f["salon"], note="advance to Hafis", title="Hafis advance")
+        async with env.session() as session:
+            await session.execute(text("select set_config('app.finance_redaction', 'on', true)"))
+            for statement in ("update salon_expenses set note = 'rewritten history' where id = :i",
+                              "update salon_expenses set title = 'Something else' where id = :i"):
+                with pytest.raises((DBAPIError, IntegrityError)) as caught:
+                    await session.execute(text(statement), {"i": row})
+                assert "finance_records_are_append_only" in str(caught.value)
+                await session.rollback()
+                await session.execute(text("select set_config('app.finance_redaction', 'on', true)"))
+            await session.execute(text("update salon_expenses set note = null, title = 'Removed' where id = :i"), {"i": row})
+            await session.commit()
 
     async def test_redaction_permission_does_not_unlock_money_columns(self, env):
         f = await env.seed()
@@ -296,12 +359,48 @@ class TestPrivileges:
                order by 1""")
         assert {r["col"] for r in rows} == {
             "salon_expenses.entry_type", "salon_expenses.category", "salon_expenses.payment_method",
-            "salon_expenses.note", "salon_expenses.idempotency_key", "salon_expenses.request_hash",
+            "salon_expenses.note", "salon_expenses.title", "salon_expenses.idempotency_key",
+            "salon_expenses.request_hash",
             "salon_cash_adjustments.direction", "salon_cash_adjustments.reason",
             "salon_cash_adjustments.idempotency_key", "salon_cash_adjustments.request_hash",
             "salon_day_closes.difference_reason", "salon_day_closes.idempotency_key",
             "salon_day_closes.request_hash",
         }
+
+    @pytest.mark.parametrize("table", ["salon_expenses", "salon_cash_adjustments", "salon_day_closes"])
+    async def test_nobody_can_empty_a_finance_table_around_its_triggers(self, env, table):
+        row = (await env.sql("select has_table_privilege('service_role', 'public.' || :t, 'TRUNCATE') as t", t=table))[0]
+        assert row["t"] is False
+
+    @pytest.mark.parametrize("role", ["anon", "authenticated"])
+    async def test_public_roles_cannot_touch_the_change_sequence(self, env, role):
+        row = (await env.sql(
+            """select has_sequence_privilege(:r, pg_get_serial_sequence('public.salon_expenses', 'seq'), 'USAGE') as u,
+                      has_sequence_privilege(:r, pg_get_serial_sequence('public.salon_expenses', 'seq'), 'SELECT') as s""",
+            r=role))[0]
+        assert row == {"u": False, "s": False}
+
+    async def test_erasing_a_profile_does_not_scan_the_finance_tables(self, env):
+        wanted = {"salon_expenses_created_by", "salon_cash_adjustments_created_by", "salon_day_closes_created_by"}
+        rows = await env.sql(
+            "select indexname from pg_indexes where schemaname = 'public' and indexname = any(cast(:names as text[]))",
+            names=sorted(wanted))
+        assert {r["indexname"] for r in rows} == wanted
+
+    async def test_a_finance_write_lock_does_not_stall_bookings_or_payments(self, env):
+        """Inserting a booking or payment takes FOR KEY SHARE on the salon; the finance lock must not block it."""
+        from app.infrastructure.db.repositories.finance_repository import FinanceRepository
+
+        f = await env.seed()
+        async with env.session() as holder, env.session() as writer:
+            await FinanceRepository(holder).lock_salon(f["salon"])  # held until the holder rolls back
+            await writer.execute(text("set local lock_timeout = '500ms'"))
+            await writer.execute(text("select id from salons where id = :s for key share"), {"s": f["salon"]})
+            # Another finance writer, by contrast, must wait its turn.
+            with pytest.raises((DBAPIError, IntegrityError)) as caught:
+                await FinanceRepository(writer).lock_salon(f["salon"])
+            assert "lock" in str(caught.value).lower()
+            await holder.rollback()
 
     async def test_read_path_indexes_exist(self, env):
         rows = await env.sql(

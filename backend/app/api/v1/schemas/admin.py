@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictInt
 
 from app.api.v1.schemas.common import IdStr, UuidAsStr
 from app.api.v1.schemas.platform import SalonPhotos, ServiceResponse, StaffResponse
+from app.api.v1.schemas.trial import TrialLimitsRequest
 
 # ── Admin salon schemas ───────────────────────────────────────────────────────
 
@@ -59,10 +60,8 @@ class AdminSalonResponse(BaseModel):
     updated_by: IdStr | None = None
 
 
-class AdminApproveSalonRequest(BaseModel):
-    """Body for approving a salon (no required fields)."""
-
-    # Reserved for future fields (e.g. an approval note).
+class AdminApproveSalonRequest(TrialLimitsRequest):
+    """Limits granted only on the first trial; approval retries never restart it."""
 
 
 class AdminSalonOnboardingResponse(AdminSalonResponse):

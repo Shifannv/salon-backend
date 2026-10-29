@@ -1,6 +1,6 @@
 """Owner finance cash book API on disposable PostgreSQL: real bookings and payments end to end."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -88,11 +88,11 @@ async def test_ledger_reads_real_sales_receipts_expenses_and_closes_the_day(env,
         assert before["needs_review"] is False
 
         spent = await http.post("/v1/salons/me/expenses", headers=key(), json={
-            "category": "supplies", "amount_paise": 5000, "payment_method": "cash",
+            "title": "Test item", "category": "supplies", "amount_paise": 5000, "payment_method": "cash",
             "occurred_at": iso_now(minutes=1), "note": "towels"})
         assert spent.status_code == 201, spent.text
         assert (await http.post("/v1/salons/me/expenses", headers=key(), json={
-            "category": "utilities", "amount_paise": 20000, "payment_method": "non_cash",
+            "title": "Test item", "category": "utilities", "amount_paise": 20000, "payment_method": "non_cash",
             "occurred_at": iso_now(minutes=1)})).status_code == 201
         assert (await http.post("/v1/salons/me/ledger/adjustments", headers=key(), json={
             "direction": "in", "amount_paise": 2500, "reason": "Float top-up",
@@ -202,7 +202,7 @@ async def test_a_processed_refund_is_subtracted_from_cash_and_the_receipt_still_
 async def test_expenses_are_idempotent_and_reversed_once_never_edited(env, monkeypatch):
     f = await trial_salon(env)
     http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
-    body = {"category": "rent", "amount_paise": 800000, "payment_method": "non_cash",
+    body = {"title": "Test item", "category": "rent", "amount_paise": 800000, "payment_method": "non_cash",
             "occurred_at": iso_now(minutes=2), "note": "October"}
     async with http:
         headers = key()
@@ -238,7 +238,7 @@ async def test_expenses_are_idempotent_and_reversed_once_never_edited(env, monke
 async def test_validation_rejects_bad_money_dates_and_unknown_fields(env, monkeypatch):
     f = await trial_salon(env)
     http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
-    good = {"category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now(minutes=1)}
+    good = {"title": "Test item", "category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now(minutes=1)}
     async with http:
         for bad in ({"amount_paise": 0}, {"amount_paise": -5}, {"amount_paise": 1.5}, {"category": "bribes"},
                     {"payment_method": "crypto"}, {"occurred_at": "2026-10-29T10:00:00"},
@@ -325,7 +325,7 @@ async def test_only_the_salons_owner_with_an_eligible_plan_can_use_it(env, monke
                 await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()}),
                 await http.get("/v1/salons/me/expenses"),
                 await http.post("/v1/salons/me/expenses", headers=key(), json={
-                    "category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now()}),
+                    "title": "Test item", "category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now()}),
             ):
                 assert response.status_code == 403, response.text
 
@@ -344,7 +344,7 @@ async def test_only_the_salons_owner_with_an_eligible_plan_can_use_it(env, monke
                 "from": today().isoformat(), "to": today().isoformat()})).status_code == 200
             writes = (
                 await http.post("/v1/salons/me/expenses", headers=key(), json={
-                    "category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now()}),
+                    "title": "Test item", "category": "supplies", "amount_paise": 100, "payment_method": "cash", "occurred_at": iso_now()}),
                 await http.post("/v1/salons/me/ledger/adjustments", headers=key(), json={
                     "direction": "in", "amount_paise": 100, "reason": "Float", "occurred_at": iso_now()}),
                 await http.post(f"/v1/salons/me/ledger/days/{today()}/close", headers=key(),
@@ -362,7 +362,7 @@ async def test_only_the_salons_owner_with_an_eligible_plan_can_use_it(env, monke
     http, _ = await client_for(env, monkeypatch, make_owner(kept["owner"]))
     async with http:
         made = await http.post("/v1/salons/me/expenses", headers=key(), json={
-            "category": "rent", "amount_paise": 12345, "payment_method": "non_cash", "occurred_at": iso_now(minutes=1)})
+            "title": "Test item", "category": "rent", "amount_paise": 12345, "payment_method": "non_cash", "occurred_at": iso_now(minutes=1)})
         assert made.status_code == 201
         await env.sql("update salon_access set trial_ends_at = now() - interval '1 hour', "
                       "trial_started_at = now() - interval '10 days' where salon_id = :s", s=kept["salon"])
@@ -378,7 +378,7 @@ async def test_a_salon_never_sees_or_reverses_another_salons_records(env, monkey
     http, identity = await client_for(env, monkeypatch, make_owner(theirs["owner"]))
     async with http:
         made = await http.post("/v1/salons/me/expenses", headers=key(), json={
-            "category": "supplies", "amount_paise": 777, "payment_method": "cash", "occurred_at": iso_now(minutes=1)})
+            "title": "Test item", "category": "supplies", "amount_paise": 777, "payment_method": "cash", "occurred_at": iso_now(minutes=1)})
         their_expense = made.json()["id"]
         identity["actor"] = make_owner(mine["owner"])
         ledger = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
@@ -400,3 +400,246 @@ async def test_the_ledger_never_exposes_internal_split_or_provider_fields(env, m
     for forbidden in ("owner_net", "salon_share", "platform", "gateway_fee", "staff_percent", "commission",
                       "profit", "bank", "token", "secret"):
         assert forbidden not in raw
+
+
+def at(days_ago=0, **delta):
+    return (datetime.now(UTC) - timedelta(days=days_ago, **delta)).isoformat()
+
+
+def item(client_id=None, **overrides):
+    values = {"client_id": client_id or "batch-" + uuid4().hex, "title": "Tea", "category": "supplies",
+              "amount_paise": 1500, "payment_method": "cash", "occurred_at": at(minutes=1), "note": None}
+    values.update(overrides)
+    return values
+
+
+async def test_a_batch_records_many_expenses_in_one_call_and_a_retry_replays_it(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        items = [item(title="Tea"), item(title="Towels", amount_paise=4000, payment_method="non_cash"),
+                 item(title="Soap", category="maintenance")]
+        first = await http.post("/v1/salons/me/expenses/batch", json={"items": items})
+        assert first.status_code == 200, first.text
+        results = first.json()["results"]
+        assert [r["status"] for r in results] == ["created"] * 3
+        assert [r["client_id"] for r in results] == [i["client_id"] for i in items]
+        assert results[1]["expense"]["title"] == "Towels" and results[1]["expense"]["seq"] > results[0]["expense"]["seq"]
+
+        again = await http.post("/v1/salons/me/expenses/batch", json={"items": items})
+        assert [r["status"] for r in again.json()["results"]] == ["replayed"] * 3
+        assert [r["expense"]["id"] for r in again.json()["results"]] == [r["expense"]["id"] for r in results]
+        assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s", s=f["salon"]))[0]["n"] == 3
+
+
+async def test_one_bad_item_never_blocks_the_others_in_a_batch(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        reused = item()
+        assert (await http.post("/v1/salons/me/expenses/batch", json={"items": [reused]})).status_code == 200
+        items = [
+            item(title="Good one"),
+            item(title="From tomorrow", occurred_at=(datetime.now(UTC) + timedelta(days=1)).isoformat()),
+            {**reused, "amount_paise": 99999},  # same key, different body
+            item(title="Good two"),
+        ]
+        body = (await http.post("/v1/salons/me/expenses/batch", json={"items": items})).json()["results"]
+        assert [r["status"] for r in body] == ["created", "rejected", "rejected", "created"]
+        assert body[1]["code"] == "validation_error" and body[1]["expense"] is None
+        assert body[2]["code"] == "idempotency_key_reuse"
+        assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s", s=f["salon"]))[0]["n"] == 3
+
+
+async def test_the_same_key_twice_in_one_batch_is_recorded_once(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        same = item()
+        body = (await http.post("/v1/salons/me/expenses/batch", json={"items": [same, same]})).json()["results"]
+        assert [r["status"] for r in body] == ["created", "replayed"]
+        assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s", s=f["salon"]))[0]["n"] == 1
+
+
+async def test_a_batch_is_bounded_and_strictly_shaped(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        assert (await http.post("/v1/salons/me/expenses/batch", json={"items": [item() for _ in range(50)]})).status_code == 200
+        assert (await http.post("/v1/salons/me/expenses/batch", json={"items": [item() for _ in range(51)]})).status_code == 422
+        assert (await http.post("/v1/salons/me/expenses/batch", json={"items": []})).status_code == 422
+        for bad in ({"title": "   "}, {"title": "x" * 81}, {"amount_paise": 0}, {"amount_paise": 1.5},
+                    {"client_id": "short"}, {"category": "bribes"}, {"payment_method": "crypto"},
+                    {"surprise": 1}, {"occurred_at": "2026-10-29T10:00:00"}):
+            response = await http.post("/v1/salons/me/expenses/batch", json={"items": [item(**bad)]})
+            assert response.status_code == 422, (bad, response.text)
+
+
+async def test_a_batch_is_refused_outright_once_the_plan_has_ended_and_for_non_owners(env, monkeypatch):
+    ended = await trial_salon(env, days=-1)
+    http, _ = await client_for(env, monkeypatch, make_owner(ended["owner"]))
+    async with http:
+        response = await http.post("/v1/salons/me/expenses/batch", json={"items": [item()]})
+        assert response.status_code == 403 and response.json()["error"]["code"] == "entitlement_required"
+        assert (await http.get("/v1/salons/me/expenses/changes", params={"after": 0})).status_code == 200
+        assert (await http.get("/v1/salons/me/expenses/summary", params={"month": today().strftime("%Y-%m")})).status_code == 200
+    assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s", s=ended["salon"]))[0]["n"] == 0
+
+    live = await trial_salon(env)
+    customer = Profile(id=live["customer"], role=Role.customer, full_name="C", email="c@example.test",
+                       phone=None, phone_verified=False, avatar_url=None, is_active=True)
+    http, _ = await client_for(env, monkeypatch, customer)
+    async with http:
+        for response in (await http.post("/v1/salons/me/expenses/batch", json={"items": [item()]}),
+                         await http.get("/v1/salons/me/expenses/changes", params={"after": 0}),
+                         await http.get("/v1/salons/me/expenses/summary", params={"month": "2026-10"})):
+            assert response.status_code == 403
+
+
+async def test_the_change_feed_pages_in_order_and_includes_cancellations(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        made = (await http.post("/v1/salons/me/expenses/batch", json={"items": [item(title=f"E{n}") for n in range(5)]})).json()["results"]
+        victim = made[1]["expense"]["id"]
+        assert (await http.post(f"/v1/salons/me/expenses/{victim}/reverse", headers=key())).status_code == 201
+
+        page = (await http.get("/v1/salons/me/expenses/changes", params={"after": 0, "limit": 4})).json()
+        assert len(page["expenses"]) == 4 and page["has_more"] is True
+        seqs = [row["seq"] for row in page["expenses"]]
+        assert seqs == sorted(seqs) and page["next_cursor"] == seqs[-1]
+
+        rest = (await http.get("/v1/salons/me/expenses/changes", params={"after": page["next_cursor"], "limit": 4})).json()
+        assert [row["entry_type"] for row in rest["expenses"]] == ["expense", "reversal"] and rest["has_more"] is False
+        reversal = rest["expenses"][-1]
+        assert reversal["reverses_id"] == victim and reversal["title"] == "E1"
+
+        caught_up = (await http.get("/v1/salons/me/expenses/changes", params={"after": rest["next_cursor"]})).json()
+        assert caught_up["expenses"] == [] and caught_up["next_cursor"] == rest["next_cursor"] and caught_up["has_more"] is False
+        assert (await http.get("/v1/salons/me/expenses/changes", params={"after": -1})).status_code == 422
+        assert (await http.get("/v1/salons/me/expenses/changes", params={"after": 0, "limit": 501})).status_code == 422
+
+
+async def test_the_change_feed_only_ever_shows_the_callers_own_salon(env, monkeypatch):
+    mine, theirs = await trial_salon(env), await trial_salon(env)
+    http, identity = await client_for(env, monkeypatch, make_owner(theirs["owner"]))
+    async with http:
+        await http.post("/v1/salons/me/expenses/batch", json={"items": [item(title="Secret")]})
+        identity["actor"] = make_owner(mine["owner"])
+        feed = (await http.get("/v1/salons/me/expenses/changes", params={"after": 0})).json()
+        assert feed["expenses"] == []
+        month = today().strftime("%Y-%m")
+        summary = (await http.get("/v1/salons/me/expenses/summary", params={"month": month})).json()
+        assert summary["days"] == [] and summary["totals"]["total_paise"] == 0
+
+
+async def test_cancelling_an_old_expense_changes_that_day_and_never_today(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    day = (today() - timedelta(days=1)).isoformat()
+    async with http:
+        made = (await http.post("/v1/salons/me/expenses/batch", json={"items": [
+            item(title="Petrol", amount_paise=30000, occurred_at=at(days_ago=1))]})).json()["results"][0]["expense"]
+        before_today = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
+
+        assert (await http.post(f"/v1/salons/me/expenses/{made['id']}/reverse", headers=key())).status_code == 201
+
+        after_today = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
+        assert after_today["expenses_total_paise"] == before_today["expenses_total_paise"] == 0
+        assert after_today["expected_closing_cash_paise"] == before_today["expected_closing_cash_paise"]
+        old = (await http.get("/v1/salons/me/ledger/daily", params={"date": day})).json()
+        assert old["expenses"] == {"cash_paise": 0, "non_cash_paise": 0}  # the cancellation netted out on its own day
+        listing = (await http.get("/v1/salons/me/expenses", params={"from": day, "to": day})).json()["expenses"]
+        assert {row["occurred_at"] for row in listing if row["id"] == made["id"] or row["reverses_id"] == made["id"]} \
+            == {made["occurred_at"]}
+
+
+async def test_the_month_summary_is_the_servers_own_total_per_day_and_matches_the_ledger(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        batch = [item(title="Tea", amount_paise=1500, payment_method="cash", occurred_at=at(minutes=2)),
+                 item(title="Power", amount_paise=20000, payment_method="non_cash", occurred_at=at(minutes=3)),
+                 item(title="Soap", amount_paise=700, payment_method="cash", occurred_at=at(minutes=4))]
+        results = (await http.post("/v1/salons/me/expenses/batch", json={"items": batch})).json()["results"]
+        soap = results[2]["expense"]["id"]
+        assert (await http.post(f"/v1/salons/me/expenses/{soap}/reverse", headers=key())).status_code == 201
+
+        month = today().strftime("%Y-%m")
+        summary = (await http.get("/v1/salons/me/expenses/summary", params={"month": month})).json()
+        assert summary["month"] == month and summary["timezone"] == "Asia/Kolkata"
+        todays = next(day for day in summary["days"] if day["date"] == today().isoformat())
+        assert todays == {"date": today().isoformat(), "cash_paise": 1500, "non_cash_paise": 20000,
+                          "total_paise": 21500, "count": 2}
+        assert summary["totals"] == {"cash_paise": 1500, "non_cash_paise": 20000, "total_paise": 21500, "count": 2}
+
+        ledger = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).json()
+        assert ledger["expenses"] == {"cash_paise": todays["cash_paise"], "non_cash_paise": todays["non_cash_paise"]}
+        assert ledger["expenses_total_paise"] == todays["total_paise"]  # one source, two views
+
+        empty = (await http.get("/v1/salons/me/expenses/summary", params={"month": "2020-01"})).json()
+        assert empty["days"] == [] and empty["totals"] == {"cash_paise": 0, "non_cash_paise": 0, "total_paise": 0, "count": 0}
+        for bad in ("", "2026", "2026-13", "2026-10-01", "oct-2026"):
+            assert (await http.get("/v1/salons/me/expenses/summary", params={"month": bad})).status_code == 422
+
+
+async def test_a_day_that_was_closed_says_so_when_its_figures_change_afterwards(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        day = (today() - timedelta(days=1)).isoformat()
+        closed = await http.post(f"/v1/salons/me/ledger/days/{day}/close", headers=key(),
+                                 json={"actual_cash_paise": 0, "opening_cash_paise": 0})
+        assert closed.status_code == 200 and closed.json()["close"]["changed_since_close"] is False
+
+        await http.post("/v1/salons/me/expenses/batch", json={"items": [
+            item(title="Forgot to enter", amount_paise=5000, occurred_at=at(days_ago=1))]})
+        ledger = (await http.get("/v1/salons/me/ledger/daily", params={"date": day})).json()
+        assert ledger["close"]["changed_since_close"] is True
+        assert ledger["close"]["expected_cash_paise"] == 0  # the stored count is never rewritten
+        assert ledger["expected_closing_cash_paise"] == -5000
+
+
+async def test_the_cursor_has_an_upper_bound_so_a_huge_value_is_a_422_not_a_500(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        assert (await http.get("/v1/salons/me/expenses/changes", params={"after": 2**63 - 1})).status_code == 200
+        assert (await http.get("/v1/salons/me/expenses/changes", params={"after": 2**63})).status_code == 422
+
+
+async def test_the_same_instant_written_in_another_zone_is_the_same_request_when_retried(env, monkeypatch):
+    f = await trial_salon(env)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    moment = datetime.now(UTC) - timedelta(minutes=5)
+    india = moment.astimezone(timezone(timedelta(hours=5, minutes=30)))
+    async with http:
+        first = item(occurred_at=moment.isoformat())
+        again = {**first, "occurred_at": india.isoformat()}
+        one = (await http.post("/v1/salons/me/expenses/batch", json={"items": [first]})).json()["results"][0]
+        two = (await http.post("/v1/salons/me/expenses/batch", json={"items": [again]})).json()["results"][0]
+        assert (one["status"], two["status"]) == ("created", "replayed")
+
+
+async def test_a_database_timeout_is_not_reported_as_a_refused_expense(env, monkeypatch):
+    """Only a real constraint failure is 'rejected'. A lock timeout must surface as an error the
+    phone retries, never as a verdict that makes it discard a valid expense."""
+    from sqlalchemy.exc import OperationalError
+
+    from app.infrastructure.db.repositories.finance_repository import FinanceRepository
+
+    f = await trial_salon(env)
+
+    async def times_out(self, values):
+        class Orig(Exception):
+            sqlstate = "55P03"  # lock_not_available
+
+        raise OperationalError("insert", {}, Orig("lock timeout"))
+
+    monkeypatch.setattr(FinanceRepository, "add_expense", times_out)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    http._transport.raise_app_exceptions = False
+    async with http:
+        response = await http.post("/v1/salons/me/expenses/batch", json={"items": [item()]})
+        assert response.status_code >= 500
+
