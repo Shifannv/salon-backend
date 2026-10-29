@@ -1,5 +1,7 @@
 # Owner finance: Phase 0 discovery and approval request
 
+> **Decisions recorded 2026-10-29.** The product owner answered the open questions as F01-F12 in the [approval register](../migrations/payment-subscription-booking-designs/APPROVAL_REGISTER.md). Where this document differs (for example the cash-refund workaround, the opening-cash carry-forward, the lock-out after a plan ends, WhatsApp), the register wins.
+
 Date: 2026-10-28. Status: **design only, awaiting approval.** No migration, table, route, SMS or
 provider call exists or was run for this document. Nothing here is applied to Mumbai, staging or
 production.

@@ -1,4 +1,4 @@
-"""Approved message templates for WhatsApp/SMS, and the guard that keeps private data out of them.
+"""Approved SMS alert templates, and the guard that keeps private data out of them.
 
 A message carries no customer phone number, address, bank detail, internal split, payment
 reference, link or secret. Every rendered text is checked, so a careless caller (or an odd
@@ -8,10 +8,6 @@ service name typed by an owner) cannot leak one.
 import re
 
 _TEMPLATES: dict[str, tuple[str, tuple[str, ...]]] = {
-    "service_completed": (
-        "Hi {first_name}, your {service} at {salon} is complete. Thank you for visiting!",
-        ("first_name", "service", "salon"),
-    ),
     "booking_waiting": (
         "New booking at {salon}: {service} at {time}. Reply A {code} to accept or D {code} to decline.",
         ("salon", "service", "time", "code"),

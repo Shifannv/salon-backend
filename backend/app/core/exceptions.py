@@ -428,6 +428,12 @@ class DifferenceReasonRequiredError(ValidationError):
     code = "difference_reason_required"
 
 
+class OpeningCashRequiredError(ValidationError):
+    """The owner must confirm the cash in the drawer at the start of the day being closed."""
+
+    code = "opening_cash_required"
+
+
 class ExpenseAlreadyReversedError(ConflictError):
     """An expense can be reversed once; a reversal itself cannot be reversed."""
 

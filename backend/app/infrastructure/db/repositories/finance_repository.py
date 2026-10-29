@@ -151,7 +151,13 @@ class FinanceRepository:
         return _row(row) if row else None
 
     async def opening_cash(self, salon_id: str, local_date: date, timezone: str) -> tuple[int, str]:
-        """Previous close's counted cash plus the net cash of any unclosed days since."""
+        """The cash a day starts with, and how sure we are of it.
+
+        ``previous_close``: the day before was closed, so its counted cash is the opening.
+        ``needs_confirmation``: an earlier day was closed but the day before this one was not; what
+        is returned is only a suggestion (the last count plus the cash movement since) and the owner
+        must confirm it. It is never silently assumed. ``not_set``: nothing was ever closed.
+        """
 
         result = await self.session.execute(
             text(
@@ -163,16 +169,16 @@ class FinanceRepository:
         previous = result.mappings().first()
         if previous is None:
             return 0, "not_set"
+        if previous["local_date"] == local_date - timedelta(days=1):
+            return int(previous["actual_cash_paise"]), "previous_close"
         gap_start = local_day_bounds(previous["local_date"] + timedelta(days=1), timezone)[0]
         gap_end = local_day_bounds(local_date, timezone)[0]
-        net = 0
-        if gap_start < gap_end:
-            gap = await self.day_figures(salon_id, gap_start, gap_end)
-            net = (
-                gap["cash_collected"] - gap["cash_refunds"] - gap["cash_expenses"]
-                + gap["adjustments_in"] - gap["adjustments_out"]
-            )
-        return int(previous["actual_cash_paise"]) + net, "previous_close"
+        gap = await self.day_figures(salon_id, gap_start, gap_end)
+        net = (
+            gap["cash_collected"] - gap["cash_refunds"] - gap["cash_expenses"]
+            + gap["adjustments_in"] - gap["adjustments_out"]
+        )
+        return int(previous["actual_cash_paise"]) + net, "needs_confirmation"
 
     async def closes_between(self, salon_id: str, first: date, last: date) -> dict[date, dict[str, Any]]:
         result = await self.session.execute(
