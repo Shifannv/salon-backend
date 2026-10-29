@@ -55,6 +55,7 @@ class SQLAccountDeletionRepository(
         # Re-run inside the erasure transaction: an order paid after the earlier step must not
         # leave a live renewal behind (idempotent; a late payment later hits 'blocked_closed').
         await SubscriptionBillingRepository(s).wind_down_salons(params["uid"])
+        await self._scrub_owner_finance(params)
         # Staff logins that existed only for these salons are separate people whose
         # profile (name, email, phone, avatar) would otherwise be banned but kept for
         # ever. Guard: staff role, no staff row at a salon this owner does not own, never a
