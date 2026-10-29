@@ -43,7 +43,7 @@ jobs:
       - run: python -m pip check
       - name: Verify explicit portable migration policy (no prepared Mumbai execution)
         run: python -m pytest -q tests/unit/test_migration_policy.py
-      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py
+      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py scripts/cloud_run_auto.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: python -m pytest -q --junitxml=test-results.xml
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

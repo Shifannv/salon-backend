@@ -1,0 +1,81 @@
+name: Cloud Run automatic production
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Share the lock with manual candidates. Never cancel a release during rollback.
+concurrency:
+  group: production-cloud-run
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    if: github.repository == 'Shifannv/salon-backend' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
+    uses: ./.github/workflows/backend.yml
+    permissions:
+      contents: read
+
+  release:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    environment:
+      name: production
+      url: https://api.salones.in
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    env:
+      AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+      BOOTSTRAP_BASELINE: 'false'
+      BOOTSTRAP_CONFIRMATION: ''
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      GCP_CLOUD_RUN_SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
+      GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+      REQUESTED_COMMIT: ${{ github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check one-time activation switch
+        id: activation
+        shell: bash
+        run: |
+          if [[ "$AUTO_DEPLOY_ENABLED" == 'true' ]]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            echo 'Automatic release is disabled. CI passed; no GCP authentication or deployment attempted.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Validate main push, exact actor, target and environment policy
+        if: steps.activation.outputs.enabled == 'true'
+        run: python3 backend/scripts/cloud_run_auto.py guard
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        if: steps.activation.outputs.enabled == 'true'
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+        if: steps.activation.outputs.enabled == 'true'
+      - name: Verify source, test candidate, promote and roll back on health failure
+        if: steps.activation.outputs.enabled == 'true'
+        run: python3 backend/scripts/cloud_run_auto.py deploy
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && steps.activation.outputs.enabled == 'true'
+        with:
+          name: cloud-run-auto-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate-result.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -154,18 +154,37 @@ def verify_bootstrap(data: dict, revision: str, image: str, files: dict[str, str
     require(data["files"] == files, "Serving image inventory differs from reviewed attestation")
 
 
-def preflight() -> str:
+def identity(*, automatic: bool = False) -> str:
     require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Wrong repository")
     require(os.environ.get("GITHUB_REF") == "refs/heads/main", "Only main can deploy")
-    require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "Manual dispatch required")
     require(os.environ.get("GITHUB_ACTOR_ID") == "172572480", "Only the approved actor can deploy")
-    require(os.environ.get("APPROVE_DEPLOYMENT") == "true", "Explicit candidate approval required")
-    require(os.environ.get("DEPLOY_CONFIRMATION") == "DEPLOY api.salones.in", "Exact typed confirmation required")
+    if automatic:
+        require(os.environ.get("GITHUB_EVENT_NAME") == "push", "Automatic deployment requires main push")
+        require(os.environ.get("AUTO_DEPLOY_ENABLED") == "true", "Automatic deployment is disabled")
+        require(not bootstrap_enabled(), "Automatic bootstrap is forbidden")
+    else:
+        require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "Manual dispatch required")
+        require(os.environ.get("APPROVE_DEPLOYMENT") == "true", "Explicit candidate approval required")
+        require(os.environ.get("DEPLOY_CONFIRMATION") == "DEPLOY api.salones.in", "Exact typed confirmation required")
     commit = latest_main()
     require(os.environ.get("REQUESTED_COMMIT") == commit, "Supplied commit must equal workflow SHA")
     require(SHA.fullmatch(commit) is not None, "Full source SHA required")
     require(command("git", "rev-parse", "HEAD") == commit, "Checkout differs from selected commit")
     require(not command("git", "status", "--porcelain"), "Working tree must be clean")
+    environment = github("environments/production")
+    policy = environment.get("deployment_branch_policy") or {}
+    require(policy.get("custom_branch_policies") is True, "Production must allow main only")
+    allowed = github("environments/production/deployment-branch-policies").get("branch_policies", [])
+    require(len(allowed) == 1 and allowed[0].get("name") == "main"
+            and allowed[0].get("type", "branch") == "branch", "Production branch policy must be main only")
+    expected = {"GCP_PROJECT_ID": "saloon-505509", "GCP_REGION": "asia-south1",
+                "GCP_CLOUD_RUN_SERVICE": "salon-api-production", "GCP_ARTIFACT_REGISTRY_REPOSITORY": "salon-production"}
+    require(all(os.environ.get(key) == value for key, value in expected.items()), "Deployment target variables differ")
+    return commit
+
+
+def preflight(*, automatic: bool = False) -> str:
+    commit = identity(automatic=automatic)
     baseline = os.environ.get("BASELINE_COMMIT", "")
     if bootstrap_enabled():
         require(not baseline, "Bootstrap must not invent a Git baseline commit")
@@ -181,15 +200,6 @@ def preflight() -> str:
         require(command("git", "cat-file", "-t", baseline) == "commit", "Baseline commit missing")
         require(not command("git", "diff", "--name-only", baseline, commit, "--", "backend/migrations"),
                 "Migration differences require separate reviewed backup, target and approval; candidate refused")
-    environment = github("environments/production")
-    policy = environment.get("deployment_branch_policy") or {}
-    require(policy.get("custom_branch_policies") is True, "Production must allow main only")
-    allowed = github("environments/production/deployment-branch-policies").get("branch_policies", [])
-    require(len(allowed) == 1 and allowed[0].get("name") == "main"
-            and allowed[0].get("type", "branch") == "branch", "Production branch policy must be main only")
-    expected = {"GCP_PROJECT_ID": "saloon-505509", "GCP_REGION": "asia-south1",
-                "GCP_CLOUD_RUN_SERVICE": "salon-api-production", "GCP_ARTIFACT_REGISTRY_REPOSITORY": "salon-production"}
-    require(all(os.environ.get(key) == value for key, value in expected.items()), "Deployment target variables differ")
     return commit
 
 
@@ -238,8 +248,8 @@ def verify_contract(baseline: dict, candidate: dict) -> None:
             require(shape == current["properties"][field], "Existing schema field changed; review separately")
 
 
-def candidate() -> None:
-    commit = preflight()
+def candidate(*, automatic: bool = False) -> dict:
+    commit = preflight(automatic=automatic)
     project, region, service = (os.environ[key] for key in ["GCP_PROJECT_ID", "GCP_REGION", "GCP_CLOUD_RUN_SERVICE"])
 
     def cloud(*args: str) -> dict:
@@ -346,8 +356,10 @@ def candidate() -> None:
                 receipt["smoke"][endpoint] = {"error_type": type(error).__name__, "pass": False}
         require(all(row["pass"] for row in receipt["smoke"].values()), "Candidate smoke failed; production traffic untouched")
         latest_main()
-        verify_unchanged(before, describe())
-        receipt["status"] = "PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL"
+        final = describe()
+        verify_unchanged(before, final)
+        receipt["verified_resource_version"] = final["metadata"]["resourceVersion"]
+        receipt["status"] = "PASS_CANDIDATE_VERIFIED" if automatic else "PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL"
     except (RuntimeError, OSError, ValueError, KeyError, StopIteration):
         receipt["status"] = "STOP_NO_TRAFFIC_PROMOTION"
         raise
@@ -359,9 +371,11 @@ def candidate() -> None:
                        "actor_id": os.environ["GITHUB_ACTOR_ID"], "target_project": project,
                        "target_service": service, "image_digest": receipt["digest"],
                        "current_serving_revision": previous, "rollback_revision": previous,
-                       "confirmation": os.environ["DEPLOY_CONFIRMATION"], "status": receipt["status"]}
+                       "confirmation": os.environ.get("DEPLOY_CONFIRMATION", "AUTOMATIC MAIN PUSH"), "status": receipt["status"]}
             with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as output:
                 output.write("```json\n" + json.dumps(summary, indent=2) + "\n```\n")
+
+    return receipt
 
 
 if __name__ == "__main__":

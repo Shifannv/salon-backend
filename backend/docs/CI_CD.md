@@ -1,4 +1,4 @@
-# Backend CI and manual Cloud Run candidates on GitHub Free
+# Backend CI and Cloud Run releases on GitHub Free
 
 Canonical repository: https://github.com/Shifannv/salon-backend. Keep the previous
 repository as `upstream`; do not rewrite either main history. Production uses
@@ -54,16 +54,25 @@ No environment secrets were created.
 
 The approved pool, provider, deployment account and four resource-scoped bindings
 were created/read back. The account has no user-managed keys or project-wide
-grants. Security Token Service API (sts.googleapis.com) remains disabled; API
-activation was outside the approved resource list and was not performed. It must
-be separately authorized/enabled before a future real federation exchange. No
-OIDC exchange or deployment workflow dispatch has been attempted.
+grants. Security Token Service API (sts.googleapis.com) is enabled, verified by
+read-only inspection on 29 October 2026 after its separately approved activation.
+The existing provider still permits only the exact manual event/workflow pair;
+the automatic workflow trust proposal below has not been applied. This change
+has not performed a federation exchange or production release.
+
+## Automatic releases ? prepared, activation pending
+
+The owner now requested automatic production deployment for eligible main pushes.
+The new [automatic release guide](CLOUD_RUN_AUTO_DEPLOY.md) describes CI, candidate
+verification, automatic traffic promotion and health-triggered rollback. It is
+separate from the manual candidate workflow below. It defaults to disabled and
+requires the narrow additional WIF event/workflow pair to be approved first.
+Current hybrid-image provenance, schema and contract differences remain blockers;
+no production release or migration is performed by preparing these changes.
 
 ## Manual candidate workflow
 
-The current authorization explicitly forbids dispatch, candidate creation and
-traffic changes. For a future separately authorized release, review and merge
-this PR with green CI, then dispatch **Cloud Run production candidate** on latest
+For a manual candidate release, review and merge changes with green CI, then dispatch **Cloud Run production candidate** on latest
 main. Set `approve_deployment=true`, type exactly `DEPLOY api.salones.in`, and
 supply `commit_sha` equal to the full selected/latest main SHA. Also supply the
 full **proven source commit of the serving image** as `baseline_commit`.
@@ -74,7 +83,8 @@ and API verification that it is still latest main. CI and image checks pass in
 the same run through a reusable workflow. It uses environment production,
 concurrency group production-cloud-run with cancel-in-progress=false, main-only
 environment policy, clean exact checkout, target identifiers and zero migration
-differences from baseline. No push, PR or feature-branch event can deploy.
+differences from baseline. This manual candidate workflow rejects push, PR and feature-branch events.
+The separately configured automatic workflow accepts only eligible main pushes.
 It then authenticates through GitHub OIDC/WIF, never a service-account JSON key.
 Permissions are contents:read, id-token:write, plus actions:read solely to inspect
 environment branch policy. No Actions write permission or production application
