@@ -32,7 +32,8 @@ MUMBAI = f"postgresql+asyncpg://postgres:synthetic@db.{MUMBAI_PROJECT}.supabase.
 
 
 def test_repository_head_and_portable_boundary_are_distinct_and_linear():
-    assert SCRIPT.get_heads() == ["0051_owner_finance_cashbook"]
+    assert SCRIPT.get_heads() == ["0052_booking_window_30_days"]
+    assert SCRIPT.get_revision("0052_booking_window_30_days").down_revision == "0051_owner_finance_cashbook"
     assert SCRIPT.get_revision("0051_owner_finance_cashbook").down_revision == "0050_plan_price_valid_until"
     assert SCRIPT.get_revision("0050_plan_price_valid_until").down_revision == "0049_trial_salon_plan_prices"
     assert SCRIPT.get_revision("0049_trial_salon_plan_prices").down_revision == "0048_support_billing_erasure"
@@ -54,7 +55,7 @@ def test_portable_target_is_explicit_known_ancestry(revision):
     validate_migration_target(SCRIPT, revision, LOCAL, {"migration_policy": "portable-ci"})
 
 
-@pytest.mark.parametrize("revision", [*PREPARED_REVISIONS, "0041_salon_photo_limits", "0042_remove_business_category", "0043_no_show_attendance_guards", "0044_versioned_checkout_policy", "0045_customer_booking_changes", "0046_u08_financial_outcomes", "0047_booking_audit_erasure", "0048_support_billing_erasure", "0049_trial_salon_plan_prices", "0050_plan_price_valid_until", "0051_owner_finance_cashbook", "head", "heads", "+1", "unknown"])
+@pytest.mark.parametrize("revision", [*PREPARED_REVISIONS, "0041_salon_photo_limits", "0042_remove_business_category", "0043_no_show_attendance_guards", "0044_versioned_checkout_policy", "0045_customer_booking_changes", "0046_u08_financial_outcomes", "0047_booking_audit_erasure", "0048_support_billing_erasure", "0049_trial_salon_plan_prices", "0050_plan_price_valid_until", "0051_owner_finance_cashbook", "0052_booking_window_30_days", "head", "heads", "+1", "unknown"])
 def test_portable_never_selects_prepared_or_ambiguous_target(revision):
     with pytest.raises(CommandError, match="Portable CI target"):
         validate_migration_target(SCRIPT, revision, LOCAL, {"migration_policy": "portable-ci"})

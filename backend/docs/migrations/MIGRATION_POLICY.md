@@ -1,12 +1,17 @@
 # Explicit migration policy
 
 The portable CI revision is **0037_customer_processing_charge**. The actual Alembic
-repository head is **0051_owner_finance_cashbook**, prepared and not released.
+repository head is **0052_booking_window_30_days**, prepared and not released.
 The guarded Mumbai approval/manifest target remains **0040_fastapi_only_access**;
 it does not authorize the later photo/description, business-category, attendance,
 checkout-policy, booking-change or finance-outcome revisions.
 These are different concepts. No revision, dependency, label or sealed evidence has
 been changed to make CI pass. Revisions 0038-0049 remain unapplied by this work.
+
+0052 adds the salon-local rolling customer booking window. Availability is returned
+only from local today through day 30 inclusive, and `create_booking` independently
+rejects later customer-app requests. It is prepared only and does not extend either
+the portable CI boundary or the approved Mumbai execution boundary.
 
 0047 adds narrowly guarded redaction for new immutable booking/finance audits.
 0048 adds versioned, restricted support-case retention and exact subscription
