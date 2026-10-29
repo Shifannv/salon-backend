@@ -2,7 +2,9 @@
 
 Production currently uses Cloud Run. The exact-actor manual workflow prepares only
 zero-traffic candidates from reviewed latest main; traffic requires separate
-explicit approval. See [CI/CD setup](CI_CD.md) for OIDC and protection gates.
+explicit approval. A separate [automatic release mode](CLOUD_RUN_AUTO_DEPLOY.md) is
+prepared for eligible main pushes after one-time activation. See [CI/CD setup](CI_CD.md)
+for OIDC and release gates.
 The VM/Compose procedures below remain historical recovery material, not the
 normal production deployment path. Do not run them as part of Cloud Run releases.
 

@@ -60,3 +60,5 @@ Session ID: `YYYYMMDD-HHMM-{git user slug}`. Rules: `.claude/skills/agent-memory
 | 2026-10-29 | 20261029-1507-shifan-nv | shifan-cloud-run-bootstrap | Verify legacy source baseline and fix candidate digest handling | 406image hashes/nine overlays verified; bootstrap guards and LF fixtures fixed;1856pass36skip; no production changes | Review bootstrap PR; separately approve backup/schema reconciliation before release | progress/shifan-cloud-run-bootstrap.md |
 
 | 2026-10-29 | 20261029-1905-shifannv | shifan-finance-truncate-final | Verified recovery and local schema rehearsal | Owner TRUNCATE correction prepared; production unchanged | Review fix and separate schema approval | [Progress](progress/shifan-finance-truncate-final.md) |
+
+| 2026-10-29 | 20261029-2120-shifannv | shifan-cloud-run-auto-deploy | Automatic main-push API release | Workflow and rollback prepared; no production changes | Review PR, exact IAM condition and initial release prerequisites | [Progress](progress/shifan-cloud-run-auto-deploy.md) |

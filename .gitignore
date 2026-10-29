@@ -69,3 +69,5 @@ backend/.pytest_tmp/
 # Graphify cache only (graph, wiki, etc. are tracked)
 *graphify-out\cache*
 backend\graphify-out\cache
+# Release receipts are generated after a clean-source preflight, never source inputs.
+/candidate-result.json

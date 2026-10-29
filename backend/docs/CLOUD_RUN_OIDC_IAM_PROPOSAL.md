@@ -70,3 +70,12 @@ Future traffic approval must be the exact message PROMOTE CLOUD RUN CANDIDATE.
 References: [Google federation setup](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines),
 [Cloud Run deployment roles](https://docs.cloud.google.com/run/docs/reference/iam/roles),
 [auth action security](https://github.com/google-github-actions/auth).
+
+## Subsequent automatic-release proposal ? not applied
+
+The condition above records the existing approved manual trust. The later owner
+request for automatic releases requires one additional exact push/workflow pair.
+See [activation and exact command](CLOUD_RUN_AUTO_DEPLOY.md) and the proposed
+[CEL file](../deployments/github-auto-condition.cel). Issuer, claim mappings and
+all four resource-scoped IAM bindings remain unchanged. No permission expansion
+or automatic bootstrap is proposed. This note does not claim IAM was updated.

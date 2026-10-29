@@ -53,7 +53,9 @@ curl http://127.0.0.1:8000/health/redis
 ## Operational rules
 
 - Normal production releases use the exact-actor [Cloud Run candidate workflow](CI_CD.md).
-  Require manually reviewed latest main, proven image source and separate traffic approval.
+  Review latest main and prove image source. Manual candidates require separate traffic
+  approval; the separately activated [automatic release](CLOUD_RUN_AUTO_DEPLOY.md) treats
+  an eligible owner push/merge to main as approval after CI and candidate checks.
   Legacy VM scripts are recovery material; do not dispatch the VM workflow.
 
 - Apply reviewed migrations explicitly before deploying code that requires them.

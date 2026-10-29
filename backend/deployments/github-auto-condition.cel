@@ -1,0 +1,16 @@
+assertion.repository_id == '1422493480' &&
+assertion.repository_owner_id == '172572480' &&
+assertion.repository == 'Shifannv/salon-backend' &&
+assertion.actor_id == '172572480' &&
+assertion.ref == 'refs/heads/main' &&
+assertion.sub == 'repo:Shifannv/salon-backend:environment:production' &&
+(
+  (
+    assertion.event_name == 'workflow_dispatch' &&
+    assertion.workflow_ref == 'Shifannv/salon-backend/.github/workflows/cloud-run-candidate.yml@refs/heads/main'
+  ) ||
+  (
+    assertion.event_name == 'push' &&
+    assertion.workflow_ref == 'Shifannv/salon-backend/.github/workflows/cloud-run-auto.yml@refs/heads/main'
+  )
+)
