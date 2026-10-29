@@ -17,11 +17,13 @@ def guarded(monkeypatch):
     sha = "a" * 40
     variables = {"GITHUB_REPOSITORY": release.REPOSITORY, "GITHUB_REF": "refs/heads/main",
                  "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_SHA": sha, "BASELINE_COMMIT": "b" * 40,
+                 "GITHUB_ACTOR_ID": "172572480", "APPROVE_DEPLOYMENT": "true", "REQUESTED_COMMIT": sha,
+                 "DEPLOY_CONFIRMATION": "DEPLOY api.salones.in",
                  "GCP_PROJECT_ID": "saloon-505509", "GCP_REGION": "asia-south1",
                  "GCP_CLOUD_RUN_SERVICE": "salon-api-production", "GCP_ARTIFACT_REGISTRY_REPOSITORY": "salon-production"}
     for key, value in variables.items():
         monkeypatch.setenv(key, value)
-    responses = {"branches/main": {"protected": True, "commit": {"sha": sha}},
+    responses = {"branches/main": {"protected": False, "commit": {"sha": sha}},
                  "environments/production": {"protection_rules": [{"type": "required_reviewers", "reviewers": [{"id": 1}]}],
                                              "deployment_branch_policy": {"custom_branch_policies": True}},
                  "environments/production/deployment-branch-policies": {"branch_policies": [{"name": "main", "type": "branch"}]}}
@@ -36,7 +38,9 @@ def test_reviewed_main_with_no_migration_changes_passes(guarded):
 
 
 @pytest.mark.parametrize("key,value", [("GITHUB_REF", "refs/heads/feature"), ("GITHUB_EVENT_NAME", "push"),
-                                      ("GITHUB_REPOSITORY", "Thameempp/salon-backend"), ("GCP_PROJECT_ID", "other")])
+                                      ("GITHUB_REPOSITORY", "Thameempp/salon-backend"), ("GCP_PROJECT_ID", "other"),
+                                      ("GITHUB_ACTOR_ID", "other"), ("APPROVE_DEPLOYMENT", "false"),
+                                      ("DEPLOY_CONFIRMATION", "deploy api.salones.in"), ("REQUESTED_COMMIT", "c" * 40)])
 def test_wrong_context_refused(guarded, monkeypatch, key, value):
     monkeypatch.setenv(key, value)
     with pytest.raises(RuntimeError):
@@ -49,16 +53,9 @@ def test_superseded_main_refused(guarded):
         release.preflight()
 
 
-def test_unprotected_branch_refused(guarded):
-    guarded["branches/main"]["protected"] = False
-    with pytest.raises(RuntimeError, match="protection"):
-        release.preflight()
-
-
-def test_missing_environment_reviewers_refused(guarded):
+def test_free_plan_without_reviewers_uses_explicit_actor_and_dispatch_guards(guarded):
     guarded["environments/production"]["protection_rules"] = []
-    with pytest.raises(RuntimeError, match="reviewer"):
-        release.preflight()
+    assert release.preflight() == "a" * 40
 
 
 def test_wildcard_deployment_branch_refused(guarded):
@@ -106,3 +103,32 @@ def test_unexpected_runtime_or_traffic_change_refused(change):
         after["metadata"]["annotations"]["run.googleapis.com/maxScale"] = "10"
     with pytest.raises(RuntimeError):
         release.verify_unchanged(before, after)
+
+
+def contract():
+    return {"openapi": "3.1.0", "paths": {path: {"get": {}} for path in
+            ["/health", "/health/db", "/health/redis", "/v1/salons", "/v1/subscription-plans"]},
+            "components": {"schemas": {"Plan": {"type": "object", "properties": {"price": {"type": "string"}}}}}}
+
+
+def test_contract_additions_preserve_existing_routes_and_fields():
+    before = contract()
+    after = copy.deepcopy(before)
+    after["paths"]["/v1/new"] = {"get": {}}
+    release.verify_contract(before, after)
+
+
+@pytest.mark.parametrize("change", ["route", "operation", "field", "type"])
+def test_contract_regressions_refused(change):
+    before = contract()
+    after = copy.deepcopy(before)
+    if change == "route":
+        del after["paths"]["/v1/salons"]
+    elif change == "operation":
+        del after["paths"]["/v1/salons"]["get"]
+    elif change == "field":
+        del after["components"]["schemas"]["Plan"]["properties"]["price"]
+    else:
+        after["components"]["schemas"]["Plan"]["properties"]["price"]["type"] = "number"
+    with pytest.raises(RuntimeError):
+        release.verify_contract(before, after)

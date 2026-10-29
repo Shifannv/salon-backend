@@ -12,24 +12,32 @@ on:
         description: 'Full proven source SHA of the currently serving image (must match its OCI label)'
         required: true
         type: string
+      confirmation:
+        description: 'Type exactly DEPLOY api.salones.in (zero-traffic candidate only)'
+        required: true
+        type: string
+      commit_sha:
+        description: 'Full latest main commit SHA; must equal the selected workflow commit'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: salon-production-cloud-run
+  group: production-cloud-run
   cancel-in-progress: false
 
 jobs:
   ci:
-    if: github.ref == 'refs/heads/main' && inputs.approve_deployment
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '172572480' && inputs.approve_deployment && inputs.confirmation == 'DEPLOY api.salones.in' && inputs.commit_sha == github.sha
     uses: ./.github/workflows/backend.yml
     permissions:
       contents: read
 
   candidate:
     needs: ci
-    if: github.ref == 'refs/heads/main' && inputs.approve_deployment
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '172572480' && inputs.approve_deployment && inputs.confirmation == 'DEPLOY api.salones.in' && inputs.commit_sha == github.sha
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment:
@@ -45,6 +53,9 @@ jobs:
       GCP_CLOUD_RUN_SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
       GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
       BASELINE_COMMIT: ${{ inputs.baseline_commit }}
+      REQUESTED_COMMIT: ${{ inputs.commit_sha }}
+      DEPLOY_CONFIRMATION: ${{ inputs.confirmation }}
+      APPROVE_DEPLOYMENT: ${{ inputs.approve_deployment }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -52,7 +63,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate latest main and protected production environment
+      - name: Validate exact actor, confirmation, latest main and environment branch policy
         run: python3 backend/scripts/cloud_run_candidate.py preflight
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:

@@ -50,7 +50,6 @@ def github(path: str) -> dict:
 
 def latest_main() -> str:
     branch = github("branches/main")
-    require(branch.get("protected") is True, "main branch protection is required")
     commit = os.environ["GITHUB_SHA"]
     require(branch["commit"]["sha"] == commit, "main advanced; run again for latest main")
     return commit
@@ -60,7 +59,11 @@ def preflight() -> str:
     require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY, "Wrong repository")
     require(os.environ.get("GITHUB_REF") == "refs/heads/main", "Only main can deploy")
     require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "Manual dispatch required")
+    require(os.environ.get("GITHUB_ACTOR_ID") == "172572480", "Only the approved actor can deploy")
+    require(os.environ.get("APPROVE_DEPLOYMENT") == "true", "Explicit candidate approval required")
+    require(os.environ.get("DEPLOY_CONFIRMATION") == "DEPLOY api.salones.in", "Exact typed confirmation required")
     commit = latest_main()
+    require(os.environ.get("REQUESTED_COMMIT") == commit, "Supplied commit must equal workflow SHA")
     require(SHA.fullmatch(commit) is not None, "Full source SHA required")
     require(command("git", "rev-parse", "HEAD") == commit, "Checkout differs from selected commit")
     require(not command("git", "status", "--porcelain"), "Working tree must be clean")
@@ -70,8 +73,6 @@ def preflight() -> str:
     require(not command("git", "diff", "--name-only", baseline, commit, "--", "backend/migrations"),
             "Migration differences require separate reviewed backup, target and approval; candidate refused")
     environment = github("environments/production")
-    require(any(rule.get("type") == "required_reviewers" and rule.get("reviewers")
-                for rule in environment.get("protection_rules", [])), "Production requires a reviewer")
     policy = environment.get("deployment_branch_policy") or {}
     require(policy.get("custom_branch_policies") is True, "Production must allow main only")
     allowed = github("environments/production/deployment-branch-policies").get("branch_policies", [])
@@ -109,6 +110,25 @@ def verify_unchanged(before: dict, after: dict) -> None:
                 == after["metadata"].get("annotations", {}).get(key), "Service configuration changed")
 
 
+def verify_contract(baseline: dict, candidate: dict) -> None:
+    require(bool(candidate.get("openapi")) and bool(candidate.get("paths")), "Invalid OpenAPI contract")
+    expected = {"/health", "/health/db", "/health/redis", "/v1/salons", "/v1/subscription-plans"}
+    require(expected <= candidate["paths"].keys(), "Expected API routes missing")
+    methods = {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
+    for path, operations in baseline["paths"].items():
+        require(path in candidate["paths"], "Existing OpenAPI path removed; review contract separately")
+        require((operations.keys() & methods) <= candidate["paths"][path].keys(), "Existing API operation removed")
+    schemas = candidate.get("components", {}).get("schemas", {})
+    for name, previous in baseline.get("components", {}).get("schemas", {}).items():
+        require(name in schemas, "Existing OpenAPI schema removed")
+        current = schemas[name]
+        require(previous.get("type") == current.get("type"), "Existing schema type changed")
+        require(previous.get("required", []) == current.get("required", []), "Schema required fields changed; review separately")
+        for field, shape in previous.get("properties", {}).items():
+            require(field in current.get("properties", {}), "Existing schema field removed")
+            require(shape == current["properties"][field], "Existing schema field changed; review separately")
+
+
 def candidate() -> None:
     commit = preflight()
     project, region, service = (os.environ[key] for key in ["GCP_PROJECT_ID", "GCP_REGION", "GCP_CLOUD_RUN_SERVICE"])
@@ -131,6 +151,9 @@ def candidate() -> None:
     previous_labels = json.loads(command("docker", "image", "inspect", previous_image))[0]["Config"].get("Labels") or {}
     require(previous_labels.get("org.opencontainers.image.revision") == os.environ["BASELINE_COMMIT"],
             "Serving image lacks matching proven source label; review baseline provenance separately")
+    with urllib.request.urlopen("https://api.salones.in/openapi.json", timeout=60) as response:
+        baseline_contract = json.load(response)
+    require(bool(baseline_contract.get("paths")), "Cannot establish serving OpenAPI baseline")
     run_id = os.environ["GITHUB_RUN_ID"]
     attempt = os.environ["GITHUB_RUN_ATTEMPT"]
     require(run_id.isdigit() and attempt.isdigit(), "Invalid run identifier")
@@ -189,7 +212,13 @@ def candidate() -> None:
                     receipt["smoke"][endpoint] = {"status": response.status, "pass": response.status == 200}
                     if endpoint == "/openapi.json":
                         contract = json.loads(body)
-                        require(bool(contract.get("openapi")) and bool(contract.get("paths")), "Invalid OpenAPI contract")
+                        try:
+                            verify_contract(baseline_contract, contract)
+                        except RuntimeError:
+                            receipt["smoke"][endpoint]["pass"] = False
+                            receipt["openapi_contract_checks"] = "FAIL_REVIEW_REQUIRED"
+                            raise
+                        receipt["openapi_contract_checks"] = "Expected routes and existing paths/operations/schema fields preserved"
                         receipt["openapi_sha256"] = hashlib.sha256(body).hexdigest()
                         receipt["openapi_path_count"] = len(contract["paths"])
             except urllib.error.HTTPError as error:
@@ -206,6 +235,14 @@ def candidate() -> None:
     finally:
         path.write_text(json.dumps(receipt, indent=2) + "\n")
         print(json.dumps(receipt, indent=2))
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            summary = {"commit": commit, "actor": os.environ.get("GITHUB_ACTOR"),
+                       "actor_id": os.environ["GITHUB_ACTOR_ID"], "target_project": project,
+                       "target_service": service, "image_digest": digest,
+                       "current_serving_revision": previous, "rollback_revision": previous,
+                       "confirmation": os.environ["DEPLOY_CONFIRMATION"], "status": receipt["status"]}
+            with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as output:
+                output.write("```json\n" + json.dumps(summary, indent=2) + "\n```\n")
 
 
 if __name__ == "__main__":

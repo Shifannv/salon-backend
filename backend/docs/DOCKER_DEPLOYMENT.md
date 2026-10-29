@@ -1,6 +1,6 @@
 # Docker deployment
 
-Production currently uses Cloud Run. The protected manual workflow prepares only
+Production currently uses Cloud Run. The exact-actor manual workflow prepares only
 zero-traffic candidates from reviewed latest main; traffic requires separate
 explicit approval. See [CI/CD setup](CI_CD.md) for OIDC and protection gates.
 The VM/Compose procedures below remain historical recovery material, not the

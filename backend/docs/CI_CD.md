@@ -1,4 +1,4 @@
-# Backend CI and protected Cloud Run candidates
+# Backend CI and manual Cloud Run candidates on GitHub Free
 
 Canonical repository: https://github.com/Shifannv/salon-backend. Keep the previous
 repository as `upstream`; do not rewrite either main history. Production uses
@@ -10,7 +10,7 @@ outside this change.
 ## CI
 
 `.github/workflows/backend.yml` runs on pushes and pull requests, and is reusable
-by CD. Jobs `Lint and tests` and `Build and smoke test image` install declared
+by CD; manual CI runs are also supported. Jobs `Lint and tests` and `Build and smoke test image` install declared
 requirements, run pip check, Ruff, shell syntax and the full pytest suite with a
 disposable PostgreSQL 18 service. It builds backend/Dockerfile using backend/ as
 context, validates Compose, and verifies nonroot/custom-port health and worker
@@ -26,24 +26,15 @@ normal production releases.
 
 Settings → Environments → New environment → `production`:
 
-1. Add a required reviewer. Select a real reviewer with repository access.
-2. Select custom deployment branches and add only branch `main`; no tag policies.
-3. Add the nonsecret variables below at repository or environment scope.
-4. Do not add GCP JSON keys or application credentials.
+1. Select custom deployment branches and add only branch `main`; no tag policies.
+2. Add the nonsecret variables below at production environment scope.
+3. Do not add GCP JSON keys or application credentials.
 
-Settings → Rules → Rulesets (or Branches) → protect `main`: require pull requests,
-the two CI checks above, and an up-to-date branch; block force pushes and deletion;
-restrict direct pushes/bypasses where the plan supports it. Do not merge failing CI.
-
-On 29 October 2026 GitHub returned 403 for rulesets/branch protection with
-“Upgrade to GitHub Pro or make this repository public”. No environment exists.
-This is a deployment blocker; do not change billing or visibility automatically.
-Pro may enable private branch protection/environment branches, but **required
-environment reviewers for private repositories require a plan supporting that
-feature**; Pro alone is not sufficient according to
-[GitHub's environment API documentation](https://docs.github.com/en/rest/deployments/environments).
-Arrange a supported private-repository protection configuration or separately
-review public visibility. Do not weaken the workflow gates to bypass this limit.
+The owner explicitly chose GitHub Free and private visibility. Rulesets, branch
+protection and required environment reviewers are not relied upon. The production
+environment now exists with custom deployment branches. Do not change billing or
+visibility, ask for an upgrade, or represent main as protected. Review PRs and CI
+manually before merging; deployment remains limited to the exact owner actor.
 
 | Variable | Verified value/status |
 | --- | --- |
@@ -51,25 +42,42 @@ review public visibility. Do not weaken the workflow gates to bypass this limit.
 | GCP_REGION | asia-south1; configured |
 | GCP_CLOUD_RUN_SERVICE | salon-api-production; configured |
 | GCP_ARTIFACT_REGISTRY_REPOSITORY | salon-production; configured |
-| GCP_WORKLOAD_IDENTITY_PROVIDER | Pending approved IAM creation |
-| GCP_DEPLOY_SERVICE_ACCOUNT | Pending approved IAM creation |
+| GCP_WORKLOAD_IDENTITY_PROVIDER | projects/283739091709/locations/global/workloadIdentityPools/salon-github/providers/salon-backend |
+| GCP_DEPLOY_SERVICE_ACCOUNT | salon-github-deploy@saloon-505509.iam.gserviceaccount.com |
 
 These identifiers are not secrets. Database URLs, Supabase/JWT/payment/Firebase
 credentials remain in Cloud Run/Secret Manager, never GitHub. See the exact
-[IAM proposal](CLOUD_RUN_OIDC_IAM_PROPOSAL.md); no IAM change is authorized yet.
+[approved IAM configuration](CLOUD_RUN_OIDC_IAM_PROPOSAL.md). All six variables
+are configured and read back in production; its sole allowed branch is main.
+The four target identifiers also remain at repository scope with identical values.
+No environment secrets were created.
+
+The approved pool, provider, deployment account and four resource-scoped bindings
+were created/read back. The account has no user-managed keys or project-wide
+grants. Security Token Service API (sts.googleapis.com) remains disabled; API
+activation was outside the approved resource list and was not performed. It must
+be separately authorized/enabled before a future real federation exchange. No
+OIDC exchange or deployment workflow dispatch has been attempted.
 
 ## Manual candidate workflow
 
-After this PR is reviewed, CI is green, and merged into main, dispatch **Cloud
-Run production candidate** on latest main. Set `approve_deployment=true` and supply
-the full **proven source commit of the serving image** as `baseline_commit`.
+The current authorization explicitly forbids dispatch, candidate creation and
+traffic changes. For a future separately authorized release, review and merge
+this PR with green CI, then dispatch **Cloud Run production candidate** on latest
+main. Set `approve_deployment=true`, type exactly `DEPLOY api.salones.in`, and
+supply `commit_sha` equal to the full selected/latest main SHA. Also supply the
+full **proven source commit of the serving image** as `baseline_commit`.
 
-The workflow reruns CI, enters the protected production environment, and verifies
-latest protected main, environment reviewers/main-only policy, clean exact
-checkout, target identifiers and zero migration-file differences from baseline.
+The workflow requires workflow_dispatch, refs/heads/main, actor ID 172572480,
+explicit approval, exact typed confirmation, supplied SHA equal to github.sha,
+and API verification that it is still latest main. CI and image checks pass in
+the same run through a reusable workflow. It uses environment production,
+concurrency group production-cloud-run with cancel-in-progress=false, main-only
+environment policy, clean exact checkout, target identifiers and zero migration
+differences from baseline. No push, PR or feature-branch event can deploy.
 It then authenticates through GitHub OIDC/WIF, never a service-account JSON key.
 Permissions are contents:read, id-token:write, plus actions:read solely to inspect
-environment protection. No Actions write permission or production application
+environment branch policy. No Actions write permission or production application
 secret is used.
 
 The serving image must have a matching OCI source revision label. As audited,
@@ -90,7 +98,10 @@ It compares runtime configuration privately and verifies normal traffic unchange
 Raw service/command output and environment values are not logged or uploaded.
 
 Candidate read-only checks: Ready, /health, /health/db (SELECT 1), /health/redis
-(PING), /docs, and a parsed /openapi.json with contract hash/path count. No owner,
+(PING), /docs, and a parsed /openapi.json with contract hash/path count. Compare
+expected routes and existing production paths/operations/schema fields before
+accepting the candidate; schema changes require separate contract review. This
+structural comparison does not prove every application's behavior. No owner,
 customer, checkout, booking, payment or deletion mutation runs. Any failed check
 holds promotion. A retained zero-traffic revision/tag is not deleted automatically.
 
@@ -100,11 +111,12 @@ previous revision/image, every smoke result, migration differences and rollback
 command. A successful result is `PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL`.
 The workflow never promotes traffic. Ask the owner explicitly:
 
-**Promote this tested candidate to 100% production traffic?**
+Request the owner's separate exact approval message:
+**PROMOTE CLOUD RUN CANDIDATE**
 
 ## After explicit traffic approval
 
-Use the tested revision from the receipt, without rebuilding. Revalidate its
+Only after the exact approval above, use the tested revision without rebuilding. Revalidate its
 digest, latest main and unchanged previous production traffic first. Only then:
 
 ```bash

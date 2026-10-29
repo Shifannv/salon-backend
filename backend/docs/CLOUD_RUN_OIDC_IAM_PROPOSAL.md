@@ -1,7 +1,8 @@
-# Proposed GitHub OIDC configuration — approval required
+# Approved GitHub Free OIDC configuration
 
-These names are proposals, not existing resources. Nothing in this document has
-been executed. No service-account JSON key is needed or permitted.
+The user approved the exact resources and scoped bindings below after revising
+the trust condition for GitHub Free. Creation/readback status is recorded in the
+audit report. No service-account JSON key is needed or permitted.
 
 Verified target: project `saloon-505509`, number `283739091709`, region
 `asia-south1`, service `salon-api-production`, Artifact Registry repository
@@ -30,11 +31,14 @@ Requested IAM bindings only:
 No Owner, Editor, Secret Manager accessor, service-account key, project-wide
 Cloud Run write grant, or worker execution grant is proposed. Cloud Run Developer
 can update service configuration/traffic; IAM does not constrain it to image-only
-updates. Workflow guards and protected main/environment provide that restriction.
+updates. Workflow dispatch/input guards and exact actor/environment trust provide
+that restriction. Main is not protected; required reviewers/rulesets are not
+relied upon. Anyone who can change main can change workflow code; the exact actor
+must review the selected commit before manually dispatching it.
 
 The provider issuer is `https://token.actions.githubusercontent.com`.
 Map `google.subject=assertion.sub` and the following matching attribute claims:
-`repository`, `repository_id`, `repository_owner_id`, `ref`, `ref_protected`,
+`repository`, `repository_id`, `repository_owner_id`, `ref`, `actor_id`,
 `workflow_ref`, `event_name`.
 
 Provider CEL condition (all terms required):
@@ -43,8 +47,8 @@ Provider CEL condition (all terms required):
 assertion.repository_id == '1422493480' &&
 assertion.repository_owner_id == '172572480' &&
 assertion.repository == 'Shifannv/salon-backend' &&
+assertion.actor_id == '172572480' &&
 assertion.ref == 'refs/heads/main' &&
-assertion.ref_protected == 'true' &&
 assertion.sub == 'repo:Shifannv/salon-backend:environment:production' &&
 assertion.event_name == 'workflow_dispatch' &&
 assertion.workflow_ref == 'Shifannv/salon-backend/.github/workflows/cloud-run-candidate.yml@refs/heads/main'
@@ -57,7 +61,11 @@ After approval, create the three proposed objects, apply only the four bindings,
 read back the trust policy and grants, then set the two GitHub variables
 `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`. If an API must be
 enabled or permissions differ from this scope, report before expanding the plan.
-Do not dispatch CD until the GitHub protections and image provenance gates pass.
+Workflow gates also require approve_deployment=true, typed confirmation exactly
+DEPLOY api.salones.in, supplied SHA equal to github.sha and latest remote main,
+and CI/image verification in the same run. The user explicitly forbids workflow
+dispatch, candidate creation and traffic changes during this configuration phase.
+Future traffic approval must be the exact message PROMOTE CLOUD RUN CANDIDATE.
 
 References: [Google federation setup](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines),
 [Cloud Run deployment roles](https://docs.cloud.google.com/run/docs/reference/iam/roles),
