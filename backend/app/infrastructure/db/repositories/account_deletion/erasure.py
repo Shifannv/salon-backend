@@ -226,6 +226,33 @@ class _ErasureMixin:
             {**params, "title": ANONYMISED_NOTIFICATION_TITLE},
         )
 
+    async def _scrub_owner_finance(self, params: dict[str, str]) -> None:
+        """Clear free text from the owner's cash book; the money records themselves are retained.
+
+        Notes and reasons can name people ("advance to Hafis"). Amounts, categories and dates stay,
+        like every other financial record. Skipped when the cash-book tables do not exist yet, so
+        erasure keeps working on a database that has not received that migration.
+        """
+        s = self.session
+        present = await s.scalar(text("select to_regclass('public.salon_expenses') is not null"))
+        if not present:
+            return
+        # Narrowly scoped: only these three free-text columns may change, only in this transaction.
+        await s.execute(text("select set_config('app.finance_redaction', 'on', true)"))
+        owned = f"salon_id in ({_OWNED_SALONS})"
+        await s.execute(text(f"update salon_expenses set note = null where note is not null and {owned}"), params)
+        await s.execute(
+            text(f"update salon_cash_adjustments set reason = :removed where reason <> :removed and {owned}"),
+            {**params, "removed": REMOVED_TEXT},
+        )
+        await s.execute(
+            text(
+                f"""update salon_day_closes set difference_reason = :removed
+                    where difference_reason is not null and difference_reason <> :removed and {owned}"""
+            ),
+            {**params, "removed": REMOVED_TEXT},
+        )
+
     async def _scrub_legacy_descriptions(self, params: dict[str, str]) -> None:
         """Erase owner metadata during rollout, without requiring removed columns."""
         s = self.session

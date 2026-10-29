@@ -1,7 +1,7 @@
 # Explicit migration policy
 
 The portable CI revision is **0037_customer_processing_charge**. The actual Alembic
-repository head is **0050_plan_price_valid_until**, prepared and not released.
+repository head is **0051_owner_finance_cashbook**, prepared and not released.
 The guarded Mumbai approval/manifest target remains **0040_fastapi_only_access**;
 it does not authorize the later photo/description, business-category, attendance,
 checkout-policy, booking-change or finance-outcome revisions.
@@ -14,6 +14,13 @@ benefit redaction without altering charges, purchase/period/expiry dates or prov
 references. Both remain separate prepared forward revisions; neither changes the
 portable or approved Mumbai execution boundaries below. The repository head must
 never be interpreted as an approved production migration target.
+
+0051 adds the owner finance cash book: `salon_expenses`, `salon_cash_adjustments` and
+`salon_day_closes` (append-only, integer paise, row-level security with no public access) plus
+two read-path indexes. It is additive, changes no existing table, and its downgrade refuses
+because the tables hold financial records. Tested only on disposable local PostgreSQL (the
+portable chain plus every prepared sidecar). Prepared only: not applied to Mumbai, staging or
+production, and never through `alembic upgrade` or `stamp`.
 
 0049 changes the free trial for newly created salons to 60 days / 500 bookings (running
 trials keep their limits) and adds `salon_plan_prices`, an admin-set per-salon price per plan.

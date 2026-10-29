@@ -11,6 +11,7 @@ from app.api.v1.routes import (
     booking_finance,
     bookings,
     customer,
+    finance,
     media,
     notifications,
     owner,
@@ -39,6 +40,7 @@ api_v1_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_v1_router.include_router(customer.router, prefix="/customer", tags=["customer"])
 api_v1_router.include_router(owner.router, prefix="/salons", tags=["salon owner"])
 api_v1_router.include_router(payments.router, tags=["payments"])
+api_v1_router.include_router(finance.router, tags=["owner finance"])
 api_v1_router.include_router(support.router, tags=["support"])
 api_v1_router.include_router(customer.salons_router, tags=["salons"])
 api_v1_router.include_router(customer.catalog_router, prefix="/catalog", tags=["catalog"])

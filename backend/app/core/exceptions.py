@@ -408,3 +408,27 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={"error": {"code": "internal_error", "message": "An unexpected server error occurred."}},
             headers=_cors_headers(request, settings.backend_cors_origins),
         )
+
+
+class EntitlementRequiredError(ForbiddenError):
+    """The salon's plan (or free trial) does not include this feature."""
+
+    code = "entitlement_required"
+
+
+class DayInFutureError(ValidationError):
+    """A day cannot be closed before it has started in the salon's own time zone."""
+
+    code = "day_in_future"
+
+
+class DifferenceReasonRequiredError(ValidationError):
+    """Counted cash differs from the expected cash and no reason was given."""
+
+    code = "difference_reason_required"
+
+
+class ExpenseAlreadyReversedError(ConflictError):
+    """An expense can be reversed once; a reversal itself cannot be reversed."""
+
+    code = "expense_already_reversed"
