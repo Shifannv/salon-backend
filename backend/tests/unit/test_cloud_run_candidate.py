@@ -1,6 +1,8 @@
 """Deployment guard regressions; these tests never access GitHub, Docker or GCP."""
 import copy
+import hashlib
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -19,6 +21,7 @@ def guarded(monkeypatch):
                  "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_SHA": sha, "BASELINE_COMMIT": "b" * 40,
                  "GITHUB_ACTOR_ID": "172572480", "APPROVE_DEPLOYMENT": "true", "REQUESTED_COMMIT": sha,
                  "DEPLOY_CONFIRMATION": "DEPLOY api.salones.in",
+                 "BOOTSTRAP_BASELINE": "false", "BOOTSTRAP_CONFIRMATION": "",
                  "GCP_PROJECT_ID": "saloon-505509", "GCP_REGION": "asia-south1",
                  "GCP_CLOUD_RUN_SERVICE": "salon-api-production", "GCP_ARTIFACT_REGISTRY_REPOSITORY": "salon-production"}
     for key, value in variables.items():
@@ -132,3 +135,128 @@ def test_contract_regressions_refused(change):
         after["components"]["schemas"]["Plan"]["properties"]["price"]["type"] = "number"
     with pytest.raises(RuntimeError):
         release.verify_contract(before, after)
+
+
+def attestation():
+    return {"schema_version": 1, "source_kind": "hybrid-overlay", "revision": release.BOOTSTRAP_REVISION,
+            "project": "saloon-505509", "region": "asia-south1", "service": "salon-api-production",
+            "index_image": release.BOOTSTRAP_INDEX, "platform_image": release.BOOTSTRAP_PLATFORM,
+            "overlay_reference_commit": "d" * 40,
+            "files": {"requirements.txt": "a" * 64, "alembic.ini": "b" * 64,
+                      "app/main.py": "c" * 64, "migrations/env.py": hashlib.sha256(b"original").hexdigest()}}
+
+
+@pytest.fixture
+def bootstrapped(guarded, monkeypatch):
+    monkeypatch.setenv("BOOTSTRAP_BASELINE", "true")
+    monkeypatch.setenv("BASELINE_COMMIT", "")
+    monkeypatch.setenv("BOOTSTRAP_CONFIRMATION", "BOOTSTRAP " + release.BOOTSTRAP_REVISION)
+    monkeypatch.setattr(release, "bootstrap_manifest", attestation)
+    monkeypatch.setattr(release, "bootstrap_migration_changes", lambda *args: [])
+
+
+def test_bootstrap_does_not_require_a_fabricated_git_commit(bootstrapped):
+    assert release.preflight() == "a" * 40
+
+
+@pytest.mark.parametrize("key,value", [("BOOTSTRAP_CONFIRMATION", "BOOTSTRAP"),
+                                      ("BASELINE_COMMIT", "b" * 40), ("GITHUB_ACTOR_ID", "other"),
+                                      ("BOOTSTRAP_BASELINE", "yes")])
+def test_bootstrap_wrong_context_refused(bootstrapped, monkeypatch, key, value):
+    monkeypatch.setenv(key, value)
+    with pytest.raises(RuntimeError):
+        release.preflight()
+
+
+def test_bootstrap_preserves_migration_gate(bootstrapped, monkeypatch):
+    monkeypatch.setattr(release, "bootstrap_migration_changes", lambda *args: ["backend/migrations/sql/0051.sql"])
+    with pytest.raises(RuntimeError, match="Migration differences"):
+        release.preflight()
+
+
+@pytest.mark.parametrize("change", ["revision", "image", "hash", "extra", "missing"])
+def test_bootstrap_rejects_drift(change):
+    data = attestation()
+    files = dict(data["files"])
+    revision, image = release.BOOTSTRAP_REVISION, release.BOOTSTRAP_PLATFORM
+    if change == "revision":
+        revision += "-other"
+    elif change == "image":
+        image = release.IMAGE_ROOT + "sha256:" + "d" * 64
+    elif change == "hash":
+        files["app/main.py"] = "d" * 64
+    elif change == "extra":
+        files["app/extra.py"] = "d" * 64
+    else:
+        del files["app/main.py"]
+    with pytest.raises(RuntimeError):
+        release.verify_bootstrap(data, revision, image, files)
+
+
+def test_exact_bootstrap_inventory_passes():
+    data = attestation()
+    release.verify_bootstrap(data, release.BOOTSTRAP_REVISION, release.BOOTSTRAP_PLATFORM, data["files"])
+
+
+@pytest.mark.parametrize("change", ["target", "path", "hash"])
+def test_attestation_target_and_paths_validated(tmp_path, monkeypatch, change):
+    data = attestation()
+    if change == "target":
+        data["service"] = "other"
+    elif change == "path":
+        data["files"]["app/../../.env"] = "a" * 64
+    else:
+        data["files"]["app/main.py"] = "not-a-hash"
+    path = tmp_path / "attestation.json"
+    path.write_text(json.dumps(data))
+    monkeypatch.setattr(release, "BOOTSTRAP_MANIFEST", path)
+    with pytest.raises(RuntimeError):
+        release.bootstrap_manifest()
+
+
+def test_migration_inventory_detects_new_changed_and_removed_files(monkeypatch):
+    data = attestation()
+    data["files"]["migrations/versions/old.py"] = "e" * 64
+    monkeypatch.setattr(release, "command", lambda *args: "backend/migrations/env.py\nbackend/migrations/sql/0051.sql")
+    monkeypatch.setattr(release, "git_blob", lambda *args: b"changed")
+    assert release.bootstrap_migration_changes(data, "a" * 40) == [
+        "backend/migrations/env.py", "backend/migrations/sql/0051.sql", "backend/migrations/versions/old.py"]
+
+
+def test_migration_gate_ignores_checkout_line_endings_only(monkeypatch):
+    data = attestation()
+    data["files"]["migrations/env.py"] = hashlib.sha256(b"line\r\n").hexdigest()
+    monkeypatch.setattr(release, "command", lambda *args: "backend/migrations/env.py" if args[1] == "ls-tree" else "")
+    monkeypatch.setattr(release, "git_blob", lambda *args: b"line\n")
+    assert release.bootstrap_migration_changes(data, "a" * 40) == []
+
+
+def test_historical_review_changes_remain_a_gate(monkeypatch):
+    data = attestation()
+    monkeypatch.setattr(release, "command", lambda *args: "backend/migrations/env.py" if args[1] == "ls-tree"
+                        else "backend/migrations/reviews/changed.json")
+    monkeypatch.setattr(release, "git_blob", lambda *args: b"original")
+    assert release.bootstrap_migration_changes(data, "a" * 40) == ["backend/migrations/reviews/changed.json"]
+
+
+def test_registry_index_resolves_exact_amd64_platform():
+    manifest = {"manifests": [{"platform": {"os": "linux", "architecture": "amd64"},
+                               "digest": release.BOOTSTRAP_PLATFORM.split("@")[1]},
+                              {"platform": {"os": "unknown", "architecture": "unknown"}, "digest": "sha256:" + "f" * 64}]}
+    assert release.platform_image(release.BOOTSTRAP_INDEX, manifest) == release.BOOTSTRAP_PLATFORM
+
+
+@pytest.mark.parametrize("count", [0, 2])
+def test_registry_index_rejects_missing_or_ambiguous_platform(count):
+    row = {"platform": {"os": "linux", "architecture": "amd64"}, "digest": "sha256:" + "a" * 64}
+    with pytest.raises(RuntimeError):
+        release.platform_image(release.BOOTSTRAP_INDEX, {"manifests": [row] * count})
+
+
+def test_single_platform_manifest_keeps_digest():
+    assert release.platform_image(release.BOOTSTRAP_PLATFORM, {"config": {}, "layers": []}) == release.BOOTSTRAP_PLATFORM
+
+
+def test_registry_reference_requires_a_full_digest():
+    with pytest.raises(RuntimeError):
+        release.platform_image(release.IMAGE_ROOT + "sha256:bad", {"config": {}, "layers": []})
