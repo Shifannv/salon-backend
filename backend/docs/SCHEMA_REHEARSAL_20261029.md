@@ -49,3 +49,34 @@ The original 5903d47 finance SQL allowed service_role TRUNCATE. Main later revok
 ## Release gate
 
 Local success is not production schema adoption. Review and merge the correction, reconfirm latest main and exact hashes, take/verify a fresh recovery copy immediately before any separately approved production execution, and obtain approval for the specific shared target and retention effects. Do not replay 0049/0050, upgrade/stamp Alembic, activate workers or bypass the candidate migration guard. The release workflow still refuses migration differences; a separately reviewed compatibility attestation/gate change is needed after schema adoption. Only then test a zero-traffic candidate; production promotion requires the separate explicit confirmation.
+
+## Offline OpenAPI release check
+
+The exact local test image exposes 147 paths versus 121 in currently served production. No existing paths or operations disappear. This is an offline source-image comparison plus production GET, not a deployed candidate smoke test. The existing strict contract gate still requires separate review:
+
+- The previously generated avatar multipart body schema is absent.
+- Existing property shapes/required fields also differ, including removals shown below. No compatibility bypass was added.
+
+| Schema | Removed fields | Changed fields | New required fields |
+| --- | --- | --- | --- |
+| AdminSalonOnboardingResponse | category, description | images | ? |
+| AdminSalonResponse | category, description | ? | ? |
+| BlockedSlotCreateRequest | ? | staff_id | ? |
+| BookingCreateRequest | ? | customer_name, customer_phone, notes, salon_id, service_ids, staff_id | ? |
+| ClosureApplyRequest | ? | affected_booking_ids, staff_id | ? |
+| ClosurePreviewRequest | ? | staff_id | ? |
+| HolidayCreateRequest | ? | title | ? |
+| OwnerSalonCompleteProfileRequest | category, description | ? | ? |
+| OwnerSalonResponse | category, description | images | ? |
+| OwnerSalonUpdateRequest | category, description | ? | ? |
+| SalonDetailResponse | category, description, qr_token | accepts_bookings, images, online_payment_available, online_payment_unavailable_reason, payment_options | ? |
+| SalonSummaryResponse | category, description, qr_token | accepts_bookings, online_payment_available, online_payment_unavailable_reason, payment_options | ? |
+| ServiceCreateRequest | description | duration_minutes | ? |
+| ServiceResponse | description | ? | ? |
+| ServiceUpdateRequest | description | duration_minutes | ? |
+| StaffServiceAssignRequest | ? | duration_minutes | ? |
+| SupportTicketResponse | ? | customer_id | ? |
+| WalkInSalonResponse | description | ? | ? |
+| WalkInServiceSummary | description | ? | ? |
+
+These differences belong to earlier merged backend changes. Review intended client compatibility and necessary adapters before an approved zero-traffic release; do not silently weaken the contract comparison.

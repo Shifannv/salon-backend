@@ -36,6 +36,7 @@ ready for PR
 
 ## Blockers and open questions
 - Latest source still differs from production schema; existing candidate migration guard intentionally blocks deployment.
+- Offline OpenAPI gate also requires review: no paths/operations removed, but existing fields and the generated avatar upload schema differ; details are in the rehearsal report.
 - Full plan drops one populated salon category and soft-retires five active photos in the snapshot; production retention approval is required.
 - Recovery is local logical backup, not hosted PITR or off-device recovery.
 
