@@ -1522,6 +1522,14 @@ longer mentions customer refunds (F12). Not yet built: staff earnings and commis
 - Auto-repeat rules are a later phase (E4). Migration 0051 was edited in place because it had never
   been applied anywhere; see FINANCE_PHASE2_IMPLEMENTATION.md.
 
+### F14 - Repeating expenses (recorded 2026-10-29)
+- The owner can make an expense repeat daily, weekly or monthly. The rule lives on the server so every
+  phone sees it; it is never edited (stop it and make another).
+- Each due day is saved by the phone as an ordinary expense with a fixed id, so it can be cancelled like
+  any other and never comes back. Setting up or stopping a repeat needs the internet; recording due days
+  does not. The server refuses any day a rule does not allow.
+- Missed days are filled in for up to 31 days back when the app opens.
+
 ## Verification boundary and stopping point
 
 Only local Markdown links/anchors, section/decision/field numbering and whitespace

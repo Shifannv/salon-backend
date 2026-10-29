@@ -1,6 +1,6 @@
 """Auto-repeat expense rules on disposable PostgreSQL: API, tenant isolation, plan gate and the SQL guard."""
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -267,21 +267,53 @@ async def test_a_stale_phone_cannot_record_days_the_rule_does_not_allow(env, mon
     async with http:
         crossed = await record(http, occurrence(weekly, start + timedelta(days=7)))
         assert crossed["status"] == "rejected" and crossed["code"] == "rule_occurrence_invalid"
-    assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s", s=other["salon"]))[0]["n"] == 1 - 1
+    assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s", s=other["salon"]))[0]["n"] == 0
 
 
-async def test_a_retry_of_an_old_create_still_replays_after_its_start_date_left_the_window(env, monkeypatch):
+async def test_a_retry_of_an_old_create_still_replays_after_its_start_date_left_the_window(env):
+    """The window check is for new rules only: the same request two days later is still the same rule."""
+    from app.application.use_cases.expense_rules import ExpenseRuleUseCases
+    from app.infrastructure.db.repositories.expense_rule_repository import ExpenseRuleRepository
+
+    f = await trial_salon(env)
+    owner = make_owner(f["owner"])
+    now = datetime.now(UTC)
+    start = today() - timedelta(days=31)
+    kwargs = {"title": "Rent", "category": "rent", "amount_paise": 1000, "payment_method": "cash", "note": None,
+              "frequency": "monthly", "start_date": start, "idempotency_key": "late-retry-" + uuid4().hex}
+    async with env.session() as session:
+        first = await ExpenseRuleUseCases(ExpenseRuleRepository(session), lambda: now).add_rule(owner, **kwargs)
+    async with env.session() as session:
+        later = ExpenseRuleUseCases(ExpenseRuleRepository(session), lambda: now + timedelta(days=2))
+        again = await later.add_rule(owner, **kwargs)
+        assert again["id"] == first["id"] and again["replayed"] is True
+        with pytest.raises(Exception) as caught:  # a NEW rule with that start is now outside the window
+            await later.add_rule(owner, **{**kwargs, "idempotency_key": "other-key-" + uuid4().hex})
+        assert "31 days" in str(caught.value)
+
+
+async def test_the_stop_day_is_in_salon_time_and_a_phone_cannot_use_the_single_endpoint_to_skip_the_check(env, monkeypatch):
     f = await trial_salon(env)
     http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    start = today() - timedelta(days=6)
+    stop_day = start + timedelta(days=2)
     async with http:
-        headers = key()
-        body = rule(start_date=(today() - timedelta(days=31)).isoformat())
-        first = await http.post("/v1/salons/me/expense-rules", headers=headers, json=body)
-        assert first.status_code == 201
-        # The same request a day later would be outside the window as a NEW rule, but it is a replay.
-        await env.sql("update salon_expense_rules set start_date = start_date - 5 where id = :i", i=first.json()["id"])             if False else None
-        again = await http.post("/v1/salons/me/expense-rules", headers=headers, json=body)
-        assert again.status_code in (200, 201) and again.json()["replayed"] is True
+        daily = (await http.post("/v1/salons/me/expense-rules", headers=key(),
+                                 json=rule(frequency="daily", start_date=start.isoformat()))).json()
+        # Stopped at 00:30 on the stop day in India: still the previous day in UTC.
+        stopped_at = datetime.combine(stop_day, datetime.min.time(), tzinfo=IST) + timedelta(minutes=30)
+        await env.sql("update salon_expense_rules set active = false, stopped_at = :t where id = :i",
+                      t=stopped_at, i=daily["id"])
+        assert stopped_at.astimezone(UTC).date() == stop_day - timedelta(days=1)
+        assert (await record(http, occurrence(daily, stop_day)))["status"] == "created"  # the stop day itself
+        refused = await record(http, occurrence(daily, stop_day + timedelta(days=1)))
+        assert refused["status"] == "rejected" and refused["code"] == "rule_occurrence_invalid"
+
+        sneaky = await http.post("/v1/salons/me/expenses", headers={"Idempotency-Key": f"rule:{daily['id']}:{start}"},
+                                 json={"title": "Rent", "category": "rent", "amount_paise": 1, "payment_method": "cash",
+                                       "occurred_at": datetime.now(UTC).isoformat()})
+        assert sneaky.status_code == 422
+        assert (await env.sql("select count(*) as n from salon_expenses where salon_id = :s and amount_paise = 1", s=f["salon"]))[0]["n"] == 0
 
 
 class TestRuleCreatorErasure:

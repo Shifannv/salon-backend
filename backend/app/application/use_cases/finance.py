@@ -268,6 +268,8 @@ class FinanceUseCases:
         occurred_at: datetime, note: str | None, idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
+        if key.startswith("rule:"):
+            raise RuleOccurrenceError("Repeating-expense days are recorded by the app, not one by one")
         salon = await self._salon(actor, write=True)
         values = self._expense_values(
             actor, str(salon["id"]), key=key, title=title, category=category, amount_paise=amount_paise,

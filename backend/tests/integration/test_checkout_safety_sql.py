@@ -8,6 +8,7 @@ import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -29,10 +30,33 @@ pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local P
 D = Decimal
 
 
+async def _install_booking_window(database: str) -> None:
+    url = make_url(TEST_DB).set(
+        database=database, drivername="postgresql+asyncpg"
+    ).render_as_string(hide_password=False)
+    engine = create_async_engine(url, connect_args={"statement_cache_size": 0})
+    source = (
+        Path(__file__).parents[2]
+        / "migrations"
+        / "sql"
+        / "0044_booking_window_30_days.sql"
+    )
+    try:
+        async with engine.begin() as connection:
+            for statement in source.read_text(encoding="utf-8").split(
+                "\n-- statement --\n"
+            ):
+                if statement.strip():
+                    await connection.execute(text(statement))
+    finally:
+        await engine.dispose()
+
+
 @pytest.fixture(scope="module")
 def safety_db():
     database = "checkout_safety_" + uuid4().hex
     asyncio.run(_build(database))
+    asyncio.run(_install_booking_window(database))
     yield make_url(TEST_DB).set(database=database, drivername="postgresql+asyncpg").render_as_string(hide_password=False)
     asyncio.run(_drop(database))
 

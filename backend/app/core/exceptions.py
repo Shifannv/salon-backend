@@ -132,6 +132,12 @@ class BookingSourceNotAllowedError(ValidationError):
     code = "booking_source_not_allowed"
 
 
+class BookingWindowExceededError(ValidationError):
+    """A customer booking is later than the rolling advance-booking window."""
+
+    code = "booking_window_exceeded"
+
+
 class OnlinePaymentUnavailableError(ValidationError):
     """An online payment preference was requested while online payment is not offered.
 
