@@ -169,6 +169,23 @@ class TestRuleAppliesOn:
         assert rule_applies_on("monthly", date(2028, 1, 31), date(2028, 2, 29))
         assert rule_applies_on("monthly", date(2027, 1, 31), date(2027, 2, 28))
 
+    def test_weekly_crosses_month_year_and_leap_day(self):
+        from datetime import date
+
+        from app.domain.services.finance_ledger import rule_applies_on
+
+        assert rule_applies_on("weekly", date(2026, 12, 28), date(2027, 1, 4))
+        assert rule_applies_on("weekly", date(2028, 2, 24), date(2028, 3, 2))  # across 29 February
+        assert not rule_applies_on("weekly", date(2028, 2, 24), date(2028, 3, 1))
+
+    def test_monthly_thirtieth_in_a_short_february(self):
+        from datetime import date
+
+        from app.domain.services.finance_ledger import rule_applies_on
+
+        assert rule_applies_on("monthly", date(2026, 1, 30), date(2027, 2, 28))
+        assert not rule_applies_on("monthly", date(2026, 1, 30), date(2027, 2, 27))
+
     def test_unknown_frequency_never_applies(self):
         from datetime import date
 

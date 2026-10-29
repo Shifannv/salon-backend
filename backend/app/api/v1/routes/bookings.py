@@ -98,7 +98,10 @@ def _use_cases(session: AsyncSession) -> BookingUseCases:
     response_model=list[AvailabilityResponse],
     status_code=status.HTTP_200_OK,
     summary="Get available booking slots",
-    description="Delegates to the `get_available_slots` Postgres function. Never cached. Public — no auth required.",
+    description=(
+        "Delegates to the `get_available_slots` Postgres function. Returns slots only "
+        "from the salon's local today through 30 days ahead. Never cached. Public — no auth required."
+    ),
 )
 async def availability(
     staff_id: UUID,
@@ -119,7 +122,10 @@ async def availability(
     response_model=BookingResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create booking",
-    description="Delegates to the `create_booking` Postgres function. Slot conflicts return 409.",
+    description=(
+        "Delegates to the `create_booking` Postgres function. Customer bookings are "
+        "limited to the salon's local today through 30 days ahead. Slot conflicts return 409."
+    ),
 )
 async def create_booking(
     payload: BookingCreateRequest,

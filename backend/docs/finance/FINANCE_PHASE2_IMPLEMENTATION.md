@@ -154,3 +154,35 @@ never rewritten.
 - Unverified: which database role the production backend connects as (RLS is on with no policy, so
   it must be the owner or a BYPASSRLS role such as `postgres`/`service_role`). The new tables use the
   same grants as `booking_payments`.
+
+## Repeating expenses (E4, 2026-10-29)
+
+"Rent on the 1st", "tea every day". Added to **0051** (still never applied anywhere; same in-place
+condition as the expense v2 addendum above).
+
+| Endpoint (owner only, `/v1`) | Purpose |
+| --- | --- |
+| `GET /salons/me/expense-rules` | The salon's rules (running first, at most 100). Readable after the plan ends; carries `can_write`. |
+| `POST /salons/me/expense-rules` | Create a rule. `Idempotency-Key` required; a retry replays. Needs an active plan. |
+| `POST /salons/me/expense-rules/{id}/stop` | Stop a rule once. Needs an active plan; other salons' rules are 404. |
+
+- **A rule records nothing by itself.** The owner's phone turns each due day into an ordinary expense
+  through the existing batch endpoint, with client id `rule:<rule id>:<YYYY-MM-DD>` and `occurred_at`
+  at midnight salon time. The same day therefore replays instead of doubling, on any phone, and a
+  cancelled occurrence is never brought back (the replay returns the stored, cancelled record).
+- **Rules are never edited** (`guard_expense_rule` allows only a one-way stop, plus `created_by` ->
+  NULL when a profile is deleted). To change one: stop it and make another.
+- **The server checks every `rule:` id** (`_check_rule_occurrence`): the rule must exist in that salon,
+  the day must fall on the rule (`rule_applies_on`: daily; weekly on the start weekday; monthly on the
+  start day, a short month using its last day), must not be after the stop day, must not be before the
+  start, and the title, amount, category, method, note and salon-local date must equal the rule's. A
+  stale phone therefore cannot add days after a stop, and two phones cannot record one logical day
+  under two ids. Refused with `rule_occurrence_invalid` per item.
+- Limits: 30 running rules per salon; start no more than 31 days back and 366 days ahead (checked
+  only for a new rule, so a retry of an old create still replays). The app fills missed days for at
+  most 31 days back.
+- Erasure deletes the owner's rules (configuration that can name people); occurrence expenses are
+  redacted like any other expense.
+- Reviewed by `database-reviewer`: two MEDIUM findings fixed (the `created_by` exemption in the guard,
+  server-side `rule:` validation) plus replay-before-window, `search_path`/function privileges, the
+  stale "every table is append-only" header and a bound on the list.

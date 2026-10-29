@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AppError,
+    BookingWindowExceededError,
     PayAtSalonBlockedError,
     PayAtSalonDailyLimitError,
     PaymentOvercollectionError,
@@ -47,6 +48,8 @@ def _is_business_error(exc: BaseException) -> bool:
 _MessageRule = tuple[tuple[str, ...], bool, Callable[[], AppError]]
 
 _CREATE_BOOKING_ERROR_RULES: tuple[_MessageRule, ...] = (
+    (("booking_window_exceeded",), False,
+     lambda: BookingWindowExceededError("Bookings are available only through the next 30 days.")),
     (("pay_at_salon_daily_limit",), False,
      lambda: PayAtSalonDailyLimitError("You can keep only 1 active Pay at Salon booking per day.")),
     (("pay_at_salon_temporarily_blocked",), False,

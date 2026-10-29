@@ -95,6 +95,37 @@ async def test_direct_booking_persists_source_app(safety):  # noqa: F811
     assert (await safety.sql("select source::text as s from bookings where id=:id", id=booking["id"]))[0]["s"] == "app"
 
 
+async def test_customer_booking_later_than_thirty_local_days_is_rejected(safety):  # noqa: F811
+    f = await safety.seed()
+    too_late = (await safety.sql("select now() + interval '31 days' as starts"))[0]["starts"]
+
+    result = await _direct_book(
+        safety, f, f["customer"], start_datetime=too_late
+    )
+
+    assert isinstance(result, AppError)
+    assert (result.status_code, result.code) == (422, "booking_window_exceeded")
+    assert await _count(safety, f["salon"]) == 0
+
+
+async def test_availability_after_thirty_local_days_is_empty(safety):  # noqa: F811
+    f = await safety.seed()
+    day = (
+        await safety.sql(
+            "select ((now() at time zone timezone)::date + 31) as day "
+            "from salons where id=:id",
+            id=f["salon"],
+        )
+    )[0]["day"]
+
+    async with safety.session() as session:
+        slots = await PlatformRepository(session).get_available_slots(
+            f["staff"], day, [f["service"]]
+        )
+
+    assert slots == []
+
+
 async def test_direct_route_cannot_claim_qr_walkin(safety):  # noqa: F811
     f = await safety.seed()
     async with safety.session() as session:
