@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-10-30T06:50:19.144268+00:00",
+  "phase": "0049-equivalence",
+  "target_db_host": "salon-gate-a-primary-20261030-064659:5432",
+  "overall_status": "FAIL",
+  "checks": [
+    {
+      "check": "0049_table_structure",
+      "status": "PASS",
+      "columns_found": {
+        "salon_id": "uuid",
+        "plan_id": "uuid",
+        "price_amount": "numeric",
+        "set_by": "uuid",
+        "created_at": "timestamp with time zone",
+        "updated_at": "timestamp with time zone",
+        "valid_until": "timestamp with time zone"
+      },
+      "mismatches": []
+    },
+    {
+      "check": "0049_primary_key",
+      "status": "PASS",
+      "primary_key_columns": ["salon_id", "plan_id"]
+    },
+    {
+      "check": "0049_subscription_plan_prices",
+      "status": "FAIL",
+      "expected": {
+        "growth_6m": 1675.0,
+        "growth_12m": 2932.0,
+        "premium_6m": 2875.0,
+        "premium_12m": 5032.0
+      },
+      "found": {
+        "premium_6m": 2875.0,
+        "premium_12m": 5032.0,
+        "growth_12m": 2999.0,
+        "growth_6m": 2000.0
+      },
+      "mismatches": [
+        "growth_6m: expected 1675.0, got 2000.0",
+        "growth_12m: expected 2932.0, got 2999.0"
+      ]
+    }
+  ],
+  "note": "This report was produced against a disposable local database. It is evidence for a stamp or migration approval manifest, not a production run."
+}

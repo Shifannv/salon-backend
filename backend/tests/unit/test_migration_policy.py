@@ -20,9 +20,12 @@ from app.core.migration_policy import (
     PORTABLE_CI_REVISION,
     PREPARED_MUMBAI_REVISION,
     PREPARED_REVISIONS,
+    RECONCILIATION_REVISIONS,
+    STAMP_ALLOWED_REVISIONS,
     require_mumbai_url,
     validate_evidence,
     validate_migration_target,
+    validate_stamp_evidence,
 )
 
 BACKEND = Path(__file__).resolve().parents[2]
@@ -131,7 +134,7 @@ def test_portable_offline_range_cannot_cross_prepared_start():
 
 @pytest.mark.parametrize("start", [None, "base", PORTABLE_CI_REVISION])
 def test_mumbai_offline_sql_requires_reviewed_start(monkeypatch, start):
-    monkeypatch.setattr("app.core.migration_policy.validate_evidence", lambda *args: {})
+    monkeypatch.setattr("app.core.migration_policy.validate_evidence", lambda *args, **kwargs: {})
     options = {"migration_policy": "mumbai", "mumbai_project": MUMBAI_PROJECT}
     if start != PORTABLE_CI_REVISION:
         with pytest.raises(CommandError, match="explicit reviewed starting"):
@@ -167,3 +170,181 @@ def test_mumbai_validation_workflow_is_manual_and_has_no_scratch_service():
     assert "pull_request:" not in workflow and "services:" not in workflow
     assert "MUMBAI_VALIDATION_DATABASE_URL" in workflow
     assert "upgrade" not in workflow and "stamp" not in workflow
+
+
+# ── Reconciliation revision set ───────────────────────────────────────────────
+
+def test_reconciliation_revisions_tuple_is_ordered_and_complete():
+    assert RECONCILIATION_REVISIONS[0] == "0041_salon_photo_limits"
+    assert RECONCILIATION_REVISIONS[-1] == "0050_plan_price_valid_until"
+    assert len(RECONCILIATION_REVISIONS) == 10
+    assert "0051_owner_finance_cashbook" not in RECONCILIATION_REVISIONS
+    assert "0052_booking_window_30_days" not in RECONCILIATION_REVISIONS
+
+
+def test_reconciliation_revisions_form_linear_chain():
+    for i, rev_id in enumerate(RECONCILIATION_REVISIONS):
+        rev = SCRIPT.get_revision(rev_id)
+        if i == 0:
+            assert rev.down_revision == PREPARED_MUMBAI_REVISION
+        else:
+            assert rev.down_revision == RECONCILIATION_REVISIONS[i - 1]
+
+
+@pytest.mark.parametrize("revision", list(RECONCILIATION_REVISIONS))
+def test_reconciliation_revision_is_authorized_mumbai_upgrade_target(revision, monkeypatch):
+    monkeypatch.setattr("app.core.migration_policy.validate_evidence", lambda *args, **kwargs: {})
+    validate_migration_target(
+        SCRIPT, revision, MUMBAI,
+        {"migration_policy": "mumbai", "mumbai_project": MUMBAI_PROJECT,
+         "approval_manifest": "", "approval_id": ""},
+    )
+
+
+def test_0051_and_0052_are_refused_as_mumbai_upgrade_targets(monkeypatch):
+    monkeypatch.setattr("app.core.migration_policy.validate_evidence", lambda *args, **kwargs: {})
+    for blocked in ("0051_owner_finance_cashbook", "0052_booking_window_30_days"):
+        with pytest.raises(CommandError, match="prepared revision"):
+            validate_migration_target(
+                SCRIPT, blocked, MUMBAI,
+                {"migration_policy": "mumbai", "mumbai_project": MUMBAI_PROJECT,
+                 "approval_manifest": "", "approval_id": ""},
+            )
+
+
+# ── Stamp authorization ────────────────────────────────────────────────────────
+
+def test_stamp_allowed_revisions_are_exactly_0040_and_0049():
+    assert STAMP_ALLOWED_REVISIONS == {
+        "0040_fastapi_only_access",
+        "0049_trial_salon_plan_prices",
+    }
+
+
+@pytest.mark.parametrize("revision", [
+    PORTABLE_CI_REVISION,
+    "0041_salon_photo_limits",
+    "0048_support_billing_erasure",
+    "0050_plan_price_valid_until",
+    "0051_owner_finance_cashbook",
+    "0052_booking_window_30_days",
+    "head",
+    "base",
+])
+def test_stamp_other_revisions_refused(revision):
+    with pytest.raises(CommandError, match="stamp"):
+        validate_migration_target(SCRIPT, revision, MUMBAI, {}, command="stamp")
+
+
+def test_stamp_on_local_url_refused():
+    for target in STAMP_ALLOWED_REVISIONS:
+        with pytest.raises(CommandError, match="confirmed Mumbai"):
+            validate_migration_target(SCRIPT, target, LOCAL, {}, command="stamp")
+
+
+def test_stamp_without_mumbai_project_confirmation_refused():
+    for target in STAMP_ALLOWED_REVISIONS:
+        with pytest.raises(CommandError, match="Confirm Mumbai"):
+            validate_migration_target(SCRIPT, target, MUMBAI, {}, command="stamp")
+
+
+def test_stamp_without_manifest_refused():
+    for target in STAMP_ALLOWED_REVISIONS:
+        with pytest.raises(CommandError, match="manifest|Stamp"):
+            validate_migration_target(
+                SCRIPT, target, MUMBAI,
+                {"mumbai_project": MUMBAI_PROJECT},
+                command="stamp",
+            )
+
+
+def _make_stamp_manifest(tmp_path: Path, target: str, mutate: dict | None = None) -> tuple[Path, str]:
+    """Build a valid stamp approval manifest for tests."""
+    policy_path = Path(__file__).parents[2] / "app/core/migration_policy.py"
+    root = BACKEND / "migrations"
+    rev = SCRIPT.get_revision(target)
+    source_hashes = {
+        policy_path.name: hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+        Path(rev.path).name: hashlib.sha256(Path(rev.path).read_bytes()).hexdigest(),
+        f"{target}.sql": hashlib.sha256((root / "sql" / f"{target}.sql").read_bytes()).hexdigest(),
+    }
+    proof = tmp_path / "stamp-proof.txt"
+    proof.write_text("synthetic stamp review/preflight evidence")
+    evidence = {"path": proof.name, "sha256": hashlib.sha256(proof.read_bytes()).hexdigest(), "status": "passed"}
+    manifest = {
+        "approval_id": "synthetic-stamp-approval",
+        "approved_by": "synthetic-reviewer",
+        "status": "approved",
+        "project_ref": MUMBAI_PROJECT,
+        "target_revision": target,
+        "stamp_authorized": True,
+        "source_sha256": source_hashes,
+        "review": evidence,
+        "preflight": evidence,
+    }
+    if mutate:
+        manifest.update(mutate)
+    path = tmp_path / "stamp-manifest.json"
+    path.write_text(json.dumps(manifest))
+    return path, "synthetic-stamp-approval"
+
+
+@pytest.mark.parametrize("target", sorted(STAMP_ALLOWED_REVISIONS))
+def test_valid_stamp_manifest_is_accepted(tmp_path, target):
+    manifest_path, approval_id = _make_stamp_manifest(tmp_path, target)
+    result = validate_stamp_evidence(str(manifest_path), approval_id, target, SCRIPT)
+    assert result["target_revision"] == target
+    assert result["stamp_authorized"] is True
+
+
+@pytest.mark.parametrize("target", sorted(STAMP_ALLOWED_REVISIONS))
+def test_stamp_policy_gate_passes_with_valid_manifest(tmp_path, target):
+    manifest_path, approval_id = _make_stamp_manifest(tmp_path, target)
+    validate_migration_target(
+        SCRIPT, target, MUMBAI,
+        {"mumbai_project": MUMBAI_PROJECT, "approval_manifest": str(manifest_path), "approval_id": approval_id},
+        command="stamp",
+    )
+
+
+@pytest.mark.parametrize("target", sorted(STAMP_ALLOWED_REVISIONS))
+def test_stamp_manifest_without_stamp_authorized_flag_refused(tmp_path, target):
+    manifest_path, approval_id = _make_stamp_manifest(tmp_path, target, {"stamp_authorized": False})
+    with pytest.raises(CommandError, match="manifest|Stamp"):
+        validate_stamp_evidence(str(manifest_path), approval_id, target, SCRIPT)
+
+
+@pytest.mark.parametrize("target", sorted(STAMP_ALLOWED_REVISIONS))
+def test_stamp_manifest_wrong_approval_id_refused(tmp_path, target):
+    manifest_path, _ = _make_stamp_manifest(tmp_path, target)
+    with pytest.raises(CommandError, match="manifest|Stamp"):
+        validate_stamp_evidence(str(manifest_path), "wrong-id", target, SCRIPT)
+
+
+@pytest.mark.parametrize("target", sorted(STAMP_ALLOWED_REVISIONS))
+def test_stamp_manifest_changed_proof_refused(tmp_path, target):
+    manifest_path, approval_id = _make_stamp_manifest(tmp_path, target)
+    proof = tmp_path / "stamp-proof.txt"
+    proof.write_text("tampered")
+    with pytest.raises(CommandError, match="manifest|Stamp|checksum"):
+        validate_stamp_evidence(str(manifest_path), approval_id, target, SCRIPT)
+
+
+# ── Historical migration files are immutable ──────────────────────────────────
+
+def test_historical_migration_py_files_exist_and_have_stable_hashes():
+    """All 0001-0052 .py files must exist; hashes must be stable (not None)."""
+    for rev_id in [*PREPARED_REVISIONS, *RECONCILIATION_REVISIONS,
+                   "0051_owner_finance_cashbook", "0052_booking_window_30_days"]:
+        rev = SCRIPT.get_revision(rev_id)
+        path = Path(rev.path)
+        assert path.exists(), f"Migration file missing: {path}"
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert len(digest) == 64, f"Unexpected hash for {rev_id}"
+
+
+def test_all_historical_sql_files_exist():
+    sql_dir = BACKEND / "migrations" / "sql"
+    for rev_id in [*PREPARED_REVISIONS, *RECONCILIATION_REVISIONS]:
+        sql_path = sql_dir / f"{rev_id}.sql"
+        assert sql_path.exists(), f"SQL file missing: {sql_path.name}"
