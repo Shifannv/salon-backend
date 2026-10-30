@@ -77,6 +77,7 @@ def do_run_migrations(connection) -> None:
     from app.core.migration_policy import (
         PORTABLE_CI_REVISION,
         PREPARED_REVISIONS,
+        RECONCILIATION_REVISIONS,
         portable_revisions,
     )
     arguments = context.get_x_argument(as_dictionary=True)
@@ -86,7 +87,8 @@ def do_run_migrations(connection) -> None:
     ):
         raise CommandError("Portable CI refuses prepared or unknown current revisions before traversal")
     if arguments.get("migration_policy") == "mumbai" and (
-        len(current_heads) != 1 or current_heads[0] not in {PORTABLE_CI_REVISION, *PREPARED_REVISIONS}
+        len(current_heads) != 1
+        or current_heads[0] not in {PORTABLE_CI_REVISION, *PREPARED_REVISIONS, *RECONCILIATION_REVISIONS}
     ):
         raise CommandError("Mumbai history is not reconciled to a reviewed starting revision; refuse execution and do not stamp")
 

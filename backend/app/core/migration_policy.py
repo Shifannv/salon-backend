@@ -15,6 +15,28 @@ MUMBAI_PROJECT = "wqjlgpnbiapcrlkxumcp"
 PREPARED_REVISIONS = (
     "0038_cancellation_compatibility", "0039_promotion_search_path", PREPARED_MUMBAI_REVISION,
 )
+# Reconciliation chain: original immutable revisions authorized for straight-line replay
+# after the 0040 baseline stamp.  0051 and 0052 are deliberately excluded pending
+# separate production approvals.
+RECONCILIATION_REVISIONS = (
+    "0041_salon_photo_limits",
+    "0042_remove_business_category",
+    "0043_no_show_attendance_guards",
+    "0044_versioned_checkout_policy",
+    "0045_customer_booking_changes",
+    "0046_u08_financial_outcomes",
+    "0047_booking_audit_erasure",
+    "0048_support_billing_erasure",
+    "0049_trial_salon_plan_prices",
+    "0050_plan_price_valid_until",
+)
+# Only these two stamp targets are ever authorized; every other target is refused.
+# 0040: baseline stamp from an empty alembic_version after structural proof.
+# 0049: equivalence stamp after salon_plan_prices structure/data verification.
+STAMP_ALLOWED_REVISIONS: frozenset[str] = frozenset({
+    PREPARED_MUMBAI_REVISION,
+    "0049_trial_salon_plan_prices",
+})
 
 
 def portable_revisions(script: ScriptDirectory) -> set[str]:
@@ -39,18 +61,37 @@ def require_unambiguous_url(database_url: str) -> None:
         raise CommandError("Migration URLs require postgresql+asyncpg and no query overrides; host/user/database routing must be unambiguous")
 
 
-def validate_evidence(manifest_path: str, approval_id: str, script: ScriptDirectory) -> dict:
-    """Verify explicit approval and exact reviewed sources without editing evidence."""
+def validate_evidence(
+    manifest_path: str,
+    approval_id: str,
+    script: ScriptDirectory,
+    *,
+    target_revision: str | None = None,
+) -> dict:
+    """Verify explicit approval and exact reviewed sources without editing evidence.
+
+    When target_revision is None (default), validates a baseline manifest targeting
+    PREPARED_MUMBAI_REVISION and checks PREPARED_REVISIONS source files only.
+    When target_revision names a RECONCILIATION_REVISIONS entry, also verifies
+    source files for all RECONCILIATION_REVISIONS up to and including that target.
+    """
+    effective_target = target_revision or PREPARED_MUMBAI_REVISION
     try:
         path = Path(manifest_path)
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if (not approval_id or manifest["approval_id"] != approval_id
                 or manifest["project_ref"] != MUMBAI_PROJECT
-                or manifest["target_revision"] != PREPARED_MUMBAI_REVISION
+                or manifest["target_revision"] != effective_target
                 or manifest["status"] != "approved" or not manifest["approved_by"]):
             raise ValueError("Approval identity/target mismatch")
         root = Path(script.dir).resolve()
-        for revision in PREPARED_REVISIONS:
+        revisions_to_check = list(PREPARED_REVISIONS)
+        if effective_target in RECONCILIATION_REVISIONS:
+            for r in RECONCILIATION_REVISIONS:
+                revisions_to_check.append(r)
+                if r == effective_target:
+                    break
+        for revision in revisions_to_check:
             for source in (Path(script.get_revision(revision).path), root / "sql" / f"{revision}.sql"):
                 if hashlib.sha256(source.read_bytes()).hexdigest() != manifest["source_sha256"][source.name]:
                     raise ValueError("Reviewed source hash mismatch")
@@ -66,6 +107,52 @@ def validate_evidence(manifest_path: str, approval_id: str, script: ScriptDirect
         raise CommandError("Mumbai requires an explicit approved manifest with matching source, review and preflight checksums; no evidence defaults are allowed") from error
 
 
+def validate_stamp_evidence(
+    manifest_path: str,
+    approval_id: str,
+    target_revision: str,
+    script: ScriptDirectory,
+) -> dict:
+    """Verify explicit stamp approval: policy file hash, target migration source hash, and evidence docs.
+
+    The stamp manifest must contain:
+    - approval_id, project_ref, target_revision, status=approved, approved_by, stamp_authorized=true
+    - source_sha256 with hashes of: migration_policy.py, <target>.py, <target>.sql
+    - review and preflight evidence with sha256 and status=passed
+    """
+    try:
+        path = Path(manifest_path)
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if (not approval_id or manifest["approval_id"] != approval_id
+                or manifest["project_ref"] != MUMBAI_PROJECT
+                or manifest["target_revision"] != target_revision
+                or manifest["status"] != "approved" or not manifest["approved_by"]
+                or manifest.get("stamp_authorized") is not True):
+            raise ValueError("Stamp approval identity/target mismatch")
+        policy_path = Path(__file__)
+        if hashlib.sha256(policy_path.read_bytes()).hexdigest() != manifest["source_sha256"][policy_path.name]:
+            raise ValueError("Policy file hash mismatch")
+        root = Path(script.dir).resolve()
+        rev = script.get_revision(target_revision)
+        for source in (Path(rev.path), root / "sql" / f"{target_revision}.sql"):
+            if hashlib.sha256(source.read_bytes()).hexdigest() != manifest["source_sha256"][source.name]:
+                raise ValueError("Reviewed source hash mismatch")
+        for name in ("review", "preflight"):
+            evidence = manifest[name]
+            source = (path.parent / evidence["path"]).resolve()
+            if hashlib.sha256(source.read_bytes()).hexdigest() != evidence["sha256"]:
+                raise ValueError("Evidence checksum mismatch")
+            if evidence["status"] != "passed":
+                raise ValueError("Review/preflight is not passed")
+        return manifest
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise CommandError(
+            "Stamp requires an explicit approved manifest with stamp_authorized=true, "
+            "matching policy file, target migration source, and review/preflight evidence checksums; "
+            "no defaults are allowed"
+        ) from error
+
+
 def validate_migration_target(
     script: ScriptDirectory, destination: str | tuple | None, database_url: str,
     arguments: dict[str, str], *, command: str = "upgrade",
@@ -73,8 +160,28 @@ def validate_migration_target(
     offline: bool = False,
 ) -> None:
     """Refuse ambiguous targets and unapproved prepared revisions before connecting."""
-    if command in {"stamp", "do_stamp"} or isinstance(destination, (tuple, list)):
+    if isinstance(destination, (tuple, list)):
         raise CommandError("Alembic stamp is not authorized by migration policy; history reconciliation requires separate review")
+
+    if command in {"stamp", "do_stamp"}:
+        if isinstance(destination, str) and destination in STAMP_ALLOWED_REVISIONS:
+            require_unambiguous_url(database_url)
+            require_mumbai_url(database_url)
+            if arguments.get("mumbai_project") != MUMBAI_PROJECT:
+                raise CommandError("Confirm Mumbai explicitly with -x mumbai_project=" + MUMBAI_PROJECT)
+            validate_stamp_evidence(
+                arguments.get("approval_manifest", ""),
+                arguments.get("approval_id", ""),
+                destination,
+                script,
+            )
+            return
+        raise CommandError(
+            "Alembic stamp is not authorized by migration policy; "
+            "only " + str(sorted(STAMP_ALLOWED_REVISIONS)) + " are approved stamp targets "
+            "with a valid manifest; all other targets are refused"
+        )
+
     policy = arguments.get("migration_policy")
     require_unambiguous_url(database_url)
     if command not in {"upgrade", "downgrade"}:
@@ -95,10 +202,15 @@ def validate_migration_target(
         require_mumbai_url(database_url)
         if arguments.get("mumbai_project") != MUMBAI_PROJECT:
             raise CommandError("Confirm Mumbai explicitly with -x mumbai_project=" + MUMBAI_PROJECT)
-        validate_evidence(arguments.get("approval_manifest", ""), arguments.get("approval_id", ""), script)
-        if offline and starting_revision not in {PORTABLE_CI_REVISION, *PREPARED_REVISIONS}:
+        validate_evidence(
+            arguments.get("approval_manifest", ""),
+            arguments.get("approval_id", ""),
+            script,
+            target_revision=destination,
+        )
+        if offline and starting_revision not in {PORTABLE_CI_REVISION, *PREPARED_REVISIONS, *RECONCILIATION_REVISIONS}:
             raise CommandError("Mumbai offline SQL requires an explicit reviewed starting revision; baseline/base rendering is refused")
-        if destination not in PREPARED_REVISIONS:
+        if destination not in (*PREPARED_REVISIONS, *RECONCILIATION_REVISIONS):
             raise CommandError("Mumbai execution must name a prepared revision explicitly and start from reviewed history")
         return
     raise CommandError("Migration execution requires an explicit policy: -x migration_policy=portable-ci for disposable tests through 0037, or -x migration_policy=mumbai with confirmed target and approved review/preflight manifest; no default approval exists")
