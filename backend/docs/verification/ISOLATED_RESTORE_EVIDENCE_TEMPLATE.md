@@ -10,6 +10,69 @@ Fill this out for each restore test run before preparing a stamp or migration ap
 
 ---
 
+## Phase 3 — Docker prerequisites (complete before filling evidence below)
+
+Before running the harness, the following must be completed. This is a Phase 3 gate.
+
+### 1. Download a fresh Supabase backup
+
+```bash
+# In Supabase dashboard → Mumbai project → Database → Backups
+# Download the latest backup (pg_dump format).
+# Encrypt the file before storing:
+gpg --symmetric --cipher-algo AES256 supabase_backup_<date>.dump
+# Store only the encrypted file; delete the plaintext immediately.
+```
+
+### 2. Start a local Docker PostgreSQL
+
+```bash
+docker run -d --name salon_restore_test \
+  -e POSTGRES_PASSWORD=localtest \
+  -e POSTGRES_DB=salon_restore \
+  -p 5432:5432 \
+  postgres:15
+```
+
+### 3. Restore the backup into Docker
+
+```bash
+# Decrypt and restore:
+gpg --decrypt supabase_backup_<date>.dump.gpg | \
+  pg_restore -h 127.0.0.1 -U postgres -d salon_restore --no-privileges --no-owner
+```
+
+### 4. Set harness environment variables
+
+```bash
+export RESTORE_DB_URL="postgresql+asyncpg://postgres:localtest@127.0.0.1:5432/salon_restore"
+export MUMBAI_PROJECT_CONFIRM="wqjlgpnbiapcrlkxumcp"
+```
+
+### 5. Run harness phases in sequence
+
+```bash
+cd backend/
+python -m scripts.migrations.reconciliation_harness --phase preflight
+python -m scripts.migrations.reconciliation_harness --phase 0049-equivalence
+# (stamp 0040, upgrade 0041-0048, stamp 0049, upgrade 0050 on the Docker DB)
+python -m scripts.migrations.reconciliation_harness --phase post-0041-0048
+python -m scripts.migrations.reconciliation_harness --phase schema-check
+python -m scripts.migrations.reconciliation_harness --phase post-0050
+python -m scripts.migrations.reconciliation_harness --phase post-gate-b
+python -m scripts.migrations.reconciliation_harness --phase report
+```
+
+### Prerequisites checklist
+
+- [ ] Docker is running and `postgres:15` container is up
+- [ ] Supabase backup downloaded, encrypted, and plaintext deleted
+- [ ] Restore completed without fatal errors
+- [ ] `alembic_version` table exists and is empty (confirmed by preflight PASS)
+- [ ] No production credentials in any env variable or shell history
+
+---
+
 ## Run metadata
 
 | Field | Value |
@@ -76,10 +139,26 @@ SHA256 of evidence file:
 
 | Code | Expected | Found | Match |
 |------|----------|-------|-------|
-| growth_6m | 1675.00 | | |
-| growth_12m | 2932.00 | | |
+| growth_1m | 499.00 | | |
+| growth_6m | 2000.00 | | |
+| growth_12m | 2999.00 | | |
 | premium_6m | 2875.00 | | |
 | premium_12m | 5032.00 | | |
+
+---
+
+## Phase: post-0041-0048 (optional mid-sequence check)
+
+> Status before this section is filled in: **NOT RUN**
+
+Run: `python -m scripts.migrations.reconciliation_harness --phase post-0041-0048`
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| baseline_0040_tables | | |
+| fastapi_only_acl | | |
+| 0041_destructive_ddl | | Verifies description cols dropped; t_salon_image_limits trigger created |
+| 0042_destructive_ddl | | Verifies salons.category col dropped |
 
 ---
 
@@ -93,6 +172,8 @@ Run: `python -m scripts.migrations.reconciliation_harness --phase schema-check`
 |-------|--------|-------|
 | baseline_0040_tables | | |
 | fastapi_only_acl | | |
+| 0041_destructive_ddl | | Verifies description cols dropped; t_salon_image_limits trigger created |
+| 0042_destructive_ddl | | Verifies salons.category col dropped |
 | 0049_table_structure | | |
 | 0049_primary_key | | |
 | 0049_subscription_plan_prices | | |

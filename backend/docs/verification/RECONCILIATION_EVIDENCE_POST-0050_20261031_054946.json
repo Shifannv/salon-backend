@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-10-31T05:49:46.262018+00:00",
+  "phase": "post-0050",
+  "target_db_host": "127.0.0.1:15432",
+  "overall_status": "PASS",
+  "checks": [
+    {
+      "check": "0050_valid_until_column",
+      "status": "PASS",
+      "data_type": "timestamp with time zone",
+      "expected_type": "timestamp with time zone",
+      "type_match": true
+    }
+  ],
+  "note": "This report was produced against a disposable local database. It is evidence for a stamp or migration approval manifest, not a production run."
+}

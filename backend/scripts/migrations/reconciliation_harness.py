@@ -42,10 +42,14 @@ EXPECTED_SALON_PLAN_PRICES_COLUMNS: dict[str, str] = {
 # Expected after 0050: additional column
 EXPECTED_0050_COLUMN = "valid_until"
 
-# Expected 0049 subscription_plans prices (from 0049 SQL guards)
+# Expected 0049 subscription_plans prices in production.
+# NOTE: 0049 SQL sets 1675/2932 from 0031 seed. Production prices were updated to 2000/2999
+# after 0049 was applied directly. Owner confirmed 2000/2999/499 as authoritative on 2026-10-31.
+# See backend/docs/verification/0049_SUBSCRIPTION_PRICE_RECONCILIATION_2026-10-31.md (Path A).
 EXPECTED_0049_PRICES: dict[str, float] = {
-    "growth_6m": 1675.00,
-    "growth_12m": 2932.00,
+    "growth_1m": 499.00,
+    "growth_6m": 2000.00,
+    "growth_12m": 2999.00,
     "premium_6m": 2875.00,
     "premium_12m": 5032.00,
 }
@@ -171,6 +175,50 @@ async def check_fastapi_only_acl(conn) -> dict[str, Any]:
         "status": "PASS" if not unexpected else "WARN",
         "unexpected_grants": unexpected,
         "note": "0040 removes direct client grants; unexpected rows need investigation.",
+    }
+
+
+async def check_alembic_version_at_0050(conn) -> dict[str, Any]:
+    """PASS: alembic_version is exactly 0050_plan_price_valid_until (Gate B complete)."""
+    return await check_alembic_version_at(conn, "0050_plan_price_valid_until")
+
+
+async def check_0041_destructive_ddl_applied(conn) -> dict[str, Any]:
+    """PASS: 0041 description columns dropped from salons and services; image trigger created."""
+    issues: list[str] = []
+    for table, col in [("salons", "description"), ("services", "description")]:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name=$1 AND column_name=$2",
+            table, col,
+        )
+        if row is not None:
+            issues.append(f"public.{table}.{col} still exists — 0041 DROP may not have run")
+    trig = await conn.fetchrow(
+        "SELECT 1 FROM pg_trigger WHERE tgname='t_salon_image_limits'"
+    )
+    if trig is None:
+        issues.append("trigger t_salon_image_limits missing — 0041 may not have applied")
+    return {
+        "check": "0041_destructive_ddl",
+        "status": "PASS" if not issues else "FAIL",
+        "issues": issues,
+        "note": "If FAIL before 0041 is applied, this is expected — run only post-0041.",
+    }
+
+
+async def check_0042_destructive_ddl_applied(conn) -> dict[str, Any]:
+    """PASS: 0042 category column dropped from salons."""
+    row = await conn.fetchrow(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_schema='public' AND table_name='salons' AND column_name='category'",
+    )
+    exists = row is not None
+    return {
+        "check": "0042_destructive_ddl",
+        "status": "FAIL" if exists else "PASS",
+        "category_column_exists": exists,
+        "note": "PASS means column was dropped. FAIL before 0042 runs is expected.",
     }
 
 
@@ -309,25 +357,80 @@ async def check_0052_booking_window_function(conn) -> dict[str, Any]:
     }
 
 
+# Advisories printed before a phase runs — informational, not blocking.
+# These remind the operator of pre-conditions that the harness cannot verify automatically.
+PHASE_ADVISORIES: dict[str, list[str]] = {
+    "schema-check": [
+        (
+            "ADVISORY — MAINTENANCE WINDOW: 0041 drops columns (salons.description, services.description) "
+            "and adds a trigger. These are AccessExclusiveLock DDL operations on high-traffic tables. "
+            "A maintenance window with write-freeze is required before running 0041 in production. "
+            "See PRODUCTION_MIGRATION_EXECUTION_RUNBOOK.md §Option 1."
+        ),
+        (
+            "ADVISORY — BACKUP: Ensure a fresh production backup was taken immediately before starting "
+            "the Gate B sequence. Rollback path is restore-from-backup, not an Alembic downgrade."
+        ),
+    ],
+    "post-0041-0048": [
+        (
+            "ADVISORY — LOCK TIMEOUT: If running on production, 0041 and 0042 DDL requires "
+            "AccessExclusiveLock on salons/services. Set lock_timeout='5s' on the session before "
+            "upgrade to prevent long waits. Write-freeze the application before running."
+        ),
+    ],
+    "preflight": [
+        (
+            "ADVISORY — PITR: Supabase Mumbai project has PITR enabled (daily backups + WAL streaming). "
+            "For Gate A isolated restore, download the latest Supabase backup and restore into a "
+            "local Docker PostgreSQL — do NOT use PITR restore to production. "
+            "See ISOLATED_RESTORE_EVIDENCE_TEMPLATE.md for the full procedure."
+        ),
+    ],
+}
+
 PHASE_CHECKS: dict[str, list] = {
+    # Gate A: run before any production migration (isolated restore of production backup)
     "preflight": [
         check_empty_alembic_version,
         check_baseline_0040_tables_exist,
         check_fastapi_only_acl,
-    ],
-    "schema-check": [
-        check_baseline_0040_tables_exist,
-        check_fastapi_only_acl,
-        check_0049_table_structure,
-        check_0049_primary_key,
-        check_0049_subscription_plan_prices,
     ],
     "0049-equivalence": [
         check_0049_table_structure,
         check_0049_primary_key,
         check_0049_subscription_plan_prices,
     ],
+    # schema-check: run after the full 0040-stamp + 0041-0048 + 0049-stamp sequence
+    "schema-check": [
+        check_baseline_0040_tables_exist,
+        check_fastapi_only_acl,
+        check_0041_destructive_ddl_applied,
+        check_0042_destructive_ddl_applied,
+        check_0049_table_structure,
+        check_0049_primary_key,
+        check_0049_subscription_plan_prices,
+    ],
+    # post-0041-0048: targeted destructive-DDL verification mid-sequence
+    "post-0041-0048": [
+        check_baseline_0040_tables_exist,
+        check_fastapi_only_acl,
+        check_0041_destructive_ddl_applied,
+        check_0042_destructive_ddl_applied,
+    ],
     "post-0050": [
+        check_0050_column_exists,
+    ],
+    # post-gate-b: comprehensive check after the full Gate B sequence (stamp 0040 → upgrade 0050)
+    "post-gate-b": [
+        check_alembic_version_at_0050,
+        check_baseline_0040_tables_exist,
+        check_fastapi_only_acl,
+        check_0041_destructive_ddl_applied,
+        check_0042_destructive_ddl_applied,
+        check_0049_table_structure,
+        check_0049_primary_key,
+        check_0049_subscription_plan_prices,
         check_0050_column_exists,
     ],
     "post-0051": [
@@ -340,6 +443,8 @@ PHASE_CHECKS: dict[str, list] = {
         check_empty_alembic_version,
         check_baseline_0040_tables_exist,
         check_fastapi_only_acl,
+        check_0041_destructive_ddl_applied,
+        check_0042_destructive_ddl_applied,
         check_0049_table_structure,
         check_0049_primary_key,
         check_0049_subscription_plan_prices,
@@ -445,6 +550,9 @@ def main() -> None:
     print(f"\n[harness] Phase: {args.phase}")
     print(f"[harness] Target: {db_url.split('@')[-1] if '@' in db_url else db_url}")
     print("[harness] NOT production (safety check passed)\n")
+
+    for advisory in PHASE_ADVISORIES.get(args.phase, []):
+        print(f"  ⚠  {advisory}\n")
 
     results = asyncio.run(run_phase(args.phase, db_url))
     overall = "PASS" if all(r.get("status") in {"PASS", "WARN"} for r in results) else "FAIL"

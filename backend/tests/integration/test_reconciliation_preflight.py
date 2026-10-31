@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-from pathlib import Path
 
 import pytest
 
@@ -43,13 +42,13 @@ async def _conn():
 @pytest.fixture
 def harness():
     from scripts.migrations.reconciliation_harness import (
-        check_baseline_0040_tables_exist,
-        check_empty_alembic_version,
-        check_fastapi_only_acl,
         check_0049_primary_key,
         check_0049_subscription_plan_prices,
         check_0049_table_structure,
         check_0050_column_exists,
+        check_baseline_0040_tables_exist,
+        check_empty_alembic_version,
+        check_fastapi_only_acl,
     )
     return {
         "check_empty_alembic_version": check_empty_alembic_version,
@@ -103,7 +102,6 @@ def test_0049_structure_check_returns_mismatches_for_missing_table(harness):
 
 def test_wrong_project_confirmation_aborts(monkeypatch):
     """Validate that the harness _check_project_confirmation aborts on wrong value."""
-    import sys
     from scripts.migrations.reconciliation_harness import _check_project_confirmation
 
     with pytest.raises(SystemExit) as exc_info:
