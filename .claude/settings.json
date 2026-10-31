@@ -11,8 +11,7 @@
       "Bash(git branch:*)",
       "Bash(docker compose config:*)",
       "Bash(docker compose -f docker-compose.yml config:*)",
-      "Bash(docker compose --env-file .env.gcp.example -f docker-compose.yml config:*)",
-       "Bash(gcloud run services update*)"
+      "Bash(docker compose --env-file .env.gcp.example -f docker-compose.yml config:*)"
     ],
     "deny": [
       "Read(**/.env)",
@@ -25,6 +24,7 @@
     "ask": [
       "mcp__supabase__execute_sql",
       "mcp__supabase__apply_migration",
+      "Bash(gcloud run services update*)",
       "Bash(git push:*)",
       "Bash(alembic upgrade:*)",
       "Bash(alembic downgrade:*)",
