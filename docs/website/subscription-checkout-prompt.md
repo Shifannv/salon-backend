@@ -22,7 +22,7 @@ Read this site's existing auth, API client, layout and design tokens first, and 
   - **Ended:** "Trial ended" or "Plan ended", with the backend's `wall_messages[0]` text.
 - **Interval toggle:** Monthly, 6 months, Yearly. Each toggle shows a "Save N%" badge, using the smallest `discount_percent` among the plans for that interval.
 - **Plan cards:** Growth (tier 1) and Premium (tier 2) for the selected interval. Each card shows:
-  - the price, from `price_amount` formatted as INR with no decimals (₹1,675);
+  - the price, from `price_amount` formatted as INR with no decimals (₹2,000);
   - the period ("per 6 months");
   - "₹279 a month", from `monthly_equivalent`, when present;
   - a "Save 20%" pill;
@@ -51,7 +51,7 @@ Read this site's existing auth, API client, layout and design tokens first, and 
 
 - **Base URL:** `https://api.salones.in/v1`, taken from the site's existing env variable. Do not hard-code it.
 - **Auth:** `Authorization: Bearer <supabase access_token>` on every call.
-- **Money:** amounts arrive as strings (`"1675.00"`). Parse them to numbers only for display. Never send a price to the backend.
+- **Money:** amounts arrive as strings (`"2000.00"`). Parse them to numbers only for display. Never send a price to the backend.
 
 | Call | Notes |
 |---|---|

@@ -331,7 +331,7 @@ Enabled: `"enabled": true, "provider": "razorpay", "public_key": "rzp_test_..."`
 
 ```json
 [{"id": "uuid", "code": "growth_1m", "name": "Growth - 1 month", "description": null, "tier": 1,
-  "price_amount": "349.00", "currency": "INR", "billing_interval": "monthly",
+  "price_amount": "499.00", "currency": "INR", "billing_interval": "monthly",
   "features": {"unlimited_bookings": true, "split_bill": true, "daily_ledger": true},
   "tax_inclusive": null}]
 ```
@@ -347,7 +347,7 @@ Premium plans add `rank_boost`, `smart_slot_filler`, `sms_alerts` and `monthly_a
  "features": {"split_bill": true}, "paid_through": "2026-11-12T18:42:26Z",
  "grace_ends_at": null, "in_grace": false, "renewal": "manual",
  "cancelled": false, "cancelled_at": null,
- "latest_payment": {"id": "uuid", "plan_code": "growth_1m", "status": "paid", "amount": "349.00",
+ "latest_payment": {"id": "uuid", "plan_code": "growth_1m", "status": "paid", "amount": "499.00",
    "currency": "INR", "billing_interval": "monthly", "tax_amount": null, "tax_inclusive": null,
    "refunded_amount": "0.00", "order_ref": "order_...", "receipt": "sub_...", "period_start": "...",
    "period_end": "...", "expires_at": "...", "paid_at": "...", "applied_at": "...",
@@ -370,9 +370,9 @@ replays the stored response; same key + different `plan_id` is `409 idempotency_
 200:
 ```json
 {"billing_id": "uuid", "provider": "razorpay", "order_ref": "order_Nabc123", "receipt": "sub_1f3c...",
- "plan_id": "uuid", "plan_code": "growth_1m", "amount": "349.00", "currency": "INR",
+ "plan_id": "uuid", "plan_code": "growth_1m", "amount": "499.00", "currency": "INR",
  "billing_interval": "monthly", "expires_at": "2026-10-13T10:00:00+00:00",
- "client_payload": {"key_id": "rzp_test_...", "order_id": "order_Nabc123", "amount": 34900, "currency": "INR"}}
+ "client_payload": {"key_id": "rzp_test_...", "order_id": "order_Nabc123", "amount": 49900, "currency": "INR"}}
 ```
 The amount is the plan price **at this moment**, snapshotted server side (a later price change never alters this
 purchase). The purchase row is committed before the provider is called. Errors: `404` plan missing/inactive/free;

@@ -267,7 +267,7 @@ async def test_checkout_replay_and_server_verified_activation_use_existing_billi
         if call.method == "POST":
             payload = json.loads(call.content)
             receipt = payload["order_id"]
-            return httpx.Response(200, json=order(receipt, "349.00"))
+            return httpx.Response(200, json=order(receipt, "499.00"))
         if call.url.path.endswith("/payments"):
             return httpx.Response(
                 200,
@@ -276,14 +276,14 @@ async def test_checkout_replay_and_server_verified_activation_use_existing_billi
                         "cf_payment_id": 123,
                         "order_id": receipt,
                         "payment_status": "SUCCESS",
-                        "payment_amount": "349.00",
+                        "payment_amount": "499.00",
                         "payment_currency": "INR",
                     }
                 ]
                 if paid
                 else [],
             )
-        return httpx.Response(200, json=order(receipt, "349.00"))
+        return httpx.Response(200, json=order(receipt, "499.00"))
 
     repo = FakeBillingRepo()
     provider = CashfreeSubscriptionProvider(
@@ -295,7 +295,7 @@ async def test_checkout_replay_and_server_verified_activation_use_existing_billi
     actor = replace(owner(), phone="+919876543210")
     key = str(uuid4())
     checkout = await uc.checkout(actor, "plan-g1", key)
-    assert checkout["amount"] == "349.00" and checkout["provider"] == "cashfree"
+    assert checkout["amount"] == "499.00" and checkout["provider"] == "cashfree"
     assert await uc.checkout(actor, "plan-g1", key) == checkout
     assert sum(call.startswith("POST") for call in calls) == 1
     await uc.verify(actor, checkout["order_ref"])
@@ -311,7 +311,7 @@ async def test_missing_phone_does_not_lock_the_checkout_idempotency_key():
 
     def handler(call):
         calls.append(call)
-        return httpx.Response(200, json=order(json.loads(call.content)["order_id"], "349.00"))
+        return httpx.Response(200, json=order(json.loads(call.content)["order_id"], "499.00"))
 
     repo = FakeBillingRepo()
     provider = CashfreeSubscriptionProvider(

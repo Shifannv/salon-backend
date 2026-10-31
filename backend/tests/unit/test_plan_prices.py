@@ -36,7 +36,7 @@ class FakePlanRepo:
         return []
 
     async def get_plan(self, plan_id: str) -> dict[str, Any]:
-        return {"id": plan_id, "price_amount": D("349.00")}
+        return {"id": plan_id, "price_amount": D("499.00")}
 
     async def set_salon_plan_price(self, salon_id, plan_id, price, actor_id, valid_until=None):
         self.set_calls.append((salon_id, plan_id, price, actor_id))
@@ -123,7 +123,7 @@ async def test_a_super_admin_can_set_a_percentage_and_the_backend_calculates_the
     await SubscriptionPlanUseCases(repo).set_salon_price(
         admin, "salon-1", "plan-1", offer_discount_percent=20
     )
-    assert repo.set_calls == [("salon-1", "plan-1", D("279.20"), "admin-1")]
+    assert repo.set_calls == [("salon-1", "plan-1", D("399.20"), "admin-1")]
 
 
 async def test_an_offer_can_end_on_a_future_date():
@@ -148,7 +148,7 @@ async def test_an_offer_amount_must_be_below_the_normal_price():
     repo = FakePlanRepo()
     with pytest.raises(ValidationError):
         await SubscriptionPlanUseCases(repo).set_salon_price(
-            profile(Role.super_admin, "a"), "s", "p", D("349.00")
+            profile(Role.super_admin, "a"), "s", "p", D("499.00")  # equal to plan price, not below
         )
     assert repo.set_calls == []
 

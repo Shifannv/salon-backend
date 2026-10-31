@@ -31,3 +31,19 @@ Source of truth: latest U08 amendment in `backend/docs/verification/payment-subs
 - New checkout has no separate processing surcharge and completed prepaid services have zero platform service commission. Preserve legacy policy/fee snapshots; provider-controlled funds require admin-approved release, with no internal split/provider-cost fields exposed to owners.
 - Payout hold: customer cancellation `max(cancellation_time + 48 h, appointment_start)`; no-show `max(confirmation_time, start + 10 min) + 48 h`; blocked during dispute or fee uncertainty; admin cannot shorten it.
 - Still open: checked-in cancellation remedy, TA06, TA09, dispute scope and provider evidence. The flat fee is now explicitly INR20 capped at captured; do not reopen that answered question.
+
+## Subscription plan prices (owner-confirmed, 31 October 2026)
+Authoritative production values (MCP-verified against live DB):
+- growth_1m: ₹499 | growth_6m: ₹2,000 | growth_12m: ₹2,999
+- premium_1m: ₹699 | premium_6m: ₹2,875 | premium_12m: ₹5,032
+
+`premium_1m=699` is authoritative; any local source showing 599 is stale and must be updated.
+Canonical test constant: `backend/tests/prices.py`. Harness expects 499/2000/2999.
+0049 SQL migration sets 1675/2932 on a fresh DB from 0031 seed — that is historically correct for 0049 SQL tests, not the live price.
+
+## Migration state (31 October 2026)
+- Production alembic_version: EMPTY (0040-0050 not yet stamped/applied in production Alembic)
+- 0050 was applied directly (valid_until column exists in production)
+- Gate B full-data rehearsal PASSED; owner authorized production release Phases A–E
+- STAMP_ALLOWED_REVISIONS = {0040, 0049} only (do not change)
+- Gate C blocker: 0052 replaces get_available_slots() — requires all client apps deployed first

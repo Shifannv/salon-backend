@@ -62,3 +62,5 @@ Session ID: `YYYYMMDD-HHMM-{git user slug}`. Rules: `.claude/skills/agent-memory
 | 2026-10-29 | 20261029-1905-shifannv | shifan-finance-truncate-final | Verified recovery and local schema rehearsal | Owner TRUNCATE correction prepared; production unchanged | Review fix and separate schema approval | [Progress](progress/shifan-finance-truncate-final.md) |
 
 | 2026-10-29 | 20261029-2120-shifannv | shifan-cloud-run-auto-deploy | Automatic main-push API release | Workflow and rollback prepared; no production changes | Review PR, exact IAM condition and initial release prerequisites | [Progress](progress/shifan-cloud-run-auto-deploy.md) |
+
+| 2026-10-31 | 20261031-1229-shifan-nv | shifan | Phase 3 full-data isolated restore rehearsal + Gate B evidence | All 9 post-gate-b harness checks PASS on real production data; 1834 tests pass; owner authorized production release Phases A-E | Execute Phases A-E in next session: preflight, maintenance window, Gate B/C/D/E | progress/shifan.md |

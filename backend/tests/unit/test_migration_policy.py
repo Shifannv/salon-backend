@@ -348,3 +348,79 @@ def test_all_historical_sql_files_exist():
     for rev_id in [*PREPARED_REVISIONS, *RECONCILIATION_REVISIONS]:
         sql_path = sql_dir / f"{rev_id}.sql"
         assert sql_path.exists(), f"SQL file missing: {sql_path.name}"
+
+
+# ── Approved production prices (Path A, 2026-10-31) ──────────────────────────
+
+def test_harness_expected_prices_match_owner_approved_values():
+    """Harness must check against the owner-confirmed production prices, not 0049 SQL targets."""
+    from scripts.migrations.reconciliation_harness import EXPECTED_0049_PRICES
+    assert EXPECTED_0049_PRICES["growth_1m"] == 499.00
+    assert EXPECTED_0049_PRICES["growth_6m"] == 2000.00
+    assert EXPECTED_0049_PRICES["growth_12m"] == 2999.00
+    assert EXPECTED_0049_PRICES["premium_6m"] == 2875.00
+    assert EXPECTED_0049_PRICES["premium_12m"] == 5032.00
+
+
+def test_0049_sql_guards_will_not_fire_at_approved_prices():
+    """0049 SQL guards fire only when price = 0031 seed value. Current prices are not seed values,
+    so a future accidental re-run of 0049 SQL will not silently change production prices."""
+    seed_guards = {
+        "growth_6m": 1499.00,
+        "growth_12m": 1999.00,
+        "premium_6m": 2499.00,
+        "premium_12m": 3499.00,
+    }
+    from scripts.migrations.reconciliation_harness import EXPECTED_0049_PRICES
+    for code, guard_value in seed_guards.items():
+        current = EXPECTED_0049_PRICES[code]
+        assert current != guard_value, (
+            f"{code}: current approved price {current} equals 0049 SQL guard {guard_value}; "
+            "0049 SQL would fire and overwrite the production price."
+        )
+
+
+def test_0049_stamp_is_in_allowed_revisions():
+    """0049 must be stampable (required because CREATE TABLE fails if table exists)."""
+    assert "0049_trial_salon_plan_prices" in STAMP_ALLOWED_REVISIONS
+
+
+def test_canonical_prices_module_matches_harness_expectations():
+    """Regression: prices.py canonical constants must match reconciliation harness EXPECTED_0049_PRICES.
+    If this fails, a fixture was updated without updating the harness (or vice versa)."""
+    from prices import GROWTH_1M, GROWTH_1M_PAISE, GROWTH_6M, GROWTH_12M, PREMIUM_6M, PREMIUM_12M
+
+    from scripts.migrations.reconciliation_harness import EXPECTED_0049_PRICES
+
+    assert float(GROWTH_1M) == EXPECTED_0049_PRICES["growth_1m"]
+    assert float(GROWTH_6M) == EXPECTED_0049_PRICES["growth_6m"]
+    assert float(GROWTH_12M) == EXPECTED_0049_PRICES["growth_12m"]
+    assert float(PREMIUM_6M) == EXPECTED_0049_PRICES["premium_6m"]
+    assert float(PREMIUM_12M) == EXPECTED_0049_PRICES["premium_12m"]
+    # Sanity check: paise is consistent with rupee
+    import math
+    assert GROWTH_1M_PAISE == math.floor(float(GROWTH_1M) * 100)
+
+
+def test_fake_billing_repo_plan_matches_canonical_prices():
+    """Regression: FakeBillingRepo.PLAN must use canonical growth_1m price.
+    If this fails, support_subscription.py drifted from prices.py."""
+    from prices import GROWTH_1M, GROWTH_6M
+    from support_subscription import FakeBillingRepo
+    assert FakeBillingRepo.PLAN["price_amount"] == GROWTH_1M
+    # plan-g6 is constructed via **PLAN spread + overrides; check growth_6m price
+    plans = {"plan-g6": {**FakeBillingRepo.PLAN, "id": "plan-g6", "code": "growth_6m",
+                         "price_amount": GROWTH_6M, "billing_interval": "semiannual"}}
+    assert plans["plan-g6"]["price_amount"] == GROWTH_6M
+
+
+def test_approved_prices_differ_from_0049_sql_targets():
+    """Document that production prices 2000/2999 differ from what 0049 SQL sets (1675/2932).
+    Both are correct: SQL targets are for fresh-DB tests; production values reflect owner update."""
+    from scripts.migrations.reconciliation_harness import EXPECTED_0049_PRICES
+    sql_targets = {"growth_6m": 1675.00, "growth_12m": 2932.00}
+    for code, sql_price in sql_targets.items():
+        assert EXPECTED_0049_PRICES[code] != sql_price, (
+            f"{code}: harness expected price must reflect production ({EXPECTED_0049_PRICES[code]}), "
+            f"not 0049 SQL target ({sql_price})."
+        )

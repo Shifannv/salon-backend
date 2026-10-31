@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-10-31T05:48:24.707768+00:00",
+  "phase": "preflight",
+  "target_db_host": "127.0.0.1:15432",
+  "overall_status": "PASS",
+  "checks": [
+    {
+      "check": "empty_alembic_version",
+      "status": "PASS",
+      "current_versions": [],
+      "note": "Must be empty before baseline 0040 stamp."
+    },
+    {
+      "check": "baseline_0040_tables",
+      "status": "PASS",
+      "tables": [
+        {
+          "table": "public.salons",
+          "exists": true
+        },
+        {
+          "table": "public.profiles",
+          "exists": true
+        },
+        {
+          "table": "public.bookings",
+          "exists": true
+        },
+        {
+          "table": "public.services",
+          "exists": true
+        }
+      ]
+    },
+    {
+      "check": "fastapi_only_acl",
+      "status": "PASS",
+      "unexpected_grants": [],
+      "note": "0040 removes direct client grants; unexpected rows need investigation."
+    }
+  ],
+  "note": "This report was produced against a disposable local database. It is evidence for a stamp or migration approval manifest, not a production run."
+}
