@@ -1,4 +1,4 @@
--- Rolling customer booking window: salon-local today through today + 30 days.
+-- Rolling customer booking window: salon-local today through today + 60 days.
 -- Availability is hidden outside the window. create_booking repeats the guard
 -- so a client cannot bypass the availability endpoint.
 
@@ -42,7 +42,7 @@ begin
   end if;
 
   v_today := (now() at time zone v_tz)::date;
-  if p_date < v_today or p_date > v_today + 30 then
+  if p_date < v_today or p_date > v_today + 60 then
     return;
   end if;
 
@@ -140,7 +140,7 @@ begin
 
   v_booking_date := (p_start at time zone v_tz)::date;
   v_today := (now() at time zone v_tz)::date;
-  if p_source = 'app' and v_booking_date > v_today + 30 then
+  if p_source = 'app' and v_booking_date > v_today + 60 then
     raise exception 'booking_window_exceeded';
   end if;
 

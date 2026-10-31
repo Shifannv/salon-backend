@@ -16,8 +16,7 @@ PREPARED_REVISIONS = (
     "0038_cancellation_compatibility", "0039_promotion_search_path", PREPARED_MUMBAI_REVISION,
 )
 # Reconciliation chain: original immutable revisions authorized for straight-line replay
-# after the 0040 baseline stamp.  0051 and 0052 are deliberately excluded pending
-# separate production approvals.
+# after the 0040 baseline stamp.  Gate C (0051, 0052) authorized by owner 2026-10-31.
 RECONCILIATION_REVISIONS = (
     "0041_salon_photo_limits",
     "0042_remove_business_category",
@@ -29,6 +28,8 @@ RECONCILIATION_REVISIONS = (
     "0048_support_billing_erasure",
     "0049_trial_salon_plan_prices",
     "0050_plan_price_valid_until",
+    "0051_owner_finance_cashbook",
+    "0052_booking_window_30_days",
 )
 # Only these two stamp targets are ever authorized; every other target is refused.
 # 0040: baseline stamp from an empty alembic_version after structural proof.
@@ -160,6 +161,11 @@ def validate_migration_target(
     offline: bool = False,
 ) -> None:
     """Refuse ambiguous targets and unapproved prepared revisions before connecting."""
+    if command in {"stamp", "do_stamp"}:
+        # Alembic 1.20 wraps destination in a single-element tuple; unwrap only for stamp.
+        if isinstance(destination, (list, tuple)) and len(destination) == 1:
+            destination = destination[0]
+
     if isinstance(destination, (tuple, list)):
         raise CommandError("Alembic stamp is not authorized by migration policy; history reconciliation requires separate review")
 

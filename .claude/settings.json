@@ -22,6 +22,9 @@
       "Bash(git push -f:*)"
     ],
     "ask": [
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "Bash(gcloud run services update*)",
       "Bash(git push:*)",
       "Bash(alembic upgrade:*)",
       "Bash(alembic downgrade:*)",
