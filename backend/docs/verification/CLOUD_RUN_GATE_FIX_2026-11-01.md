@@ -100,3 +100,18 @@ token, keeps it in memory, logs only the selected non-secret identity claims, an
 requires all approved values exactly before Google authentication. It does not weaken
 or modify WIF/IAM. Its first main run is diagnostic evidence for the smallest separately
 reviewed trust correction, if any.
+
+Automatic run `41285799850` then proved every selected claim. `workflow_ref` and all
+repository/owner/actor/ref/event values matched; only `sub` differed. GitHub's OIDC
+configuration readback reports `use_default=true`, `use_immutable_subject=true` and
+prefix `repo:Shifannv@172572480/salon-backend@1422493480`, producing:
+
+```text
+repo:Shifannv@172572480/salon-backend@1422493480:environment:production
+```
+
+The provider condition and preflight expectation were changed to that exact subject.
+No role, mapping, service account, repository, owner, actor, branch, environment, event
+or workflow restriction changed. The ID-bound subject is narrower and stable across
+repository/account renames. Provider readback after the update matched the intended
+condition exactly.
