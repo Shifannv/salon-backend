@@ -176,10 +176,10 @@ def test_mumbai_validation_workflow_is_manual_and_has_no_scratch_service():
 
 def test_reconciliation_revisions_tuple_is_ordered_and_complete():
     assert RECONCILIATION_REVISIONS[0] == "0041_salon_photo_limits"
-    assert RECONCILIATION_REVISIONS[-1] == "0050_plan_price_valid_until"
-    assert len(RECONCILIATION_REVISIONS) == 10
-    assert "0051_owner_finance_cashbook" not in RECONCILIATION_REVISIONS
-    assert "0052_booking_window_30_days" not in RECONCILIATION_REVISIONS
+    assert RECONCILIATION_REVISIONS[-1] == "0052_booking_window_30_days"
+    assert len(RECONCILIATION_REVISIONS) == 12
+    assert "0051_owner_finance_cashbook" in RECONCILIATION_REVISIONS
+    assert "0052_booking_window_30_days" in RECONCILIATION_REVISIONS
 
 
 def test_reconciliation_revisions_form_linear_chain():
@@ -200,16 +200,6 @@ def test_reconciliation_revision_is_authorized_mumbai_upgrade_target(revision, m
          "approval_manifest": "", "approval_id": ""},
     )
 
-
-def test_0051_and_0052_are_refused_as_mumbai_upgrade_targets(monkeypatch):
-    monkeypatch.setattr("app.core.migration_policy.validate_evidence", lambda *args, **kwargs: {})
-    for blocked in ("0051_owner_finance_cashbook", "0052_booking_window_30_days"):
-        with pytest.raises(CommandError, match="prepared revision"):
-            validate_migration_target(
-                SCRIPT, blocked, MUMBAI,
-                {"migration_policy": "mumbai", "mumbai_project": MUMBAI_PROJECT,
-                 "approval_manifest": "", "approval_id": ""},
-            )
 
 
 # ── Stamp authorization ────────────────────────────────────────────────────────

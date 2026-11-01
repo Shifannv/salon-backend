@@ -161,10 +161,9 @@ def validate_migration_target(
     offline: bool = False,
 ) -> None:
     """Refuse ambiguous targets and unapproved prepared revisions before connecting."""
-    if command in {"stamp", "do_stamp"}:
-        # Alembic 1.20 wraps destination in a single-element tuple; unwrap only for stamp.
-        if isinstance(destination, (list, tuple)) and len(destination) == 1:
-            destination = destination[0]
+    # Alembic 1.20 wraps stamp destination in a single-element tuple; unwrap only for stamp.
+    if command in {"stamp", "do_stamp"} and isinstance(destination, (list, tuple)) and len(destination) == 1:
+        destination = destination[0]
 
     if isinstance(destination, (tuple, list)):
         raise CommandError("Alembic stamp is not authorized by migration policy; history reconciliation requires separate review")

@@ -29,6 +29,6 @@ def test_booking_window_sql_uses_salon_local_rolling_dates() -> None:
     sql = sql_path.read_text(encoding="utf-8")
 
     assert "v_today := (now() at time zone v_tz)::date" in sql
-    assert "p_date > v_today + 30" in sql
-    assert "v_booking_date > v_today + 30" in sql
+    assert "p_date > v_today + 60" in sql
+    assert "v_booking_date > v_today + 60" in sql
     assert "p_source = 'app'" in sql
