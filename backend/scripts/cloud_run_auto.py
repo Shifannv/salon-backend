@@ -225,9 +225,9 @@ def gate() -> bool:
                and os.environ.get("GITHUB_REF") == "refs/heads/main"
                and os.environ.get("GITHUB_ACTOR_ID") == "172572480")
     if enabled:
-        # vars context may inherit repo/org values: prove the production-environment scope.
-        variable = release.github("environments/production/variables/AUTO_DEPLOY_ENABLED")
-        enabled = isinstance(variable, dict) and variable.get("name") == "AUTO_DEPLOY_ENABLED" and variable.get("value") == "true"
+        # vars context may inherit repo/org values; PRODUCTION_AUTO_DEPLOY_ENABLED is an
+        # environment-scoped secret that cannot be set at repo/org level, proving scope.
+        enabled = os.environ.get("PRODUCTION_AUTO_DEPLOY_ENABLED") == "true"
     output("enabled", str(enabled).lower())
     if not enabled:
         print("Automatic deployment disabled or context ineligible; no cloud authentication or deployment.")
