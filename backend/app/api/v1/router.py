@@ -18,6 +18,7 @@ from app.api.v1.routes import (
     payments,
     profiles,
     reports,
+    staff_earnings,
     subscription_billing,
     subscriptions,
     support,
@@ -42,6 +43,7 @@ api_v1_router.include_router(customer.router, prefix="/customer", tags=["custome
 api_v1_router.include_router(owner.router, prefix="/salons", tags=["salon owner"])
 api_v1_router.include_router(payments.router, tags=["payments"])
 api_v1_router.include_router(finance.router, tags=["owner finance"])
+api_v1_router.include_router(staff_earnings.router, tags=["staff earnings"])
 api_v1_router.include_router(wallet.router, tags=["owner wallet"])
 api_v1_router.include_router(wallet.admin_router, prefix="/admin", tags=["admin wallet"])
 api_v1_router.include_router(support.router, tags=["support"])

@@ -16,6 +16,7 @@ from app.core.exceptions import (
 )
 from app.domain.services.booking_finance_policy import POLICY_VERSION, validate_no_show
 from app.infrastructure.db.repositories.platform._sql import _booking_actor_sql
+from app.infrastructure.db.repositories.staff_earnings_repository import record_staff_earnings
 
 
 class BookingUpdatesMixin:
@@ -110,6 +111,9 @@ class BookingUpdatesMixin:
                 "cancellation_reason": cancellation_reason,
             },
         )
+        if status == "completed":
+            # What each service earned its staff member, written in this same transaction (S1a).
+            await record_staff_earnings(self.session, booking_id)
         if status in {"rejected", "cancelled", "completed", "no_show"}:
             invalidated_kinds = (
                 ["cancellation"]

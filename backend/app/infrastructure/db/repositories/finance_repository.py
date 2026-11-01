@@ -21,7 +21,10 @@ from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )
 
-_WRITABLE = frozenset({"salon_expenses", "salon_cash_adjustments", "salon_day_closes", "salon_expense_rules"})
+_WRITABLE = frozenset({
+    "salon_expenses", "salon_cash_adjustments", "salon_day_closes", "salon_expense_rules",
+    "staff_commission_rule_versions",
+})
 _PAISE = "round({col} * 100)::bigint"
 # Statuses that still count as money received: a refund moves a payment out of 'captured', but
 # the receipt happened, and the refund is subtracted separately.

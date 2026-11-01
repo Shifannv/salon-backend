@@ -186,3 +186,45 @@ condition as the expense v2 addendum above).
 - Reviewed by `database-reviewer`: two MEDIUM findings fixed (the `created_by` exemption in the guard,
   server-side `rule:` validation) plus replay-before-window, `search_path`/function privileges, the
   stale "every table is append-only" header and a bound on the list.
+
+## S1a — Staff earnings core (migration 0054, prepared only)
+
+Decisions F15–F18 are in `APPROVAL_REGISTER.md`. Nothing here has been applied outside a disposable
+local database; `0054_staff_earnings` follows `0053_salon_payout_requests` and is forward-only.
+
+- **Tables** (append-only, RLS on with no policy, nothing granted to `anon`/`authenticated`):
+  `booking_service_staff` (who did each service line, as numbered revisions, changeable only until
+  the booking is completed), `staff_commission_rule_versions` (NONE / FIXED_PER_SERVICE /
+  PERCENT_OF_SERVICE_VALUE, scoped to salon, staff, service or staff+service; a scope's versions never
+  start earlier than the one before), `staff_earnings` (one row per completed service line, a copy of
+  the rule used, never rewritten when a rule changes later).
+- **Maths** (`app/domain/services/staff_earnings.py`): percent rounds half up in whole paise; a fixed
+  amount is capped at the line price (F15). The database re-checks both with CHECK constraints, so
+  a wrong amount cannot be stored whatever wrote it.
+- **Completion** calls `record_staff_earnings` inside the booking's row-locked transaction, in a
+  savepoint. A failure there is logged and the service still completes; the earning can be recreated
+  safely (`ON CONFLICT DO NOTHING`). It does nothing where the tables are missing, so the code can ship
+  before the migration.
+- **The database insists on the facts** when an earning is inserted: same salon, booking completed,
+  service line still active, value equals the line price, staff equals the latest attribution (or the
+  booking's staff), and the quoted rule belongs to that salon, matches type/rate/amount and had
+  started by completion.
+- **Limits of the triggers:** they stop the application role. A superuser or a role with
+  `session_replication_role = replica` can bypass any trigger; that is true of every append-only table
+  here (see 0051). `TRUNCATE` is refused by trigger on all three tables.
+- Not yet built: commission-rule and attribution endpoints, owner screens, "Mark as paid" (F18),
+  reversal on refund (needs R1). A concurrent attribution of the same revision hits the primary key;
+  the API will map that to 409.
+- Tests: `test_staff_earnings_domain.py` (38), `test_staff_earnings_sql.py` and
+  `test_staff_earnings_completion.py` (76 together). Full suite: 2321 passed, 42 skipped; ruff clean.
+
+### S1b — Staff earnings API (owner only; staff get 403)
+
+| Endpoint | What it does |
+|---|---|
+| `GET /v1/salons/me/commission-rules` | The rule in force for each scope (newest version). Readable after the plan ends. |
+| `POST /v1/salons/me/commission-rules` | `Idempotency-Key` required. `staff_id` / `service_id` empty = "any". A new row each time (`version` + 1 per scope); `effective_from` defaults to now, may be up to a year ahead, never in the past, never before a version already scheduled in that scope (409). A different body under a used key is 409. Staff and service must belong to the salon (404). |
+| `POST /v1/salons/me/bookings/{booking}/services/{service}/staff` | Name who does a service. Only while the booking is pending, confirmed or checked in (409 afterwards). Naming the person already recorded adds nothing; a concurrent change returns 409. |
+| `GET /v1/salons/me/staff-earnings?from=&to=` | Per staff member: services completed, service value, commission, for salon-local dates (max 366 days). Totals come from the server. |
+
+Tests: `tests/integration/test_staff_earnings_api.py` (24).
