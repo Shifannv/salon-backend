@@ -22,6 +22,7 @@ from app.api.v1.routes import (
     subscriptions,
     support,
     walkin,
+    wallet,
 )
 from app.core.config import settings
 
@@ -41,6 +42,8 @@ api_v1_router.include_router(customer.router, prefix="/customer", tags=["custome
 api_v1_router.include_router(owner.router, prefix="/salons", tags=["salon owner"])
 api_v1_router.include_router(payments.router, tags=["payments"])
 api_v1_router.include_router(finance.router, tags=["owner finance"])
+api_v1_router.include_router(wallet.router, tags=["owner wallet"])
+api_v1_router.include_router(wallet.admin_router, prefix="/admin", tags=["admin wallet"])
 api_v1_router.include_router(support.router, tags=["support"])
 api_v1_router.include_router(customer.salons_router, tags=["salons"])
 api_v1_router.include_router(customer.catalog_router, prefix="/catalog", tags=["catalog"])
