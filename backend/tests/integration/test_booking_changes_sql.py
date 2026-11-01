@@ -34,7 +34,13 @@ def changes_db():
         env = SafetyEnv(url)
         try:
             async with env.session() as session:
-                for file in ["0044_versioned_checkout_policy.sql", "0045_customer_booking_changes.sql"]:
+                # Current finance API routes also resolve the feature matrix. Keep
+                # that schema in every derived disposable API-test database.
+                for file in [
+                    "0044_versioned_checkout_policy.sql",
+                    "0045_customer_booking_changes.sql",
+                    "0055_feature_access.sql",
+                ]:
                     source = Path(__file__).parents[2] / "migrations/sql" / file
                     for statement in source.read_text(encoding="utf-8").split("\n-- statement --\n"):
                         if statement.strip():

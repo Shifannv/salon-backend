@@ -1,8 +1,5 @@
 """Feature access (0055) on disposable local PostgreSQL: seeds, constraints, cascade and the repository reads."""
 
-import asyncio
-from pathlib import Path
-
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -14,24 +11,12 @@ from tests.integration.test_payment_ledger_sql import TEST_DB
 
 pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL")
 
-SIDECAR = Path(__file__).parents[2] / "migrations/sql/0055_feature_access.sql"
 PREMIUM_ONLY = {"split_bill", "rank_boost", "smart_slot_filler", "sms_alerts"}
 
 
 @pytest.fixture(scope="module")
 def access_db(changes_db):  # noqa: F811
-    async def install():
-        env = SafetyEnv(changes_db)
-        try:
-            async with env.session() as session:
-                for statement in SIDECAR.read_text(encoding="utf-8").split("\n-- statement --\n"):
-                    if statement.strip():
-                        await session.execute(text(statement))
-                await session.commit()
-        finally:
-            await env.engine.dispose()
-
-    asyncio.run(install())
+    # The shared fixture installs 0055 for all finance API consumers.
     return changes_db
 
 
