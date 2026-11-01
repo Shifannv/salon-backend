@@ -5,8 +5,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import text
 
 from app.domain.entities.profile import Profile, Role
+from app.infrastructure.db.repositories.platform_repository import PlatformRepository
+from app.infrastructure.db.session import set_actor_context
 from tests.conftest import make_owner
 from tests.integration.test_booking_changes_sql import changes_db  # noqa: F401
 from tests.integration.test_owner_finance_api import client_for, key, trial_salon
@@ -223,3 +226,162 @@ async def test_an_invalid_date_range_is_refused(env, monkeypatch, query):
     http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
     async with http:
         assert (await http.get(f"/v1/salons/me/staff-earnings?{query}")).status_code == 422
+
+
+# --------------------------------------------------------------------------- staff detail and the split (F19)
+async def beard_service(env, f, price=200):
+    """A second service the same barber does, so one booking can carry two lines."""
+    service = str(uuid4())
+    sub = (await env.sql("select subcategory_id::text as s from services where id = :i", i=f["service"]))[0]["s"]
+    async with env.session() as session:
+        await session.execute(text("set local session_replication_role=replica"))
+        await session.execute(
+            text("insert into services(id, salon_id, subcategory_id, name, duration_minutes, price) values(:i, :s, :sub, 'Beard trim', 30, :p)"),
+            {"i": service, "s": f["salon"], "sub": sub, "p": price},
+        )
+        await session.execute(text("insert into staff_services(staff_id, service_id) values(:st, :sv)"), {"st": f["staff"], "sv": service})
+        await session.commit()
+    return service
+
+
+async def two_line_booking(env, f, beard, monkeypatch, *, delta, method, barber=None):
+    """Haircut 250 + Beard 200 booked together, optionally with the beard done by another barber, paid and completed."""
+    values = env.values(f, delta=delta)
+    values["service_ids"] = [f["service"], beard]
+    async with env.session() as session:
+        await set_actor_context(session, f["customer"])
+        booking = await PlatformRepository(session).create_booking(values)
+    assert isinstance(booking, dict), booking
+    if barber:
+        http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+        async with http:
+            named = await http.post(f"/v1/salons/me/bookings/{booking['id']}/services/{beard}/staff", json={"staff_id": barber})
+            assert named.status_code == 200, named.text
+    assert isinstance(await env.collect(f, booking, method=method), dict)
+    assert isinstance(await env.complete(f, booking), dict)
+    return booking
+
+
+def window():
+    today = datetime.now(UTC).date()
+    return f"from={today - timedelta(days=1)}&to={today + timedelta(days=1)}"
+
+
+async def test_the_bill_is_split_between_the_people_who_did_each_service(env, monkeypatch):
+    f = await trial_salon(env)
+    beard = await beard_service(env, f)
+    hafis, shuhail = f["staff"], await second_barber(env, f)
+    await two_line_booking(env, f, beard, monkeypatch, delta=0, method="cash", barber=shuhail)
+    await two_line_booking(env, f, beard, monkeypatch, delta=120, method="upi_direct", barber=shuhail)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        report = (await http.get(f"/v1/salons/me/staff-earnings?{window()}")).json()
+    people = {s["staff_id"]: s for s in report["staff"]}
+    assert (people[hafis]["services_completed"], people[hafis]["service_value_paise"]) == (2, 50_000)
+    assert (people[shuhail]["services_completed"], people[shuhail]["service_value_paise"]) == (2, 40_000)
+    # each booking was paid 450 in one way; it is shared 250 / 200 by service value
+    assert (people[hafis]["collected_cash_paise"], people[hafis]["collected_upi_paise"]) == (25_000, 25_000)
+    assert (people[shuhail]["collected_cash_paise"], people[shuhail]["collected_upi_paise"]) == (20_000, 20_000)
+    # the totals are the server's sums, and they add up to everything the customers paid
+    assert (report["collected_cash_paise"], report["collected_upi_paise"]) == (45_000, 45_000)
+
+
+async def test_a_processed_refund_lowers_what_was_collected_on_each_service(env, monkeypatch):
+    f = await trial_salon(env)
+    beard = await beard_service(env, f)
+    shuhail = await second_barber(env, f)
+    booking = await two_line_booking(env, f, beard, monkeypatch, delta=0, method="cash", barber=shuhail)
+    payment = (await env.sql("select id from booking_payments where booking_id = :b", b=booking["id"]))[0]["id"]
+    async with env.session() as session:
+        await session.execute(text("set local session_replication_role=replica"))
+        await session.execute(
+            text(
+                """insert into payment_refunds(payment_id, booking_id, amount, status, idempotency_key, processed_at)
+                   values(:p, :b, 90, 'processed', 'refund-split-1', now())"""
+            ),
+            {"p": payment, "b": booking["id"]},
+        )
+        await session.commit()
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        report = (await http.get(f"/v1/salons/me/staff-earnings?{window()}")).json()
+    people = {s["staff_id"]: s for s in report["staff"]}
+    assert (people[f["staff"]]["collected_cash_paise"], people[shuhail]["collected_cash_paise"]) == (20_000, 16_000)
+    assert report["collected_cash_paise"] == 36_000
+
+
+async def test_the_detail_page_lists_each_service_with_its_share_and_pages_without_repeats(env, monkeypatch):
+    f = await trial_salon(env)
+    beard = await beard_service(env, f)
+    shuhail = await second_barber(env, f)
+    await two_line_booking(env, f, beard, monkeypatch, delta=0, method="cash", barber=shuhail)
+    await two_line_booking(env, f, beard, monkeypatch, delta=120, method="upi_direct", barber=shuhail)
+    await two_line_booking(env, f, beard, monkeypatch, delta=240, method="cash", barber=shuhail)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    url = f"/v1/salons/me/staff-earnings/{f['staff']}?{window()}"
+    async with http:
+        first = (await http.get(url + "&limit=2")).json()
+        assert (first["services_completed"], first["service_value_paise"]) == (3, 75_000)
+        assert (first["collected_cash_paise"], first["collected_upi_paise"]) == (50_000, 25_000)
+        assert len(first["history"]) == 2 and first["next_cursor"]
+        second = (await http.get(url + f"&limit=2&cursor={first['next_cursor']}")).json()
+        assert len(second["history"]) == 1 and second["next_cursor"] is None
+        seen = [(i["booking_id"], i["service_id"]) for i in first["history"] + second["history"]]
+        assert len(set(seen)) == 3
+        item = first["history"][0]
+        assert item["service_name"] == "Haircut" and item["customer_first_name"] == "Local"
+        assert item["service_value_paise"] == 25_000
+        assert item["booking_cash_paise"] + item["booking_upi_paise"] == 45_000
+        assert sorted(line["staff_name"] for line in item["booking_lines"]) == ["Local test staff", "Second barber"]
+        stamps = [i["completed_at"] for i in first["history"]]
+        assert stamps == sorted(stamps, reverse=True)
+
+
+async def test_the_detail_page_is_owner_only_and_never_crosses_salons(env, monkeypatch):
+    f = await trial_salon(env)
+    other = await trial_salon(env)
+    mine, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with mine:
+        assert (await mine.get(f"/v1/salons/me/staff-earnings/{other['staff']}?{window()}")).status_code == 404
+        assert (await mine.get(f"/v1/salons/me/staff-earnings/{uuid4()}?{window()}")).status_code == 404
+        assert (await mine.get(f"/v1/salons/me/staff-earnings/{f['staff']}?{window()}&cursor=not-a-cursor")).status_code == 422
+        empty = (await mine.get(f"/v1/salons/me/staff-earnings/{f['staff']}?{window()}")).json()
+        assert empty["history"] == [] and empty["services_completed"] == 0 and empty["staff_name"]
+    staff, _ = await client_for(env, monkeypatch, staff_actor(f))
+    async with staff:
+        assert (await staff.get(f"/v1/salons/me/staff-earnings/{f['staff']}?{window()}")).status_code == 403
+
+
+async def test_the_owner_sees_who_is_doing_each_service_until_it_is_finished(env, monkeypatch):
+    f = await trial_salon(env)
+    beard = await beard_service(env, f)
+    shuhail = await second_barber(env, f)
+    values = env.values(f, delta=0)
+    values["service_ids"] = [f["service"], beard]
+    async with env.session() as session:
+        await set_actor_context(session, f["customer"])
+        booking = await PlatformRepository(session).create_booking(values)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    url = f"/v1/salons/me/bookings/{booking['id']}/service-staff"
+    async with http:
+        before = (await http.get(url)).json()
+        assert before["can_change"] is True
+        assert {line["staff_id"] for line in before["lines"]} == {f["staff"]}  # the booking's own staff by default
+        assert {line["service_name"] for line in before["lines"]} == {"Haircut", "Beard trim"}
+        named = await http.post(f"/v1/salons/me/bookings/{booking['id']}/services/{beard}/staff", json={"staff_id": shuhail})
+        assert named.status_code == 200
+        after = {line["service_id"]: line["staff_name"] for line in (await http.get(url)).json()["lines"]}
+        assert after[beard] == "Second barber" and after[f["service"]] == "Local test staff"
+        assert (await http.get(f"/v1/salons/me/bookings/{uuid4()}/service-staff")).status_code == 404
+    assert isinstance(await env.collect(f, booking, method="cash"), dict)
+    assert isinstance(await env.complete(f, booking), dict)
+    http, _ = await client_for(env, monkeypatch, make_owner(f["owner"]))
+    async with http:
+        assert (await http.get(url)).json()["can_change"] is False
+    other = await trial_salon(env)
+    thief, _ = await client_for(env, monkeypatch, make_owner(other["owner"]))
+    async with thief:
+        assert (await thief.get(url)).status_code == 404
+    staff, _ = await client_for(env, monkeypatch, staff_actor(f))
+    async with staff:
+        assert (await staff.get(url)).status_code == 403

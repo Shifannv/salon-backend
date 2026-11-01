@@ -14,8 +14,10 @@ from app.api.v1.schemas.staff_earnings import (
     CommissionRuleCreateRequest,
     CommissionRuleListResponse,
     CommissionRuleResponse,
+    ServiceStaffListResponse,
     ServiceStaffRequest,
     ServiceStaffResponse,
+    StaffDetailResponse,
     StaffEarningsResponse,
 )
 from app.application.use_cases.staff_earnings import StaffEarningsUseCases
@@ -71,6 +73,19 @@ async def add_commission_rule(
     return CommissionRuleResponse(**body)
 
 
+@router.get(
+    "/salons/me/bookings/{booking_id}/service-staff",
+    response_model=ServiceStaffListResponse,
+    summary="Who is doing each service of a booking",
+)
+async def list_service_staff(
+    booking_id: UUID,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ServiceStaffListResponse:
+    return ServiceStaffListResponse(**await _use_cases(session).service_staff(actor, booking_id=str(booking_id)))
+
+
 @router.post(
     "/salons/me/bookings/{booking_id}/services/{service_id}/staff",
     response_model=ServiceStaffResponse,
@@ -101,3 +116,27 @@ async def staff_earnings(
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> StaffEarningsResponse:
     return StaffEarningsResponse(**await _use_cases(session).earnings(actor, from_date=from_date, to_date=to_date))
+
+
+@router.get(
+    "/salons/me/staff-earnings/{staff_id}",
+    response_model=StaffDetailResponse,
+    summary="One staff member's totals and completed-service history (newest first)",
+    description=(
+        "Collected cash/UPI is each service's share of what the customer paid on its booking, split by "
+        "service value. It is the salon's money, shown for the owner's reference, never the person's pay."
+    ),
+)
+async def staff_earnings_detail(
+    staff_id: UUID,
+    from_date: date = Query(alias="from"),
+    to_date: date = Query(alias="to"),
+    cursor: str | None = Query(default=None, max_length=300),
+    limit: int = Query(default=20, ge=1, le=50),
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> StaffDetailResponse:
+    body = await _use_cases(session).staff_detail(
+        actor, staff_id=str(staff_id), from_date=from_date, to_date=to_date, cursor=cursor, limit=limit
+    )
+    return StaffDetailResponse(**body)

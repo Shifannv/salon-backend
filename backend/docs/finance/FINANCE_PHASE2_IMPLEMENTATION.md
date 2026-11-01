@@ -228,3 +228,21 @@ local database; `0054_staff_earnings` follows `0053_salon_payout_requests` and i
 | `GET /v1/salons/me/staff-earnings?from=&to=` | Per staff member: services completed, service value, commission, for salon-local dates (max 366 days). Totals come from the server. |
 
 Tests: `tests/integration/test_staff_earnings_api.py` (24).
+
+### S1c - Staff detail and the split (owner only; F19)
+
+- `GET /v1/salons/me/staff-earnings` now also returns, per person and in total, `collected_cash_paise` and
+  `collected_upi_paise`.
+- `GET /v1/salons/me/staff-earnings/{staff_id}?from=&to=&cursor=&limit=` returns that person's totals for the period
+  and a page (newest first, keyset cursor, default 20, max 50) of the services they completed: service, customer
+  first name only (never a phone), value, commission, what the customer paid on the booking (cash / UPI), this
+  service's share of it, and every line of the booking with who did it. 404 for another salon's staff, 422 for a bad
+  cursor or range, 403 for staff.
+- **How a share is worked out** (`collected_by_staff`, reusing `split_refund_across_lines`): per booking, the cash and
+  the UPI received (same sources and statuses as the Daily Ledger, minus processed refunds) are each split across the
+  booking's completed service lines by value. Shares always add up to what was paid. Lines are ordered by service id so
+  the list and the totals agree to the paisa.
+- Tests: `test_staff_earnings_api.py` (28 in total) cover the two-line cash / UPI split, a refund, paging without
+  repeats, isolation and role.
+
+- `GET /v1/salons/me/bookings/{booking}/service-staff` lists who is doing each service now (the latest named person, else the booking staff member) and `can_change` (false once the booking is finished or the plan has ended). 404 for another salon's booking.

@@ -80,6 +80,8 @@ class StaffEarningsLine(_Response):
     services_completed: int
     service_value_paise: int
     commission_paise: int
+    collected_cash_paise: int
+    collected_upi_paise: int
 
 
 class StaffEarningsResponse(_Response):
@@ -91,3 +93,56 @@ class StaffEarningsResponse(_Response):
     services_completed: int
     service_value_paise: int
     commission_paise: int
+    collected_cash_paise: int
+    collected_upi_paise: int
+
+
+class BookingLine(_Response):
+    service_name: str
+    staff_name: str
+    service_value_paise: int
+
+
+class StaffServiceItem(_Response):
+    booking_id: UUID
+    service_id: UUID
+    service_name: str
+    customer_first_name: str
+    completed_at: datetime
+    service_value_paise: int
+    commission_paise: int
+    # What the customer paid on the whole booking, and this service's share of it (salon receipts, F19).
+    booking_cash_paise: int
+    booking_upi_paise: int
+    collected_cash_paise: int
+    collected_upi_paise: int
+    booking_lines: list[BookingLine]
+
+
+class StaffDetailResponse(_Response):
+    staff_id: UUID
+    staff_name: str
+    from_date: date
+    to_date: date
+    services_completed: int
+    service_value_paise: int
+    commission_paise: int
+    collected_cash_paise: int
+    collected_upi_paise: int
+    history: list[StaffServiceItem]
+    next_cursor: str | None
+
+
+class ServiceStaffLine(_Response):
+    service_id: UUID
+    service_name: str
+    staff_id: UUID
+    staff_name: str
+
+
+class ServiceStaffListResponse(_Response):
+    """Who is doing each service of a booking now. ``can_change`` is false once the booking is finished."""
+
+    booking_id: UUID
+    lines: list[ServiceStaffLine]
+    can_change: bool

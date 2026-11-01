@@ -120,3 +120,24 @@ def split_refund_across_lines(refund_paise: int, line_values: list[int]) -> list
             shares[index] += 1
             leftover -= 1
     return shares
+
+
+def collected_by_staff(
+    lines: list[tuple[str, int]], *, cash_paise: int, upi_paise: int
+) -> dict[str, tuple[int, int]]:
+    """What was collected on each person's services: (cash, non-cash) per staff id (F19).
+
+    ``lines`` are the booking's completed service lines as (staff id, value in paise). Each payment
+    method is shared between the lines in proportion to their value, so the shares add up to what the
+    customer paid (never more than the booking total). The result is a view of the salon's own receipts,
+    not anyone's pay: it plays no part in commission.
+    """
+
+    values = [value for _, value in lines]
+    cash = split_refund_across_lines(cash_paise, values)
+    upi = split_refund_across_lines(upi_paise, values)
+    shares: dict[str, tuple[int, int]] = {}
+    for (staff_id, _), cash_share, upi_share in zip(lines, cash, upi, strict=True):
+        before_cash, before_upi = shares.get(staff_id, (0, 0))
+        shares[staff_id] = (before_cash + cash_share, before_upi + upi_share)
+    return shares

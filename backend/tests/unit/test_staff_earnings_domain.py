@@ -11,6 +11,7 @@ import pytest
 
 from app.domain.services.staff_earnings import (
     CommissionRule,
+    collected_by_staff,
     earned_amount,
     reversal_due,
     select_rule,
@@ -178,3 +179,30 @@ class TestSplitRefundAcrossLines:
         assert split_refund_across_lines(0, [10, 20]) == [0, 0]
         assert split_refund_across_lines(500, []) == []
         assert split_refund_across_lines(500, [0, 0]) == [0, 0]
+
+
+class TestCollectedByStaff:
+    """F19: what the customer paid on a booking, shared between staff by the value of their services."""
+
+    def test_the_seven_hundred_rupee_example(self):
+        lines = [("hafis", 30_000), ("shuhail", 20_000), ("hafis", 20_000)]
+        shares = collected_by_staff(lines, cash_paise=40_000, upi_paise=30_000)
+        assert shares == {"hafis": (28_571, 21_428), "shuhail": (11_429, 8_572)}
+        assert sum(c for c, _ in shares.values()) == 40_000
+        assert sum(u for _, u in shares.values()) == 30_000
+
+    def test_one_person_gets_everything_collected(self):
+        assert collected_by_staff([("a", 25_000)], cash_paise=25_000, upi_paise=0) == {"a": (25_000, 0)}
+
+    def test_an_unpaid_booking_collects_nothing_but_still_lists_the_people(self):
+        assert collected_by_staff([("a", 100), ("b", 100)], cash_paise=0, upi_paise=0) == {"a": (0, 0), "b": (0, 0)}
+
+    def test_the_shares_always_add_up_to_what_was_paid(self):
+        for cash, upi, values in ((1, 1, [1, 1, 1]), (99_999, 1, [33, 33, 34]), (7, 0, [1, 2, 4])):
+            lines = [(f"s{i}", v) for i, v in enumerate(values)]
+            shares = collected_by_staff(lines, cash_paise=cash, upi_paise=upi)
+            assert sum(c for c, _ in shares.values()) == min(cash, sum(values))
+            assert sum(u for _, u in shares.values()) == min(upi, sum(values))
+
+    def test_no_lines_gives_nothing(self):
+        assert collected_by_staff([], cash_paise=500, upi_paise=500) == {}

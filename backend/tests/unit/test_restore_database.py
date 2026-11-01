@@ -62,6 +62,33 @@ def test_isolated_container_is_accepted():
         }
 
 
+def test_empty_supabase_restore_database_is_accepted():
+    completed = MagicMock(returncode=0, stdout=b"supabase_admin|true|true|0\n")
+    with patch.object(restore.subprocess, "run", return_value=completed):
+        assert restore.inspect_empty_database(
+            "docker", "gate-a-test", "supabase_admin", "salon_restore"
+        ) == {"restore_role_superuser": True, "restore_database_empty": True}
+
+
+@pytest.mark.parametrize(
+    ("output", "message"),
+    [
+        (b"supabase_admin|false|false|0\n", "superuser"),
+        (b"supabase_admin|true|true|1\n", "must be empty"),
+        (b"wrong|true|true|0\n", "identity"),
+    ],
+)
+def test_unprivileged_or_nonempty_restore_database_is_refused(output, message):
+    completed = MagicMock(returncode=0, stdout=output)
+    with (
+        patch.object(restore.subprocess, "run", return_value=completed),
+        pytest.raises(restore.RestoreError, match=message),
+    ):
+        restore.inspect_empty_database(
+            "docker", "gate-a-test", "supabase_admin", "salon_restore"
+        )
+
+
 @pytest.mark.parametrize(
     ("document", "message"),
     [
@@ -114,6 +141,11 @@ def test_passphrase_is_zeroed_after_restore(tmp_path):
     with (
         patch.object(restore, "locate_tool", side_effect=lambda name: name),
         patch.object(restore, "inspect_isolated_container", inspect),
+        patch.object(
+            restore,
+            "inspect_empty_database",
+            return_value={"restore_role_superuser": True, "restore_database_empty": True},
+        ),
         patch.object(restore, "unprotect_dpapi", return_value=secret),
         patch.object(restore.subprocess, "Popen", side_effect=[gpg, restore_process]),
     ):
@@ -142,6 +174,11 @@ def test_raw_tool_errors_are_not_in_restore_error(tmp_path):
             restore,
             "inspect_isolated_container",
             return_value={"network_mode": "none", "published_ports": 0},
+        ),
+        patch.object(
+            restore,
+            "inspect_empty_database",
+            return_value={"restore_role_superuser": True, "restore_database_empty": True},
         ),
         patch.object(restore, "unprotect_dpapi", return_value=secret),
         patch.object(restore.subprocess, "Popen", side_effect=[gpg, restore_process]),
