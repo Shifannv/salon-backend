@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.api.v1.schemas.common import IdStr
 from app.domain.services.trial_limits import (
-    DEFAULT_TRIAL_BOOKINGS,
     DEFAULT_TRIAL_DAYS,
     MAX_TRIAL_BOOKINGS,
     MAX_TRIAL_DAYS,
@@ -18,13 +17,14 @@ class TrialLimitsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     trial_days: StrictInt = Field(default=DEFAULT_TRIAL_DAYS, ge=1, le=MAX_TRIAL_DAYS)
-    trial_booking_limit: StrictInt = Field(
-        default=DEFAULT_TRIAL_BOOKINGS, ge=1, le=MAX_TRIAL_BOOKINGS
-    )
+    # Required, no default: the super admin sets it for every salon.
+    trial_booking_limit: StrictInt = Field(ge=1, le=MAX_TRIAL_BOOKINGS)
 
 
-class SalonTrialResponse(TrialLimitsRequest):
+class SalonTrialResponse(BaseModel):
     salon_id: IdStr
+    trial_days: int
+    trial_booking_limit: int | None = None
     trial_started_at: datetime | None = None
     trial_ends_at: datetime | None = None
     bookings_counted: int = 0

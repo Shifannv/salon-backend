@@ -121,6 +121,19 @@ class VerifyRequest(BaseModel):
     signature: str | None = Field(default=None, max_length=200)
 
 
+class FeatureSwitch(BaseModel):
+    enabled: bool
+    source: Literal["plan", "override", "none"]
+    # Paid plans that include the feature, e.g. ["premium"].
+    plans: list[Literal["growth", "premium"]] = Field(default_factory=list)
+
+
+class PlanTierContent(BaseModel):
+    headline: str = ""
+    description: str = ""
+    bullets: list[str] = Field(default_factory=list)
+
+
 class AccessStateResponse(BaseModel):
     accepts_new_bookings: bool
     subscription_wall: bool
@@ -133,6 +146,9 @@ class AccessStateResponse(BaseModel):
     entitlement_active: bool
     entitlement_state: str
     features: dict[str, Any] = Field(default_factory=dict)
+    # Per-feature switch set by the super admin: {key: {"enabled": bool, "source": "plan"|"override"|"none"}}.
+    feature_access: dict[str, FeatureSwitch] | None = None
+    plan_content: dict[str, PlanTierContent] | None = None
     paid_through: datetime | None = None
     grace_ends_at: datetime | None = None
     source: Literal["subscription"] = "subscription"

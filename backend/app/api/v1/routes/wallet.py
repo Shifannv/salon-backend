@@ -24,6 +24,7 @@ from app.api.v1.schemas.wallet import (
 from app.application.use_cases.wallet import WalletAdminUseCases, WalletUseCases
 from app.core.config import settings
 from app.domain.entities.profile import Profile, Role
+from app.infrastructure.db.repositories.feature_access_repository import FeatureAccessRepository
 from app.infrastructure.db.repositories.wallet_repository import WalletRepository
 
 router = APIRouter()
@@ -32,7 +33,9 @@ admin_router = APIRouter()
 
 def _owner_use_cases(session: AsyncSession) -> WalletUseCases:
     return WalletUseCases(
-        WalletRepository(session), online_payments_live=settings.payment_provider != "none"
+        WalletRepository(session),
+        online_payments_live=settings.payment_provider != "none",
+        features=FeatureAccessRepository(session),
     )
 
 

@@ -238,7 +238,11 @@ def test_admin_routes_hand_a_background_task_runner_to_the_use_case():
     try:
         with patch("app.api.v1.routes.admin._admin_use_cases", lambda s, a: uc):
             client = TestClient(app)
-            approved = client.post(f"/v1/admin/salons/{salon_id}/approve")
+            missing_limit = client.post(f"/v1/admin/salons/{salon_id}/approve", json={"trial_days": 30})
+            approved = client.post(
+                f"/v1/admin/salons/{salon_id}/approve",
+                json={"trial_days": 30, "trial_booking_limit": 100},
+            )
             rejected = client.post(
                 f"/v1/admin/salons/{salon_id}/reject", json={"rejection_reason": "Fix"}
             )
@@ -246,6 +250,7 @@ def test_admin_routes_hand_a_background_task_runner_to_the_use_case():
         app.dependency_overrides.clear()
     from fastapi import BackgroundTasks
 
+    assert missing_limit.status_code == 422  # no platform default: the admin must choose the limit
     assert approved.status_code == rejected.status_code == 200
     assert isinstance(uc.approve_salon.await_args.args[-1], BackgroundTasks)
     assert isinstance(uc.reject_salon.await_args.args[-1], BackgroundTasks)

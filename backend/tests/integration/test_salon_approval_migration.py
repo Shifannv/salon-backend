@@ -20,6 +20,8 @@ from sqlalchemy.dialects.postgresql.asyncpg import dialect
 from app.api.v1.schemas.admin import AdminSalonResponse
 from app.api.v1.schemas.platform import OwnerSalonResponse
 from app.core.config import settings
+from app.core.exceptions import ValidationError
+from app.domain.services.trial_limits import TrialLimits
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 pytestmark = pytest.mark.skipif(
@@ -221,7 +223,12 @@ async def test_upgrade_business_gates_owner_protection_and_downgrade():
         with pytest.raises(asyncpg.CheckViolationError):
             async with conn.transaction():
                 await conn.execute("update salons set display_priority=-1 where id=$1", salon)
-        approved = await repo.admin_set_salon_approval(str(salon), "approved", str(admin), None)
+        # No platform default trial: approving a salon whose trial has not started needs a limit.
+        with pytest.raises(ValidationError):
+            await repo.admin_set_salon_approval(str(salon), "approved", str(admin), None)
+        approved = await repo.admin_set_salon_approval(
+            str(salon), "approved", str(admin), None, trial_limits=TrialLimits(60, 500)
+        )
         assert AdminSalonResponse(**approved).approved_by == str(admin)
         repeated = await repo.admin_set_salon_approval(str(salon), "approved", str(admin), None)
         assert repeated["approved_at"] == approved["approved_at"]

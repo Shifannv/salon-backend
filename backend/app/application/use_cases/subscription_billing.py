@@ -48,7 +48,9 @@ from app.domain.entities.subscription import (
     EntitlementState,
     derive_entitlement,
 )
+from app.domain.services.finance_ledger import TrialState
 from app.domain.value_objects.money import Money
+from app.infrastructure.db.repositories.feature_access_repository import FeatureAccessRepository
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )
@@ -210,8 +212,10 @@ class SubscriptionBillingUseCases:
         resolver: SubscriptionProviderResolver,
         settings: Settings,
         workspace: Any = None,
+        features: FeatureAccessRepository | None = None,
     ) -> None:
         self.repository = repository  # type: ignore[assignment]
+        self.features = features
         self.resolver = resolver
         self.settings = settings
         self.workspace = workspace
@@ -354,11 +358,18 @@ class SubscriptionBillingUseCases:
             label = "subscribed_premium"
         else:
             label = "subscribed"
+        feature_access, plan_content = await self._feature_view(salon_id, state, tier, access)
         return {
             "access_state": label,
             "entitlement_active": state["entitlement_active"],
             "entitlement_state": state["entitlement_state"],
-            "features": state["features"],
+            # Plan benefits stay for older app builds; resolved feature switches win over them.
+            "features": {
+                **state["features"],
+                **{k: v["enabled"] for k, v in (feature_access or {}).items()},
+            },
+            "feature_access": feature_access,
+            "plan_content": plan_content,
             "paid_through": state["paid_through"],
             "grace_ends_at": state["grace_ends_at"],
             "source": "subscription",
@@ -373,6 +384,30 @@ class SubscriptionBillingUseCases:
             "trial_booking_limit": access.get("trial_booking_limit"),
             "trial_bookings_counted": access.get("bookings_counted"),
         }
+
+    async def _feature_view(
+        self, salon_id: str, state: dict[str, Any], tier: int | None, access: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Super-admin feature switches for this salon, or ``(None, None)`` when the feature repository is not wired."""
+
+        if self.features is None:
+            return None, None
+        now = datetime.now(UTC)
+        trial = TrialState(
+            started_at=access.get("trial_started_at"),
+            ends_at=access.get("trial_ends_at"),
+            booking_limit=access.get("trial_booking_limit"),
+            bookings_counted=access.get("bookings_counted"),
+            limit_reached_at=access.get("trial_limit_reached_at"),
+        )
+        resolved = await self.features.resolve_for_salon(
+            salon_id,
+            entitlement_active=bool(state["entitlement_active"]),
+            tier=tier,
+            trial_active=trial.active(now),
+            now=now,
+        )
+        return resolved, await self.features.plan_content()
 
     async def history(self, actor: Profile, limit: int, offset: int) -> list[dict[str, Any]]:
         salon_id = await self._owner_salon(actor)

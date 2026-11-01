@@ -26,6 +26,7 @@ from app.api.v1.schemas.subscription_billing import (
 from app.application.use_cases.subscription_billing import SubscriptionBillingUseCases
 from app.core.config import settings
 from app.domain.entities.profile import Profile
+from app.infrastructure.db.repositories.feature_access_repository import FeatureAccessRepository
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
@@ -41,7 +42,8 @@ def _uc(
     if session is None:  # config: no database access at all
         return SubscriptionBillingUseCases(None, resolver, settings)
     return SubscriptionBillingUseCases(
-        SubscriptionBillingRepository(session), resolver, settings, PlatformRepository(session)
+        SubscriptionBillingRepository(session), resolver, settings, PlatformRepository(session),
+        FeatureAccessRepository(session),
     )
 
 
