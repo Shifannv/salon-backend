@@ -61,10 +61,12 @@ def test_trial_inputs_reject_invalid_or_owner_supplied_fields(schema, values):
         schema(**values)
 
 
-def test_empty_approval_body_retains_the_current_default_trial():
-    value = AdminApproveSalonRequest()
+def test_approval_requires_a_booking_limit_and_has_no_default_for_it():
+    with pytest.raises(ValidationError):
+        AdminApproveSalonRequest()
+    value = AdminApproveSalonRequest(trial_booking_limit=120)
     assert value.trial_days == 60
-    assert value.trial_booking_limit == 500
+    assert value.trial_booking_limit == 120
 
 
 @pytest.mark.parametrize("values", [{}, {"trial_days": 30}, {"trial_booking_limit": 75}])

@@ -16,6 +16,7 @@ from typing import Any
 
 from app.application.use_cases.idempotency import fingerprint_of, require_idempotency_key
 from app.core.exceptions import (
+    EntitlementRequiredError,
     ForbiddenError,
     InsufficientBalanceError,
     NotFoundError,
@@ -29,6 +30,7 @@ from app.core.exceptions import (
 )
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.authorization import require_super_admin
+from app.domain.services.feature_access import WALLET, is_enabled
 from app.domain.services.finance_ledger import today_in
 from app.domain.services.wallet import (
     MAX_PAYOUT_PAISE,
@@ -77,10 +79,12 @@ class WalletUseCases:
         *,
         online_payments_live: bool,
         clock: Callable[[], datetime] | None = None,
+        features: Any = None,
     ) -> None:
         self.repository = repository
         self._live = online_payments_live
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._features = features
 
     async def _salon(self, actor: Profile) -> dict[str, Any]:
         """The owner's approved salon. Staff and customers never see the wallet."""
@@ -92,6 +96,11 @@ class WalletUseCases:
             raise ForbiddenError("Active salon workspace required")
         if not salon["profile_completed"] or salon["approval_status"] != "approved":
             raise SalonApprovalRequiredError("Super admin approval is required for daily business")
+        if self._features is not None:
+            resolved = await self._features.resolve_current(str(salon["id"]), self._clock())
+            locked = not is_enabled(resolved, WALLET)
+            if locked and resolved.get(WALLET, {}).get("source") != "none":
+                raise EntitlementRequiredError("The wallet is not included in your plan")
         return salon
 
     async def _available(self, salon_id: str) -> tuple[int, dict[str, int]]:

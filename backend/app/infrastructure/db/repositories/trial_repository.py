@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.domain.services.trial_limits import (
-    DEFAULT_TRIAL_BOOKINGS,
     DEFAULT_TRIAL_DAYS,
     TrialLimits,
 )
@@ -24,7 +23,7 @@ class SalonTrialRepository:
               case when a.trial_started_at is null then :default_days
                    else ceil(extract(epoch from (a.trial_ends_at-a.trial_started_at))/86400)::int
                    end as trial_days,
-              coalesce(a.trial_booking_limit, :default_bookings) as trial_booking_limit,
+              a.trial_booking_limit as trial_booking_limit,
               coalesce(a.bookings_counted, 0) as bookings_counted,
               a.trial_limit_reached_at,
               case when a.trial_started_at is null then 'not_started'
@@ -32,8 +31,7 @@ class SalonTrialRepository:
                    when a.bookings_counted >= a.trial_booking_limit then 'quota_reached'
                    else 'active' end as state
             from salons s left join salon_access a on a.salon_id=s.id where s.id=:salon
-        """), {"salon": salon_id, "default_days": DEFAULT_TRIAL_DAYS,
-               "default_bookings": DEFAULT_TRIAL_BOOKINGS})
+        """), {"salon": salon_id, "default_days": DEFAULT_TRIAL_DAYS})
         row = result.mappings().one_or_none()
         if row is None:
             raise NotFoundError("Salon not found")

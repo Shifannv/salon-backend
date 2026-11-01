@@ -16,6 +16,7 @@ from app.application.use_cases.finance import MAX_KEY, FinanceUseCases
 from app.application.use_cases.idempotency import fingerprint_of, require_idempotency_key
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.domain.entities.profile import Profile
+from app.domain.services.feature_access import SPLIT_BILL, STAFF_EARNINGS
 from app.domain.services.finance_ledger import local_day_bounds
 from app.infrastructure.db.repositories.staff_earnings_admin_repository import (
     ATTRIBUTABLE_STATUSES,
@@ -55,7 +56,7 @@ class StaffEarningsUseCases(FinanceUseCases):
         idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=STAFF_EARNINGS)
         salon_id = str(salon["id"])
         now = self._clock()
         start = effective_from.astimezone(UTC) if effective_from else now
@@ -85,7 +86,7 @@ class StaffEarningsUseCases(FinanceUseCases):
         return {**row, "replayed": False}
 
     async def service_staff(self, actor: Profile, *, booking_id: str) -> dict[str, Any]:
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=SPLIT_BILL)
         found = await self.repository.service_staff(str(salon["id"]), booking_id)
         if found is None:
             raise NotFoundError("Booking not found")
@@ -95,7 +96,7 @@ class StaffEarningsUseCases(FinanceUseCases):
     async def set_service_staff(
         self, actor: Profile, *, booking_id: str, service_id: str, staff_id: str,
     ) -> dict[str, Any]:
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=SPLIT_BILL)
         salon_id = str(salon["id"])
         await self.repository.lock_salon(salon_id)
         status = await self.repository.booking_state(salon_id, booking_id, service_id)
@@ -119,7 +120,7 @@ class StaffEarningsUseCases(FinanceUseCases):
         return start, end
 
     async def earnings(self, actor: Profile, *, from_date: date, to_date: date) -> dict[str, Any]:
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=STAFF_EARNINGS)
         start, end = self._bounds(salon, from_date, to_date)
         staff = await self.repository.earnings_by_staff(str(salon["id"]), start, end)
         return {
@@ -137,7 +138,7 @@ class StaffEarningsUseCases(FinanceUseCases):
     ) -> dict[str, Any]:
         """One person's totals for the period and a page of the services they completed."""
 
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=STAFF_EARNINGS)
         salon_id = str(salon["id"])
         start, end = self._bounds(salon, from_date, to_date)
         name = await self.repository.staff_name(salon_id, staff_id)

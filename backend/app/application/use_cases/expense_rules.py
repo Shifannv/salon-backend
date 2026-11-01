@@ -15,6 +15,7 @@ from app.application.use_cases.finance import MAX_KEY, FinanceUseCases
 from app.application.use_cases.idempotency import fingerprint_of, require_idempotency_key
 from app.core.exceptions import NotFoundError, ValidationError
 from app.domain.entities.profile import Profile
+from app.domain.services.feature_access import EXPENSES
 from app.domain.services.finance_ledger import today_in
 
 MAX_ACTIVE_RULES = 30
@@ -24,7 +25,7 @@ MAX_START_BEHIND = timedelta(days=31)
 
 class ExpenseRuleUseCases(FinanceUseCases):
     async def list_rules(self, actor: Profile) -> dict[str, Any]:
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=EXPENSES)
         rules = await self.repository.list_rules(str(salon["id"]))
         return {"rules": rules, "can_write": salon["can_write"]}
 
@@ -33,7 +34,7 @@ class ExpenseRuleUseCases(FinanceUseCases):
         note: str | None, frequency: str, start_date: date, idempotency_key: str | None,
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=EXPENSES)
         salon_id = str(salon["id"])
         today = today_in(salon["timezone"], self._clock())
         title = title.strip()
@@ -63,7 +64,7 @@ class ExpenseRuleUseCases(FinanceUseCases):
         return {**row, "replayed": replayed}
 
     async def stop_rule(self, actor: Profile, rule_id: str) -> dict[str, Any]:
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=EXPENSES)
         salon_id = str(salon["id"])
         await self.repository.lock_salon(salon_id)
         row = await self.repository.stop_rule(salon_id, rule_id)

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import (
     ConflictError,
     NotFoundError,
+    ValidationError,
 )
 from app.domain.services.trial_limits import TrialLimits
 from app.infrastructure.db.repositories.trial_repository import SalonTrialRepository
@@ -154,7 +155,7 @@ class AdminSalonsMixin:
     ) -> dict[str, Any]:
         """Write the decision atomically; preserve the first approval timestamp on retries."""
         first_trial = False
-        if trial_limits is not None and approval_status == "approved":
+        if approval_status == "approved":
             await self.session.execute(text(
                 "select id from salons where id=:salon for no key update"
             ), {"salon": salon_id})
@@ -162,6 +163,10 @@ class AdminSalonsMixin:
                 "select trial_started_at from salon_access where salon_id=:salon for update"
             ), {"salon": salon_id})).scalar_one_or_none()
             first_trial = started is None
+            if first_trial and trial_limits is None:
+                # No platform default: the admin sets each salon's booking limit when approving it.
+                await self.session.rollback()
+                raise ValidationError("Choose the trial booking limit when approving this salon")
         result = await self.session.execute(
             text("""
                 update salons

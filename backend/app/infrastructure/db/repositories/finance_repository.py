@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import IdempotencyKeyReuseError, ValidationError
 from app.domain.entities.subscription import derive_entitlement
 from app.domain.services.finance_ledger import TrialState, local_day_bounds
+from app.infrastructure.db.repositories.feature_access_repository import FeatureAccessRepository
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
 )
@@ -113,15 +114,23 @@ class FinanceRepository:
             now=now,
         )
         access = await self._billing.booking_access(salon_id)
+        trial = TrialState(
+            started_at=access.get("trial_started_at"),
+            ends_at=access.get("trial_ends_at"),
+            booking_limit=access.get("trial_booking_limit"),
+            bookings_counted=access.get("bookings_counted"),
+            limit_reached_at=access.get("trial_limit_reached_at"),
+        )
         return {
             "features": (subscription or {}).get("plan_features") or {},
             "entitlement_active": entitlement.active,
-            "trial": TrialState(
-                started_at=access.get("trial_started_at"),
-                ends_at=access.get("trial_ends_at"),
-                booking_limit=access.get("trial_booking_limit"),
-                bookings_counted=access.get("bookings_counted"),
-                limit_reached_at=access.get("trial_limit_reached_at"),
+            "trial": trial,
+            "feature_access": await FeatureAccessRepository(self.session).resolve_for_salon(
+                salon_id,
+                entitlement_active=entitlement.active,
+                tier=(subscription or {}).get("plan_tier"),
+                trial_active=trial.active(now),
+                now=now,
             ),
         }
 

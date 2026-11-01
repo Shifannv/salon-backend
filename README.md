@@ -66,7 +66,9 @@ docker compose stop api redis
 backend run command
 run the backend local : 
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-
+or
+Set-Location D:\salon\salon-backend\backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8010
 ```
 
 Migrations are an explicit deployment step and are not run by the container startup

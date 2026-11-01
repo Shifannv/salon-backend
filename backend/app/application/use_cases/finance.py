@@ -30,6 +30,13 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.domain.entities.profile import Profile, Role
+from app.domain.services.feature_access import (
+    DAILY_LEDGER,
+    EXPENSES,
+    FINANCE_PAGE,
+    STAFF_EARNINGS,
+    is_enabled,
+)
 from app.domain.services.finance_ledger import (
     MAX_RANGE_DAYS,
     expected_closing_cash,
@@ -41,6 +48,8 @@ from app.domain.services.finance_ledger import (
     today_in,
 )
 
+LEDGER_FEATURE = DAILY_LEDGER
+FINANCE_TABS = frozenset({DAILY_LEDGER, EXPENSES, STAFF_EARNINGS})
 MAX_KEY = 200
 FUTURE_TOLERANCE = timedelta(minutes=5)
 
@@ -55,9 +64,15 @@ class FinanceUseCases:
         self._clock = clock or (lambda: datetime.now(UTC))
 
     # ------------------------------------------------------------------ access
-    async def _salon(self, actor: Profile, *, write: bool = False) -> dict[str, Any]:
+    async def _salon(
+        self, actor: Profile, *, write: bool = False, feature: str = LEDGER_FEATURE
+    ) -> dict[str, Any]:
         """The owner's approved salon. Reading is always allowed to the owner, so past records stay
-        visible after a trial or plan ends; any write needs the plan (or trial) to still be active."""
+        visible after a trial or plan ends; any write needs the plan (or trial) to still be active.
+
+        ``feature`` is the super-admin switch this call sits behind. A feature the salon's plan (or a
+        salon override) locks is refused for reads and writes alike; a salon with no live plan or trial
+        belongs to no audience, so it keeps the read-only rule above."""
 
         if actor.role is not Role.owner:
             raise ForbiddenError("Salon owner access required")
@@ -66,13 +81,27 @@ class FinanceUseCases:
             raise ForbiddenError("Active salon workspace required")
         if not salon["profile_completed"] or salon["approval_status"] != "approved":
             raise SalonApprovalRequiredError("Super admin approval is required for daily business")
-        access = await self.repository.plan_access(str(salon["id"]), self._clock())
-        can_write = finance_allowed(now=self._clock(), **access)
+        now = self._clock()
+        access = await self.repository.plan_access(str(salon["id"]), now)
+        resolved = access.pop("feature_access", None)
+        if resolved is None:
+            can_write = finance_allowed(now=now, **access)
+        else:
+            self._require_unlocked(resolved, feature)
+            if feature in FINANCE_TABS:
+                self._require_unlocked(resolved, FINANCE_PAGE)
+            can_write = is_enabled(resolved, feature)
         if write and not can_write:
             raise EntitlementRequiredError(
                 "Your trial or plan has ended: your finance records stay here, read-only"
             )
         return {**salon, "can_write": can_write}
+
+    @staticmethod
+    def _require_unlocked(resolved: dict[str, Any], feature: str) -> None:
+        state = resolved.get(feature, {})
+        if state.get("enabled") is not True and state.get("source") != "none":
+            raise EntitlementRequiredError("This feature is not included in your plan")
 
     def _not_future(self, moment: datetime) -> None:
         if moment.tzinfo is None:
@@ -270,7 +299,7 @@ class FinanceUseCases:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
         if key.startswith("rule:"):
             raise RuleOccurrenceError("Repeating-expense days are recorded by the app, not one by one")
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=EXPENSES)
         values = self._expense_values(
             actor, str(salon["id"]), key=key, title=title, category=category, amount_paise=amount_paise,
             payment_method=payment_method, occurred_at=occurred_at, note=note,
@@ -311,7 +340,7 @@ class FinanceUseCases:
         """Record up to 50 expenses in one call. Each item stands alone: a refused item never blocks
         the others, and sending the same ``client_id`` again replays the stored record."""
 
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=EXPENSES)
         salon_id = str(salon["id"])
         await self.repository.lock_salon(salon_id)
         results: list[dict[str, Any]] = []
@@ -338,7 +367,7 @@ class FinanceUseCases:
         return results
 
     async def expense_changes(self, actor: Profile, *, after: int, limit: int) -> dict[str, Any]:
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=EXPENSES)
         rows, has_more = await self.repository.expense_changes(str(salon["id"]), after, limit)
         return {
             "expenses": rows,
@@ -347,7 +376,7 @@ class FinanceUseCases:
         }
 
     async def expense_summary(self, actor: Profile, month: str) -> dict[str, Any]:
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=EXPENSES)
         timezone = salon["timezone"]
         try:
             start, end = month_bounds(month, timezone)
@@ -366,7 +395,7 @@ class FinanceUseCases:
         self, actor: Profile, expense_id: str, *, idempotency_key: str | None
     ) -> dict[str, Any]:
         key = require_idempotency_key(idempotency_key, max_len=MAX_KEY)
-        salon = await self._salon(actor, write=True)
+        salon = await self._salon(actor, write=True, feature=EXPENSES)
         salon_id = str(salon["id"])
         await self.repository.lock_salon(salon_id)
         # Read the original only once the lock is held, so an erasure running at the same time
@@ -396,7 +425,7 @@ class FinanceUseCases:
     async def list_expenses(
         self, actor: Profile, *, first: date | None, last: date | None, limit: int, offset: int
     ) -> dict[str, Any]:
-        salon = await self._salon(actor)
+        salon = await self._salon(actor, feature=EXPENSES)
         salon_id, timezone = str(salon["id"]), salon["timezone"]
         start = local_day_bounds(first, timezone)[0] if first else None
         end = local_day_bounds(last, timezone)[1] if last else None
