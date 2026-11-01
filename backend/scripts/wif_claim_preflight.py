@@ -20,7 +20,7 @@ EXPECTED = {
     "repository": "Shifannv/salon-backend",
     "actor_id": "172572480",
     "ref": "refs/heads/main",
-    "sub": "repo:Shifannv/salon-backend:environment:production",
+    "sub": "repo:Shifannv@172572480/salon-backend@1422493480:environment:production",
     "event_name": "push",
     "workflow_ref": "Shifannv/salon-backend/.github/workflows/cloud-run-auto.yml@refs/heads/main",
 }
