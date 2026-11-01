@@ -1,6 +1,9 @@
 # Main-merge Cloud Run configuration — 30 October 2026
 
-**Status: blocked for activation.** Repository implementation/local verification only. No deployment, migration, cloud or GitHub Actions API request, secret access, settings change, commit or push was performed. The sole approved external access was unauthenticated public upload-artifact release/commit metadata. Actual configured flag values are the owner's supplied facts, not newly queried settings.
+**Status: ready for a reviewed gate-fix pull request.** The first supervised,
+Git-proven Cloud Run release completed successfully on 1 November 2026. The current
+production variable and the affected Actions run were then inspected read-only. This
+source correction does not itself deploy, migrate or change GitHub settings.
 
 The two required CI check names remain exactly:
 
@@ -11,9 +14,16 @@ Do not duplicate branch rules/rulesets. The owner manages GitHub UI settings. Ke
 
 **Authoritative switch**
 
-Only environment `production` variable **`AUTO_DEPLOY_ENABLED`**, exactly lowercase string `true`, opens deployment. Current owner-reported value is `false` and was not changed. Repository variable `PRODUCTION_AUTO_DEPLOY_ENABLED=false` is unused/stale; leave it unchanged for separately approved cleanup.
+Only environment `production` variable **`AUTO_DEPLOY_ENABLED`**, exactly lowercase
+string `true`, opens deployment. Its current verified value is `true`; this change did
+not modify it. The obsolete `PRODUCTION_AUTO_DEPLOY_ENABLED` repository variable and
+environment secret are ignored and left unchanged.
 
-The gate job loads production variables with read-only permissions. If the value is absent/false/nonexact, it performs no external request and outputs enabled=false. Because vars can inherit repository/org values, a candidate true also requires exact production-environment variable readback at runtime. Missing/false/wrong-scope values cannot open the gate; denied readback fails closed. The actual production release job depends on that output and is **skipped**, rather than merely skipping deployment steps. Its future environment-read permission must be validated during the supervised phase; no API access was tested locally.
+Updated 1 November: the production jobs resolve `vars.AUTO_DEPLOY_ENABLED` in each
+executing Python step. Missing/false/nonexact values output enabled=false and skip
+release. No secondary secret is used. The prior workflow referenced the obsolete
+secret at job scope, causing GitHub to suppress the `enabled` job output as potentially
+secret and skip `release`. See [the verified fix](CLOUD_RUN_GATE_FIX_2026-11-01.md).
 
 **Branch behavior**
 
@@ -38,7 +48,9 @@ Original actor ID172572480, repository, ref, workflow path, production environme
 - Candidate checks require Ready/resolved digest, /health/ready body, /version commit/version, process/DB/Redis, docs and strict OpenAPI compatibility. Readiness alone is not schema adoption. The existing migration-difference gate still refuses unapproved schema/code combinations; no migration job, stamp or head upgrade was added.
 - The previous revision must have valid source labels and pass readiness/identity/public health before candidate release. Post-promotion checks verify readiness/identity and API/DB/Redis on both api.salones.in and the retained apiv1.mudassirmhd.in. Fail-fast failure triggers etag-protected traffic rollback. Concurrent external changes are not overwritten. Failed rollback reports unknown traffic/operator action; a successful rollback still leaves the workflow failed.
 - Receipts include commit, API identity, artifact ID/digest, registry/platform digest, start/endUTC, migration comparison target, smoke results, candidate/previous/rollback revisions and exact rollback command. No secret payload or customer row is uploaded. The target describes unchanged migration source relative to a proven baseline; it is not a fabricated observed Alembic version.
-- The old manual candidate workflow is retained as a read-only notice, preventing an alternate production deployment path. Historical scripts remain; initial supervised release/recovery needs its separately approved procedure.
+- The old manual candidate workflow is retained as a read-only notice, preventing an
+  alternate production deployment path. The initial supervised release is complete;
+  historical recovery scripts remain available but are not normal release paths.
 
 **Node20 warning: scoped action update**
 
@@ -46,41 +58,57 @@ Affected action: upload-artifact at ea165f8d65b6e75b540449e92b4886f43607fa02, wh
 
 Evidence: [official release](https://github.com/actions/upload-artifact/releases/tag/v7.0.2), [immutable commit](https://github.com/actions/upload-artifact/commit/cf430e030ddbb5b0abf93d22962f4752f3646cd9), [Node24 action metadata](https://raw.githubusercontent.com/actions/upload-artifact/cf430e030ddbb5b0abf93d22962f4752f3646cd9/action.yml).
 
-**Local verification and limits**
+**Current gate-fix verification and limits**
 
-Relevant deployment/image-identity/build-identity unit tests use fake HTTP/commands/archives and injected dependency probes. No Docker image build, database connection, integration suite, cloud command, real artifact exchange, OIDC exchange or live rollout ran. Full Ruff, actionlint for every workflow, YAML parsing/static policy tests, bash syntax and git diff --check are the local verification scope. PyYAML6.0.3 is declared for those YAML tests. Final result: **137 relevant unit tests passed** (3 new queue-ordering regression tests added), including a run with external DNS/network, database ports, cloud/database subprocesses and remote Git operations blocked. Ruff, workflow YAML/static checks, actionlint, shell syntax and git diff --check passed. These are not the earlier2002-test history or live CI results.
+The focused gate/release suite passed 89 tests. The complete unit suite passed 1,825
+tests. The complete local pytest collection passed 1,847 and skipped 301 cases that
+require a separately configured disposable database. Full backend Ruff passed;
+actionlint inspected all four workflows; all four parsed as YAML; and `git diff
+--check` passed. GitHub CI must still run its disposable-PostgreSQL and Docker checks
+for the exact PR commit. The affected run and production environment were inspected
+read-only to establish the live root cause/value; no workflow was dispatched and no
+GitHub setting was changed by this correction.
 
-Exact changed-file inventory (all local and uncommitted):
+Exact intended gate-fix/release-evidence inventory:
 
 ```text
-.github/workflows/backend.yml
 .github/workflows/cloud-run-auto.yml
-.github/workflows/cloud-run-candidate.yml
-.gitignore
-backend/Dockerfile
-backend/requirements-dev.txt
-backend/app/core/build_info.py
-backend/app/api/v1/routes/health.py
-backend/app/api/v1/schemas/health.py
-backend/scripts/check-container.sh
+backend/docs/CI_CD.md
+backend/docs/verification/CLOUD_RUN_GATE_FIX_2026-11-01.md
+backend/docs/verification/CLOUD_RUN_RELEASE_PREFLIGHT_2026-11-01.md
+backend/docs/verification/GITHUB_MAIN_MERGE_DEPLOYMENT_CONFIGURATION_2026-10-30.md
 backend/scripts/cloud_run_auto.py
-backend/scripts/cloud_run_candidate.py
-backend/scripts/ci_image_bundle.py
 backend/tests/unit/test_cloud_run_auto.py
 backend/tests/unit/test_release_configuration.py
-backend/tests/unit/test_build_identity.py
-backend/docs/verification/GITHUB_MAIN_MERGE_DEPLOYMENT_CONFIGURATION_2026-10-30.md
 ```
 
-**Blockers before enabling**
+**Activation evidence and remaining limits**
 
-0051 is not deployed according to the prior saved evidence. Migration-history reconciliation, exact migration scope (including the separate0052 decision), fresh verified backup/restore, old-client compatibility, finance-aware workers/rollback, isolated staging verification and the first supervised Git-proven schema-compatible release remain unapproved/unverified. The legacy hybrid image cannot be assigned a guessed Git SHA. Existing bootstrap/migration/OpenAPI guards deliberately still block it. The Free/private protection limitation, environment-variable readback permissions and real artifact/OIDC handoff also require explicit supervised verification/risk acceptance. Local uncommitted code is not releasable.
+The live database read-only catalogue reported migration target
+`0052_booking_window_30_days`, the reviewed finance objects/guards and matching selected
+function bodies. The first supervised release established a Git-labelled, immutable,
+healthy serving image and retained Ready rollback revision. Artifact, registry,
+candidate, contract, public-hostname and traffic-promotion paths succeeded. WIF trust
+was configured/read back, but the first automatic run must still prove the live OIDC
+exchange. A denied exchange fails before any candidate or traffic change. These facts
+clear the initial-release blockers for the currently serving source; they do not approve
+future schema changes. Any migration-source difference still fails closed and requires
+its own backup, review, compatibility evidence and explicit approval.
 
-**Manual final-enable steps for Shifan — later, not executed**
+GitHub Free private-repository rules remain non-enforced. Owner review is therefore a
+real operational control, not a server guarantee. Keep deployments-before-merge off.
+Workers are outside the Cloud Run API rollout and need their own release coverage.
 
-1. Review this diff/test evidence and separately authorize source commit/push/PR. Use the existing main rule/ruleset, exact two checks above, and PR review. Do not enable deployment merely because this repository work passed local tests.
-2. Approve and complete the fresh-backup, exact-schema/history/0051 scope and client compatibility work; decide0052 separately. Complete isolated staging and the first supervised proven-source release with healthy, compatible rollback revision. Do not use auto-deployment to bypass these gates.
-3. Review/accept the known Free/private enforcement risk without claiming rules are enforced. Keep deployments-before-merge OFF. Validate owner-only merged-commit admission, production-variable readback and exact CI artifact/OIDC identity through the separately approved supervised process; do not broaden WIF/IAM if a check is denied.
-4. Obtain explicit owner authorization to activate. In repository Settings -> Environments -> production -> Environment variables, change **AUTO_DEPLOY_ENABLED only** to `true`. Leave repository PRODUCTION_AUTO_DEPLOY_ENABLED unchanged. No automatic migration policy is implied.
-5. Merge a reviewed PR to main; observe both exact CI jobs and the release receipt for that SHA/digest/readiness/identity. Failed CI or a stale queued commit must not deploy. If a retry is needed, rerun all jobs, not only release.
-6. To pause future releases, set the same production variable to `false`. Do not cancel an in-flight production mutation/rollback. Inspect retained rollback metadata if health fails. Keep both domains and rollback revision.
+**Owner operation after this fix is merged**
+
+1. Review this focused diff and require `Lint and tests` plus
+   `Build and smoke test image` to pass on the pull request.
+2. Merge only through a PR into `main` as the approved owner. The resulting push runs
+   the same CI for the exact merge SHA, then the corrected release gate.
+3. Observe the automatic release receipt: exact SHA, immutable digest, candidate checks,
+   both public hostnames and final traffic. Do not cancel an in-flight rollout.
+4. Leave `AUTO_DEPLOY_ENABLED=true` for automatic releases. To pause future releases,
+   set only that production environment variable to `false`; the obsolete
+   `PRODUCTION_AUTO_DEPLOY_ENABLED` settings have no effect.
+5. If a retry is required, rerun all jobs so the CI image and release attempt remain
+   identical. Never rerun only the release job or deploy a mutable tag.

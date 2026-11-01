@@ -227,15 +227,8 @@ def gate() -> bool:
         "actor_id": os.environ.get("GITHUB_ACTOR_ID") == "172572480",
     }
     enabled = all(checks.values())
-    if enabled:
-        # vars context may inherit repo/org values; PRODUCTION_AUTO_DEPLOY_ENABLED is an
-        # environment-scoped secret that cannot be set at repo/org level, proving scope.
-        prod_ok = os.environ.get("PRODUCTION_AUTO_DEPLOY_ENABLED") == "true"
-        checks["production_secret"] = prod_ok
-        enabled = prod_ok
     failed = [k for k, v in checks.items() if not v]
-    if failed:
-        print(f"Gate conditions not met: {', '.join(failed)}")
+    print(f"Deployment gate: enabled={str(enabled).lower()}; blocked_by={','.join(failed) or 'none'}")
     output("enabled", str(enabled).lower())
     if not enabled:
         print("Automatic deployment disabled or context ineligible; no cloud authentication or deployment.")

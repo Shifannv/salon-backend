@@ -54,7 +54,7 @@ def test_disabled_gate_has_no_external_side_effects(modules, monkeypatch, value)
 def eligible(modules, monkeypatch):
     release, auto, bundle = modules
     sha = "a" * 40
-    for key, content in {"AUTO_DEPLOY_ENABLED": "true", "PRODUCTION_AUTO_DEPLOY_ENABLED": "true",
+    for key, content in {"AUTO_DEPLOY_ENABLED": "true",
                          "GITHUB_REPOSITORY": release.REPOSITORY,
                          "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main",
                          "GITHUB_ACTOR_ID": "172572480", "GITHUB_SHA": sha,
@@ -75,24 +75,52 @@ def test_exact_merged_main_is_eligible(eligible):
     assert auto.guard() is True
 
 
-@pytest.mark.parametrize("value", [None, "false", "True", "FALSE", "1"])
-def test_production_secret_must_be_exactly_true_to_open_gate(eligible, monkeypatch, value):
+@pytest.mark.parametrize("value", [None, "", "false", "true", "True", "FALSE", "1"])
+def test_stale_secret_cannot_change_enabled_gate(eligible, monkeypatch, value):
     _, auto, _, _ = eligible
     if value is None:
         monkeypatch.delenv("PRODUCTION_AUTO_DEPLOY_ENABLED", raising=False)
     else:
         monkeypatch.setenv("PRODUCTION_AUTO_DEPLOY_ENABLED", value)
-    assert auto.gate() is False
+    assert auto.guard() is True
 
 
-def test_missing_production_secret_leaves_gate_unopened(eligible, monkeypatch, tmp_path):
+def test_single_variable_gate_emits_enabled_output_and_reason(eligible, monkeypatch, tmp_path, capsys):
     _, auto, _, _ = eligible
     output = tmp_path / "outputs"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.delenv("PRODUCTION_AUTO_DEPLOY_ENABLED", raising=False)
-    result = auto.gate()
-    assert result is False
-    assert output.read_text().strip() == "enabled=false"
+    assert auto.gate() is True
+    assert output.read_text().strip() == "enabled=true"
+    assert "Deployment gate: enabled=true; blocked_by=none" in capsys.readouterr().out
+    monkeypatch.setenv("AUTO_DEPLOY_ENABLED", "false")
+    assert auto.gate() is False
+    assert output.read_text().splitlines()[-1] == "enabled=false"
+    assert "Deployment gate: enabled=false; blocked_by=auto_deploy_enabled" in capsys.readouterr().out
+
+
+def test_missing_authoritative_variable_fails_closed(eligible, monkeypatch, capsys):
+    _, auto, _, _ = eligible
+    monkeypatch.delenv("AUTO_DEPLOY_ENABLED")
+    monkeypatch.setenv("PRODUCTION_AUTO_DEPLOY_ENABLED", "true")
+    assert auto.gate() is False
+    assert "blocked_by=auto_deploy_enabled" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("key,value,reason", [
+    ("GITHUB_REF", "refs/heads/shifan", "ref_main"),
+    ("GITHUB_EVENT_NAME", "pull_request", "event_push"),
+    ("GITHUB_EVENT_NAME", "pull_request_target", "event_push"),
+    ("GITHUB_EVENT_NAME", "workflow_dispatch", "event_push"),
+    ("GITHUB_REPOSITORY", "other/repo", "repository"),
+    ("GITHUB_ACTOR_ID", "untrusted", "actor_id"),
+])
+def test_ineligible_context_prints_exact_reason_before_identity(eligible, monkeypatch, capsys, key, value, reason):
+    release, auto, _, _ = eligible
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(release, "identity", forbidden)
+    assert auto.guard() is False
+    assert f"Deployment gate: enabled=false; blocked_by={reason}" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("change", ["unmerged", "different_sha", "different_base", "different_repo", "direct_push"])
@@ -174,14 +202,20 @@ def test_actual_deploy_job_skips_when_authoritative_gate_is_false():
     # later cannot preempt a newer commit's pending release slot (P1 queue-ordering fix).
     assert data["concurrency"] == {"group": "production-cloud-run", "cancel-in-progress": "false"}
     assert data["jobs"]["gate"]["environment"] == "production"
-    assert data["jobs"]["gate"]["env"]["AUTO_DEPLOY_ENABLED"] == "${{ vars.AUTO_DEPLOY_ENABLED }}"
+    activation = next(step for step in data["jobs"]["gate"]["steps"] if step.get("id") == "activation")
+    assert activation["env"]["AUTO_DEPLOY_ENABLED"] == "${{ vars.AUTO_DEPLOY_ENABLED }}"
+    assert "AUTO_DEPLOY_ENABLED" not in data["jobs"]["gate"]["env"]
     job = data["jobs"]["release"]
     assert set(job["needs"]) == {"ci", "gate"}
     assert "needs.gate.outputs.enabled == 'true'" in job["if"]
     assert "concurrency" not in job  # serialization is at workflow level, not release-job level
     assert all("if" in step for step in job["steps"] if step.get("uses", "").startswith("google-github-actions/"))
     workflow_text = (ROOT / ".github/workflows/cloud-run-auto.yml").read_text()
-    assert "PRODUCTION_AUTO_DEPLOY_ENABLED: ${{ secrets.PRODUCTION_AUTO_DEPLOY_ENABLED }}" in workflow_text
+    assert "PRODUCTION_AUTO_DEPLOY_ENABLED" not in workflow_text
+    assert "AUTO_DEPLOY_ENABLED" not in job["env"]
+    for step in job["steps"]:
+        if step.get("run", "").endswith(("cloud_run_auto.py guard", "cloud_run_auto.py deploy")):
+            assert step["env"]["AUTO_DEPLOY_ENABLED"] == "${{ vars.AUTO_DEPLOY_ENABLED }}"
     manual = workflow("cloud-run-candidate.yml")
     assert manual["permissions"] == {"contents": "read"} and set(manual["jobs"]) == {"disabled"}
 

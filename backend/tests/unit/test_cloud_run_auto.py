@@ -50,6 +50,22 @@ def test_auto_main_push_passes_without_invented_manual_approval(auto, context, m
         auto.release.preflight()
 
 
+def test_ordinary_owner_merge_passes_real_identity_and_merged_sha_admission(auto, context, monkeypatch):
+    """The merge event actor is the approved owner; the PR author may differ."""
+    sha = "a" * 40
+    monkeypatch.setenv("GITHUB_ACTOR", "Shifannv")
+    monkeypatch.setenv("GITHUB_TRIGGERING_ACTOR", "Shifannv")
+    monkeypatch.setenv("PRODUCTION_AUTO_DEPLOY_ENABLED", "false")
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    context[f"commits/{sha}/pulls?per_page=100"] = [{
+        "merged_at": "2026-11-01T00:00:00Z", "merge_commit_sha": sha,
+        "user": {"login": "different-contributor", "id": 42},
+        "merged_by": {"login": "Shifannv", "id": 172572480},
+        "base": {"ref": "main", "repo": {"full_name": auto.release.REPOSITORY}},
+    }]
+    assert auto.guard() is True
+
+
 @pytest.mark.parametrize("key,value", [("GITHUB_REF", "refs/heads/feature"), ("GITHUB_EVENT_NAME", "pull_request"),
                                       ("GITHUB_EVENT_NAME", "workflow_dispatch"), ("GITHUB_ACTOR_ID", "other"),
                                       ("GITHUB_REPOSITORY", "other/repo"), ("AUTO_DEPLOY_ENABLED", "false"),
