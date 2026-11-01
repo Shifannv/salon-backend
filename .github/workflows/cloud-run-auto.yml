@@ -74,6 +74,9 @@ jobs:
         env:
           AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
         run: python3 backend/scripts/cloud_run_auto.py guard
+      - name: Verify exact GitHub OIDC claims before federation
+        if: steps.admit.outputs.eligible == 'true'
+        run: python3 backend/scripts/wif_claim_preflight.py
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         if: steps.admit.outputs.eligible == 'true'
         with:

@@ -210,6 +210,11 @@ def test_actual_deploy_job_skips_when_authoritative_gate_is_false():
     assert "needs.gate.outputs.enabled == 'true'" in job["if"]
     assert "concurrency" not in job  # serialization is at workflow level, not release-job level
     assert all("if" in step for step in job["steps"] if step.get("uses", "").startswith("google-github-actions/"))
+    claim_step = next(step for step in job["steps"] if step.get("run") == "python3 backend/scripts/wif_claim_preflight.py")
+    auth_index = next(index for index, step in enumerate(job["steps"])
+                      if step.get("uses", "").startswith("google-github-actions/auth@"))
+    assert claim_step["if"] == "steps.admit.outputs.eligible == 'true'"
+    assert job["steps"].index(claim_step) < auth_index
     workflow_text = (ROOT / ".github/workflows/cloud-run-auto.yml").read_text()
     assert "PRODUCTION_AUTO_DEPLOY_ENABLED" not in workflow_text
     assert "AUTO_DEPLOY_ENABLED" not in job["env"]

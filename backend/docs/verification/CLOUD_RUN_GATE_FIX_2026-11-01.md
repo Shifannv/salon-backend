@@ -83,3 +83,20 @@ but not enforced by the plan. Owner review remains necessary. Keep “Require de
 to succeed before merging” off because deployment follows merge. No IAM/WIF, GitHub
 setting, secret, environment variable, database, DNS or Cloud Run configuration was
 changed by this gate correction.
+
+## First automatic-run result
+
+PR #34 merged as `fc0d3e42f7bbb4e5b89c93333fd8cc397069da6c`. Automatic run
+`41285018651` passed its full PostgreSQL CI, Docker image build/smoke, corrected gate
+and exact merged-main admission. The release then failed at Google federation with
+`unauthorized_client`: the credential was rejected by the WIF attribute condition.
+This occurred before setup-gcloud, registry publication, candidate creation or traffic
+change. Production remained on the healthy supervised revision.
+
+Repository ID, owner ID, run actor ID, event, ref and workflow path match the provider
+condition by independent readback. The OIDC `sub` and `workflow_ref` claims are not
+available in run metadata. A fail-closed pre-auth verifier now requests the GitHub OIDC
+token, keeps it in memory, logs only the selected non-secret identity claims, and
+requires all approved values exactly before Google authentication. It does not weaken
+or modify WIF/IAM. Its first main run is diagnostic evidence for the smallest separately
+reviewed trust correction, if any.
