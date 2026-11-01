@@ -54,7 +54,8 @@ def test_disabled_gate_has_no_external_side_effects(modules, monkeypatch, value)
 def eligible(modules, monkeypatch):
     release, auto, bundle = modules
     sha = "a" * 40
-    for key, content in {"AUTO_DEPLOY_ENABLED": "true", "GITHUB_REPOSITORY": release.REPOSITORY,
+    for key, content in {"AUTO_DEPLOY_ENABLED": "true", "PRODUCTION_AUTO_DEPLOY_ENABLED": "true",
+                         "GITHUB_REPOSITORY": release.REPOSITORY,
                          "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main",
                          "GITHUB_ACTOR_ID": "172572480", "GITHUB_SHA": sha,
                          "GITHUB_ACTOR": "Shifannv", "GITHUB_TRIGGERING_ACTOR": "Shifannv"}.items():
@@ -65,8 +66,7 @@ def eligible(modules, monkeypatch):
     monkeypatch.setattr(auto, "cloud", forbidden)
     pulls = [{"merged_at": "synthetic", "merge_commit_sha": sha,
               "base": {"ref": "main", "repo": {"full_name": release.REPOSITORY}}}]
-    monkeypatch.setattr(release, "github", lambda path: {"name": "AUTO_DEPLOY_ENABLED", "value": "true"}
-                        if path.startswith("environments/") else pulls)
+    monkeypatch.setattr(release, "github", lambda path: pulls)
     return release, auto, bundle, pulls
 
 
@@ -75,22 +75,24 @@ def test_exact_merged_main_is_eligible(eligible):
     assert auto.guard() is True
 
 
-@pytest.mark.parametrize("value", [{}, {"name": "AUTO_DEPLOY_ENABLED", "value": "false"},
-                                   {"name": "PRODUCTION_AUTO_DEPLOY_ENABLED", "value": "true"}])
-def test_inherited_repository_true_cannot_replace_production_environment_gate(eligible, monkeypatch, value):
-    release, auto, _, _ = eligible
-    monkeypatch.setattr(release, "github", lambda path: value)
+@pytest.mark.parametrize("value", [None, "false", "True", "FALSE", "1"])
+def test_production_secret_must_be_exactly_true_to_open_gate(eligible, monkeypatch, value):
+    _, auto, _, _ = eligible
+    if value is None:
+        monkeypatch.delenv("PRODUCTION_AUTO_DEPLOY_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("PRODUCTION_AUTO_DEPLOY_ENABLED", value)
     assert auto.gate() is False
 
 
-def test_environment_read_denied_leaves_gate_unopened(eligible, monkeypatch, tmp_path):
-    release, auto, _, _ = eligible
+def test_missing_production_secret_leaves_gate_unopened(eligible, monkeypatch, tmp_path):
+    _, auto, _, _ = eligible
     output = tmp_path / "outputs"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
-    monkeypatch.setattr(release, "github", lambda *args: (_ for _ in ()).throw(RuntimeError("GitHub preflight denied")))
-    with pytest.raises(RuntimeError, match="denied"):
-        auto.gate()
-    assert not output.exists()
+    monkeypatch.delenv("PRODUCTION_AUTO_DEPLOY_ENABLED", raising=False)
+    result = auto.gate()
+    assert result is False
+    assert output.read_text().strip() == "enabled=false"
 
 
 @pytest.mark.parametrize("change", ["unmerged", "different_sha", "different_base", "different_repo", "direct_push"])
@@ -114,8 +116,7 @@ def test_stale_queue_is_skipped_before_cloud_auth(eligible, monkeypatch):
     release, auto, _, _ = eligible
     monkeypatch.setattr(release, "identity", lambda **kwargs: (_ for _ in ()).throw(
         RuntimeError("main advanced; run again for latest main")))
-    monkeypatch.setattr(release, "github", lambda path: {"name": "AUTO_DEPLOY_ENABLED", "value": "true"}
-                        if path.startswith("environments/") else forbidden())
+    monkeypatch.setattr(release, "github", forbidden)
     assert auto.guard() is False
 
 
@@ -179,7 +180,8 @@ def test_actual_deploy_job_skips_when_authoritative_gate_is_false():
     assert "needs.gate.outputs.enabled == 'true'" in job["if"]
     assert "concurrency" not in job  # serialization is at workflow level, not release-job level
     assert all("if" in step for step in job["steps"] if step.get("uses", "").startswith("google-github-actions/"))
-    assert "PRODUCTION_AUTO_DEPLOY_ENABLED" not in (ROOT / ".github/workflows/cloud-run-auto.yml").read_text()
+    workflow_text = (ROOT / ".github/workflows/cloud-run-auto.yml").read_text()
+    assert "PRODUCTION_AUTO_DEPLOY_ENABLED: ${{ secrets.PRODUCTION_AUTO_DEPLOY_ENABLED }}" in workflow_text
     manual = workflow("cloud-run-candidate.yml")
     assert manual["permissions"] == {"contents": "read"} and set(manual["jobs"]) == {"disabled"}
 
