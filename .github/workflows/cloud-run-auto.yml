@@ -28,6 +28,7 @@ jobs:
       enabled: ${{ steps.activation.outputs.enabled }}
     env:
       AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+      PRODUCTION_AUTO_DEPLOY_ENABLED: ${{ secrets.PRODUCTION_AUTO_DEPLOY_ENABLED }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -53,6 +54,7 @@ jobs:
       pull-requests: read
     env:
       AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+      PRODUCTION_AUTO_DEPLOY_ENABLED: ${{ secrets.PRODUCTION_AUTO_DEPLOY_ENABLED }}
       BOOTSTRAP_BASELINE: 'false'
       BOOTSTRAP_CONFIRMATION: ''
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
