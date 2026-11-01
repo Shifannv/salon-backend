@@ -50,63 +50,65 @@ credentials remain in Cloud Run/Secret Manager, never GitHub. See the exact
 [approved IAM configuration](CLOUD_RUN_OIDC_IAM_PROPOSAL.md). All six variables
 are configured and read back in production; its sole allowed branch is main.
 The four target identifiers also remain at repository scope with identical values.
-No environment secrets were created.
+No GCP JSON credential or application-runtime secret is stored in GitHub. The obsolete
+`PRODUCTION_AUTO_DEPLOY_ENABLED` environment secret may remain, but no active workflow
+reads it.
 
 The approved pool, provider, deployment account and four resource-scoped bindings
 were created/read back. The account has no user-managed keys or project-wide
 grants. Security Token Service API (sts.googleapis.com) is enabled, verified by
 read-only inspection on 29 October 2026 after its separately approved activation.
-The existing provider still permits only the exact manual event/workflow pair;
-the automatic workflow trust proposal below has not been applied. This change
-has not performed a federation exchange or production release.
+The existing provider permits the reviewed manual candidate path and the exact
+`cloud-run-auto.yml` owner/main/push path, and its condition was read back after
+configuration. The skipped automatic run did not reach federation; its first live
+OIDC exchange remains an observed check for the gate-fix merge. No JSON service-account
+key is used. Do not broaden repository, owner, actor, ref, environment, event or
+workflow restrictions.
 
-## Automatic releases ? prepared, activation pending
+## Automatic releases
 
-The owner now requested automatic production deployment for eligible main pushes.
-The new [automatic release guide](CLOUD_RUN_AUTO_DEPLOY.md) describes CI, candidate
-verification, automatic traffic promotion and health-triggered rollback. It is
-separate from the manual candidate workflow below. It defaults to disabled and
-requires the narrow additional WIF event/workflow pair to be approved first.
-Current hybrid-image provenance, schema and contract differences remain blockers;
-no production release or migration is performed by preparing these changes.
+The [automatic release guide](CLOUD_RUN_AUTO_DEPLOY.md) describes CI, immutable-image
+candidate verification, automatic traffic promotion and health-triggered rollback.
+Only production environment variable `AUTO_DEPLOY_ENABLED`, exactly lowercase
+`true`, activates release. The similarly named legacy repository variable and secret
+are ignored. Feature pushes and pull requests run CI only. An eligible owner-merged
+latest-main push must pass both CI jobs and every admission/provenance/migration/
+health guard before OIDC authentication and release.
+
+The first supervised Git-proven release completed on 1 November 2026 and established
+a healthy labelled baseline plus retained rollback revision. No future migration is
+automatically approved: any migration-source difference fails closed pending its own
+review, backup and compatibility release.
 
 ## Manual candidate workflow
 
-For a manual candidate release, review and merge changes with green CI, then dispatch **Cloud Run production candidate** on latest
-main. Set `approve_deployment=true`, type exactly `DEPLOY api.salones.in`, and
-supply `commit_sha` equal to the full selected/latest main SHA. Also supply the
-full **proven source commit of the serving image** as `baseline_commit`.
+The historical manual candidate workflow is retained as a disabled/read-only notice;
+it is not an alternate normal deployment path. Automatic releases use the reviewed
+main-push workflow above. A future one-off manual recovery requires its own explicit
+review and approval before the disabled workflow may be changed.
 
-The workflow requires workflow_dispatch, refs/heads/main, actor ID 172572480,
-explicit approval, exact typed confirmation, supplied SHA equal to github.sha,
-and API verification that it is still latest main. CI and image checks pass in
-the same run through a reusable workflow. It uses environment production,
-concurrency group production-cloud-run with cancel-in-progress=false, main-only
-environment policy, clean exact checkout, target identifiers and zero migration
-differences from baseline. This manual candidate workflow rejects push, PR and feature-branch events.
-The separately configured automatic workflow accepts only eligible main pushes.
-It then authenticates through GitHub OIDC/WIF, never a service-account JSON key.
-Permissions are contents:read, id-token:write, plus actions:read solely to inspect
-environment branch policy. No Actions write permission or production application
-secret is used.
+The active automatic workflow uses production environment, concurrency group
+`production-cloud-run` with `cancel-in-progress: false`, main-only environment policy,
+clean exact checkout, exact target identifiers and zero unreviewed migration
+differences. It authenticates through GitHub OIDC/WIF, never a service-account JSON
+key. Permissions are `contents: read`, `id-token: write`, `actions: read` for the
+exact CI artifact, and `pull-requests: read` for merged-commit admission. No Actions
+write permission or production application secret is used.
 
-Normal releases require a matching OCI source revision label. The old hybrid
-image has none: **do not guess a baseline SHA**. The separately reviewed,
-digest-pinned [legacy bootstrap](CLOUD_RUN_BOOTSTRAP.md) can verify that exact
-image through its complete selected-file inventory. It adds explicit bootstrap
-selection/confirmation and does not bypass migration checks. Current schema
-differences still block release; see [required review](CLOUD_RUN_SCHEMA_RECONCILIATION.md).
-Any migration difference requires separate reviewed backup/target/approval.
-No Alembic upgrade/stamp, schema write or production data mutation is performed.
+Normal releases require a matching OCI source revision label. The historical hybrid
+image had none and was handled only by the separately approved first-release process;
+never assign it a guessed SHA. Current production now provides the proven labelled
+baseline required by automatic releases. Any migration difference requires separate
+reviewed backup/target/approval. No Alembic upgrade/stamp, schema write or production
+data mutation is performed by the workflow.
 
-The candidate script builds the exact checked-out commit with OCI revision/source
-labels, smoke-tests locally, pushes a unique tag to existing Artifact Registry,
-resolves its digest, pulls and checks its source labels, and rechecks latest main
-and unchanged service metadata before deployment. It calls only an image update
-with `--no-traffic`, a unique revision suffix and review tag. No env, secret,
-service account, CPU/memory/concurrency/min/max/ingress setting is replaced.
-It compares runtime configuration privately and verifies normal traffic unchanged.
-Raw service/command output and environment values are not logged or uploaded.
+CI builds and smoke-tests the exact checked-out commit with OCI revision/source labels.
+The release downloads that same run/attempt artifact, verifies its archive, config,
+layers and labels, pushes it without rebuilding, resolves its immutable digest, and
+rechecks latest main and unchanged service metadata before deployment. It creates a
+zero-traffic candidate with a unique revision suffix and review tag. No environment,
+secret, runtime service account, CPU/memory/concurrency/min/max/ingress setting is
+replaced. Raw service output and environment values are not logged or uploaded.
 
 Candidate read-only checks: Ready, /health, /health/db (SELECT 1), /health/redis
 (PING), /docs, and a parsed /openapi.json with contract hash/path count. Compare
@@ -116,30 +118,13 @@ structural comparison does not prove every application's behavior. No owner,
 customer, checkout, booking, payment or deletion mutation runs. Any failed check
 holds promotion. A retained zero-traffic revision/tag is not deleted automatically.
 
-Download `cloud-run-candidate-<commit>-<run>-<attempt>` to review
-`candidate-result.json`: exact SHA, immutable image, candidate revision/URL,
-previous revision/image, every smoke result, migration differences and rollback
-command. A successful result is `PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL`.
-The workflow never promotes traffic. Ask the owner explicitly:
-
-Request the owner's separate exact approval message:
-**PROMOTE CLOUD RUN CANDIDATE**
-
-## After explicit traffic approval
-
-Only after the exact approval above, use the tested revision without rebuilding. Revalidate its
-digest, latest main and unchanged previous production traffic first. Only then:
-
-```bash
-gcloud run services update-traffic salon-api-production --project=saloon-505509 \
-  --region=asia-south1 --to-revisions=TESTED_CANDIDATE_REVISION=100
-```
-
-Check api.salones.in /health, /health/db, /health/redis, and
-apiv1.mudassirmhd.in /health. If any fails, immediately execute the exact
-`rollback_command` in the retained receipt, then verify both origins. Keep the
-previous revision. Do not use `--to-latest`, rebuild, migrate, delete old revisions,
-remove tags/hostnames or mutate secrets as part of promotion/rollback.
+After candidate verification, the workflow rechecks the receipt, service resource
+version/etag and settled previous traffic, then promotes the tested revision without
+rebuilding. Both public hostnames must pass readiness, exact commit identity,
+process/database/Redis checks. Any failure restores the complete previous traffic map
+and keeps both revisions. The uploaded `candidate-result.json` records exact SHA,
+immutable image, candidate/previous revisions, migration comparison, smoke results,
+promotion result and rollback command.
 
 ## Worker coverage
 
