@@ -121,6 +121,53 @@ def inspect_isolated_container(docker: str, container: str) -> dict[str, Any]:
     return {"network_mode": "none", "published_ports": 0}
 
 
+def inspect_empty_database(
+    docker: str, container: str, database_user: str, database: str
+) -> dict[str, Any]:
+    """Require a privileged, empty target before restoring managed Supabase schemas."""
+
+    query = """
+        select current_user, r.rolsuper::text, r.rolbypassrls::text,
+               (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+                where n.nspname not in ('pg_catalog','information_schema')
+                  and n.nspname not like 'pg_toast%'
+                  and c.relkind in ('r','p','v','m','S','f'))::text
+        from pg_roles r where r.rolname=current_user
+    """
+    result = subprocess.run(
+        [
+            docker,
+            "exec",
+            container,
+            "psql",
+            "--username",
+            database_user,
+            "--dbname",
+            database,
+            "--no-psqlrc",
+            "--tuples-only",
+            "--no-align",
+            "--field-separator=|",
+            "--command",
+            query,
+        ],
+        capture_output=True,
+        check=False,
+        timeout=20,
+        creationflags=CREATE_NO_WINDOW,
+    )
+    if result.returncode:
+        raise RestoreError("Restore database or role is unavailable")
+    fields = result.stdout.decode(errors="replace").strip().split("|")
+    if len(fields) != 4 or fields[0] != database_user:
+        raise RestoreError("Restore database identity could not be verified")
+    if fields[1:3] != ["true", "true"]:
+        raise RestoreError("Full Supabase restore requires a superuser with RLS bypass")
+    if fields[3] != "0":
+        raise RestoreError("Restore database must be empty")
+    return {"restore_role_superuser": True, "restore_database_empty": True}
+
+
 def validate_inputs(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     archive = Path(args.archive).resolve()
     keyring = Path(args.gpg_home).resolve()
@@ -135,6 +182,8 @@ def validate_inputs(args: argparse.Namespace) -> tuple[Path, Path, Path]:
         raise RestoreError("DPAPI passphrase file must exist outside the repository")
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,62}", args.database):
         raise RestoreError("Invalid isolated database name")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,62}", args.database_user):
+        raise RestoreError("Invalid isolated database user")
     return archive, keyring, passphrase_file
 
 
@@ -144,6 +193,9 @@ def restore(args: argparse.Namespace) -> dict[str, Any]:
     if not gpg or not docker:
         raise RestoreError("GPG and Docker are required")
     isolation = inspect_isolated_container(docker, args.container)
+    target = inspect_empty_database(
+        docker, args.container, args.database_user, args.database
+    )
     passphrase = unprotect_dpapi(passphrase_file)
     started = time.perf_counter()
     gpg_process = restore_process = None
@@ -223,6 +275,7 @@ def restore(args: argparse.Namespace) -> dict[str, Any]:
         "elapsed_seconds": round(time.perf_counter() - started, 3),
         "plaintext_dump_written": False,
         **isolation,
+        **target,
     }
 
 

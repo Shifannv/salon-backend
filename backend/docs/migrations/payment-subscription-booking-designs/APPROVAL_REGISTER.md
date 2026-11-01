@@ -1541,6 +1541,15 @@ longer mentions customer refunds (F12). Not yet built: staff earnings and commis
   owner sees earned, paid and still owed. Open design points to settle before building it: part payments,
   corrections (append-only), and whether a cash payment reduces the expected drawer cash.
 
+### F19 - Cash and UPI collected on a staff member's services (recorded 2026-11-01)
+
+- **F19 Owner-only view:** on a staff member's detail page the owner sees "Collected on their services": cash and
+  UPI worked out as each service's share of what the customer paid on its booking, split by service value (largest
+  remainder, so the shares add up to the payment, net of processed refunds). It is labelled "the salon's money, not
+  their pay", is never added to commission, and is never shown to staff. This changes the earlier rule that cash/UPI
+  are not described as belonging to individual staff, for this owner-only view only; commission still depends only on
+  the service value and the rule in force at completion (F07, F10).
+
 ## Verification boundary and stopping point
 
 Only local Markdown links/anchors, section/decision/field numbering and whitespace
