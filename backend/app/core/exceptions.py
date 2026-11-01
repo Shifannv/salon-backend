@@ -450,3 +450,39 @@ class ExpenseAlreadyReversedError(ConflictError):
     """An expense can be reversed once; a reversal itself cannot be reversed."""
 
     code = "expense_already_reversed"
+
+
+class InsufficientBalanceError(ConflictError):
+    """The owner asked for more than the wallet has available."""
+
+    code = "insufficient_balance"
+
+
+class PayoutBelowMinimumError(ValidationError):
+    """The amount asked for is below the smallest payout."""
+
+    code = "below_minimum"
+
+
+class PayoutAccountMissingError(ConflictError):
+    """No bank or UPI details are saved to pay the money into."""
+
+    code = "payout_account_missing"
+
+
+class PayoutDayInvalidError(ValidationError):
+    """The payout day is in the past or too far ahead."""
+
+    code = "invalid_date"
+
+
+class PayoutNotCancellableError(ConflictError):
+    """A payout request that has already been paid, rejected or cancelled cannot be cancelled."""
+
+    code = "not_cancellable"
+
+
+class PayoutAlreadyProcessedError(ConflictError):
+    """A payout request that has already been paid, rejected or cancelled cannot be processed again."""
+
+    code = "already_processed"

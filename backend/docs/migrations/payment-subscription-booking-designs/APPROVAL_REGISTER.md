@@ -1530,6 +1530,17 @@ longer mentions customer refunds (F12). Not yet built: staff earnings and commis
   does not. The server refuses any day a rule does not allow.
 - Missed days are filled in for up to 31 days back when the app opens.
 
+### F15-F18 - Staff earnings (S1) answers (recorded 2026-11-01)
+- **F15 Fixed commission above the price:** capped at the service's price. A rule is never refused for this.
+- **F16 Who did each service:** the customer app keeps one barber per booking (service chosen first, the barber
+  free soonest is the default, the customer may pick another and sees that barber's times). Per-service
+  attribution defaults to the booking's barber; the owner may change it before the service is completed;
+  after completion only an audited correction (F10). No customer-app or availability change in S1.
+- **F17 Where rules live:** Finance, Staff earnings (owner only), with a Commission settings button.
+- **F18 Paying staff:** the app records when the owner pays a staff member their commission ("Mark as paid"), so the
+  owner sees earned, paid and still owed. Open design points to settle before building it: part payments,
+  corrections (append-only), and whether a cash payment reduces the expected drawer cash.
+
 ## Verification boundary and stopping point
 
 Only local Markdown links/anchors, section/decision/field numbering and whitespace
