@@ -314,7 +314,7 @@ async def check_0050_column_exists(conn) -> dict[str, Any]:
 
 async def check_0051_finance_schema(conn) -> dict[str, Any]:
     """PASS: 0051 finance tables exist (salon_expenses, salon_cash_adjustments, etc.)."""
-    tables = ["salon_expenses", "salon_cash_adjustments", "salon_day_close",
+    tables = ["salon_expenses", "salon_cash_adjustments", "salon_day_closes",
               "salon_expense_rules"]
     results: list[dict] = []
     all_pass = True
