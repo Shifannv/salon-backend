@@ -95,6 +95,9 @@ async def test_every_table_that_blocks_a_salon_delete_is_handled_by_erase_salon(
     """Walk the foreign-key graph: a table with a non-cascading reference toward salons must be listed."""
     handled = set(re.findall(r"'([a-z_]+)'", re.search(
         r"v_tables text\[\] := ARRAY\[(.*?)\];", (SQL_DIR / "0058_admin_salon_erasure.sql").read_text(encoding="utf-8"), re.DOTALL).group(1)))
+    from app.infrastructure.db.repositories.platform.admin_salon_erasure import _ERASURE_TABLES
+
+    assert handled <= set(_ERASURE_TABLES), "Acquire erase trigger table locks before checking readiness"
     edges = await env.sql(
         """select conrelid::regclass::text as child, confrelid::regclass::text as parent, confdeltype as rule
            from pg_constraint where contype = 'f' and connamespace = 'public'::regnamespace""")

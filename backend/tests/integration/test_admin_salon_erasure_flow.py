@@ -232,3 +232,94 @@ async def test_an_unknown_salon_is_not_found(env, admin):
     async with session:
         with pytest.raises(NotFoundError):
             await use_cases.readiness(admin, str(uuid4()))
+
+
+@pytest.mark.parametrize("role", ["customer", "super_admin", "owner"])
+async def test_a_profile_linked_as_staff_is_preserved_unless_it_is_staff(env, admin, role):
+    f = await env.seed()
+    linked = str(uuid4())
+    await env.sql("insert into auth.users(id, email) values(:i, :e)", i=linked, e=linked + "@example.test")
+    await env.sql("update profiles set role = cast(:r as user_role) where id = :i", r=role, i=linked)
+    await env.sql("update staff set profile_id = :i where id = :s", i=linked, s=f["staff"])
+    use_cases, session, _, auth, _ = await build(env, f, auth_users=[linked, f["owner"]])
+    async with session:
+        await use_cases.erase(admin, f["salon"])
+    assert await count(env, "profiles", "id = :i", i=linked) == 1
+    assert linked not in auth.deleted
+
+
+async def test_erasure_retains_the_verified_admin_in_the_tombstone(env, admin):
+    f = await env.seed()
+    use_cases, session, *_ = await build(env, f)
+    async with session:
+        await use_cases.erase(admin, f["salon"])
+    job = (await env.sql("select step_state from salon_erasure_jobs where salon_id = :s", s=f["salon"]))[0]
+    assert job["step_state"]["initiated_by"] == str(admin.id)
+
+
+async def test_auth_cleanup_failure_is_visible_and_can_be_retried_after_profile_deletion(env, admin):
+    from app.core.exceptions import ServiceUnavailableError
+
+    f = await env.seed()
+    use_cases, session, _, auth, _ = await build(env, f)
+    delete_user = auth.delete_user
+
+    async def unavailable(user_id):
+        raise RuntimeError("Auth unavailable")
+
+    auth.delete_user = unavailable
+    async with session:
+        with pytest.raises(ServiceUnavailableError):
+            await use_cases.erase(admin, f["salon"])
+        assert await count(env, "profiles", "id = :i", i=f["owner"]) == 0
+        assert (await use_cases.readiness(admin, f["salon"]))["can_delete"] is True
+        auth.delete_user = delete_user
+        await use_cases.erase(admin, f["salon"])
+    assert auth.deleted == [f["owner"]]
+    assert (await env.sql("select status from salon_erasure_jobs where salon_id = :s", s=f["salon"]))[0]["status"] == "complete"
+
+
+async def test_cache_cleanup_failure_keeps_the_job_pending(env, admin):
+    from app.core.exceptions import ServiceUnavailableError
+
+    f = await env.seed()
+    use_cases, session, _, _, cache = await build(env, f)
+
+    async def unavailable(prefix, *, strict=False):
+        if strict:
+            raise RuntimeError("Redis unavailable")
+
+    cache.delete_prefix = unavailable
+    async with session:
+        with pytest.raises(ServiceUnavailableError):
+            await use_cases.erase(admin, f["salon"])
+    assert (await env.sql("select status from salon_erasure_jobs where salon_id = :s", s=f["salon"]))[0]["status"] == "cleanup_pending"
+
+
+async def test_an_unresolved_gateway_payment_blocks_erasure(env, admin):
+    f = await env.seed()
+    booking = await env.book(f)
+    await add_online_payment(env, f, booking, status="created")
+    use_cases, session, *_ = await build(env, f)
+    async with session:
+        state = await use_cases.prepare(admin, f["salon"], "auto")
+        assert state["payments_pending_count"] == 1
+        assert "payments_pending" in state["blockers"]
+        with pytest.raises(SalonNotReadyForDeletionError):
+            await use_cases.erase(admin, f["salon"])
+
+
+async def test_a_concurrent_writer_gets_a_retryable_conflict_instead_of_a_lock_cycle(env, admin):
+    from sqlalchemy import text
+
+    from app.core.exceptions import ConflictError
+
+    f = await env.seed()
+    use_cases, session, *_ = await build(env, f)
+    async with env.session() as writer, session:
+        await writer.execute(text("update salons set name = name where id = :s"), {"s": f["salon"]})
+        with pytest.raises(ConflictError, match="being updated"):
+            await use_cases.erase(admin, f["salon"])
+        await writer.rollback()
+        await use_cases.erase(admin, f["salon"])
+    assert await count(env, "salons", "id = :s", s=f["salon"]) == 0

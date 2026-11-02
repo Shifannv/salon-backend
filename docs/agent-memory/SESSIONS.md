@@ -66,3 +66,5 @@ Session ID: `YYYYMMDD-HHMM-{git user slug}`. Rules: `.claude/skills/agent-memory
 | 2026-10-31 | 20261031-1229-shifan-nv | shifan | Phase 3 full-data isolated restore rehearsal + Gate B evidence | All 9 post-gate-b harness checks PASS on real production data; 1834 tests pass; owner authorized production release Phases A-E | Execute Phases A-E in next session: preflight, maintenance window, Gate B/C/D/E | progress/shifan.md |
 
 | 2026-10-31 | 20261031-1509-shifan-nv | shifan | Execute production Gate B migrations 0041–0050 | Blocked by auto-mode classifier; alembic_version at 0040; settings.json fixed (tools→ask list); guard_no_show_attendance accidentally pre-created (harmless) | Start interactive session, approve each execute_sql migration step | progress/shifan.md |
+
+| 2026-11-02 | 20261102-1840-shifan-nv | shifan | Fix superadmin permanent salon deletion; disposable local only | Full CI2620pass42skip; SQL/HTTP erase verified; isolated website3101/backend8001 running | User acceptance on Local Delete Demo; real release remains out of scope | progress/shifan.md |
