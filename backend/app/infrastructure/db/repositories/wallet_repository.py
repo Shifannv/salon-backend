@@ -55,21 +55,24 @@ _FEED_SQL = text(
              {_PAISE.format(expr='p.amount - p.overcollected_amount - p.platform_commission_amount')} as amount_paise,
              'completed'::text as status, null::text as reference, null::text as reject_reason,
              null::date as scheduled_for, false as can_cancel,
-             coalesce(p.captured_at, p.created_at) as happened_at
+             coalesce(p.captured_at, p.created_at) as happened_at,
+             null::timestamptz as paid_at, null::text as method
       from booking_payments p
       where p.salon_id = :s and p.channel = 'gateway' and p.settlement_model = 'platform_collect'
         and p.status in {_SETTLED}
       union all
       select r.id::text, 'refund', 'debit',
              {_PAISE.format(expr='r.amount - r.commission_reversal_amount')},
-             'completed', null, null, null, false, coalesce(r.processed_at, r.created_at)
+             'completed', null, null, null, false, coalesce(r.processed_at, r.created_at), null, null
       from payment_refunds r join booking_payments p on p.id = r.payment_id
       where p.salon_id = :s and p.channel = 'gateway' and p.settlement_model = 'platform_collect'
         and r.status = 'processed' and not r.applies_to_excess
       union all
       select q.id::text, 'payout', 'debit', q.amount_paise, q.status, q.reference, q.reject_reason,
-             q.scheduled_for, q.status = 'requested', q.created_at
-      from salon_payout_requests q where q.salon_id = :s
+             q.scheduled_for, q.status = 'requested', q.created_at, pp.paid_at, pp.method
+      from salon_payout_requests q
+      left join salon_payout_payments pp on pp.payout_id = q.id
+      where q.salon_id = :s
     )
     select * from feed
     where cast(:after_at as timestamptz) is null
@@ -166,6 +169,35 @@ class WalletRepository:
         row = result.mappings().first()
         return _row(row) if row else None
 
+    async def payout_account_for_request(self, request_id: str) -> dict[str, Any] | None:
+        """The full payout account of the salon behind a request, for the admin who pays it.
+
+        The only place the whole account number is read. Callers must be super admin and the
+        request must still be waiting; the number is returned once and never logged.
+        """
+
+        result = await self.session.execute(
+            text(
+                """select a.account_holder_name, a.upi_id, a.bank_name, a.bank_account_number, a.ifsc,
+                          (a.updated_at > q.created_at) as changed_since_request
+                   from salon_payout_requests q
+                   join salon_payout_accounts a on a.salon_id = q.salon_id
+                   where q.id = cast(:id as uuid)"""
+            ),
+            {"id": request_id},
+        )
+        row = result.mappings().first()
+        return dict(row) if row else None
+
+    async def min_payout_paise(self) -> int | None:
+        """The minimum the super admin set (``platform_payment_settings``), or None if the row is missing."""
+
+        result = await self.session.execute(
+            text("select min_payout_paise from platform_payment_settings where singleton")
+        )
+        value = result.scalar_one_or_none()
+        return int(value) if value is not None else None
+
     async def stored_request(self, salon_id: str, key: str, request_hash: str) -> dict[str, Any] | None:
         """The request already recorded for this key, or None. A different body is refused."""
 
@@ -189,9 +221,10 @@ class WalletRepository:
         created = await self.session.execute(
             text(
                 """insert into salon_payout_requests
-                     (salon_id, amount_paise, scheduled_for, requested_by, idempotency_key, request_hash)
+                     (salon_id, amount_paise, scheduled_for, requested_by, idempotency_key, request_hash,
+                      balance_snapshot)
                    values (cast(:salon_id as uuid), :amount_paise, :scheduled_for,
-                           cast(:requested_by as uuid), :key, :hash)
+                           cast(:requested_by as uuid), :key, :hash, cast(:snapshot as jsonb))
                    returning id::text as id"""
             ),
             values,
@@ -237,8 +270,10 @@ class WalletRepository:
         result = await self.session.execute(
             text(
                 f"""select {_REQUEST_COLUMNS}, s.name as salon_name,
+                           pp.paid_at, pp.method, pp.amount_paid_paise, (pp.payout_id is not null) as proof_attached,
                            a.account_holder_name, a.upi_id, a.bank_name, a.bank_account_last4, a.ifsc
                     from salon_payout_requests q join salons s on s.id = q.salon_id
+                    left join salon_payout_payments pp on pp.payout_id = q.id
                     left join lateral salon_payout_account_masked(q.salon_id) a on true
                     where (cast(:status as text) is null or q.status = cast(:status as text))
                       and (cast(:after_at as timestamptz) is null

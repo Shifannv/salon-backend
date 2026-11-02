@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.domain.services.wallet import MAX_PAYOUT_PAISE
 
@@ -19,17 +19,6 @@ class _Request(BaseModel):
 class PayoutRequestCreate(_Request):
     amount_paise: StrictInt = Field(gt=0, le=MAX_PAYOUT_PAISE)
     scheduled_for: date
-
-
-class PayoutMarkPaidRequest(_Request):
-    reference: str = Field(min_length=1, max_length=100)
-
-    @field_validator("reference")
-    @classmethod
-    def reference_has_text(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("reference must contain a visible character")
-        return value
 
 
 class PayoutRejectRequest(_Request):
@@ -57,6 +46,8 @@ class WalletEntryResponse(BaseModel):
     scheduled_for: date | None
     can_cancel: bool
     created_at: datetime
+    paid_at: datetime | None = None
+    method: Literal["upi", "imps", "neft", "rtgs", "other"] | None = None
 
 
 class WalletEntriesResponse(BaseModel):
@@ -74,9 +65,23 @@ class AdminPayoutAccount(BaseModel):
     ifsc: str | None
 
 
+class AdminPayoutAccountFull(BaseModel):
+    """Unmasked, for the super admin who pays one waiting request. Never cached or logged."""
+
+    account_holder_name: str | None
+    upi_id: str | None
+    bank_name: str | None
+    bank_account_number: str | None
+    ifsc: str | None
+    #: True when the owner changed the account after asking for this payout.
+    changed_since_request: bool
+
+
 class AdminPayoutRequestResponse(WalletEntryResponse):
     salon_id: str
     salon_name: str | None
+    amount_paid_paise: int | None = None
+    proof_attached: bool = False
     payout_account: AdminPayoutAccount
 
 

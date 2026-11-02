@@ -10,7 +10,9 @@ request needs an ``Idempotency-Key``: the same key with the same body replays th
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import json
+import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -43,8 +45,9 @@ from app.domain.services.wallet import (
     net_online_paise,
 )
 
+_log = logging.getLogger(__name__)
+
 MAX_KEY = 200
-MAX_REFERENCE = 100
 MIN_REASON = 3
 MAX_REASON = 500
 DEFAULT_PAGE = 30
@@ -65,6 +68,8 @@ def _payout_entry(row: dict[str, Any]) -> dict[str, Any]:
         "scheduled_for": row["scheduled_for"],
         "can_cancel": can_cancel(row["status"]),
         "created_at": row["created_at"],
+        "paid_at": row.get("paid_at"),
+        "method": row.get("method"),
     }
 
 
@@ -113,15 +118,22 @@ class WalletUseCases:
         )
         return available_paise(net_online=net, requested=totals["requested"], paid=totals["paid"]), totals
 
+    async def _minimum(self) -> int:
+        """The smallest payout: the super admin's setting, else the built-in default."""
+
+        value = await self.repository.min_payout_paise()
+        return MIN_PAYOUT_PAISE if value is None else value
+
     async def summary(self, actor: Profile) -> dict[str, Any]:
         salon = await self._salon(actor)
+        minimum = await self._minimum()
         salon_id = str(salon["id"])
         available, totals = await self._available(salon_id)
         return {
             "available_paise": available,
             "requested_paise": totals["requested"],
             "paid_out_paise": totals["paid"],
-            "min_payout_paise": MIN_PAYOUT_PAISE,
+            "min_payout_paise": minimum,
             "online_payments_live": self._live,
             "payout_account_ready": await self.repository.payout_account_ready(salon_id),
             "can_request": True,
@@ -136,7 +148,7 @@ class WalletUseCases:
                 "amount_paise": int(row["amount_paise"]), "status": row["status"],
                 "reference": row["reference"], "reject_reason": row["reject_reason"],
                 "scheduled_for": row["scheduled_for"], "can_cancel": bool(row["can_cancel"]),
-                "created_at": row["happened_at"],
+                "created_at": row["happened_at"], "paid_at": row.get("paid_at"), "method": row.get("method"),
             }
             for row in rows
         ]
@@ -158,7 +170,7 @@ class WalletUseCases:
 
         if amount_paise > MAX_PAYOUT_PAISE:
             raise ValidationError("That amount is too large for one payout request")
-        if amount_paise < MIN_PAYOUT_PAISE:
+        if amount_paise < await self._minimum():
             raise PayoutBelowMinimumError("The amount is below the smallest payout")
         try:
             check_payout_day(scheduled_for, today_in(timezone, self._clock()))
@@ -166,13 +178,20 @@ class WalletUseCases:
             raise PayoutDayInvalidError(str(error)) from error
         if not await self.repository.payout_account_ready(salon_id):
             raise PayoutAccountMissingError("Add your bank or UPI details before asking for a payout")
-        available, _ = await self._available(salon_id)
+        available, totals = await self._available(salon_id)
         if amount_paise > available:
             raise InsufficientBalanceError("That is more than is available in your wallet")
 
+        # What the platform held at this moment, kept with the request so the commission shown
+        # on the payout later is the one that applied then, whatever the rate becomes.
+        snapshot = {
+            "collected_paise": totals["collected"], "commission_paise": totals["commission"],
+            "refunded_paise": totals["refunded"], "commission_reversed_paise": totals["reversed"],
+            "available_paise": available,
+        }
         row = await self.repository.add_request({
             "salon_id": salon_id, "amount_paise": amount_paise, "scheduled_for": scheduled_for,
-            "requested_by": str(actor.id), "key": key, "hash": digest,
+            "requested_by": str(actor.id), "key": key, "hash": digest, "snapshot": json.dumps(snapshot),
         })
         await self.repository.commit()
         return _payout_entry(row)
@@ -194,10 +213,21 @@ class WalletUseCases:
 
 
 class WalletAdminUseCases:
-    """Super admin: see every request, pay one (with the bank or UPI reference) or decline it."""
+    """Super admin: see every request, look at the account to pay, or decline one.
 
-    def __init__(self, repository: Any) -> None:
+    Paying is in ``payout_proof``: a payout cannot be marked paid without its proof.
+    """
+
+    def __init__(
+        self,
+        repository: Any,
+        *,
+        audit: Callable[[str, str, str], Awaitable[None]] | None = None,
+        notices: Any = None,
+    ) -> None:
         self.repository = repository
+        self._audit = audit
+        self._notices = notices
 
     async def list_requests(
         self, actor: Profile, *, status: str | None, cursor: str | None, limit: int
@@ -211,6 +241,8 @@ class WalletAdminUseCases:
                 **_payout_entry(row),
                 "salon_id": row["salon_id"],
                 "salon_name": row["salon_name"],
+                "amount_paid_paise": row.get("amount_paid_paise"),
+                "proof_attached": bool(row.get("proof_attached")),
                 "payout_account": {
                     "account_holder_name": row["account_holder_name"],
                     "upi_id": row["upi_id"],
@@ -223,23 +255,36 @@ class WalletAdminUseCases:
         ]
         return {"items": items, "next_cursor": next_cursor}
 
-    async def mark_paid(self, actor: Profile, request_id: str, reference: str) -> dict[str, Any]:
+    async def reveal_account(self, actor: Profile, request_id: str) -> dict[str, Any]:
+        """The full bank or UPI details the admin needs to pay one waiting request.
+
+        Only while the request is still waiting: once it is paid, declined or cancelled the
+        details are no longer needed here. Each look is recorded (who, which request) without the
+        account itself.
+        """
+
         require_super_admin(actor)
-        ref = reference.strip()
-        if not 1 <= len(ref) <= MAX_REFERENCE:
-            raise ValidationError(f"The payment reference must be 1-{MAX_REFERENCE} characters")
-        row = await self.repository.get_request(request_id, lock=True)
+        row = await self.repository.get_request(request_id)
         if row is None:
             raise NotFoundError("Payout request not found")
-        if row["status"] == "paid" and row["reference"] == ref:
-            return _payout_entry(row)  # a retry of a payment that already went through
         if row["status"] != "requested":
             raise PayoutAlreadyProcessedError("This payout request has already been handled")
-        done = await self.repository.finish_request(
-            request_id, status="paid", admin_id=str(actor.id), reference=ref, reject_reason=None
-        )
-        await self.repository.commit()
-        return _payout_entry(done)
+        account = await self.repository.payout_account_for_request(request_id)
+        if account is None:
+            raise NotFoundError("This salon has not saved a payout account")
+        _log.info("payout account revealed admin=%s request=%s", actor.id, request_id)
+        if self._audit is not None:
+            await self._audit(request_id, "reveal", str(actor.id))
+            await self.repository.commit()
+        return {
+            "account_holder_name": account["account_holder_name"],
+            "upi_id": account["upi_id"],
+            "bank_name": account["bank_name"],
+            "bank_account_number": account["bank_account_number"],
+            "ifsc": account["ifsc"],
+            # The owner can edit the account while a request waits: the admin is told, and checks first.
+            "changed_since_request": bool(account.get("changed_since_request")),
+        }
 
     async def reject(self, actor: Profile, request_id: str, reason: str) -> dict[str, Any]:
         require_super_admin(actor)
@@ -256,5 +301,9 @@ class WalletAdminUseCases:
         done = await self.repository.finish_request(
             request_id, status="rejected", admin_id=str(actor.id), reference=None, reject_reason=why
         )
+        if self._audit is not None:
+            await self._audit(request_id, "decline", str(actor.id))
         await self.repository.commit()
+        if self._notices is not None:
+            await self._notices.declined(str(done["salon_id"]), request_id, why)
         return _payout_entry(done)

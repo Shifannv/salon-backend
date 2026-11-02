@@ -171,8 +171,9 @@ Every Cashfree field name marked `# UNVERIFIED: confirm in Cashfree sandbox` in
 `PAYMENT_PROVIDER` is `none` (default, dormant), `razorpay` or `cashfree`. Cashfree needs
 `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_EASY_SPLIT_ENABLED=true` (platform_collect) and,
 for production, `CASHFREE_ENVIRONMENT=production` **and** `PAYMENT_ALLOW_LIVE=true`. A real provider with
-platform_collect also refuses to boot without `PAYMENT_PLATFORM_FEE_PERCENT` and `PAYMENT_COMMISSION_BASE`
-(no default exists). `PAYMENT_AUTO_RELEASE_ENABLED=true` is refused: it is not built.
+platform_collect boots without `PAYMENT_PLATFORM_FEE_PERCENT` and `PAYMENT_COMMISSION_BASE` (it logs a warning)
+because the super admin can set the commission in Payout settings; with no rate and base anywhere, every online
+payment is refused (no default exists). `PAYMENT_AUTO_RELEASE_ENABLED=true` is refused: it is not built.
 
 ## Gateway registry and webhook routing
 

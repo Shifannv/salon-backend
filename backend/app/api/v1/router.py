@@ -16,7 +16,9 @@ from app.api.v1.routes import (
     media,
     notifications,
     owner,
+    payment_settings,
     payments,
+    payout_proof,
     profiles,
     reports,
     staff_earnings,
@@ -47,6 +49,7 @@ api_v1_router.include_router(finance.router, tags=["owner finance"])
 api_v1_router.include_router(staff_earnings.router, tags=["staff earnings"])
 api_v1_router.include_router(wallet.router, tags=["owner wallet"])
 api_v1_router.include_router(wallet.admin_router, prefix="/admin", tags=["admin wallet"])
+api_v1_router.include_router(payout_proof.admin_router, prefix="/admin", tags=["admin wallet"])
 api_v1_router.include_router(support.router, tags=["support"])
 api_v1_router.include_router(customer.salons_router, tags=["salons"])
 api_v1_router.include_router(customer.catalog_router, prefix="/catalog", tags=["catalog"])
@@ -58,6 +61,7 @@ api_v1_router.include_router(walkin.router, prefix="/walkin", tags=["walkin"])
 api_v1_router.include_router(subscriptions.router, prefix="/admin", tags=["subscriptions"])
 api_v1_router.include_router(admin_insights.router, prefix="/admin", tags=["admin insights"])
 api_v1_router.include_router(feature_access.router, prefix="/admin", tags=["feature access"])
+api_v1_router.include_router(payment_settings.router, prefix="/admin", tags=["payment settings"])
 api_v1_router.include_router(subscription_billing.router, tags=["subscription billing"])
 
 # The webhook path 404s unless a payment OR subscription webhook provider is configured.

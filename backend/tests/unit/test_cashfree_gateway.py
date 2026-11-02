@@ -106,10 +106,10 @@ def test_cashfree_needs_credentials_and_commission_but_split_is_opt_in():
 
 
 def test_commission_has_no_default_for_a_real_provider():
-    with pytest.raises(PydanticValidationError, match="PAYMENT_PLATFORM_FEE_PERCENT"):
-        cf_settings(payment_platform_fee_percent=None)
-    with pytest.raises(PydanticValidationError, match="PAYMENT_COMMISSION_BASE"):
-        cf_settings(payment_commission_base=None)
+    # The super admin can set the commission in the admin, so a missing env value no longer stops the
+    # boot. Nothing is defaulted: with no rate anywhere, create_intent refuses (see the payment flows tests).
+    assert cf_settings(payment_platform_fee_percent=None).payment_platform_fee_percent is None
+    assert cf_settings(payment_commission_base=None).payment_commission_base is None
     dormant = Settings(_env_file=None, environment="test")
     assert dormant.payment_platform_fee_percent is None and dormant.payment_commission_base is None
 

@@ -47,7 +47,7 @@ against the provider sandbox before production.
 |---|---|---|
 | Subscription mode | One-time Razorpay payment for a paid period with manual renewal; Razorpay Subscriptions (AutoPay) not enabled | No mandate/AFA compliance, no pre-debit notices, no dunning states for a first launch |
 | Native subscription purchase | Disabled. Backend billing + a web purchase flow only | Apple 3.1.1 disallows an in-app purchase path to Razorpay; Google Play requires Play Billing for subscriptions that unlock in-app features unless an exemption applies |
-| Commission | Configurable rate and base; **no default**. Live activation requires it to be set | Commercial rule not approved |
+| Commission | Set by the super admin in Payout settings (migration 0056): a platform rate and base, and an optional rate per salon. **No default**; until one is set every online payment is refused. The environment values (`PAYMENT_PLATFORM_FEE_PERCENT`, `PAYMENT_COMMISSION_BASE`) are only a fallback. A change applies to new payments; each payment keeps the rate it was charged at | Commercial rule not approved; the business owns the number |
 | Commission bearer | Deducted from the salon share; no customer surcharge | Documented initial model |
 | Gateway fees / taxes | Recorded separately from platform commission | Provider fees must not be mistaken for commission |
 | KYC data | PAN / bank details used once in memory for vendor creation; never persisted locally | Avoids a local KYC store and the encryption decision |
@@ -79,7 +79,7 @@ Razorpay: signature hex encoding, `subscription.resumed`, per-instrument RBI lim
 |---|---|
 | 1 Razorpay-shaped confirm | built + tested locally: `payment_ref`/`signature` optional; `POST .../payments/refresh`; `confirmation` in config |
 | 2 One webhook provider | built + tested locally: registry resolver, per-provider secrets, `subscription` domain recorded and ignored, dedupe per provider, bounded body |
-| 3 Commission snapshot | built + tested locally (arithmetic, immutability trigger, reversal, earnings). Rate and base still have NO default; the business must decide them. Cash share carries no commission (to confirm) |
+| 3 Commission snapshot | built + tested locally (arithmetic, immutability trigger, reversal, earnings). Rate and base still have NO default; the super admin sets them (platform and per salon) in the admin, see `WALLET_PAYOUTS.md`. Cash share carries no commission (to confirm) |
 | 4 Float subscription prices | **stage 2: built + tested locally** (Decimal(10,2) in schemas/entities; DB CHECKs in 0030) |
 | 5 Subscriptions | **stage 2: built + tested locally** (see "Stage 2 build status") |
 | 6 Failure/expiry release | **not built**, documented; `PAYMENT_AUTO_RELEASE_ENABLED` is refused at boot |
