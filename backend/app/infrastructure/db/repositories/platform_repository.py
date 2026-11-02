@@ -14,6 +14,7 @@ from app.infrastructure.db.repositories.platform._sql import (
     _is_business_error,
     _request_fingerprint,
 )
+from app.infrastructure.db.repositories.platform.admin_salon_erasure import AdminSalonErasureMixin
 from app.infrastructure.db.repositories.platform.admin_salons import AdminSalonsMixin
 from app.infrastructure.db.repositories.platform.booking_action_requests import (
     BookingActionRequestsMixin,
@@ -65,6 +66,7 @@ class PlatformRepository(
     ClosuresMixin,
     NotificationsDevicesMixin,
     AdminSalonsMixin,
+    AdminSalonErasureMixin,
     CategoriesMixin,
     WalkinMixin,
 ):

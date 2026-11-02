@@ -26,16 +26,25 @@ from app.api.v1.schemas.admin import (
     CategoryResponse,
     CategoryUpdateRequest,
     LanguageResponse,
+    SalonDeletionPrepareRequest,
+    SalonDeletionReadinessResponse,
     SubcategoryCreateRequest,
     SubcategoryResponse,
     SubcategoryUpdateRequest,
 )
 from app.application.ports.auth_admin_gateway import AuthAdminGateway
 from app.application.ports.cache_gateway import CacheGateway
+from app.application.ports.payment_gateway import PaymentGateway
 from app.application.use_cases.admin import AdminUseCases, CatalogAdminUseCases
+from app.application.use_cases.admin_salon_erasure import AdminSalonErasureUseCases
+from app.core.config import settings
+from app.core.exceptions import PaymentProviderNotConfiguredError
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.trial_limits import TrialLimits
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
+from app.infrastructure.db.repositories.wallet_repository import WalletRepository
+from app.infrastructure.db.session import AsyncSessionLocal
+from app.infrastructure.payments.resolver import get_payment_resolver
 from app.infrastructure.push.outbox_worker import enqueue_and_deliver_notification
 
 router = APIRouter()
@@ -245,6 +254,100 @@ async def reactivate_salon(
     await cache.delete_prefix(f"salon:{salon_id}:")
     await cache.delete_prefix("walkin:qr:")
     return AdminSalonResponse(**salon)
+
+
+# ── Permanent salon deletion ──────────────────────────────────────────────────
+
+
+def _gateway_for(provider: str | None) -> PaymentGateway | None:
+    """The gateway that holds a payment, or None when its provider is not enabled."""
+
+    try:
+        return get_payment_resolver().for_provider(provider)
+    except PaymentProviderNotConfiguredError:
+        return None
+
+
+def _erasure_use_cases(
+    session: AsyncSession, media_session: AsyncSession, auth_admin: AuthAdminGateway, cache: CacheGateway
+) -> AdminSalonErasureUseCases:
+    return AdminSalonErasureUseCases(
+        PlatformRepository(session),
+        WalletRepository(session),
+        auth_admin,
+        get_storage_gateway(),
+        cache,
+        PlatformRepository(media_session),
+        media_session.commit,
+        settings.r2_bucket,
+        _gateway_for,
+        storage_required=settings.environment not in {"local", "test"},
+    )
+
+
+@router.get(
+    "/salons/{salon_id}/deletion-readiness",
+    response_model=SalonDeletionReadinessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="What a salon still owes or is owed before it can be deleted",
+)
+async def salon_deletion_readiness(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
+) -> SalonDeletionReadinessResponse:
+    """Open bookings, refunds due or in flight, and payouts owed. Read only."""
+
+    async with AsyncSessionLocal() as media_session:
+        result = await _erasure_use_cases(session, media_session, auth_admin, cache).readiness(actor, str(salon_id))
+    return SalonDeletionReadinessResponse(**result)
+
+
+@router.post(
+    "/salons/{salon_id}/deletion/prepare",
+    response_model=SalonDeletionReadinessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Hide a salon, cancel its open bookings and settle their refunds",
+)
+async def prepare_salon_deletion(
+    salon_id: UUID,
+    payload: SalonDeletionPrepareRequest,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
+) -> SalonDeletionReadinessResponse:
+    """Customers are told, online payments are refunded (automatically or recorded as refunded by hand)."""
+
+    async with AsyncSessionLocal() as media_session:
+        result = await _erasure_use_cases(session, media_session, auth_admin, cache).prepare(
+            actor, str(salon_id), payload.refund_mode)
+    await cache.delete_prefix(f"salon:{salon_id}:")
+    await cache.delete_prefix("walkin:qr:")
+    return SalonDeletionReadinessResponse(**result)
+
+
+@router.delete(
+    "/salons/{salon_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Permanently delete a salon and everything in it",
+)
+async def delete_salon(
+    salon_id: UUID,
+    actor: Profile = Depends(require_role(Role.super_admin)),
+    session: AsyncSession = Depends(get_authenticated_session),
+    auth_admin: AuthAdminGateway = Depends(get_auth_admin_gateway),
+    cache: CacheGateway = Depends(get_cache),
+) -> None:
+    """Irreversible. 409 ``salon_not_ready_for_deletion`` while a refund or payout is outstanding.
+
+    Repeating the call after a partial clean-up (files, cache, logins) finishes that clean-up.
+    """
+
+    async with AsyncSessionLocal() as media_session:
+        await _erasure_use_cases(session, media_session, auth_admin, cache).erase(actor, str(salon_id))
 
 
 # ── Service catalog management ────────────────────────────────────────────────
