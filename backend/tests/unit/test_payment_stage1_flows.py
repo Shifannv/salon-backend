@@ -77,6 +77,9 @@ class Ledger:
     def __init__(self, total="1000.00", deposit=None):
         self.dirty = False
         self.commits = 0
+        self.admin_commission = {
+            "platform_rate": None, "platform_base": None, "policy_version": 1, "salon_rate": None,
+        }
         self.idem: dict[tuple, dict] = {}
         self.payments: dict[str, dict] = {}
         self.refunds: dict[str, dict] = {}
@@ -170,6 +173,15 @@ class Ledger:
 
     async def get_provider_account(self, salon_id, provider):
         return self.accounts.get((salon_id, provider))
+
+    async def booking_commission_policy(self, booking_id):
+        for row in self.payments.values():
+            if row["status"] in SETTLED | {"created", "authorized"}:
+                return {k: row[k] for k in ("commission_rate_percent", "commission_base", "commission_policy_version")}
+        return None
+
+    async def commission_inputs(self, salon_id):
+        return dict(self.admin_commission)
 
     async def commission_allocated(self, booking_id):
         live = sum((p["platform_commission_amount"] for p in self.payments.values()
@@ -1016,3 +1028,53 @@ async def test_wrong_currency_and_unknown_order_are_handled():
         "amount": "500.00", "currency": "INR"})
     assert await stranger.process("e2") == "ignored"
     assert ledger.paid == D("0")
+
+
+async def test_the_super_admins_platform_rate_beats_the_environment_and_is_snapshotted():
+    ledger, gateway, uc, _, cfg = build("1000.00")
+    ledger.admin_commission.update(platform_rate=D("12.5"), platform_base="booking_total", policy_version=4)
+    await uc.create_intent(CUSTOMER, "b1", KEY, None)
+    row = next(iter(ledger.payments.values()))
+    assert (row["commission_rate_percent"], row["commission_base"], row["commission_policy_version"]) == (
+        D("12.5"), "booking_total", "db-4")
+    assert row["platform_commission_amount"] == D("125.00")
+
+
+async def test_a_salon_rate_beats_the_platform_rate_for_that_salon():
+    ledger, gateway, uc, _, cfg = build("1000.00")
+    ledger.admin_commission.update(
+        platform_rate=D("12.5"), platform_base="booking_total", policy_version=4, salon_rate=D("5"))
+    await uc.create_intent(CUSTOMER, "b1", KEY, None)
+    row = next(iter(ledger.payments.values()))
+    assert row["commission_rate_percent"] == D("5") and row["commission_policy_version"] == "db-4-salon"
+    assert row["platform_commission_amount"] == D("50.00")
+
+
+async def test_a_zero_salon_rate_is_a_real_rate_not_unset():
+    ledger, gateway, uc, _, cfg = build("1000.00")
+    ledger.admin_commission.update(salon_rate=D("0"))
+    await uc.create_intent(CUSTOMER, "b1", KEY, None)
+    assert next(iter(ledger.payments.values()))["platform_commission_amount"] == D("0.00")
+
+
+async def test_nothing_set_anywhere_still_fails_closed():
+    ledger, gateway, uc, _, cfg = build()
+    cfg.payment_platform_fee_percent = None
+    cfg.payment_commission_base = None
+    with pytest.raises(PaymentProviderNotConfiguredError):
+        await uc.create_intent(CUSTOMER, "b1", KEY, None)
+    assert gateway.calls == [] and ledger.payments == {}
+
+
+async def test_a_balance_payment_keeps_the_rate_and_base_the_deposit_was_charged_at():
+    ledger, gateway, uc, _, cfg = build("1000.00", deposit="300.00", payment_platform_fee_percent=D("10"),
+                                        payment_commission_base="booking_total")
+    first = await uc.create_intent(CUSTOMER, "b1", "idem-key-0001", "deposit")
+    gateway.payments[first["order_ref"]] = capture(first["order_ref"], "300.00")
+    await uc.refresh(CUSTOMER, "b1", first["order_ref"], "refresh-key-1")
+    # The admin changes the commission between the deposit and the balance.
+    ledger.admin_commission.update(platform_rate=D("40"), platform_base="online_amount", policy_version=9)
+    await uc.create_intent(CUSTOMER, "b1", "idem-key-0002", None)
+    rows = list(ledger.payments.values())
+    assert {(r["commission_rate_percent"], r["commission_base"]) for r in rows} == {(D("10"), "booking_total")}
+    assert sum(r["platform_commission_amount"] for r in rows) == D("100.00")

@@ -94,6 +94,43 @@ class IntentMixin:
         )
         return one_dict_or_none(result)
 
+    async def commission_inputs(self, salon_id: str) -> dict[str, Any]:
+        """What the super admin has set: the platform rate and base, and this salon's own rate."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select s.commission_rate_percent as platform_rate, s.commission_base as platform_base,
+                       s.policy_version,
+                       (select o.commission_rate_percent from salon_commission_overrides o
+                        where o.salon_id = cast(:salon as uuid)) as salon_rate
+                from platform_payment_settings s where s.singleton
+                """
+            ),
+            {"salon": salon_id},
+        )
+        row = result.mappings().first()
+        return dict(row) if row else {
+            "platform_rate": None, "platform_base": None, "policy_version": 1, "salon_rate": None,
+        }
+
+    async def booking_commission_policy(self, booking_id: str) -> dict[str, Any] | None:
+        """The rate, base and version this booking's first live online payment was charged at."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select commission_rate_percent, commission_base, commission_policy_version
+                from booking_payments
+                where booking_id = :b and channel = 'gateway'
+                  and status in ('created', 'authorized', 'captured', 'partially_refunded', 'refunded')
+                order by created_at, id limit 1
+                """
+            ),
+            {"b": booking_id},
+        )
+        return one_dict_or_none(result)
+
     async def commission_allocated(self, booking_id: str) -> Decimal:
         """Net commission already snapshotted on this booking's live online payments."""
 

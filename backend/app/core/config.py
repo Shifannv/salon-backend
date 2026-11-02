@@ -1,5 +1,6 @@
 """Environment-backed application configuration."""
 
+import logging
 import os
 import re
 from decimal import Decimal
@@ -10,6 +11,8 @@ from urllib.parse import urlparse
 
 from pydantic import AliasChoices, Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -162,8 +165,8 @@ class Settings(BaseSettings):
     payment_idempotency_ttl_seconds: int = Field(default=86400, ge=60, le=604800)
     payment_webhook_max_body_bytes: int = Field(default=262144, ge=1024, le=4194304)
     payment_webhook_max_attempts: int = Field(default=8, ge=1, le=50)
-    # Commission policy. NO default: the commercial rule is not approved, so a real provider
-    # with platform_collect refuses to boot until both are set deliberately.
+    # Commission policy. NO default: the commercial rule is not approved. These are only a fallback
+    # for the rate the super admin sets in the admin; with neither, create_intent refuses payments.
     payment_platform_fee_percent: Decimal | None = Field(default=None, ge=0, le=100)
     payment_commission_base: Literal["online_amount", "booking_total"] | None = None
     # The SALON bears the payment gateway fee (never shown to customers). Snapshotted per
@@ -403,9 +406,11 @@ class Settings(BaseSettings):
                 if value is None
             ]
             if missing:
-                raise ValueError(
-                    "A real PAYMENT_PROVIDER with platform_collect needs an approved commission "
-                    "policy; missing: " + ", ".join(missing) + " (there is deliberately no default)"
+                # The super admin can set the rate and base in the admin instead. Until one of the two
+                # is set, create_intent refuses every online payment: there is deliberately no default.
+                _log.warning(
+                    "No commission policy in the environment (%s); online payments are refused until "
+                    "the super admin sets it in Payout settings.", ", ".join(missing),
                 )
         if self.cancellation_deduction_type == "percent" and self.cancellation_deduction_value > 100:
             raise ValueError("CANCELLATION_DEDUCTION_VALUE must be at most 100 for a percent rule")

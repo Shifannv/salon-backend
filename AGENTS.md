@@ -54,7 +54,7 @@ ideas clearly distinguished. No external task tracker is required.
 
 ## Code Ownership
 
-- Thameem owns backend work in `backend/app/`, `backend/migrations/`, `backend/tests/`, and `backend/docs/`.
+- Shifan owns backend work in `backend/app/`, `backend/migrations/`, `backend/tests/`, and `backend/docs/`.
 - Backend deployment/config ownership also includes `backend/Dockerfile`, `backend/docker-compose.yml`, `backend/.dockerignore`, `backend/.env.example`, `backend/.env.gcp.example`, `backend/scripts/`, `backend/requirements*.txt`, and `backend/pyproject.toml`.
 - Shifan owns frontend apps in their separate repositories.
 - Docs in `docs/` describe shared project decisions and should stay aligned with backend reality.
@@ -102,7 +102,7 @@ infrastructure -> domain/application ports
 
 ## Deployment Rules
 
-- The current backend deployment target is GCP VM Instance + Docker Compose, with optional GCP Cloud Run support.
+- Production uses GCP Cloud Run through `.github/workflows/cloud-run-auto.yml`. VM/Compose deployment scripts are historical recovery tools; see `backend/docs/CI_CD.md`.
 - Render deployment files should not be reintroduced unless the project owner explicitly asks for Render again.
 - Docker build context should be `backend/`; do not build images from the repository root unless the Dockerfile and ignore rules are intentionally changed.
 - Keep the backend image backend-only. Do not copy frontend app code into the Docker image.
@@ -154,6 +154,43 @@ thameem/superadmin-website-contract
 Do not commit directly to stable `main` unless explicitly requested by the project owner.
 
 ## Verification
+
+### Mandatory gate for every AI change, commit and push
+
+Every AI assistant changing this backend must run the complete local CI preflight
+after its final edit and before committing, pushing, or declaring the work ready:
+
+```bash
+bash backend/scripts/check-ci.sh
+```
+
+Run from the repository root using Bash/Git Bash, a Python environment with
+`backend/requirements-dev.txt` installed (prefer Python 3.12, matching GitHub),
+and a running Docker daemon. Set `PYTHON` to the virtual environment interpreter
+if it is not on PATH. See `backend/docs/CI_CD.md` for platform examples.
+
+- The preflight must include dependency checks, the full CI Ruff command, shell
+  syntax, migration-policy tests, the full suite against fresh disposable
+  PostgreSQL 18, Compose validation, Docker build and container smoke checks.
+- Fix failures and rerun the failed checks and affected suite before committing
+  or pushing. Recheck after any later edit. Never skip/weaken tests, add blanket
+  ignores, or use `continue-on-error` to obtain a green result.
+- Missing tools, skipped database verification or infrastructure errors mean
+  verification is incomplete. Report the blocker; do not claim CI readiness or
+  push/merge until the checks can pass, unless the owner explicitly authorizes
+  proceeding with that stated limitation.
+- Verify the files intended for the commit are included; a passing dirty working
+  tree is not proof that a partial commit contains everything it needs. Report
+  commands, pass/fail/skip counts and any differences from GitHub's environment.
+- After an authorized push, inspect GitHub CI for that exact commit, fix failures
+  and wait for green checks before merging. A green older commit is insufficient.
+- Feature pushes and PRs run checks. Eligible owner merges to `main` automatically
+  build, test and deploy through the existing Cloud Run workflow; failed checks
+  prevent deployment. Do not bypass activation, actor, provenance, schema,
+  contract or health gates. Production migrations remain separately reviewed.
+- Local checks reduce failures; never promise that GitHub or cloud infrastructure
+  cannot fail. Claim production success only after the release and live commit
+  health checks pass. Commit/push/merge authority still follows the user's request.
 
 Before finishing backend changes, run from `backend/` when possible:
 

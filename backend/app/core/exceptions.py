@@ -486,3 +486,21 @@ class PayoutAlreadyProcessedError(ConflictError):
     """A payout request that has already been paid, rejected or cancelled cannot be processed again."""
 
     code = "already_processed"
+
+
+class PayoutReferenceUsedError(ConflictError):
+    """The bank or UPI reference was already recorded against another payout."""
+
+    code = "reference_already_used"
+
+
+class PayoutProofInvalidError(ValidationError):
+    """The proof file is missing, too large, or not a screenshot or PDF."""
+
+    code = "proof_invalid"
+
+
+class PayoutPaymentInvalidError(ValidationError):
+    """The payment details (date, method or amount) are not acceptable."""
+
+    code = "payment_details_invalid"

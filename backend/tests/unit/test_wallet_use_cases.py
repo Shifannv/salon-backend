@@ -44,6 +44,8 @@ class FakeWallet:
         self.requests: dict[str, dict[str, Any]] = {}
         self.commits = 0
         self.locks = 0
+        self.minimum: int | None = None  # None: the admin has not set one
+        self.account_changed = False
 
     async def commit(self) -> None:
         self.commits += 1
@@ -102,6 +104,16 @@ class FakeWallet:
             row.update(status=status, reference=reference, reject_reason=reject_reason)
         return dict(row)
 
+    async def min_payout_paise(self):
+        return self.minimum
+
+    async def payout_account_for_request(self, request_id: str):
+        if request_id not in self.requests or not self.account:
+            return None
+        return {"account_holder_name": "Asha", "upi_id": None, "bank_name": "Canara",
+                "bank_account_number": "123456789012", "ifsc": "CNRB0001234",
+                "changed_since_request": self.account_changed}
+
     async def queue(self, status, cursor, limit):
         rows = [
             {**row, "salon_name": "Glow", "account_holder_name": "Asha", "upi_id": "asha@upi",
@@ -113,6 +125,12 @@ class FakeWallet:
 
 def owner():
     return make_profile(id="owner-1", role=Role.owner)
+
+
+def settle(repo: FakeWallet, request_id: str, reference: str = "UTR1") -> None:
+    """A payout that was paid (the proof side is tested in test_payout_proof)."""
+
+    repo.requests[request_id].update(status="paid", reference=reference)
 
 
 def uc(repo: FakeWallet, live: bool = True) -> WalletUseCases:
@@ -158,7 +176,7 @@ class TestSummary:
         repo = FakeWallet()
         first = await ask(repo, 100_000, key="key-0000001")
         await ask(repo, 50_000, key="key-0000002")
-        await WalletAdminUseCases(repo).mark_paid(make_super_admin(), first["id"], "UTR1")
+        settle(repo, first["id"])
         body = await uc(repo).summary(owner())
         assert (body["available_paise"], body["requested_paise"], body["paid_out_paise"]) == (300_000, 50_000, 100_000)
 
@@ -260,7 +278,7 @@ class TestCancel:
     async def test_a_paid_request_cannot_be_cancelled(self):
         repo = FakeWallet()
         made = await ask(repo)
-        await WalletAdminUseCases(repo).mark_paid(make_super_admin(), made["id"], "UTR9")
+        settle(repo, made["id"], "UTR9")
         with pytest.raises(PayoutNotCancellableError):
             await uc(repo).cancel_payout(owner(), made["id"])
 
@@ -282,10 +300,47 @@ class TestAdmin:
             with pytest.raises(ForbiddenError):
                 await admin.list_requests(actor, status=None, cursor=None, limit=10)
             with pytest.raises(ForbiddenError):
-                await admin.mark_paid(actor, made["id"], "UTR1")
-            with pytest.raises(ForbiddenError):
                 await admin.reject(actor, made["id"], "No reason")
+            with pytest.raises(ForbiddenError):
+                await admin.reveal_account(actor, made["id"])
         assert repo.requests[made["id"]]["status"] == "requested"
+
+    async def test_a_waiting_request_reveals_the_full_account_to_the_admin(self):
+        repo = FakeWallet()
+        made = await ask(repo)
+        account = await WalletAdminUseCases(repo).reveal_account(make_super_admin(), made["id"])
+        assert account["bank_account_number"] == "123456789012" and account["ifsc"] == "CNRB0001234"
+
+    async def test_the_admin_is_told_when_the_account_changed_after_the_request(self):
+        repo = FakeWallet()
+        made = await ask(repo)
+        assert (await WalletAdminUseCases(repo).reveal_account(make_super_admin(), made["id"]))["changed_since_request"] is False
+        repo.account_changed = True
+        assert (await WalletAdminUseCases(repo).reveal_account(make_super_admin(), made["id"]))["changed_since_request"] is True
+
+    async def test_the_account_is_not_revealed_once_the_request_is_handled(self):
+        repo = FakeWallet()
+        made = await ask(repo)
+        admin = WalletAdminUseCases(repo)
+        settle(repo, made["id"])
+        with pytest.raises(PayoutAlreadyProcessedError):
+            await admin.reveal_account(make_super_admin(), made["id"])
+
+    async def test_revealing_an_unknown_request_or_a_missing_account_is_not_found(self):
+        repo = FakeWallet()
+        with pytest.raises(NotFoundError):
+            await WalletAdminUseCases(repo).reveal_account(make_super_admin(), "missing")
+        made = await ask(repo)
+        repo.account = False
+        with pytest.raises(NotFoundError):
+            await WalletAdminUseCases(repo).reveal_account(make_super_admin(), made["id"])
+
+    async def test_a_reveal_is_logged_without_the_account(self, caplog):
+        repo = FakeWallet()
+        made = await ask(repo)
+        with caplog.at_level("INFO"):
+            await WalletAdminUseCases(repo).reveal_account(make_super_admin(), made["id"])
+        assert made["id"] in caplog.text and "123456789012" not in caplog.text
 
     async def test_queue_shows_the_masked_payout_account(self):
         repo = FakeWallet()
@@ -298,42 +353,6 @@ class TestAdmin:
     async def test_unknown_status_filter_is_refused(self):
         with pytest.raises(ValidationError):
             await WalletAdminUseCases(FakeWallet()).list_requests(make_super_admin(), status="done", cursor=None, limit=10)
-
-    async def test_mark_paid_records_the_reference(self):
-        repo = FakeWallet()
-        made = await ask(repo)
-        done = await WalletAdminUseCases(repo).mark_paid(make_super_admin(), made["id"], "  1234  ")
-        assert done["status"] == "paid" and done["reference"] == "1234" and done["can_cancel"] is False
-
-    async def test_mark_paid_retry_with_the_same_reference_is_safe(self):
-        repo = FakeWallet()
-        made = await ask(repo)
-        admin = WalletAdminUseCases(repo)
-        await admin.mark_paid(make_super_admin(), made["id"], "1234")
-        assert (await admin.mark_paid(make_super_admin(), made["id"], "1234"))["status"] == "paid"
-
-    async def test_a_second_payment_with_another_reference_is_refused(self):
-        repo = FakeWallet()
-        made = await ask(repo)
-        admin = WalletAdminUseCases(repo)
-        await admin.mark_paid(make_super_admin(), made["id"], "1234")
-        with pytest.raises(PayoutAlreadyProcessedError):
-            await admin.mark_paid(make_super_admin(), made["id"], "9999")
-        assert repo.requests[made["id"]]["reference"] == "1234"
-
-    async def test_a_cancelled_request_cannot_be_paid(self):
-        repo = FakeWallet()
-        made = await ask(repo)
-        await uc(repo).cancel_payout(owner(), made["id"])
-        with pytest.raises(PayoutAlreadyProcessedError):
-            await WalletAdminUseCases(repo).mark_paid(make_super_admin(), made["id"], "1234")
-
-    @pytest.mark.parametrize("reference", ["", "   ", "x" * 101])
-    async def test_reference_must_be_present_and_bounded(self, reference):
-        repo = FakeWallet()
-        made = await ask(repo)
-        with pytest.raises(ValidationError):
-            await WalletAdminUseCases(repo).mark_paid(make_super_admin(), made["id"], reference)
 
     async def test_reject_returns_the_money_with_a_reason(self):
         repo = FakeWallet()
@@ -352,10 +371,24 @@ class TestAdmin:
         repo = FakeWallet()
         made = await ask(repo)
         admin = WalletAdminUseCases(repo)
-        await admin.mark_paid(make_super_admin(), made["id"], "1234")
+        settle(repo, made["id"], "1234")
         with pytest.raises(PayoutAlreadyProcessedError):
             await admin.reject(make_super_admin(), made["id"], "Changed my mind")
 
     async def test_unknown_request_is_not_found(self):
         with pytest.raises(NotFoundError):
-            await WalletAdminUseCases(FakeWallet()).mark_paid(make_super_admin(), "nope", "1234")
+            await WalletAdminUseCases(FakeWallet()).reject(make_super_admin(), "nope", "Not a known payout")
+
+
+class TestMinimumPayout:
+    async def test_the_admins_minimum_is_shown_and_enforced(self):
+        repo = FakeWallet()
+        repo.minimum = 50_000
+        assert (await uc(repo).summary(owner()))["min_payout_paise"] == 50_000
+        with pytest.raises(PayoutBelowMinimumError):
+            await ask(repo, amount=49_999)
+        assert (await ask(repo, amount=50_000))["status"] == "requested"
+
+    async def test_without_a_setting_the_built_in_default_applies(self):
+        repo = FakeWallet()
+        assert (await uc(repo).summary(owner()))["min_payout_paise"] == MIN_PAYOUT_PAISE

@@ -6,7 +6,6 @@ from pydantic import ValidationError
 
 from app.api.deps import get_authenticated_session, get_current_actor
 from app.api.v1.schemas.wallet import (
-    PayoutMarkPaidRequest,
     PayoutRejectRequest,
     PayoutRequestCreate,
 )
@@ -23,8 +22,14 @@ OWNER_ROUTES = [
 ]
 ADMIN_ROUTES = [
     ("GET", "/v1/admin/wallet/payout-requests"),
+    ("GET", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}"),
+    ("GET", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}/proof"),
     ("POST", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}/mark-paid"),
+    ("POST", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}/corrections"),
+    ("GET", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}/corrections/{REQUEST_ID}/proof"),
+    ("GET", "/v1/admin/wallet/payout-reconciliation?from=2026-11-01&to=2026-11-02"),
     ("POST", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}/reject"),
+    ("POST", f"/v1/admin/wallet/payout-requests/{REQUEST_ID}/reveal-account"),
 ]
 BODIES = {
     "payout-requests": {"amount_paise": 100000, "scheduled_for": "2026-11-02"},
@@ -40,7 +45,8 @@ def _body(path: str):
 def test_wallet_routes_are_in_the_openapi_contract():
     paths = app.openapi()["paths"]
     for method, path in OWNER_ROUTES + ADMIN_ROUTES:
-        template = path.replace(REQUEST_ID, "{request_id}")
+        template = path.split("?")[0].replace(f"requests/{REQUEST_ID}/corrections/{REQUEST_ID}", "requests/{request_id}/corrections/{correction_id}")
+        template = template.replace(REQUEST_ID, "{request_id}")
         assert method.lower() in paths[template], template
 
 
@@ -95,9 +101,6 @@ def test_payout_request_body_is_strict(values):
 
 
 @pytest.mark.parametrize("schema, values", [
-    (PayoutMarkPaidRequest, {}), (PayoutMarkPaidRequest, {"reference": ""}),
-    (PayoutMarkPaidRequest, {"reference": "   "}), (PayoutMarkPaidRequest, {"reference": "x" * 101}),
-    (PayoutMarkPaidRequest, {"reference": "1", "status": "paid"}),
     (PayoutRejectRequest, {}), (PayoutRejectRequest, {"reason": "no"}),
     (PayoutRejectRequest, {"reason": "x" * 501}),
 ])

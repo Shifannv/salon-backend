@@ -1,19 +1,20 @@
 """Owner wallet routes and the admin payout queue.
 
 Owner: what the platform holds for the salon, the history, and asking for (or taking back) a payout.
-Admin: every request, paid by hand with the bank or UPI reference, or declined with a reason.
+Admin: every request, declined with a reason here, or paid with proof in ``payout_proof``.
 Money is integer paise. A payout request needs an ``Idempotency-Key``.
 """
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, status
+from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor, require_role
+from app.api.v1.routes.payout_proof import payout_notices
 from app.api.v1.schemas.wallet import (
+    AdminPayoutAccountFull,
     AdminPayoutRequestsResponse,
-    PayoutMarkPaidRequest,
     PayoutRejectRequest,
     PayoutRequestCreate,
     PayoutStatus,
@@ -25,6 +26,7 @@ from app.application.use_cases.wallet import WalletAdminUseCases, WalletUseCases
 from app.core.config import settings
 from app.domain.entities.profile import Profile, Role
 from app.infrastructure.db.repositories.feature_access_repository import FeatureAccessRepository
+from app.infrastructure.db.repositories.payout_proof_repository import PayoutProofRepository
 from app.infrastructure.db.repositories.wallet_repository import WalletRepository
 
 router = APIRouter()
@@ -40,7 +42,8 @@ def _owner_use_cases(session: AsyncSession) -> WalletUseCases:
 
 
 def _admin_use_cases(session: AsyncSession) -> WalletAdminUseCases:
-    return WalletAdminUseCases(WalletRepository(session))
+    repository = PayoutProofRepository(session)
+    return WalletAdminUseCases(repository, audit=repository.audit, notices=payout_notices(repository))
 
 
 @router.get(
@@ -131,20 +134,21 @@ async def list_payout_requests(
 
 
 @admin_router.post(
-    "/wallet/payout-requests/{request_id}/mark-paid",
-    response_model=WalletEntryResponse,
+    "/wallet/payout-requests/{request_id}/reveal-account",
+    response_model=AdminPayoutAccountFull,
     status_code=status.HTTP_200_OK,
-    summary="Record that a payout was paid, with the bank or UPI reference",
+    summary="The salon's full bank or UPI details, to pay one waiting request",
+    description="Only while the request is waiting. Each look is recorded; the response is never cached.",
 )
-async def mark_payout_paid(
+async def reveal_payout_account(
     request_id: UUID,
-    payload: PayoutMarkPaidRequest,
+    response: Response,
     actor: Profile = Depends(require_role(Role.super_admin)),
     session: AsyncSession = Depends(get_authenticated_session),
-) -> WalletEntryResponse:
-    return WalletEntryResponse(
-        **await _admin_use_cases(session).mark_paid(actor, str(request_id), payload.reference)
-    )
+) -> AdminPayoutAccountFull:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return AdminPayoutAccountFull(**await _admin_use_cases(session).reveal_account(actor, str(request_id)))
 
 
 @admin_router.post(

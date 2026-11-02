@@ -46,6 +46,7 @@ from app.domain.entities.profile import Profile
 from app.domain.services.booking_finance_policy import POLICY_VERSION
 from app.domain.services.checkout import online_checkout_available
 from app.domain.services.commission import compute_commission
+from app.domain.services.commission_policy import resolve_commission_policy
 from app.domain.value_objects.money import Money
 from app.infrastructure.db.repositories.payment_repository import PaymentRepository
 from app.infrastructure.payments.resolver import PaymentGatewayResolver
@@ -160,12 +161,32 @@ class BookingPaymentUseCases(RefundMixin, SettlementAccountMixin):
         }
 
     # ------------------------------------------------------------- commission
-    def _commission_policy(self) -> tuple[Decimal, str, str]:
-        rate = self.settings.payment_platform_fee_percent
-        base = self.settings.payment_commission_base
-        if rate is None or base is None:
+    async def _commission_policy(self, salon_id: str, booking_id: str) -> tuple[Decimal, str, str]:
+        """The rate and base for a new payment: salon rate, else platform rate, else environment.
+
+        Nothing is defaulted. With no rate or no base the payment is refused. Payments already taken
+        keep the rate they were charged at (it is snapshotted on the payment).
+        """
+
+        # One booking, one policy: a deposit and its balance are charged at the same rate and base even if
+        # the admin changed them in between, so the fee never adds up to more than the rule says.
+        prior = await self.repository.booking_commission_policy(booking_id)
+        if prior is not None and prior["commission_rate_percent"] is not None and prior["commission_base"]:
+            return (Decimal(prior["commission_rate_percent"]), prior["commission_base"],
+                    prior["commission_policy_version"])
+        inputs = await self.repository.commission_inputs(salon_id)
+        policy = resolve_commission_policy(
+            salon_rate=inputs["salon_rate"],
+            platform_rate=inputs["platform_rate"],
+            platform_base=inputs["platform_base"],
+            platform_version=inputs["policy_version"],
+            env_rate=self.settings.payment_platform_fee_percent,
+            env_base=self.settings.payment_commission_base,
+            env_version=self.settings.payment_commission_policy_version,
+        )
+        if policy is None:
             raise PaymentProviderNotConfiguredError("The commission policy is not configured")
-        return Decimal(rate), base, self.settings.payment_commission_policy_version
+        return policy.rate_percent, policy.base, policy.version
 
     # ----------------------------------------------------------------- intent
     async def create_intent(
@@ -256,7 +277,7 @@ class BookingPaymentUseCases(RefundMixin, SettlementAccountMixin):
             order_ref = resume.get("order_ref")
             fee = Money(resume["platform_commission_amount"])
         else:
-            rate, base, version = self._commission_policy()
+            rate, base, version = await self._commission_policy(str(booking["salon_id"]), booking_id)
             allocated = await self.repository.commission_allocated(booking_id)
             fee = Money(
                 compute_commission(

@@ -22,6 +22,36 @@ The active workflow no longer contains a production VM deployment job or VM
 artifact transfer. Historical scripts remain for recovery and must not be run as
 normal production releases.
 
+## Local checks required before AI commits and pushes
+
+Every AI assistant must follow the mandatory verification gate in `AGENTS.md`.
+From the repository root, with development requirements installed:
+
+```bash
+# Linux/macOS, Python 3.12 virtual environment
+PYTHON=backend/.venv/bin/python bash backend/scripts/check-ci.sh
+
+# Windows Git Bash, existing virtual environment
+PYTHON=backend/.venv/Scripts/python.exe bash backend/scripts/check-ci.sh
+```
+
+The script requires Bash, Python 3.12+ (prefer 3.12 to match GitHub), Git and Docker
+with Compose. It does not install dependencies. It runs pip check, the workflow's
+Ruff command, shell syntax and diff checks, migration-policy tests, the full suite
+against a newly created PostgreSQL 18 container, Compose validation, an amd64 image
+build and `check-container.sh`. Any failed check stops the script with a nonzero
+exit code. Its database uses a random loopback port and is removed with its
+anonymous volume on exit. Existing databases and Compose services are not reused.
+Application environment files are not loaded. The diagnostic image is retained
+with source revision `unknown` because the build includes the working tree.
+
+Rerun after the final code edit; report pass/skip counts and runtime differences.
+This preflight cannot establish production schema compatibility or cloud IAM,
+activation, quota and network health. After an authorized push, inspect CI for
+the exact commit. Review and merge only after green checks. The existing main
+workflow automatically releases eligible owner merges after its deployment gates;
+new migration differences still need their separately reviewed release procedure.
+
 ## GitHub prerequisites
 
 Settings → Environments → New environment → `production`:

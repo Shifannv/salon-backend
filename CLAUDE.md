@@ -31,6 +31,10 @@ infrastructure -> application/domain ports
 
 ## Commands (run from `backend/`)
 
+- Mandatory before every AI commit/push or ready handoff: `bash scripts/check-ci.sh`.
+  Follow the full gate in `AGENTS.md`: fix failures, run database and Docker checks,
+  and verify GitHub CI for the exact pushed commit before merging. Eligible merges
+  to `main` deploy automatically through Cloud Run after checks and release guards.
 - Lint: `python -m ruff check app tests migrations`
 - Test: `python -m pytest -q`
 - Run: `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
