@@ -206,8 +206,19 @@ def test_actual_deploy_job_skips_when_authoritative_gate_is_false():
     assert activation["env"]["AUTO_DEPLOY_ENABLED"] == "${{ vars.AUTO_DEPLOY_ENABLED }}"
     assert "AUTO_DEPLOY_ENABLED" not in data["jobs"]["gate"]["env"]
     job = data["jobs"]["release"]
-    assert set(job["needs"]) == {"ci", "gate"}
+    assert set(job["needs"]) == {"ci", "gate", "image"}
     assert "needs.gate.outputs.enabled == 'true'" in job["if"]
+    assert "needs.image.outputs.registry_image_metadata != ''" in job["if"]
+    image = data["jobs"]["image"]
+    assert image["environment"] == "production"
+    assert set(image["needs"]) == {"ci", "gate"}
+    assert "needs.gate.outputs.enabled == 'true'" in image["if"]
+    assert "github.event_name == 'push'" in image["if"]
+    assert "github.ref == 'refs/heads/main'" in image["if"]
+    assert "github.actor_id == '172572480'" in image["if"]
+    assert data["jobs"]["ci"]["with"]["skip_image_job"] == "true"
+    assert job["env"]["REGISTRY_IMAGE_METADATA"] == "${{ needs.image.outputs.registry_image_metadata }}"
+    assert "CI_IMAGE_ARTIFACT_ID" not in job["env"]
     assert "concurrency" not in job  # serialization is at workflow level, not release-job level
     assert all("if" in step for step in job["steps"] if step.get("uses", "").startswith("google-github-actions/"))
     claim_step = next(step for step in job["steps"] if step.get("run") == "python3 backend/scripts/wif_claim_preflight.py")

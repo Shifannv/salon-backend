@@ -309,15 +309,27 @@ def test_schema_candidate_cannot_be_promoted_automatically(auto):
         auto.promote({"requires_supervised_promotion": True})
 
 
-def test_verified_schema_deployment_stops_without_traffic_mutation(auto, monkeypatch, tmp_path):
+@pytest.mark.parametrize("transport", ["artifact", "registry"])
+def test_verified_schema_deployment_stops_without_traffic_mutation(auto, monkeypatch, tmp_path, transport):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     monkeypatch.setattr(auto, "guard", lambda: True)
     monkeypatch.setattr(auto, "baseline", lambda: "b" * 40)
     monkeypatch.setattr(auto, "public_health", lambda **kwargs: health(auto, True))
     monkeypatch.setitem(sys.modules, "ci_image_bundle", SimpleNamespace(download=lambda directory: None))
+    monkeypatch.delenv("REGISTRY_IMAGE_METADATA", raising=False)
+    if transport == "registry":
+        monkeypatch.setenv("REGISTRY_IMAGE_METADATA", '{"tested":"registry"}')
+        monkeypatch.setitem(sys.modules, "ci_registry_image", SimpleNamespace(validate=lambda data: data))
+        def forbidden_download(directory):
+            pytest.fail("Registry release must not download a GitHub image archive")
+        monkeypatch.setitem(sys.modules, "ci_image_bundle", SimpleNamespace(download=forbidden_download))
     receipt = {"requires_supervised_promotion": True, "production_traffic_promoted": False}
-    monkeypatch.setattr(auto.release, "candidate", lambda **kwargs: receipt)
+    def candidate(**kwargs):
+        assert kwargs["automatic"] is True
+        assert ("tested_registry" in kwargs) == (transport == "registry")
+        return receipt
+    monkeypatch.setattr(auto.release, "candidate", candidate)
     def forbidden(receipt):
         pytest.fail("Schema deployment must never call automatic promotion")
     monkeypatch.setattr(auto, "promote", forbidden)

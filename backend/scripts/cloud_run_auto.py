@@ -263,13 +263,19 @@ def guard() -> bool:
 def deploy() -> None:
     if not guard():
         return
-    import ci_image_bundle
-    bundle = Path(".release-image")
-    ci_image_bundle.download(bundle)
+    registry = os.environ.get("REGISTRY_IMAGE_METADATA", "")
+    if registry:
+        import ci_registry_image
+        image_source = {"tested_registry": ci_registry_image.validate(json.loads(registry))}
+    else:
+        import ci_image_bundle
+        bundle = Path(".release-image")
+        ci_image_bundle.download(bundle)
+        image_source = {"tested_bundle": bundle}
     os.environ["BASELINE_COMMIT"] = baseline()
     previous_health = public_health(expected_commit=os.environ["BASELINE_COMMIT"])
     release.require(all_healthy(previous_health), "Previous revision health/identity is not established")
-    receipt = release.candidate(automatic=True, tested_bundle=bundle)
+    receipt = release.candidate(automatic=True, **image_source)
     receipt["previous_commit"] = os.environ["BASELINE_COMMIT"]
     receipt["previous_health"] = previous_health
     try:

@@ -15,7 +15,7 @@ jobs:
   ci:
     uses: ./.github/workflows/backend.yml
     with:
-      publish_deployment_image: true
+      skip_image_job: true
     permissions:
       contents: read
 
@@ -41,9 +41,75 @@ jobs:
           AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
         run: python3 backend/scripts/cloud_run_auto.py gate
 
-  release:
+  image:
+    name: Build and smoke test image
     needs: [ci, gate]
     if: needs.gate.outputs.enabled == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
+    outputs:
+      registry_image_metadata: ${{ steps.publish.outputs.registry_image_metadata }}
+    env:
+      BOOTSTRAP_BASELINE: 'false'
+      BOOTSTRAP_CONFIRMATION: ''
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      GCP_CLOUD_RUN_SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
+      GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+      REQUESTED_COMMIT: ${{ github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Admit exact merged latest main after waiting for the production lock
+        id: admit
+        env:
+          AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+        run: python3 backend/scripts/cloud_run_auto.py guard
+      - name: Verify exact GitHub OIDC claims before federation
+        if: steps.admit.outputs.eligible == 'true'
+        run: python3 backend/scripts/wif_claim_preflight.py
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        if: steps.admit.outputs.eligible == 'true'
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+        if: steps.admit.outputs.eligible == 'true'
+      - name: Build exact admitted main image
+        if: steps.admit.outputs.eligible == 'true'
+        run: |
+          image="salon-platform-api:sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "RELEASE_IMAGE=$image" >> "$GITHUB_ENV"
+          docker build --pull --platform linux/amd64 --build-arg SOURCE_COMMIT="$GITHUB_SHA" --tag "$image" backend
+      - name: Validate deployment Compose configuration
+        if: steps.admit.outputs.eligible == 'true'
+        run: |
+          COMPOSE_ENV_FILE=.env.gcp.example docker compose \
+            --env-file backend/.env.gcp.example -f backend/docker-compose.yml config --quiet
+      - name: Verify non-root runtime and custom port
+        if: steps.admit.outputs.eligible == 'true'
+        run: bash backend/scripts/check-container.sh "$RELEASE_IMAGE" "$GITHUB_SHA"
+      - name: Publish the tested image once to the existing registry
+        id: publish
+        if: steps.admit.outputs.eligible == 'true'
+        env:
+          AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
+        run: python3 backend/scripts/ci_registry_image.py publish "$RELEASE_IMAGE"
+
+  release:
+    needs: [ci, gate, image]
+    if: needs.gate.outputs.enabled == 'true' && needs.image.outputs.registry_image_metadata != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     environment:
@@ -52,7 +118,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      actions: read
       pull-requests: read
     env:
       BOOTSTRAP_BASELINE: 'false'
@@ -63,15 +128,14 @@ jobs:
       GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
       REQUESTED_COMMIT: ${{ github.sha }}
       GH_TOKEN: ${{ github.token }}
-      CI_IMAGE_ARTIFACT_ID: ${{ needs.ci.outputs.image_artifact_id }}
-      CI_IMAGE_ARTIFACT_DIGEST: ${{ needs.ci.outputs.image_artifact_digest }}
+      REGISTRY_IMAGE_METADATA: ${{ needs.image.outputs.registry_image_metadata }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Admit exact merged latest main after waiting for the production lock
+      - name: Admit exact merged latest main before production starts
         id: admit
         env:
           AUTO_DEPLOY_ENABLED: ${{ vars.AUTO_DEPLOY_ENABLED }}
@@ -102,22 +166,3 @@ jobs:
           path: candidate-result.json
           if-no-files-found: warn
           retention-days: 30
-
-  cleanup-consumed-image:
-    needs: [ci, release]
-    if: always() && needs.release.result == 'success' && needs.ci.outputs.image_artifact_id != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Delete only this successful run's consumed CI image archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CI_IMAGE_ARTIFACT_ID: ${{ needs.ci.outputs.image_artifact_id }}
-        run: python3 backend/scripts/ci_artifact_cleanup.py
