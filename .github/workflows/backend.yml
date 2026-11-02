@@ -3,6 +3,10 @@ name: Backend CI
 on:
   workflow_call:
     inputs:
+      skip_image_job:
+        type: boolean
+        required: false
+        default: false
       publish_deployment_image:
         type: boolean
         required: false
@@ -56,7 +60,7 @@ jobs:
       - run: python -m pip check
       - name: Verify explicit portable migration policy (no prepared Mumbai execution)
         run: python -m pytest -q tests/unit/test_migration_policy.py
-      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py scripts/cloud_run_auto.py scripts/ci_image_bundle.py
+      - run: python -m ruff check app tests migrations scripts/docker_image_ids.py scripts/cloud_run_candidate.py scripts/cloud_run_auto.py scripts/ci_image_bundle.py scripts/ci_registry_image.py
       - run: for script in scripts/*.sh; do bash -n "$script"; done
       - run: python -m pytest -q --junitxml=test-results.xml
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
@@ -71,6 +75,7 @@ jobs:
 
   image:
     name: Build and smoke test image
+    if: ${{ !inputs.skip_image_job }}
     outputs:
       artifact_id: ${{ steps.bundle.outputs.artifact-id }}
       artifact_digest: ${{ steps.bundle.outputs.artifact-digest }}

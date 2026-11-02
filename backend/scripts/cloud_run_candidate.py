@@ -295,10 +295,12 @@ def verify_contract(baseline: dict, candidate: dict) -> None:
             require(shape == current["properties"][field], "Existing schema field changed; review separately")
 
 
-def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> dict:
+def candidate(*, automatic: bool = False, tested_bundle: Path | None = None,
+              tested_registry: dict | None = None) -> dict:
     global DEPLOYMENT_STARTED
     if automatic:
-        require(tested_bundle is not None, "Automatic release requires the exact CI-tested image")
+        require((tested_bundle is not None) != (tested_registry is not None),
+                "Automatic release requires exactly one exact CI-tested image source")
     commit = preflight(automatic=automatic)
     project, region, service = (os.environ[key] for key in ["GCP_PROJECT_ID", "GCP_REGION", "GCP_CLOUD_RUN_SERVICE"])
 
@@ -340,7 +342,13 @@ def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> 
     tag = f"gh-{run_id}-{attempt}"
     image = f"{registry}/{project}/{os.environ['GCP_ARTIFACT_REGISTRY_REPOSITORY']}/api:{commit}-{run_id}-{attempt}"
     ci_metadata = None
-    if automatic:
+    if automatic and tested_registry is not None:
+        import ci_registry_image
+        ci_metadata = ci_registry_image.inspect_verified(tested_registry)
+        immutable = ci_metadata["image"]
+        index_image = immutable
+        digest = immutable.split("@", 1)[1]
+    elif automatic:
         require(tested_bundle is not None, "Automatic release requires the exact CI-tested image")
         import ci_image_bundle
         ci_metadata = ci_image_bundle.load(tested_bundle)
@@ -357,16 +365,17 @@ def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> 
                     str(Path(directory) / "backend"))
         command("bash", "backend/scripts/check-container.sh", image, commit)
     latest_main()
-    if automatic:
-        DEPLOYMENT_STARTED = True
-    command("docker", "push", image)
-    registry_image = cloud("artifacts", "docker", "images", "describe", image)
-    digest = registry_image["image_summary"]["digest"]
-    require(DIGEST.fullmatch(digest) is not None, "Invalid image digest")
-    immutable = image.rsplit(":", 1)[0] + "@" + digest
-    index_image = immutable
-    index = json.loads(command("docker", "buildx", "imagetools", "inspect", index_image, "--raw"))
-    immutable = platform_image(index_image, index)
+    if tested_registry is None:
+        if automatic:
+            DEPLOYMENT_STARTED = True
+        command("docker", "push", image)
+        registry_image = cloud("artifacts", "docker", "images", "describe", image)
+        digest = registry_image["image_summary"]["digest"]
+        require(DIGEST.fullmatch(digest) is not None, "Invalid image digest")
+        immutable = image.rsplit(":", 1)[0] + "@" + digest
+        index_image = immutable
+        index = json.loads(command("docker", "buildx", "imagetools", "inspect", index_image, "--raw"))
+        immutable = platform_image(index_image, index)
     if ci_metadata is not None:
         platform_manifest = json.loads(command("docker", "buildx", "imagetools", "inspect", immutable, "--raw"))
         require(platform_manifest.get("config", {}).get("digest") == ci_metadata["config_digest"], "Registry image differs from tested CI config")
@@ -395,9 +404,14 @@ def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> 
         receipt["schema_compatibility"] = copy.deepcopy(SCHEMA_COMPATIBILITY)
         receipt["requires_supervised_promotion"] = True
         receipt["migration_target"] = SCHEMA_COMPATIBILITY["migration_target"]
+    if tested_registry is not None:
+        receipt["ci_registry_provenance"] = ci_metadata
     path = Path("candidate-result.json")
     path.write_text(json.dumps(receipt, indent=2) + "\n")
     try:
+        if automatic and tested_registry is not None:
+            latest_main()
+            DEPLOYMENT_STARTED = True
         # Image-only update: never pass env, secrets, service account, scaling or ingress flags.
         command("gcloud", "run", "deploy", service, "--project=" + project, "--region=" + region,
                 "--image=" + immutable, "--revision-suffix=" + suffix, "--no-traffic", "--tag=" + tag, "--quiet")
