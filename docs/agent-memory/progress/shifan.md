@@ -1,5 +1,9 @@
 # Progress: shifan
 
+## Trial API production acceptance — 1 November 2026
+
+User deployed backend revision `salon-api-production-ci-6fefff4-20261101` (100%); both public domains expose trial GET/PUT and health200, anonymous reads401. Scoped website trial overlay released separately as dpl_GAu6tWFtfbe3j966w2JE384uwUY8. Real Mentrex admin61days/120bookings ->temporary62/125 matched native/website owner UUIDs, original start and13used; browser restart/logout401/user re-login passed. Restored original61/120/end/start/usage/no-paid-plan state, independently checked admin and both clients. No backend redeploy, DB migration, pending salon approval, payment or booking mutation in this continuation. Running owner dev app's localhost URL was the Google offline cause; process-scoped production Metro override and native reload fixed it. Details: `../salon-owner-APP/docs/trial-live-verification-2026-11-01.md`. Newer local backend/feature-access edits may differ from deployed contract; do not infer they are live. Cashfree merchant acceptance remains separate.
+
 ## Production Gate B migration execution — 31 October 2026 session 2
 
 ### Status
