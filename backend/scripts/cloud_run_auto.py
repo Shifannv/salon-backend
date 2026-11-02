@@ -93,7 +93,7 @@ def patch_traffic(service: dict, traffic: list[dict]) -> None:
 def configuration(service: dict) -> dict:
     # Ignore server-reconciled output fields; retain every configuration-bearing field.
     output = {"etag", "generation", "observedGeneration", "updateTime", "reconciling", "terminalCondition",
-              "conditions", "traffic", "trafficStatuses", "latestReadyRevision", "latestCreatedRevision", "urls"}
+              "conditions", "traffic", "trafficStatuses", "latestReadyRevision", "latestCreatedRevision", "urls", "lastModifier"}
     return {key: value for key, value in service.items() if key not in output}
 
 
