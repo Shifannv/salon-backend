@@ -126,6 +126,24 @@ async def test_availability_after_sixty_local_days_is_empty(safety):  # noqa: F8
     assert slots == []
 
 
+async def test_sixtieth_salon_local_day_has_slots_and_accepts_customer_booking(safety):  # noqa: F811
+    f = await safety.seed()
+    boundary = (await safety.sql(
+        "select ((now() at time zone timezone)::date + 60) as day, "
+        "(((now() at time zone timezone)::date + 60) + time '10:00') "
+        "at time zone timezone as starts from salons where id=:id",
+        id=f["salon"],
+    ))[0]
+    async with safety.session() as session:
+        slots = await PlatformRepository(session).get_available_slots(
+            f["staff"], boundary["day"], [f["service"]]
+        )
+    assert slots
+    booking = await _direct_book(safety, f, f["customer"], start_datetime=boundary["starts"])
+    assert isinstance(booking, dict), booking
+    assert await _count(safety, f["salon"]) == 1
+
+
 async def test_direct_route_cannot_claim_qr_walkin(safety):  # noqa: F811
     f = await safety.seed()
     async with safety.session() as session:

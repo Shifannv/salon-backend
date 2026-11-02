@@ -164,6 +164,8 @@ def verified_receipt(receipt: dict) -> None:
 
 
 def promote(receipt: dict) -> None:
+    release.require(not receipt.get("requires_supervised_promotion"),
+                    "Reviewed schema candidate requires separate explicit traffic approval")
     release.identity(automatic=True)
     verified_receipt(receipt)
     before = api("GET", RESOURCE)
@@ -271,7 +273,11 @@ def deploy() -> None:
     receipt["previous_commit"] = os.environ["BASELINE_COMMIT"]
     receipt["previous_health"] = previous_health
     try:
-        promote(receipt)
+        if receipt.get("requires_supervised_promotion") is True:
+            receipt["status"] = "PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL"
+            print("Reviewed schema candidate verified; production traffic unchanged. Explicit promotion approval required.")
+        else:
+            promote(receipt)
     finally:
         receipt["deployment_finished_at_utc"] = datetime.now(UTC).isoformat()
         Path("candidate-result.json").write_text(json.dumps(receipt, indent=2) + "\n")

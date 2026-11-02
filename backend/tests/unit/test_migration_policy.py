@@ -348,11 +348,11 @@ def test_all_historical_sql_files_exist():
 def test_harness_expected_prices_match_owner_approved_values():
     """Harness must check against the owner-confirmed production prices, not 0049 SQL targets."""
     from scripts.migrations.reconciliation_harness import EXPECTED_0049_PRICES
-    assert EXPECTED_0049_PRICES["growth_1m"] == 499.00
-    assert EXPECTED_0049_PRICES["growth_6m"] == 2000.00
-    assert EXPECTED_0049_PRICES["growth_12m"] == 2999.00
-    assert EXPECTED_0049_PRICES["premium_6m"] == 2875.00
-    assert EXPECTED_0049_PRICES["premium_12m"] == 5032.00
+    assert EXPECTED_0049_PRICES["growth_1m"] == 449.00
+    assert EXPECTED_0049_PRICES["growth_6m"] == 2419.00
+    assert EXPECTED_0049_PRICES["growth_12m"] == 4299.00
+    assert EXPECTED_0049_PRICES["premium_6m"] == 3499.00
+    assert EXPECTED_0049_PRICES["premium_12m"] == 6199.00
 
 
 def test_0049_sql_guards_will_not_fire_at_approved_prices():

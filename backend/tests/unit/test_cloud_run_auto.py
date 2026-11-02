@@ -6,6 +6,7 @@ import subprocess
 import sys
 import urllib.error
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -301,3 +302,26 @@ def test_promotion_requires_complete_same_candidate_evidence(auto, monkeypatch, 
         receipt["ready"] = False
     with pytest.raises(RuntimeError):
         auto.verified_receipt(receipt)
+
+
+def test_schema_candidate_cannot_be_promoted_automatically(auto):
+    with pytest.raises(RuntimeError, match="separate explicit traffic approval"):
+        auto.promote({"requires_supervised_promotion": True})
+
+
+def test_verified_schema_deployment_stops_without_traffic_mutation(auto, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setattr(auto, "guard", lambda: True)
+    monkeypatch.setattr(auto, "baseline", lambda: "b" * 40)
+    monkeypatch.setattr(auto, "public_health", lambda **kwargs: health(auto, True))
+    monkeypatch.setitem(sys.modules, "ci_image_bundle", SimpleNamespace(download=lambda directory: None))
+    receipt = {"requires_supervised_promotion": True, "production_traffic_promoted": False}
+    monkeypatch.setattr(auto.release, "candidate", lambda **kwargs: receipt)
+    def forbidden(receipt):
+        pytest.fail("Schema deployment must never call automatic promotion")
+    monkeypatch.setattr(auto, "promote", forbidden)
+    auto.deploy()
+    result = json.loads((tmp_path / "candidate-result.json").read_text())
+    assert result["status"] == "PASS_AWAITING_EXPLICIT_TRAFFIC_APPROVAL"
+    assert result["production_traffic_promoted"] is False

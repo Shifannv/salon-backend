@@ -1,5 +1,15 @@
 # Automatic production releases after main CI
 
+Current compatibility release (2 November 2026): production SQL 0053–0055 has
+been explicitly approved, applied and verified. The existing WIF path and
+Git-proven 6fefff4 baseline are established. The narrow hashed receipt admits
+only those six approved migration files and stops at a verified zero-traffic
+candidate; separate promotion approval is required. After that release, normal
+latest-main merges without migration changes use automatic promotion/rollback.
+See [current release controls](verification/CLOUD_RUN_SCHEMA_COMPATIBILITY_RELEASE_2026-11-02.md).
+The activation/IAM prerequisites later in this document are historical context;
+do not repeat IAM changes or overwrite the existing activation variable.
+
 The owner requested automatic releases instead of confirming each ordinary API
 deployment. This changes the release model for the new main-push workflow only.
 The manual candidate workflow still stops before traffic assignment.
