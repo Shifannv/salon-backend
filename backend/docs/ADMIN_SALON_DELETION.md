@@ -15,7 +15,9 @@ Migration: `0058_admin_salon_erasure` (prepared, not applied anywhere).
 | `DELETE /v1/admin/salons/{id}` | Erases the salon. `204`. `409 salon_not_ready_for_deletion` while anything is owed. `404` once erased. |
 
 `blockers` values: `open_bookings`, `refunds_due`, `refunds_pending`, `payout_balance`,
-`payout_requests_pending`. The server decides; the website only shows it and checks the typed salon name.
+`payout_requests_pending`, `payments_pending`. The response includes `payments_pending_count` for
+created/authorized gateway payments. Closing a booking does not falsely mark its provider order cancelled.
+Wait for provider reconciliation before erasing. The server decides; the website checks the typed salon name.
 
 ## Refunds
 
@@ -56,8 +58,35 @@ non-cascading reference toward salons fails the build until `erase_salon` handle
 Files (`salon-images/`, `staff-photos/`, avatars), cache prefixes (`salon:{id}:`, `walkin:qr:`) and logins are
 cleaned up. The owner's profile and Supabase Auth user are removed only when they own no other salon, are
 not staff anywhere and have no bookings as a customer; staff logins follow the same rule. If this part
-fails the job stays `cleanup_pending` and repeating the same `DELETE` finishes it. Nothing retries it
-automatically yet.
+fails the job stays `cleanup_pending`, DELETE returns 503, and repeating the same `DELETE` finishes it.
+Readiness remains available for an incomplete job even after the salon rows are gone. Cache failures are
+strict. Only the actual owner's owner-role profile and staff-role logins are candidates; linked customers,
+superadmins and unrelated owners are preserved. Current roles and remaining memberships are checked again
+under a profile row lock. Missing profiles remain retryable after an Auth failure. The verified initiating
+admin is retained in `step_state.initiated_by`. Nothing retries cleanup automatically yet.
+
+Before the final readiness check, the application locks the erase tables in a fixed order through the
+commit, so a concurrent capture cannot slip between readiness and erase. Ordinary reads continue. If a
+writer or row-locking reader is active, NOWAIT returns a retryable 409 before erasure; it never waits
+while holding part of the table-lock set. This brief operation blocks writes across these tables.
+
+## Disposable local demo
+
+This uses development test helpers and a synthetic admin identity; never deploy the demo launcher.
+It creates a new database without dropping or reusing another database. Production configuration and
+the existing port-8000 owner-app test server are not used. No external Auth, storage or provider calls run.
+
+Start a dedicated `postgres:18` container with a loopback published port and the development-only password
+`local-erase-test-only`. From `backend/`, run:
+
+```powershell
+./.venv/Scripts/python.exe -m scripts.dev_admin_erasure --postgres-port <published-port> --port 8001
+```
+
+From the website's `walking-customer-web/`, run `node scripts/dev-admin-erasure.mjs`, then open
+`http://localhost:3101/superadmin/salons`. Website authentication remains the normal admin session;
+only data requests go to this isolated backend. Its two synthetic salons demonstrate direct erasure
+and cancellation-before-erasure. The demo retains its disposable database until its container is removed.
 
 ## Not covered
 

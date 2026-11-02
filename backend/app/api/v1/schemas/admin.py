@@ -102,6 +102,7 @@ class SalonDeletionReadinessResponse(BaseModel):
 
     salon_id: str
     open_bookings: int
+    payments_pending_count: int = 0
     refunds_due_count: int
     refunds_due_paise: int
     refunds_pending_count: int
@@ -109,7 +110,7 @@ class SalonDeletionReadinessResponse(BaseModel):
     payout_requests_pending: int
     can_delete: bool
     blockers: list[
-        Literal["open_bookings", "refunds_due", "refunds_pending", "payout_balance", "payout_requests_pending"]
+        Literal["open_bookings", "payments_pending", "refunds_due", "refunds_pending", "payout_balance", "payout_requests_pending"]
     ]
 
 

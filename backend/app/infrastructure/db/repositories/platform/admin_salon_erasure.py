@@ -23,6 +23,18 @@ from app.infrastructure.db.repositories.subscription_billing_repository import (
 )
 
 _OPEN = "('pending', 'confirmed', 'checked_in')"
+_ERASURE_TABLES = (
+    "payout_audit", "salon_payout_payments", "salon_payout_corrections", "salon_payout_requests", "payout_proofs",
+    "booking_finance_commands", "booking_policy_refund_jobs", "booking_finance_reconciliations",
+    "booking_financial_outcomes", "booking_customer_changes", "staff_earnings", "booking_service_staff",
+    "staff_commission_rule_versions", "payment_refunds", "payment_anomalies", "booking_payments",
+    "booking_action_requests", "booking_audit_events", "booking_services", "bookings", "salon_expenses",
+    "salon_cash_adjustments", "salon_day_closes", "salon_expense_rules", "support_erasure_events",
+    "support_messages", "support_tickets", "subscription_events", "subscription_billing_records",
+    "salon_subscriptions", "subscription_provider_accounts", "payment_provider_account_audit",
+    "payment_provider_accounts", "salon_reports", "staff_services", "services", "staff", "salons",
+    "account_deletion_requests",
+)
 # A payment still owed back to the customer: online, taken, not fully refunded, on a booking that is
 # still open or was cancelled because the salon is closing.
 _REFUND_SCOPE = f"""
@@ -45,6 +57,8 @@ class AdminSalonErasureMixin:
                 select
                   (select count(*) from salons where id = :s) as present,
                   (select count(*) from bookings where salon_id = :s and status in {_OPEN}) as open_bookings,
+                  (select count(*) from booking_payments where salon_id = :s and channel = 'gateway'
+                     and status in ('created', 'authorized')) as payments_pending_count,
                   (select count(*) from booking_payments p join bookings b on b.id = p.booking_id
                     where {_REFUND_SCOPE} and p.amount - {_REFUNDED} > 0) as refunds_due_count,
                   (select coalesce(sum(round((p.amount - {_REFUNDED}) * 100)), 0)::bigint
@@ -66,6 +80,23 @@ class AdminSalonErasureMixin:
     async def lock_salon_for_erasure(self, salon_id: str) -> None:
         """Serialise two admins working on the same salon."""
 
+        from sqlalchemy.exc import DBAPIError
+
+        from app.core.exceptions import ConflictError
+
+        await self.session.execute(text("select set_config('lock_timeout', '5s', true)"))
+        # erase_salon disables DELETE triggers, requiring these table locks anyway.
+        # Take them BEFORE row locks/readiness. NOWAIT avoids a lock cycle with an
+        # already-active multi-table writer: rollback and let the admin retry instead.
+        tables = ", ".join(f"public.{name}" for name in sorted(_ERASURE_TABLES))
+        try:
+            await self.session.execute(text(f"lock table {tables} in exclusive mode nowait"))
+        except DBAPIError as exc:
+            await self.session.rollback()
+            if getattr(exc.orig, "sqlstate", None) == "55P03":
+                raise ConflictError("The salon is being updated. Try permanent deletion again.") from exc
+            raise
+        # Ordinary reads continue; writers and SELECT FOR UPDATE wait until commit.
         await self.session.execute(text("select id from salons where id = :s for update"), {"s": salon_id})
 
     async def erasure_job(self, salon_id: str) -> dict[str, Any] | None:
@@ -98,11 +129,8 @@ class AdminSalonErasureMixin:
                          "where id = any(cast(:ids as uuid[]))"),
                     {"ids": ids, "reason": SALON_CLOSED_REASON},
                 )
-                await s.execute(
-                    text("update booking_payments set status = 'cancelled' where booking_id = any(cast(:ids as uuid[])) "
-                         "and channel = 'gateway' and status = 'created'"),
-                    {"ids": ids},
-                )
+                # Cancelling a booking does not cancel its provider order. Keep unresolved
+                # intents until provider reconciliation confirms their financial outcome.
                 notified = (await s.execute(
                     text("""
                         with created as (
@@ -260,7 +288,10 @@ class AdminSalonErasureMixin:
 
         s = self.session
         params = {"s": salon_id}
-        owner = (await s.execute(text("select owner_id from salons where id = :s"), params)).scalar_one_or_none()
+        owner = (await s.execute(text(
+            "select p.id from profiles p join salons s on s.owner_id = p.id "
+            "where s.id = :s and p.role = 'owner'"
+        ), params)).scalar_one_or_none()
         urls = (await s.execute(
             text("""
                 select url from salon_images where salon_id = :s
@@ -274,11 +305,14 @@ class AdminSalonErasureMixin:
             params,
         )).scalars().all()
         staff_logins = [str(r) for r in (await s.execute(
-            text("select profile_id from staff where salon_id = :s and profile_id is not null"), params)).scalars().all()]
+            text("select p.id from profiles p join staff st on st.profile_id = p.id "
+                 "where st.salon_id = :s and p.role = 'staff'"), params)).scalars().all()]
         return {"owner_id": str(owner) if owner else None, "media_urls": sorted(u for u in urls if u),
                 "staff_profile_ids": staff_logins}
 
-    async def erase_salon_rows(self, salon_id: str, media_urls: list[str], profile_ids: list[str]) -> None:
+    async def erase_salon_rows(
+        self, salon_id: str, media_urls: list[str], profile_ids: list[str], actor_id: str
+    ) -> None:
         """Run the database erase and record what is left to clean outside it, in one transaction."""
 
         s = self.session
@@ -288,10 +322,11 @@ class AdminSalonErasureMixin:
                 text("""
                     update salon_erasure_jobs
                     set status = 'cleanup_pending', media_keys = cast(:media as jsonb),
-                        auth_user_ids = cast(:auth as jsonb), updated_at = now()
+                        auth_user_ids = cast(:auth as jsonb), updated_at = now(),
+                        step_state = step_state || jsonb_build_object('initiated_by', cast(:actor as text))
                     where salon_id = :s
                 """),
-                {"s": salon_id, "media": json.dumps(media_urls), "auth": json.dumps(profile_ids)},
+                {"s": salon_id, "media": json.dumps(media_urls), "auth": json.dumps(profile_ids), "actor": actor_id},
             )
             await s.commit()
         except BaseException:
@@ -312,6 +347,13 @@ class AdminSalonErasureMixin:
         removed: list[str] = []
         for profile_id in profile_ids:
             try:
+                role = (await self.session.execute(
+                    text("select role::text from profiles where id = :u for update"),
+                    {"u": profile_id},
+                )).scalar_one_or_none()
+                if role is not None and role not in {"owner", "staff"}:
+                    await self.session.rollback()
+                    continue
                 belongs = (await self.session.execute(
                     text("""
                         select exists (select 1 from salons where owner_id = :u)

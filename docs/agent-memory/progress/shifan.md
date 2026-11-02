@@ -1,5 +1,39 @@
 # Progress: shifan
 
+## Superadmin salon erasure, disposable local verification — 2 November 2026
+
+- User explicitly selected disposable local test databases only. No production/shared database,
+  production release, real salon, environment file, commit or push was changed.
+- Existing port 8000 is an old owner-app fixture launcher that rebuilds its disposable database;
+  its in-memory API predates the deletion routes. Existing Compose startup also has malformed
+  email poll and walk-in URL settings. Those unrelated processes/settings were left unchanged.
+- Fixed linked-profile role filtering, current-role row locking, durable initiating-admin attribution,
+  strict cache cleanup, visible retryable cleanup failures and readiness for incomplete cleanup jobs.
+  Unresolved gateway orders block erasure; closing bookings no longer falsely cancels provider orders.
+  Fixed-order EXCLUSIVE NOWAIT locks precede final readiness; busy writers return a retryable 409.
+  These brief table locks exclude writes across salons; ordinary reads continue. Security re-review
+  found no remaining scoped blocker.
+- Added scripts/dev_admin_erasure.py: unique synthetic database on an explicitly dedicated loopback
+  test Postgres port, fixed synthetic admin, no real Auth/storage/payment actions or worker startup.
+  Website scripts/dev-admin-erasure.mjs uses backend 8001 and website 3101 with separate build output.
+  Normal website authentication remains required. Original website/backend ports remain unchanged.
+- Verification: complete backend/scripts/check-ci.sh PASS: policy87, full suite2620 passed/42 skipped,
+  dependency/Ruff/shell/diff checks, fresh PostgreSQL18, Compose, Docker build and container smoke.
+  Host Python3.14.4 differs from GitHub3.12; image smoke used Python3.12. Separate full unit2184 pass,
+  targeted SQL/flow20 pass; website delete/lifecycle14 pass, typecheck and scoped ESLint pass.
+  Initial full run's three restore-fixture failures were invocation errors from putting temp files
+  inside the repository; rerun with an external temp directory passed without test/code weakening.
+- Running HTTP proof on synthetic Local Booking Demo: DELETE409 before settlement, prepare200,
+  DELETE204, subsequent readiness404; direct SQL confirms no salon/bookings, cleanup complete and
+  initiating actor retained. That synthetic salon was deleted; Local Delete Demo remains to try.
+- Browser verification reached the normal admin login page; no authenticated browser session was
+  available, so do not claim the signed-in button flow was browser-verified. User can open the
+  localhost3101 superadmin salons page, choose Local Delete Demo, type its name and confirm.
+- Disposable container salon-admin-erase-codex-20261102 remains running for the demo. CI-owned temporary
+  containers were removed. Code and documentation changes remain uncommitted in both repositories.
+- Next: user acceptance in the local test website. A real-backend migration/deployment would require
+  a separately scoped request; do not infer it from this local-only session.
+
 ## Trial API production acceptance — 1 November 2026
 
 User deployed backend revision `salon-api-production-ci-6fefff4-20261101` (100%); both public domains expose trial GET/PUT and health200, anonymous reads401. Scoped website trial overlay released separately as dpl_GAu6tWFtfbe3j966w2JE384uwUY8. Real Mentrex admin61days/120bookings ->temporary62/125 matched native/website owner UUIDs, original start and13used; browser restart/logout401/user re-login passed. Restored original61/120/end/start/usage/no-paid-plan state, independently checked admin and both clients. No backend redeploy, DB migration, pending salon approval, payment or booking mutation in this continuation. Running owner dev app's localhost URL was the Google offline cause; process-scoped production Metro override and native reload fixed it. Details: `../salon-owner-APP/docs/trial-live-verification-2026-11-01.md`. Newer local backend/feature-access edits may differ from deployed contract; do not infer they are live. Cashfree merchant acceptance remains separate.

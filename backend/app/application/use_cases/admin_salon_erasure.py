@@ -26,7 +26,11 @@ from app.application.use_cases.account_erasure import (
     closure_refund_provider_key,
     managed_media_path,
 )
-from app.core.exceptions import NotFoundError, SalonNotReadyForDeletionError
+from app.core.exceptions import (
+    NotFoundError,
+    SalonNotReadyForDeletionError,
+    ServiceUnavailableError,
+)
 from app.domain.entities.payment import GatewayCapability, RefundStatus
 from app.domain.entities.profile import Profile
 from app.domain.services.authorization import require_super_admin
@@ -77,6 +81,15 @@ class AdminSalonErasureUseCases:
     async def _readiness(self, salon_id: str) -> dict[str, Any]:
         figures = await self.repository.erasure_figures(salon_id)
         if figures is None:
+            job = await self.repository.erasure_job(salon_id)
+            if job is not None and job["status"] != "complete":
+                # The rows are gone, but the same confirmation can finish a failed cleanup.
+                return {
+                    "salon_id": salon_id, "open_bookings": 0, "payments_pending_count": 0, "refunds_due_count": 0,
+                    "refunds_due_paise": 0, "refunds_pending_count": 0,
+                    "payout_balance_paise": 0, "payout_requests_pending": 0,
+                    "can_delete": True, "blockers": [],
+                }
             raise NotFoundError("Salon not found")
         totals = await self.wallet.totals(salon_id)
         net = net_online_paise(
@@ -89,6 +102,7 @@ class AdminSalonErasureUseCases:
         blockers = [
             code for code, blocked in (
                 ("open_bookings", figures["open_bookings"] > 0),
+                ("payments_pending", figures["payments_pending_count"] > 0),
                 ("refunds_due", figures["refunds_due_count"] > 0),
                 ("refunds_pending", figures["refunds_pending_count"] > 0),
                 ("payout_balance", owed > 0),
@@ -181,8 +195,7 @@ class AdminSalonErasureUseCases:
             await self._cleanup(salon_id, job["media_keys"], job["auth_user_ids"])
             return
 
-        # Same transaction from here to the commit inside erase_salon_rows: a refund or payout request
-        # that lands after this check waits for the lock and is seen by the erase.
+        # Lock financial writers before the final readiness check, through the erase commit.
         await self.repository.lock_salon_for_erasure(salon_id)
         state = await self._readiness(salon_id)
         if not state["can_delete"]:
@@ -191,7 +204,7 @@ class AdminSalonErasureUseCases:
         footprint = await self.repository.erasure_footprint(salon_id)
         candidates = list(dict.fromkeys(
             [*footprint["staff_profile_ids"], *([footprint["owner_id"]] if footprint["owner_id"] else [])]))
-        await self.repository.erase_salon_rows(salon_id, footprint["media_urls"], candidates)
+        await self.repository.erase_salon_rows(salon_id, footprint["media_urls"], candidates, str(actor.id))
         await self._cleanup(salon_id, footprint["media_urls"], candidates)
 
     async def _cleanup(self, salon_id: str, media_urls: list[str], profile_ids: list[str]) -> None:
@@ -200,14 +213,17 @@ class AdminSalonErasureUseCases:
         try:
             await self._delete_media(media_urls)
             for prefix in (f"salon:{salon_id}:", "walkin:qr:"):
-                await self.cache.delete_prefix(prefix)
+                await self.cache.delete_prefix(prefix, strict=True)
             removed = await self.repository.erase_orphan_profiles(profile_ids)
             for profile_id in removed:
                 if await self.auth_admin.get_user(profile_id) is not None:
                     await self.auth_admin.delete_user(profile_id)
             await self.repository.finish_erasure_job(salon_id)
-        except Exception:
+        except Exception as exc:
             logger.exception("Salon %s was erased; clean-up of files or logins must be retried", salon_id)
+            raise ServiceUnavailableError(
+                "The salon was erased, but cleanup is incomplete. Retry permanent deletion to finish."
+            ) from exc
 
     async def _delete_media(self, urls: list[str]) -> None:
         if not urls:
