@@ -75,6 +75,42 @@ def test_any_migration_change_refused(guarded, monkeypatch):
         release.preflight()
 
 
+@pytest.fixture
+def schema_receipt(monkeypatch):
+    root = Path(__file__).resolve().parents[3]
+    raw = (root / release.SCHEMA_RECEIPT_PATH).read_bytes()
+    data = json.loads(raw)
+    content = {path: (root / path).read_bytes().replace(b"\r\n", b"\n")
+               for path in [*data["files"], *data["evidence"]]}
+    monkeypatch.setattr(release, "command", lambda *args: "")
+    monkeypatch.setattr(release, "git_blob", lambda commit, path: raw if path == release.SCHEMA_RECEIPT_PATH else content[path])
+    return data, content
+
+
+def test_applied_exact_schema_delta_requires_supervised_promotion(schema_receipt):
+    data, _ = schema_receipt
+    receipt = release.approved_schema_release(data["baseline_commit"], "a" * 40, list(data["files"]))
+    assert receipt["requires_supervised_promotion"] is True
+    assert receipt["migration_target"] == "0055_feature_access"
+
+
+@pytest.mark.parametrize("change", ["other_baseline", "extra_migration", "changed_sql", "changed_revision", "changed_evidence"])
+def test_schema_receipt_does_not_authorize_other_source_changes(schema_receipt, change):
+    data, content = schema_receipt
+    baseline = data["baseline_commit"]
+    paths = list(data["files"])
+    if change == "other_baseline":
+        baseline = "f" * 40
+    elif change == "extra_migration":
+        paths.append("backend/migrations/sql/0056_unapproved.sql")
+    else:
+        path = (next(iter(data["evidence"])) if change == "changed_evidence" else
+                next(path for path in paths if path.endswith(".py" if change == "changed_revision" else ".sql")))
+        content[path] += b"\n-- changed\n"
+    with pytest.raises(RuntimeError, match="Migration differences"):
+        release.approved_schema_release(baseline, "a" * 40, paths)
+
+
 def service():
     return {"metadata": {"annotations": {"run.googleapis.com/maxScale": "1"}},
             "status": {"traffic": [{"revisionName": "previous", "percent": 100}]},

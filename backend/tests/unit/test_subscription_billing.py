@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from prices import GROWTH_1M, GROWTH_1M_PAISE
 from pydantic import ValidationError as PydanticValidationError
 from support_subscription import (
     KEY_SECRET,
@@ -348,8 +349,8 @@ async def test_checkout_persists_the_row_before_calling_the_provider():
     body = await uc.checkout(owner(), "plan-g1", "key-12345678")
     assert len(seen["rows"]) == 1 and seen["rows"][0]["receipt"] == body["receipt"]
     assert seen["rows"][0]["provider_order_ref"] is None and seen["commits"] >= 1
-    assert body["amount"] == "499.00" and body["currency"] == "INR"
-    assert body["client_payload"]["amount"] == 49900 and body["order_ref"].startswith("order_")
+    assert body["amount"] == str(GROWTH_1M) and body["currency"] == "INR"
+    assert body["client_payload"]["amount"] == GROWTH_1M_PAISE and body["order_ref"].startswith("order_")
     assert repo.rows[body["billing_id"]]["provider_order_ref"] == body["order_ref"]
 
 
@@ -358,8 +359,8 @@ async def test_checkout_amount_comes_from_the_plan_snapshot_not_the_client():
     body = await uc.checkout(owner(), "plan-g1", "key-12345678")
     repo.plans["plan-g1"]["price_amount"] = D("999.00")  # admin edits the price afterwards
     row = repo.rows[body["billing_id"]]
-    assert row["amount"] == D("499.00")
-    assert provider.orders[body["order_ref"]]["amount"] == D("499.00")
+    assert row["amount"] == GROWTH_1M
+    assert provider.orders[body["order_ref"]]["amount"] == GROWTH_1M
 
 
 async def test_checkout_replay_returns_the_stored_response_without_a_second_order():
@@ -575,10 +576,10 @@ def normalized(provider, event, order=None, payment=None, amount=None, **kw):
 async def test_captured_webhook_applies_once_even_when_delivered_repeatedly():
     _uc, repo, provider, body, pay = await paid_flow()
     h = handler_for(repo, provider)
-    data = normalized(provider, "payment.captured", body["order_ref"], pay, 49900)
+    data = normalized(provider, "payment.captured", body["order_ref"], pay, GROWTH_1M_PAISE)
     assert await h.apply("razorpay", data, "evt_1") == "applied"
     assert await h.apply("razorpay", data, "evt_1") == "applied"  # duplicate delivery
-    order_paid = normalized(provider, "order.paid", body["order_ref"], pay, 49900, event_id="evt_2")
+    order_paid = normalized(provider, "order.paid", body["order_ref"], pay, GROWTH_1M_PAISE, event_id="evt_2")
     assert await h.apply("razorpay", order_paid, "evt_2") == "applied"  # second event, same payment
     assert repo.applied_calls == 1 and repo.rows[body["billing_id"]]["status"] == "paid"
 
@@ -600,7 +601,7 @@ async def test_webhook_for_an_unknown_order_is_acknowledged_and_ignored():
 async def test_event_that_outruns_the_provider_read_model_is_retried_not_dropped():
     uc, repo, provider = make()
     body = await uc.checkout(owner(), "plan-g1", "key-12345678")
-    data = normalized(provider, "payment.captured", body["order_ref"], "pay_early", 49900)
+    data = normalized(provider, "payment.captured", body["order_ref"], "pay_early", GROWTH_1M_PAISE)
     with pytest.raises(PaymentOutcomeUnknownError):
         await handler_for(repo, provider).apply("razorpay", data)
     provider.pay(body["order_ref"], payment_ref="pay_early")
@@ -612,13 +613,13 @@ async def test_failed_event_after_capture_does_not_regress_and_failure_before_ca
     uc, repo, provider = make()
     body = await uc.checkout(owner(), "plan-g1", "key-12345678")
     h = handler_for(repo, provider)
-    failed = normalized(provider, "payment.failed", body["order_ref"], "pay_bad", 49900,
+    failed = normalized(provider, "payment.failed", body["order_ref"], "pay_bad", GROWTH_1M_PAISE,
                         event_id="evt_f")
     assert await h.apply("razorpay", failed) == "applied"
     row = repo.rows[body["billing_id"]]
     assert row["status"] == "created" and row["failure_code"] == "payment_failed"  # still payable
     pay = provider.pay(body["order_ref"])
-    captured = normalized(provider, "payment.captured", body["order_ref"], pay, 49900,
+    captured = normalized(provider, "payment.captured", body["order_ref"], pay, GROWTH_1M_PAISE,
                           event_id="evt_c")
     assert await h.apply("razorpay", captured) == "applied"
     assert await h.apply("razorpay", failed) == "applied"  # delayed, out-of-order failure
@@ -628,19 +629,19 @@ async def test_failed_event_after_capture_does_not_regress_and_failure_before_ca
 async def test_refund_events_converge_and_never_revoke_access_automatically():
     _uc, repo, provider, body, pay = await paid_flow()
     h = handler_for(repo, provider)
-    await h.apply("razorpay", normalized(provider, "payment.captured", body["order_ref"], pay, 49900))
+    await h.apply("razorpay", normalized(provider, "payment.captured", body["order_ref"], pay, GROWTH_1M_PAISE))
     provider.payments[pay]["refunded"] = D("100.00")
     refund = normalized(provider, "refund.processed", None, pay, 10000, refund="rfnd_1")
     assert await h.apply("razorpay", refund) == "applied"
     assert await h.apply("razorpay", refund) == "applied"
     row = repo.rows[body["billing_id"]]
     assert row["status"] == "partially_refunded" and row["refunded_amount"] == D("100.00")
-    provider.payments[pay]["refunded"] = D("499.00")
+    provider.payments[pay]["refunded"] = GROWTH_1M
     await h.apply("razorpay", refund)
     assert repo.rows[body["billing_id"]]["status"] == "refunded"
     provider.payments[pay]["refunded"] = D("50.00")  # a stale, reordered view cannot lower it
     await h.apply("razorpay", refund)
-    assert repo.rows[body["billing_id"]]["refunded_amount"] == D("499.00")
+    assert repo.rows[body["billing_id"]]["refunded_amount"] == GROWTH_1M
     assert repo.applied_calls == 1 and repo.rows[body["billing_id"]]["applied_at"] is not None
 
 
@@ -705,7 +706,7 @@ async def test_a_late_capture_on_an_expired_order_is_still_applied():
     body = await uc.checkout(owner(), "plan-g1", "key-12345678")
     await repo.finish_unpaid(body["billing_id"], "expired")
     pay = provider.pay(body["order_ref"])
-    data = normalized(provider, "payment.captured", body["order_ref"], pay, 49900)
+    data = normalized(provider, "payment.captured", body["order_ref"], pay, GROWTH_1M_PAISE)
     assert await handler_for(repo, provider).apply("razorpay", data) == "applied"
     assert repo.rows[body["billing_id"]]["status"] == "paid" and repo.applied_calls == 1
 
@@ -795,7 +796,7 @@ async def test_access_state_labels_follow_the_plan_tier():
 async def test_history_is_visible_after_lapse_and_money_is_serialised_as_decimal_strings():
     uc, _repo, _provider, _body, _pay = await paid_flow()
     rows = await uc.history(owner(), 10, 0)
-    assert rows[0]["amount"] == "499.00" and rows[0]["refunded_amount"] == "0.00"
+    assert rows[0]["amount"] == str(GROWTH_1M) and rows[0]["refunded_amount"] == "0.00"
 
 
 # ============================================================== HTTP-level routes

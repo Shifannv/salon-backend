@@ -21,6 +21,8 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 DEPLOYMENT_STARTED = False
+SCHEMA_COMPATIBILITY = None
+SCHEMA_RECEIPT_PATH = "backend/deployments/schema-0053-0055-20261101.json"
 REPOSITORY = "Shifannv/salon-backend"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
@@ -190,7 +192,44 @@ def identity(*, automatic: bool = False) -> str:
     return commit
 
 
+def approved_schema_release(baseline: str, commit: str, changes: list[str]) -> dict:
+    """Admit only the independently executed 0053-0055 delta, candidate-only."""
+    message = "Migration differences require separate reviewed backup, target and approval; candidate refused"
+    require(baseline == "6fefff404b148af4798105228418d96f03ad8e4c", message)
+    raw = git_blob(commit, SCHEMA_RECEIPT_PATH)
+    data = json.loads(raw)
+    source = "4208c76d5dad71a923b8de2991ff5677e391b8e8"
+    names = ["0053_salon_payout_requests", "0054_staff_earnings", "0055_feature_access"]
+    expected_paths = {f"backend/migrations/{folder}/{name}.{extension}"
+                      for name in names for folder, extension in [("sql", "sql"), ("versions", "py")]}
+    require(data.get("schema_version") == 1 and data.get("status") == "PRODUCTION_SQL_VERIFIED"
+            and data.get("repository") == REPOSITORY and data.get("baseline_commit") == baseline
+            and data.get("sql_source_commit") == source and data.get("gcp_project") == "saloon-505509"
+            and data.get("region") == "asia-south1" and data.get("service") == "salon-api-production"
+            and data.get("database_project") == "wqjlgpnbiapcrlkxumcp"
+            and data.get("release_mode") == "zero-traffic-candidate-only"
+            and data.get("migration_target") == "0055_feature_access"
+            and set(changes) == set(data.get("files", {})) == expected_paths, message)
+    command("git", "merge-base", "--is-ancestor", source, commit)
+    for path, digest in data["files"].items():
+        require(re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+                and hashlib.sha256(git_blob(source, path)).hexdigest() == digest
+                and hashlib.sha256(git_blob(commit, path)).hexdigest() == digest, message)
+    evidence = {
+        "backend/docs/verification/PRODUCTION_0053_0055_EXECUTION_RESULT_2026-11-01.md",
+        "backend/docs/verification/GATE_A_0053_0055_2026-11-01.md",
+    }
+    require(set(data.get("evidence", {})) == evidence, message)
+    for path, digest in data["evidence"].items():
+        require(hashlib.sha256(git_blob(commit, path)).hexdigest() == digest, message)
+    return {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "migration_target": data["migration_target"],
+            "previous_revision": data["previous_revision"], "previous_image": data["previous_image"],
+            "reviewed_migration_differences": sorted(changes), "requires_supervised_promotion": True}
+
+
 def preflight(*, automatic: bool = False) -> str:
+    global SCHEMA_COMPATIBILITY
+    SCHEMA_COMPATIBILITY = None
     commit = identity(automatic=automatic)
     baseline = os.environ.get("BASELINE_COMMIT", "")
     if bootstrap_enabled():
@@ -205,8 +244,9 @@ def preflight(*, automatic: bool = False) -> str:
         require(not os.environ.get("BOOTSTRAP_CONFIRMATION"), "Unexpected bootstrap confirmation")
         require(SHA.fullmatch(baseline) is not None, "Full proven deployed source SHA required")
         require(command("git", "cat-file", "-t", baseline) == "commit", "Baseline commit missing")
-        require(not command("git", "diff", "--name-only", baseline, commit, "--", "backend/migrations"),
-                "Migration differences require separate reviewed backup, target and approval; candidate refused")
+        changes = command("git", "diff", "--name-only", baseline, commit, "--", "backend/migrations").splitlines()
+        if changes:
+            SCHEMA_COMPATIBILITY = approved_schema_release(baseline, commit, changes)
     return commit
 
 
@@ -274,6 +314,10 @@ def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> 
     previous = serving[0][0]
     revision = cloud("run", "revisions", "describe", previous, "--region=" + region)
     previous_image = revision["status"]["imageDigest"]
+    if SCHEMA_COMPATIBILITY is not None:
+        require(previous == SCHEMA_COMPATIBILITY["previous_revision"]
+                and previous_image == SCHEMA_COMPATIBILITY["previous_image"],
+                "Approved schema compatibility baseline revision/image changed")
     registry = f"{region}-docker.pkg.dev"
     command("gcloud", "auth", "configure-docker", registry, "--quiet")
     command("docker", "pull", previous_image)
@@ -347,6 +391,10 @@ def candidate(*, automatic: bool = False, tested_bundle: Path | None = None) -> 
                "ci_artifact_digest": os.environ.get("CI_IMAGE_ARTIFACT_DIGEST"),
                "worker_coverage": "API image only; no worker deployment or execution; see CI_CD.md",
                "rollback_command": f"gcloud run services update-traffic {service} --project={project} --region={region} --to-revisions={previous}=100"}
+    if SCHEMA_COMPATIBILITY is not None:
+        receipt["schema_compatibility"] = copy.deepcopy(SCHEMA_COMPATIBILITY)
+        receipt["requires_supervised_promotion"] = True
+        receipt["migration_target"] = SCHEMA_COMPATIBILITY["migration_target"]
     path = Path("candidate-result.json")
     path.write_text(json.dumps(receipt, indent=2) + "\n")
     try:

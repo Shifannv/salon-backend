@@ -102,6 +102,13 @@ baseline required by automatic releases. Any migration difference requires separ
 reviewed backup/target/approval. No Alembic upgrade/stamp, schema write or production
 data mutation is performed by the workflow.
 
+The 0053–0055 compatibility release now has an exact-source/hash-bound receipt
+for the separately completed production SQL execution. It permits only a
+zero-traffic candidate, with explicit promotion approval still required. Every
+other migration difference remains refused. Once promoted, ordinary releases
+derive their baseline from that new image and run automatically after exact-main
+CI. See [scope and tests](verification/CLOUD_RUN_SCHEMA_COMPATIBILITY_RELEASE_2026-11-02.md).
+
 CI builds and smoke-tests the exact checked-out commit with OCI revision/source labels.
 The release downloads that same run/attempt artifact, verifies its archive, config,
 layers and labels, pushes it without rebuilding, resolves its immutable digest, and
