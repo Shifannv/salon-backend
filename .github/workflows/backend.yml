@@ -2,6 +2,11 @@ name: Backend CI
 
 on:
   workflow_call:
+    inputs:
+      publish_deployment_image:
+        type: boolean
+        required: false
+        default: false
     outputs:
       image_artifact_id:
         value: ${{ jobs.image.outputs.artifact_id }}
@@ -56,10 +61,13 @@ jobs:
       - run: python -m pytest -q --junitxml=test-results.xml
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
         if: always()
+        # Diagnostic report only; pytest's exit code remains authoritative.
+        continue-on-error: true
         with:
           name: portable-ci-test-results
           path: backend/test-results.xml
           if-no-files-found: error
+          retention-days: 1
 
   image:
     name: Build and smoke test image
@@ -86,12 +94,14 @@ jobs:
       - name: Verify non-root runtime and custom port
         run: bash backend/scripts/check-container.sh "$RELEASE_IMAGE" "$GITHUB_SHA"
       - name: Export the exact tested image and provenance
+        if: inputs.publish_deployment_image && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: python3 backend/scripts/ci_image_bundle.py create "$RELEASE_IMAGE" ci-bundle
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
         id: bundle
+        if: inputs.publish_deployment_image && github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           name: ci-image-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ci-bundle/*
-          compression-level: 0
+          compression-level: 6
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1

@@ -37,3 +37,31 @@ non-cancelling production concurrency, latest-main checks, image-only deployment
 readiness/version/OpenAPI checks, runtime preservation and rollback remain intact.
 No image is rebuilt during rollout. The candidate is built and tested by the same
 workflow run that deploys it through existing OIDC federation.
+
+## Free-tier artifact storage correction
+
+CI initially failed after tests because GitHub refused artifact creation at its
+storage quota. Inventory found 195 backend artifacts totaling about 20.48 GB,
+including 57 CI image archives totaling about 20.35 GB. The owner approved
+preserving the latest tested main image locally before deleting these GitHub
+image copies, while retaining the 138 other artifacts and all cloud rollback
+images/backups. Actual cleanup results must be recorded separately.
+
+Only the automatic main release now requests an image/provenance archive from
+reusable CI. PR/feature/standalone CI still builds and smoke-tests the image,
+but does not publish unused deployment bundles. Deployment bundles have one-day
+retention and compression; the exact consumed artifact ID, source and digest
+are still mandatory. Failure to upload that image still blocks deployment.
+
+Diagnostic JUnit/candidate receipt uploads are best-effort: failing tests or
+health checks still fail, while an evidence-upload quota error does not change
+their result. Job logs/summaries remain available.
+
+The owner separately approved the cleanup job's contents:read/actions:write
+permissions. It has no OIDC or cloud credentials. After a successful release,
+it verifies artifact ID, image name, run ID and source SHA before deleting only
+that run's consumed image archive. The GitHub token has repository Actions-write
+authority; the code and job conditions restrict its use, not the platform token
+scope itself. Failure reports a warning; no broader cleanup is attempted.
+Production deployment retains its existing read/OIDC permissions. GitHub storage
+accounting may take 6–12 hours to reflect deletion; no billing upgrade is used.
