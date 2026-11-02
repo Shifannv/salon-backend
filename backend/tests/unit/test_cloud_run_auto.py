@@ -152,6 +152,50 @@ def test_verified_candidate_promotes_and_keeps_existing_tags(auto, rollout):
     assert calls[0][0]["tag"] == "retain" and len(calls) == 1
 
 
+def test_server_last_modifier_is_not_runtime_configuration(auto):
+    before = state(auto)
+    before["lastModifier"] = "previous-deployer@example.invalid"
+    after = copy.deepcopy(before)
+    after["lastModifier"] = "approved-operator@example.invalid"
+    assert auto.configuration(before) == auto.configuration(after)
+    after["template"]["serviceAccount"] = "different-runtime"
+    assert auto.configuration(before) != auto.configuration(after)
+
+
+def test_traffic_poll_accepts_server_last_modifier_change(auto, monkeypatch):
+    before = state(auto)
+    before["lastModifier"] = "previous-deployer@example.invalid"
+    expected = auto.targets(before, "salon-api-production-new")
+    current = copy.deepcopy(before)
+    current.update(traffic=expected, trafficStatuses=[{"revision": "salon-api-production-new", "percent": 100}],
+                   lastModifier="approved-operator@example.invalid", etag="etag-2")
+    writes = []
+    def api(method, resource, body=None):
+        if method == "PATCH":
+            writes.append(body)
+            return {}
+        return current
+    monkeypatch.setattr(auto, "api", api)
+    auto.patch_traffic(before, expected)
+    assert len(writes) == 1 and writes[0]["etag"] == "etag-1"
+
+
+def test_changed_last_modifier_does_not_prevent_health_rollback(auto, rollout, monkeypatch):
+    receipt, current, calls = rollout
+    current["lastModifier"] = "previous-deployer@example.invalid"
+    original = auto.patch_traffic
+    def patch(service, targets):
+        original(service, targets)
+        current["lastModifier"] = "approved-operator@example.invalid"
+    monkeypatch.setattr(auto, "patch_traffic", patch)
+    checks = iter([health(auto, False), health(auto, True)])
+    monkeypatch.setattr(auto, "public_health", lambda **kwargs: next(checks))
+    with pytest.raises(RuntimeError, match="health failed"):
+        auto.promote(receipt)
+    assert receipt["status"] == "ROLLED_BACK"
+    assert auto.resolved(current) == [("salon-api-production-old", 100)] and len(calls) == 2
+
+
 @pytest.mark.parametrize("failure", ["health", "timeout_after_acceptance", "unhealthy_rollback"])
 def test_health_or_ambiguous_patch_failure_rolls_back_same_revision(auto, rollout, monkeypatch, failure):
     receipt, current, calls = rollout
