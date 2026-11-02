@@ -69,6 +69,12 @@ class ConflictError(AppError):
     code = "conflict"
 
 
+class SalonNotReadyForDeletionError(ConflictError):
+    """Raised when a salon still has refunds or payouts outstanding, so it cannot be erased yet."""
+
+    code = "salon_not_ready_for_deletion"
+
+
 class SlotUnavailableError(ConflictError):
     """Raised when a booking slot is no longer available."""
 

@@ -110,6 +110,14 @@ a healthy labelled baseline plus retained rollback revision. No future migration
 automatically approved: any migration-source difference fails closed pending its own
 review, backup and compatibility release.
 
+On 2 November, migrations 0056–0057 and the tested fa82510 API were explicitly
+approved and released to production. See [the execution evidence](verification/PRODUCTION_0056_0057_EXECUTION_RESULT_2026-11-02.md)
+and [hash-bound schema receipt](../deployments/schema-0056-0057-20261102.json).
+The serving image establishes fa82510 as the new proven migration baseline; no
+release guard was removed. For later schema-changing PRs, plan the reviewed schema
+and compatible API release before promising automatic deployment: green tests and
+image builds alone do not prove that production has the required schema.
+
 ## Manual candidate workflow
 
 The historical manual candidate workflow is retained as a disabled/read-only notice;

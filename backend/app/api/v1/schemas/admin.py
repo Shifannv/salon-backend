@@ -97,6 +97,30 @@ class AdminDeactivateSalonResponse(BaseModel):
     owner_id: str
 
 
+class SalonDeletionReadinessResponse(BaseModel):
+    """What a salon still owes or is owed. ``can_delete`` is the server's decision; clients only show it."""
+
+    salon_id: str
+    open_bookings: int
+    refunds_due_count: int
+    refunds_due_paise: int
+    refunds_pending_count: int
+    payout_balance_paise: int
+    payout_requests_pending: int
+    can_delete: bool
+    blockers: list[
+        Literal["open_bookings", "refunds_due", "refunds_pending", "payout_balance", "payout_requests_pending"]
+    ]
+
+
+class SalonDeletionPrepareRequest(BaseModel):
+    """How refunds on the salon's open bookings are settled before it is deleted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    refund_mode: Literal["auto", "manual"]
+
+
 # ── Catalog schemas ───────────────────────────────────────────────────────────
 
 class CategoryCreateRequest(HostedMediaRequest):
