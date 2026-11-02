@@ -21,6 +21,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,16 +43,16 @@ EXPECTED_SALON_PLAN_PRICES_COLUMNS: dict[str, str] = {
 # Expected after 0050: additional column
 EXPECTED_0050_COLUMN = "valid_until"
 
-# Expected 0049 subscription_plans prices in production.
-# NOTE: 0049 SQL sets 1675/2932 from 0031 seed. Production prices were updated to 2000/2999
-# after 0049 was applied directly. Owner confirmed 2000/2999/499 as authoritative on 2026-10-31.
-# See backend/docs/verification/0049_SUBSCRIPTION_PRICE_RECONCILIATION_2026-10-31.md (Path A).
+# Current subscription catalog prices explicitly confirmed by the owner on
+# 2026-11-01. These supersede the prior 2026-10-31 approval; they are not a
+# request to replay 0049 or update production data. See verification/
+# SUBSCRIPTION_PRICE_APPROVAL_2026-11-01.md.
 EXPECTED_0049_PRICES: dict[str, float] = {
-    "growth_1m": 499.00,
-    "growth_6m": 2000.00,
-    "growth_12m": 2999.00,
-    "premium_6m": 2875.00,
-    "premium_12m": 5032.00,
+    "growth_1m": 449.00,
+    "growth_6m": 2419.00,
+    "growth_12m": 4299.00,
+    "premium_6m": 3499.00,
+    "premium_12m": 6199.00,
 }
 
 # Objects expected after 0040 baseline (FastAPI-only access controls)
@@ -275,7 +276,7 @@ async def check_0049_primary_key(conn) -> dict[str, Any]:
 
 
 async def check_0049_subscription_plan_prices(conn) -> dict[str, Any]:
-    """PASS: subscription_plans prices match 0049 target values."""
+    """PASS: subscription_plans prices match the owner's current approved catalog."""
     rows = await conn.fetch(
         "SELECT code, price_amount FROM public.subscription_plans WHERE code = ANY($1::text[])",
         list(EXPECTED_0049_PRICES.keys()),
@@ -336,24 +337,43 @@ async def check_0051_finance_schema(conn) -> dict[str, Any]:
 
 
 async def check_0052_booking_window_function(conn) -> dict[str, Any]:
-    """PASS: get_available_slots function exists with booking-window 30-day guard (0052)."""
-    row = await conn.fetchrow(
+    """Require both exact 0052 function bodies for the approved 60-day window."""
+    sidecar = BACKEND / "migrations/sql/0052_booking_window_30_days.sql"
+    expected = dict(re.findall(
+        r"create or replace function public\.(\w+)\(.*?as \$\$(.*?)\$\$;",
+        sidecar.read_text(encoding="utf-8"), re.IGNORECASE | re.DOTALL,
+    ))
+    names = {"get_available_slots", "create_booking"}
+    if set(expected) != names or any(
+        not re.search(r"v_today\s*\+\s*60\b", body) for body in expected.values()
+    ):
+        return {"check": "0052_booking_window_function", "status": "FAIL",
+                "note": "Local sidecar does not contain both approved 60-day guards."}
+    rows = await conn.fetch(
         """
-        SELECT prosrc FROM pg_proc p
+        SELECT p.proname, p.prosrc FROM pg_proc p
         JOIN pg_namespace n ON p.pronamespace = n.oid
-        WHERE n.nspname = 'public' AND p.proname = 'get_available_slots'
+        WHERE n.nspname = 'public' AND p.oid IN (
+          to_regprocedure('public.get_available_slots(uuid,date,integer)'),
+          to_regprocedure('public.create_booking(uuid,uuid,uuid[],timestamptz,text,text,public.booking_source,text)')
+        )
         """
     )
-    if row is None:
-        return {"check": "0052_booking_window_function", "status": "FAIL",
-                "note": "get_available_slots not found."}
-    src = row["prosrc"]
-    has_30d_guard = "30" in src and ("days" in src.lower() or "day" in src.lower())
+    def digest(body: str) -> str:
+        normalized = "\n".join(line.rstrip() for line in body.splitlines()).strip()
+        return hashlib.sha256(normalized.encode()).hexdigest()
+    found = {row["proname"]: row["prosrc"] for row in rows}
+    checks = [{"function": name, "present": name in found,
+               "expected_body_sha256": digest(expected[name]),
+               "actual_body_sha256": digest(found[name]) if name in found else None,
+               "matches_approved_body": name in found and digest(found[name]) == digest(expected[name])}
+              for name in sorted(names)]
     return {
         "check": "0052_booking_window_function",
-        "status": "PASS" if has_30d_guard else "WARN",
-        "has_30_day_guard": has_30d_guard,
-        "note": "Inspect function body manually to verify exact window logic.",
+        "status": "PASS" if all(row["matches_approved_body"] for row in checks) else "FAIL",
+        "approved_window_days": 60,
+        "functions": checks,
+        "note": "Exact signature/body comparison; only outer whitespace and line endings normalized. No SQL executed.",
     }
 
 

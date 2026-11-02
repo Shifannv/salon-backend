@@ -1,7 +1,7 @@
 """Canonical subscription plan prices for test fixtures.
 
-Owner-approved authoritative production prices confirmed 2026-10-31 (Path A).
-See: backend/docs/verification/0049_SUBSCRIPTION_PRICE_RECONCILIATION_2026-10-31.md
+Owner-approved authoritative production prices confirmed 2026-11-01.
+See: backend/docs/verification/SUBSCRIPTION_PRICE_APPROVAL_2026-11-01.md
 
 All test fixtures that reference current subscription plan prices must import from here
 instead of duplicating numeric literals. A regression test in test_migration_policy.py
@@ -14,11 +14,11 @@ the immutable SQL produces from the 0031 seed. Those tests should NOT import fro
 from decimal import Decimal
 
 # Growth plan — owner-confirmed production prices
-GROWTH_1M = Decimal("499.00")
-GROWTH_1M_PAISE = 49900  # ₹499.00 in Indian paisa
-GROWTH_6M = Decimal("2000.00")
-GROWTH_12M = Decimal("2999.00")
+GROWTH_1M = Decimal("449.00")
+GROWTH_1M_PAISE = 44900  # ₹449.00 in Indian paisa
+GROWTH_6M = Decimal("2419.00")
+GROWTH_12M = Decimal("4299.00")
 
-# Premium plan — unchanged from 0049 SQL targets
-PREMIUM_6M = Decimal("2875.00")
-PREMIUM_12M = Decimal("5032.00")
+# Premium plan — current owner-approved catalog
+PREMIUM_6M = Decimal("3499.00")
+PREMIUM_12M = Decimal("6199.00")
