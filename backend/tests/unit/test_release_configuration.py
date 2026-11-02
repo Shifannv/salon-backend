@@ -211,6 +211,11 @@ def test_actual_deploy_job_skips_when_authoritative_gate_is_false():
     assert "needs.image.outputs.registry_image_metadata != ''" in job["if"]
     image = data["jobs"]["image"]
     assert image["environment"] == "production"
+    # GET /environments/production requires Actions read for the admission guard.
+    # Omitting it produces HTTP 403 before OIDC, as seen in run 41404462965.
+    expected_permissions = {"contents": "read", "id-token": "write", "actions": "read", "pull-requests": "read"}
+    assert image["permissions"] == expected_permissions
+    assert job["permissions"] == expected_permissions
     assert set(image["needs"]) == {"ci", "gate"}
     assert "needs.gate.outputs.enabled == 'true'" in image["if"]
     assert "github.event_name == 'push'" in image["if"]

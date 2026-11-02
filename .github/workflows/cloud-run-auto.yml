@@ -51,6 +51,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: read
       pull-requests: read
     outputs:
       registry_image_metadata: ${{ steps.publish.outputs.registry_image_metadata }}
@@ -118,6 +119,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: read
       pull-requests: read
     env:
       BOOTSTRAP_BASELINE: 'false'
