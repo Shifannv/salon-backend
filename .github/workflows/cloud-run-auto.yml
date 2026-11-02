@@ -14,6 +14,8 @@ permissions:
 jobs:
   ci:
     uses: ./.github/workflows/backend.yml
+    with:
+      publish_deployment_image: true
     permissions:
       contents: read
 
@@ -93,8 +95,29 @@ jobs:
         run: python3 backend/scripts/cloud_run_auto.py deploy
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, Node24
         if: always() && steps.admit.outputs.eligible == 'true'
+        # Evidence is also retained in the job summary and log; not a deploy input.
+        continue-on-error: true
         with:
           name: cloud-run-auto-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: candidate-result.json
           if-no-files-found: warn
           retention-days: 30
+
+  cleanup-consumed-image:
+    needs: [ci, release]
+    if: always() && needs.release.result == 'success' && needs.ci.outputs.image_artifact_id != '' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor_id == '172572480'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Delete only this successful run's consumed CI image archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_IMAGE_ARTIFACT_ID: ${{ needs.ci.outputs.image_artifact_id }}
+        run: python3 backend/scripts/ci_artifact_cleanup.py
