@@ -34,6 +34,14 @@ async def convert_payout_accounts(session: AsyncSession, *, decrypt: bool = Fals
 
     if not decrypt and not encryption_enabled():
         raise RuntimeError("Set PAYOUT_ENCRYPTION_KEY before encrypting payout accounts")
+    if apply:
+        # Disabling the audit triggers requires ACCESS EXCLUSIVE. Take that lock before
+        # selecting rows so concurrent payout writes cannot make a later lock upgrade
+        # wait indefinitely or deadlock. Two production rows make the locked section brief.
+        await session.execute(text("set local lock_timeout = '5s'"))
+        await session.execute(
+            text("lock table public.salon_payout_accounts in access exclusive mode")
+        )
     rows = (await session.execute(_SELECT_ENCRYPTED if decrypt else _SELECT_PLAIN)).mappings().all()
     summary: dict[str, Any] = {
         "mode": "decrypt" if decrypt else "encrypt",

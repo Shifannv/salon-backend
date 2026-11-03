@@ -56,6 +56,6 @@ Set the key back to empty only after running `scripts/encrypt_payout_accounts.py
 
 ## Tested against
 
-Disposable local PostgreSQL 16: migration apply, owner write, masked read, history, admin
+Disposable local PostgreSQL 18: migration apply, owner write, masked read, history, admin
 reveal, legacy rows, clearing, constraint rejection, backfill both ways
 (`tests/integration/test_payout_encryption_sql.py`), and `tests/unit/test_field_crypto.py`.
