@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "PRODUCTION_SQL_VERIFIED",
+  "repository": "Shifannv/salon-backend",
+  "gcp_project": "saloon-505509",
+  "region": "asia-south1",
+  "service": "salon-api-production",
+  "database_project": "wqjlgpnbiapcrlkxumcp",
+  "sql_source_commit": "253a591cea7ee81c5cc3a5cda5e354ada14eb5be",
+  "pull_request": 52,
+  "migration_target": "0058_admin_salon_erasure",
+  "approval": "User explicitly approved a fresh encrypted backup, migration 0058 and PR #52 production deployment in this chat; no salon erasure was authorized or executed by this release.",
+  "sql_applied_date": "2026-11-02",
+  "supervised_api_release_date": "2026-11-03",
+  "executed_sql_sha256": {
+    "backend/migrations/sql/0058_admin_salon_erasure.sql": "1f491208510e627758fcc15b37e73b43c441a8aeeb2ac6a5b4e7a2890a4bbc93"
+  },
+  "source_equivalence": "Executed SQL bytes exactly matched the selected Git blob",
+  "alembic_revision_unchanged": "0052_booking_window_30_days",
+  "migration_history_rewritten": false,
+  "backup": {
+    "archive": "postgres-20261102T131621979015Z.dump.gpg",
+    "sha256": "3a1b07b958f15e4a84152c299859a51ef3848abbcf9a1bab2fe4d3b91faa40be",
+    "bytes": 234170,
+    "table_data_entries": 108,
+    "verification": "checksum, complete GPG decryption and pg_restore archive listing passed before migration execution",
+    "full_restore_rehearsal_for_this_archive": false
+  },
+  "migration_verification": {
+    "tombstone_table_present": true,
+    "tombstone_rls_enabled": true,
+    "public_function_execution_denied": true,
+    "backend_function_execution_granted": true,
+    "installed_function_body_matches_approved_sql": true,
+    "existing_guard_modes_unchanged": true,
+    "salon_count_unchanged_at_execution": true,
+    "erasure_job_count_at_execution": 0
+  },
+  "supervised_release": {
+    "status": "PASS_PRODUCTION_PROMOTED",
+    "commit": "253a591cea7ee81c5cc3a5cda5e354ada14eb5be",
+    "revision": "salon-api-production-approved-253a591-0058-20261102",
+    "image": "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:63799e3a86e588f5efe4a1118fca6701a0d4a14d7d512628373b492da9551311",
+    "previous_revision": "salon-api-production-gh-fa82510e-41436345489-2",
+    "contract": "BACKWARD_COMPATIBLE",
+    "openapi_paths": 176,
+    "openapi_sha256": "c19a9e9df1fcd192588d159c15e547fc3ff8aaab1bf9a514e9c3c0e738559610",
+    "both_public_hosts_all_seven_read_checks": "HTTP 200 and exact source identity passed"
+  },
+  "automatic_release": {
+    "workflow_run": "https://github.com/Shifannv/salon-backend/actions/runs/41450888389/attempts/2",
+    "attempt": 2,
+    "conclusion": "success",
+    "status": "PASS_PRODUCTION_PROMOTED",
+    "ci_passed": 2620,
+    "ci_skipped": 42,
+    "revision": "salon-api-production-gh-253a591c-41450888389-2",
+    "image": "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:5a9d1fe6dc7f94d8de87422079fcc53c066e05532c6050885d3d212c67f30b5c",
+    "production_traffic_percent": 100,
+    "both_public_hosts_identity_readiness_db_redis": "independently verified after automatic release"
+  },
+  "automation_policy": "Evidence only; no general migration bypass. The proven 253a591 serving baseline permits the existing automatic release flow with identical migration sources. Future schema changes require separate approval."
+}
