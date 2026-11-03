@@ -105,3 +105,14 @@ async def test_marketing_can_be_withdrawn_on_its_own_without_touching_the_other_
             MarketingChoiceRequest(source="customer_app", marketing=False), make_profile(), AsyncMock())
     assert stored == [("marketing", "1", False)]
     assert done.marketing is False and done.needs_consent is False
+
+
+def test_consent_downgrade_refuses_to_destroy_evidence():
+    migration = Path(__file__).parents[2] / "migrations/versions/0060_user_consents.py"
+    spec = importlib.util.spec_from_file_location("consent_migration", migration)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with patch.object(module.op, "execute") as execute:
+        with pytest.raises(RuntimeError, match="irreversible"):
+            module.downgrade()
+        execute.assert_not_called()
