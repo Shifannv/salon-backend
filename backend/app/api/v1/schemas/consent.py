@@ -31,3 +31,12 @@ class ConsentStatusResponse(BaseModel):
     age_13_plus: bool = False
     marketing: bool = False
     needs_consent: bool
+
+
+class MarketingChoiceRequest(BaseModel):
+    """Turn offers and news on or off after the first consent screen."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["customer_app", "owner_app", "walkin_web"]
+    marketing: bool
