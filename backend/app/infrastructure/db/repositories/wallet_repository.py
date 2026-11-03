@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import IdempotencyKeyReuseError, ValidationError
+from app.core.field_crypto import decrypt_field
 from app.infrastructure.db.repositories.finance_repository import FinanceRepository
 
 _SETTLED = "('captured','partially_refunded','refunded')"
@@ -178,7 +179,8 @@ class WalletRepository:
 
         result = await self.session.execute(
             text(
-                """select a.account_holder_name, a.upi_id, a.bank_name, a.bank_account_number, a.ifsc,
+                """select a.salon_id::text as salon_id, a.account_holder_name, a.upi_id, a.bank_name,
+                          a.bank_account_number, a.ifsc,
                           (a.updated_at > q.created_at) as changed_since_request
                    from salon_payout_requests q
                    join salon_payout_accounts a on a.salon_id = q.salon_id
@@ -187,7 +189,12 @@ class WalletRepository:
             {"id": request_id},
         )
         row = result.mappings().first()
-        return dict(row) if row else None
+        if row is None:
+            return None
+        account = dict(row)
+        # Opened here, for the admin who pays it; legacy plaintext passes through unchanged.
+        account["bank_account_number"] = decrypt_field(account["bank_account_number"], account.pop("salon_id"))
+        return account
 
     async def min_payout_paise(self) -> int | None:
         """The minimum the super admin set (``platform_payment_settings``), or None if the row is missing."""

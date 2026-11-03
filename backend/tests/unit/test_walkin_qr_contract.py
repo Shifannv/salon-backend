@@ -118,6 +118,53 @@ def test_otp_send_and_verify_have_separate_strict_limits_without_plain_phone_key
     assert (gateway.verify_phone_otp if otp else gateway.send_phone_otp).await_count == limit
 
 
+def _stub_otp_gateway(monkeypatch):
+    gateway = SimpleNamespace(send_phone_otp=AsyncMock(), verify_phone_otp=AsyncMock())
+    monkeypatch.setattr('app.api.v1.routes.walkin._use_cases', lambda _: SimpleNamespace(assert_public_qr_token=AsyncMock()))
+    monkeypatch.setattr('app.api.v1.routes.walkin.SupabaseAuthGateway', lambda _: gateway)
+    return gateway
+
+
+@pytest.mark.parametrize('body', [
+    {'phone': '9876543210'}, {'phone': '+0123456789'}, {'phone': '+91 98765 43210'},
+    {'phone': '+12345'}, {'phone': '+' + '1' * 16}, {'phone': "+15555550101'; --"},
+    {'phone': '+15555550101', 'otp': '12345'}, {'phone': '+15555550101', 'otp': 'abcdef'},
+])
+def test_otp_rejects_malformed_phone_or_code_before_any_sms(client, monkeypatch, body):
+    http, _, _ = client
+    gateway = _stub_otp_gateway(monkeypatch)
+    assert http.post(f'/v1/walkin/{TOKEN}/verify-phone', json=body).status_code == 422
+    gateway.send_phone_otp.assert_not_awaited()
+    gateway.verify_phone_otp.assert_not_awaited()
+
+
+def test_otp_send_is_capped_per_client_address_across_phone_numbers(client, monkeypatch):
+    http, _, _ = client
+    gateway = _stub_otp_gateway(monkeypatch)
+    sent = 0
+    for n in range(40):
+        status = http.post(f'/v1/walkin/{TOKEN}/verify-phone', json={'phone': f'+1555555{n:04d}'}).status_code
+        if status == 429:
+            break
+        sent += 1
+    assert sent == 20
+    assert gateway.send_phone_otp.await_count == 20
+
+
+def test_otp_send_is_capped_per_phone_per_day(client, monkeypatch):
+    http, _, cache = client
+    gateway = _stub_otp_gateway(monkeypatch)
+    body = {'phone': '+15555550101'}
+    statuses = []
+    for _ in range(11):
+        # Reset the per-minute bucket each time so only the daily cap can stop the send.
+        for key in [k for k in cache._counter if k.startswith('rate:otp:send:') and ':day:' not in k and ':ip:' not in k]:
+            cache._counter.pop(key)
+        statuses.append(http.post(f'/v1/walkin/{TOKEN}/verify-phone', json=body).status_code)
+    assert statuses == [200] * 10 + [429]
+    assert gateway.send_phone_otp.await_count == 10
+
+
 @pytest.mark.parametrize("token", MALFORMED)
 @pytest.mark.parametrize(("method", "suffix"), [
     ("get", ""), ("get", "/qr"), ("post", "/verify-phone"), ("post", "/bookings"),

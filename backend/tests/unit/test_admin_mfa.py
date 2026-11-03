@@ -52,3 +52,32 @@ async def test_actor_uses_verified_subject_and_database_role():
     repo.get_by_id.assert_awaited_once_with("customer-id")
     assert actor.role == Role.customer
     assert request.state.verified_auth_claims == claims
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("aal", [None, "aal1"])
+async def test_shared_routes_also_require_the_second_factor_for_super_admin(monkeypatch, aal):
+    from app.api.deps import get_mfa_checked_actor
+
+    monkeypatch.setattr(settings, "admin_require_mfa", True)
+    request = Request({"type": "http"})
+    request.state.verified_auth_claims = {"aal": aal}
+    with pytest.raises(AdminMFARequiredError):
+        await get_mfa_checked_actor(request, make_super_admin())
+
+
+@pytest.mark.asyncio
+async def test_shared_routes_do_not_change_for_other_roles_or_with_a_second_factor(monkeypatch):
+    from app.api.deps import get_mfa_checked_actor
+
+    monkeypatch.setattr(settings, "admin_require_mfa", True)
+    request = Request({"type": "http"})
+    request.state.verified_auth_claims = {"aal": "aal1"}
+    customer = make_profile()
+    assert await get_mfa_checked_actor(request, customer) is customer
+    request.state.verified_auth_claims = {"aal": "aal2"}
+    admin = make_super_admin()
+    assert await get_mfa_checked_actor(request, admin) is admin
+    monkeypatch.setattr(settings, "admin_require_mfa", False)
+    request.state.verified_auth_claims = {"aal": None}
+    assert await get_mfa_checked_actor(request, admin) is admin

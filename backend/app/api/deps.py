@@ -121,16 +121,34 @@ async def get_authenticated_session(
     yield session
 
 
+def enforce_admin_mfa(request: Request, actor: Profile) -> None:
+    """Require a verified second factor from a super admin when admin MFA is switched on."""
+
+    if actor.role == Role.super_admin and settings.admin_require_mfa:
+        claims = getattr(request.state, "verified_auth_claims", {})
+        if claims.get("aal") != "aal2":
+            raise AdminMFARequiredError("Multi-factor authentication required for admin access")
+
+
+async def get_mfa_checked_actor(
+    request: Request, actor: Profile = Depends(get_current_actor)
+) -> Profile:
+    """Like ``get_current_actor`` but a super admin must also have passed the second factor.
+
+    For routes shared by every role whose use case gives a super admin platform-wide data.
+    """
+
+    enforce_admin_mfa(request, actor)
+    return actor
+
+
 def require_role(*roles: Role):
     """Create a dependency requiring one of the given roles."""
 
     async def dependency(request: Request, actor: Profile = Depends(get_current_actor)) -> Profile:
         if actor.role not in roles:
             raise ForbiddenError("Insufficient permissions")
-        if actor.role == Role.super_admin and settings.admin_require_mfa:
-            claims = getattr(request.state, "verified_auth_claims", {})
-            if claims.get("aal") != "aal2":
-                raise AdminMFARequiredError("Multi-factor authentication required for admin access")
+        enforce_admin_mfa(request, actor)
         return actor
 
     return dependency

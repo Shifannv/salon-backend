@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import (
     NotFoundError,
 )
+from app.core.field_crypto import encrypt_field
 from app.infrastructure.db.rows import one_dict_or_none
 
 
@@ -76,18 +77,25 @@ class PayoutsMixin:
                     view[dependent] = None
                     written[dependent] = None
         validate(view)
+        if "bank_account_number" in written:
+            # The number is stored encrypted when a key is configured; its last four digits go
+            # in their own column so masking never has to decrypt.
+            number = written["bank_account_number"]
+            written["bank_account_last4"] = number[-4:] if number else None
+            written["bank_account_number"] = encrypt_field(number, str(salon_id))
         params: dict[str, Any] = {"salon_id": salon_id}
-        for field in fields:
+        for field in (*fields, "bank_account_last4"):
             params[field] = written.get(field)
             params[f"set_{field}"] = field in written
         await self.session.execute(
             text(
                 """
                 insert into salon_payout_accounts
-                  (salon_id, account_holder_name, upi_id, bank_name, bank_account_number, ifsc)
+                  (salon_id, account_holder_name, upi_id, bank_name, bank_account_number,
+                   bank_account_last4, ifsc)
                 values
                   (:salon_id, :account_holder_name, :upi_id, :bank_name,
-                   :bank_account_number, :ifsc)
+                   :bank_account_number, :bank_account_last4, :ifsc)
                 on conflict (salon_id) do update set
                   account_holder_name = case when cast(:set_account_holder_name as boolean)
                     then excluded.account_holder_name
@@ -99,6 +107,9 @@ class PayoutsMixin:
                   bank_account_number = case when cast(:set_bank_account_number as boolean)
                     then excluded.bank_account_number
                     else salon_payout_accounts.bank_account_number end,
+                  bank_account_last4 = case when cast(:set_bank_account_last4 as boolean)
+                    then excluded.bank_account_last4
+                    else salon_payout_accounts.bank_account_last4 end,
                   ifsc = case when cast(:set_ifsc as boolean)
                     then excluded.ifsc else salon_payout_accounts.ifsc end
                 """

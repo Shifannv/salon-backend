@@ -1,6 +1,7 @@
 """Owner holidays, services, staff and staff-service links."""
 
 import json
+import uuid
 from collections.abc import Iterable
 from typing import Any
 
@@ -271,10 +272,41 @@ class OwnerCatalogMixin:
         )
         return [self._staff_response(row) for row in result.mappings().all()]
 
+    async def _assert_linkable_staff_profile(self, profile_id: str, salon_id: str) -> None:
+        """Allow a staff row to point only at a staff login that no other salon already uses.
+
+        Linking decides which workspace that login opens, so an owner must not be able to
+        attach a customer, another owner or any account they merely know the id of.
+        """
+
+        refusal = ValidationError("That account cannot be linked as staff")
+        try:
+            uuid.UUID(str(profile_id))
+        except ValueError:
+            raise refusal from None
+        result = await self.session.execute(
+            text(
+                """
+                select p.role::text as role,
+                       exists (select 1 from staff st
+                               where st.profile_id = p.id and st.is_active
+                                 and st.salon_id <> :salon_id) as used_elsewhere
+                from profiles p
+                where p.id = cast(:profile_id as uuid)
+                """
+            ),
+            {"profile_id": str(profile_id), "salon_id": salon_id},
+        )
+        row = result.mappings().one_or_none()
+        if row is None or row["role"] != "staff" or row["used_elsewhere"]:
+            raise refusal
+
     async def create_owner_staff(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Create a staff member."""
 
         salon = await self.get_owner_salon(actor_id)
+        if values.get("profile_id"):
+            await self._assert_linkable_staff_profile(values["profile_id"], salon["id"])
         payload = self._prepare_jsonb_values(values)
         for key in ("profile_id", "photo_url", "specialization", "experience", "working_hours"):
             payload.setdefault(key, None)
@@ -319,6 +351,8 @@ class OwnerCatalogMixin:
         )
         if not allowed:
             raise ValidationError("No staff fields provided")
+        if allowed.get("profile_id"):
+            await self._assert_linkable_staff_profile(allowed["profile_id"], salon["id"])
         assignments = ", ".join(self._sql_assignment(key) for key in allowed)
         result = await self.session.execute(
             text(
