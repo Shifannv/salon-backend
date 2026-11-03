@@ -25,5 +25,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Consent records are evidence; dropping them is a deliberate, separate decision.
-    op.execute("DROP TABLE IF EXISTS public.user_consents")
+    # Consent records are evidence; removal needs a separate reviewed operation.
+    raise RuntimeError("0060 is irreversible: retain consent evidence and use a reviewed forward migration")

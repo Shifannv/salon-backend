@@ -21,6 +21,12 @@ CREATE INDEX user_consents_latest ON public.user_consents (user_id, kind, seq DE
 -- statement --
 ALTER TABLE public.user_consents ENABLE ROW LEVEL SECURITY;
 -- statement --
-REVOKE ALL ON public.user_consents FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.user_consents FROM PUBLIC, anon, authenticated, service_role;
 -- statement --
-GRANT ALL ON public.user_consents TO postgres, service_role;
+GRANT SELECT, INSERT ON public.user_consents TO service_role;
+-- statement --
+CREATE POLICY user_consents_backend_read ON public.user_consents
+  FOR SELECT TO service_role USING (true);
+-- statement --
+CREATE POLICY user_consents_backend_append ON public.user_consents
+  FOR INSERT TO service_role WITH CHECK (true);
