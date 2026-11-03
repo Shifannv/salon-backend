@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor
-from app.api.v1.schemas.consent import ConsentRequest, ConsentStatusResponse
+from app.api.v1.schemas.consent import ConsentRequest, ConsentStatusResponse, MarketingChoiceRequest
 from app.core.config import settings
 from app.core.exceptions import ValidationError
 from app.domain.entities.profile import Profile
@@ -73,4 +73,22 @@ async def record_consent(
             ("marketing", "1", payload.marketing),
         ],
     )
+    return _status(await repository.latest(str(actor.id)))
+
+
+@router.put(
+    "/consents/marketing",
+    response_model=ConsentStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Turn offers and news on or off",
+)
+async def set_marketing_choice(
+    payload: MarketingChoiceRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> ConsentStatusResponse:
+    """Record a new marketing answer. Withdrawing is as easy as giving it and never affects the service."""
+
+    repository = ConsentRepository(session)
+    await repository.record(str(actor.id), payload.source, [("marketing", "1", payload.marketing)])
     return _status(await repository.latest(str(actor.id)))

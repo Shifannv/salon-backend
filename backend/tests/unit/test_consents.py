@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError as SchemaError
 
 from app.api.v1.routes import consents
-from app.api.v1.schemas.consent import ConsentRequest
+from app.api.v1.schemas.consent import ConsentRequest, MarketingChoiceRequest
 from app.core.config import settings
 from app.core.exceptions import ValidationError
 from tests.conftest import make_profile
@@ -80,3 +80,26 @@ def test_a_withdrawn_marketing_choice_does_not_force_consent_again():
     }
     result = status_for(latest)
     assert result.needs_consent is False and result.marketing is False
+
+
+async def test_marketing_can_be_withdrawn_on_its_own_without_touching_the_other_answers():
+    stored = []
+
+    async def record(user_id, source, answers):
+        stored.extend(answers)
+
+    async def latest(user_id):
+        return {
+            "terms": {"version": settings.terms_version, "granted": True},
+            "privacy": {"version": settings.privacy_version, "granted": True},
+            "age_13_plus": {"version": "1", "granted": True},
+            "marketing": {"version": "1", "granted": stored[-1][2]},
+        }
+
+    with patch.object(consents, "ConsentRepository") as repo:
+        repo.return_value.record = AsyncMock(side_effect=record)
+        repo.return_value.latest = AsyncMock(side_effect=latest)
+        done = await consents.set_marketing_choice(
+            MarketingChoiceRequest(source="customer_app", marketing=False), make_profile(), AsyncMock())
+    assert stored == [("marketing", "1", False)]
+    assert done.marketing is False and done.needs_consent is False
