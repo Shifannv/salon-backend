@@ -7,7 +7,12 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_cache, get_current_actor, get_mfa_checked_actor
+from app.api.deps import (
+    get_authenticated_session,
+    get_cache,
+    get_current_actor,
+    get_mfa_checked_actor,
+)
 from app.api.v1.schemas.booking_changes import (
     BookingChangeCommitRequest,
     BookingChangeQuote,

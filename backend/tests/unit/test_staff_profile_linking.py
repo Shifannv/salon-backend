@@ -34,25 +34,31 @@ def repo_with_profile_row(row):
 ])
 async def test_create_refuses_accounts_that_are_not_free_staff_logins(row):
     repo, session = repo_with_profile_row(row)
-    with patch.object(PlatformRepository, "get_owner_salon", AsyncMock(return_value=SALON)):
-        with pytest.raises(ValidationError):
-            await repo.create_owner_staff("owner-1", {"name": "A", "profile_id": PROFILE})
+    with (
+        patch.object(PlatformRepository, "get_owner_salon", AsyncMock(return_value=SALON)),
+        pytest.raises(ValidationError),
+    ):
+        await repo.create_owner_staff("owner-1", {"name": "A", "profile_id": PROFILE})
     session.commit.assert_not_awaited()
 
 
 async def test_update_refuses_a_non_staff_account():
     repo, session = repo_with_profile_row({"role": "customer", "used_elsewhere": False})
-    with patch.object(PlatformRepository, "get_owner_salon", AsyncMock(return_value=SALON)):
-        with pytest.raises(ValidationError):
-            await repo.update_owner_staff("owner-1", "s1", {"profile_id": PROFILE})
+    with (
+        patch.object(PlatformRepository, "get_owner_salon", AsyncMock(return_value=SALON)),
+        pytest.raises(ValidationError),
+    ):
+        await repo.update_owner_staff("owner-1", "s1", {"profile_id": PROFILE})
     session.commit.assert_not_awaited()
 
 
 async def test_malformed_profile_id_is_refused_without_a_query():
     repo, session = repo_with_profile_row(None)
-    with patch.object(PlatformRepository, "get_owner_salon", AsyncMock(return_value=SALON)):
-        with pytest.raises(ValidationError):
-            await repo.create_owner_staff("owner-1", {"name": "A", "profile_id": "not-a-uuid'; --"})
+    with (
+        patch.object(PlatformRepository, "get_owner_salon", AsyncMock(return_value=SALON)),
+        pytest.raises(ValidationError),
+    ):
+        await repo.create_owner_staff("owner-1", {"name": "A", "profile_id": "not-a-uuid'; --"})
     session.execute.assert_not_awaited()
 
 
