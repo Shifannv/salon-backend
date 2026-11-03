@@ -118,6 +118,11 @@ release guard was removed. For later schema-changing PRs, plan the reviewed sche
 and compatible API release before promising automatic deployment: green tests and
 image builds alone do not prove that production has the required schema.
 
+On 3 November, the approved 0058 schema and PR #52 compatibility rollout completed.
+Automatic workflow [41450888389 attempt 2](https://github.com/Shifannv/salon-backend/actions/runs/41450888389/attempts/2)
+passed end to end and promoted commit 253a591 to 100% production traffic. This
+supersedes fa82510 as the proven serving baseline. See [0058 execution and release evidence](verification/PRODUCTION_0058_PR52_EXECUTION_RESULT_2026-11-03.md).
+
 ## Manual candidate workflow
 
 The historical manual candidate workflow is retained as a disabled/read-only notice;

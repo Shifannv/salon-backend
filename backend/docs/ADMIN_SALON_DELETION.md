@@ -4,7 +4,11 @@ A super admin can permanently delete one salon and everything that hangs off it.
 the owner's own account deletion (`ACCOUNT_DELETION.md`), which keeps financial rows. Here the money
 records are removed too, but only after nothing is owed either way.
 
-Migration: `0058_admin_salon_erasure` (prepared, not applied anywhere).
+Migration `0058_admin_salon_erasure` was explicitly approved and installed in
+Mumbai production on 2 November 2026. PR #52's API and automatic release were
+verified on 3 November; see [the execution results](verification/PRODUCTION_0058_PR52_EXECUTION_RESULT_2026-11-03.md).
+The release did not invoke salon erasure or refunds. Deployment approval is not
+authorization to delete an actual salon.
 
 ## Endpoints (super admin, aal2)
 
