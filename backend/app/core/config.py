@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     # Account deletion. The secret keys the HMAC of OTP-bound contacts, confirmation
     # tokens and status tokens. Unset => deletion endpoints answer 503 outside local/test.
     account_deletion_secret: str | None = Field(default=None, min_length=32)
+    # Fernet key(s), comma separated, for bank details stored in the database. Unset: values are
+    # written as plain text, as before. Generate one with: python -c "from cryptography.fernet
+    # import Fernet; print(Fernet.generate_key().decode())"
+    payout_encryption_key: SecretStr | None = None
     account_deletion_challenge_ttl_seconds: int = Field(default=600, ge=60, le=3600)
     account_deletion_confirmation_ttl_seconds: int = Field(default=600, ge=60, le=3600)
     account_deletion_resend_cooldown_seconds: int = Field(default=60, ge=10, le=3600)

@@ -65,8 +65,13 @@ class WalkInVerifyPhoneRequest(BaseModel):
     Send with phone + otp to verify and get a JWT.
     """
 
-    phone: str = Field(description="Phone number including country code, e.g. +919876543210")
-    otp: str | None = Field(default=None, description="6-digit OTP received by SMS")
+    phone: str = Field(
+        pattern=r"^\+[1-9][0-9]{7,14}$",
+        description="Phone number in E.164 form including country code, e.g. +919876543210",
+    )
+    otp: str | None = Field(
+        default=None, pattern=r"^[0-9]{6}$", description="6-digit OTP received by SMS"
+    )
 
 
 class WalkInVerifyPhoneResponse(BaseModel):

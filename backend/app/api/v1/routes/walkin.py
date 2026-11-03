@@ -2,7 +2,7 @@
 
 import hashlib
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Path, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,16 @@ def require_qr_token_format(
 
 
 router = APIRouter(dependencies=[Depends(require_qr_token_format)])
+
+_OTP_SEND_PER_IP_HOUR = 20
+_OTP_VERIFY_PER_IP_HOUR = 60
+_OTP_SEND_PER_PHONE_DAY = 10
+
+
+def _client_host(request: Request) -> str:
+    """Address of the peer that connected; behind a proxy this needs forwarded-IP trust enabled."""
+
+    return request.client.host if request.client else "unknown"
 
 
 def _use_cases(session: AsyncSession) -> WalkInUseCases:
@@ -145,6 +155,7 @@ async def get_qr_image(
 async def verify_phone(
     qr_token: str,
     payload: WalkInVerifyPhoneRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
     cache: CacheGateway = Depends(get_cache),
 ) -> WalkInVerifyPhoneResponse:
@@ -153,12 +164,18 @@ async def verify_phone(
     await _use_cases(session).assert_public_qr_token(qr_token)
     purpose = 'verify' if payload.otp else 'send'
     phone_key = hashlib.sha256(payload.phone.encode()).hexdigest()
-    allowed, _ = await cache.check_rate_limit(
-        f"rate:otp:{purpose}:{phone_key}", limit=10 if payload.otp else 5,
-        window_seconds=60, strict=True,
+    client_key = hashlib.sha256(_client_host(request).encode()).hexdigest()
+    # Every SMS costs money, so a send is capped per phone number per minute and per day, and
+    # per client address per hour; a verify is capped per phone number and per client address.
+    limits = (
+        (f"rate:otp:{purpose}:{phone_key}", 10 if payload.otp else 5, 60),
+        (f"rate:otp:{purpose}:ip:{client_key}", _OTP_VERIFY_PER_IP_HOUR if payload.otp else _OTP_SEND_PER_IP_HOUR, 3600),
+        *(() if payload.otp else ((f"rate:otp:send:day:{phone_key}", _OTP_SEND_PER_PHONE_DAY, 86400),)),
     )
-    if not allowed:
-        raise TooManyRequestsError("Too many OTP requests. Please wait a minute before trying again.")
+    for key, limit, window in limits:
+        allowed, _ = await cache.check_rate_limit(key, limit=limit, window_seconds=window, strict=True)
+        if not allowed:
+            raise TooManyRequestsError("Too many OTP requests. Please wait a while before trying again.")
 
     gateway = SupabaseAuthGateway(settings)
     if payload.otp:

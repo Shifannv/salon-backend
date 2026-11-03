@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_authenticated_session, get_cache, get_current_actor
+from app.api.deps import get_authenticated_session, get_cache, get_current_actor, get_mfa_checked_actor
 from app.api.v1.schemas.booking_changes import (
     BookingChangeCommitRequest,
     BookingChangeQuote,
@@ -162,7 +162,7 @@ async def list_bookings(
     date_to: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    actor: Profile = Depends(get_current_actor),
+    actor: Profile = Depends(get_mfa_checked_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[BookingResponse]:
     """List bookings visible to the actor."""
@@ -187,7 +187,7 @@ async def list_bookings(
 )
 async def get_booking(
     booking_id: UUID,
-    actor: Profile = Depends(get_current_actor),
+    actor: Profile = Depends(get_mfa_checked_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> BookingResponse:
     """Return a booking visible to the actor."""
