@@ -1,5 +1,7 @@
 """Consent rules: all three confirmations are required, marketing is separate, versions decide 'needs consent'."""
 
+import importlib.util
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
