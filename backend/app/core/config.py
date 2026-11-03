@@ -104,6 +104,10 @@ class Settings(BaseSettings):
     # written as plain text, as before. Generate one with: python -c "from cryptography.fernet
     # import Fernet; print(Fernet.generate_key().decode())"
     payout_encryption_key: SecretStr | None = None
+    # The version of the Terms and Privacy Policy people are asked to accept. Change it when the
+    # published text changes; everyone is then asked to accept again.
+    terms_version: str = Field(default="2026-10-26", min_length=1, max_length=40)
+    privacy_version: str = Field(default="2026-10-26", min_length=1, max_length=40)
     account_deletion_challenge_ttl_seconds: int = Field(default=600, ge=60, le=3600)
     account_deletion_confirmation_ttl_seconds: int = Field(default=600, ge=60, le=3600)
     account_deletion_resend_cooldown_seconds: int = Field(default=60, ge=10, le=3600)

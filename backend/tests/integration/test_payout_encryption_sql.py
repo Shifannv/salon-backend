@@ -1,6 +1,7 @@
 """0059 on disposable local PostgreSQL: the bank account number is stored encrypted, shown masked."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from cryptography.fernet import Fernet
@@ -11,9 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.db.repositories.wallet_repository import WalletRepository
+from tests.integration.test_booking_changes_sql import changes_db  # noqa: F401
 from tests.integration.test_checkout_safety_sql import SafetyEnv
 from tests.integration.test_payment_ledger_sql import TEST_DB
-from tests.integration.test_booking_changes_sql import changes_db  # noqa: F401
 from tests.integration.test_payout_proof_sql import new_request, proof_db  # noqa: F401
 
 pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL")
@@ -74,7 +75,7 @@ BANK = {"account_holder_name": "Alex Owner", "bank_account_number": NUMBER, "ifs
 
 
 async def test_number_is_stored_encrypted_and_shown_as_last_four(env, key):
-    request_id, salon = await new_request(env)
+    _, salon = await new_request(env)
     owner = await owner_of(env, salon)
     shown = await save_account(env, owner, **BANK)
     assert shown["bank_account_last4"] == "9012" and shown["ifsc"] == "HDFC0001234"
@@ -210,3 +211,75 @@ async def test_backfill_refuses_to_encrypt_without_a_key(env, monkeypatch):
     async with env.session() as session:
         with pytest.raises(RuntimeError, match="PAYOUT_ENCRYPTION_KEY"):
             await convert_payout_accounts(session, apply=True)
+
+
+async def test_backfill_failure_rolls_back_rows_and_trigger_state(env, key):
+    from app.infrastructure.db import payout_backfill
+
+    _, first_salon = await new_request(env)
+    _, second_salon = await new_request(env)
+    async with env.session() as session:
+        await session.execute(text("delete from salon_payout_accounts"))
+        for salon in (first_salon, second_salon):
+            await session.execute(
+                text(
+                    "insert into salon_payout_accounts"
+                    "(salon_id, account_holder_name, bank_account_number, ifsc) "
+                    "values (cast(:s as uuid), 'Old Owner', :n, 'SBIN0001234')"
+                ),
+                {"s": salon, "n": NUMBER},
+            )
+        await session.commit()
+
+    original_encrypt = payout_backfill.encrypt_field
+    calls = 0
+
+    def fail_second(value, binding):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("synthetic conversion failure")
+        return original_encrypt(value, binding)
+
+    async with env.session() as session:
+        with (
+            patch.object(payout_backfill, "encrypt_field", fail_second),
+            pytest.raises(RuntimeError, match="synthetic conversion failure"),
+        ):
+            await payout_backfill.convert_payout_accounts(session, apply=True)
+        await session.rollback()
+
+    async with env.session() as session:
+        rows = (
+            await session.execute(
+                text(
+                    "select bank_account_number, bank_account_last4 "
+                    "from salon_payout_accounts order by salon_id"
+                )
+            )
+        ).all()
+        disabled = (
+            await session.execute(
+                text(
+                    "select count(*) from pg_trigger "
+                    "where tgrelid = 'public.salon_payout_accounts'::regclass "
+                    "and tgname like 't_salon_payout_accounts_%' and tgenabled = 'D'"
+                )
+            )
+        ).scalar_one()
+    assert rows == [(NUMBER, None), (NUMBER, None)]
+    assert disabled == 0
+
+
+async def test_masking_function_is_not_executable_by_browser_roles(env):
+    async with env.session() as session:
+        privileges = (
+            await session.execute(
+                text(
+                    "select has_function_privilege('anon', 'public.salon_payout_account_masked(uuid)', 'execute'), "
+                    "has_function_privilege('authenticated', 'public.salon_payout_account_masked(uuid)', 'execute'), "
+                    "has_function_privilege('service_role', 'public.salon_payout_account_masked(uuid)', 'execute')"
+                )
+            )
+        ).one()
+    assert privileges == (False, False, True)

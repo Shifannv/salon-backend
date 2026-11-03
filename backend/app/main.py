@@ -33,6 +33,7 @@ from app.api.v1.routes.health import router as health_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.telemetry import TimingMiddleware, init_sentry
 from app.infrastructure.media.admission import UploadAdmissionMiddleware
 
@@ -102,10 +103,13 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.backend_cors_origins,
-        allow_credentials=True,
+        # Auth is a bearer token in a header; no browser sends this API cookies, so credentialed CORS stays off.
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(SecurityHeadersMiddleware, environment=settings.environment)
 
     # Request-ID middleware — stamps every request/response with a correlation ID.
     app.add_middleware(TimingMiddleware, environment=settings.environment, sentry_enabled=sentry_enabled)
