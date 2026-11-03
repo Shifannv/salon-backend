@@ -1,5 +1,7 @@
 """Consent rules: all three confirmations are required, marketing is separate, versions decide 'needs consent'."""
 
+import importlib.util
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -80,3 +82,14 @@ def test_a_withdrawn_marketing_choice_does_not_force_consent_again():
     }
     result = status_for(latest)
     assert result.needs_consent is False and result.marketing is False
+
+
+def test_consent_downgrade_refuses_to_destroy_evidence():
+    migration = Path(__file__).parents[2] / "migrations/versions/0060_user_consents.py"
+    spec = importlib.util.spec_from_file_location("consent_migration", migration)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with patch.object(module.op, "execute") as execute:
+        with pytest.raises(RuntimeError, match="irreversible"):
+            module.downgrade()
+        execute.assert_not_called()
