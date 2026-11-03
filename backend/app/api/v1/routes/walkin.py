@@ -62,7 +62,7 @@ def _use_cases(session: AsyncSession) -> WalkInUseCases:
     status_code=status.HTTP_200_OK,
     summary="Resolve QR token — public",
     description="Returns salon info, services, and staff for the scanned QR code. "
-                "No authentication required. Rate-limited by IP.",
+                "No authentication required.",
 )
 async def resolve_qr(
     qr_token: str,

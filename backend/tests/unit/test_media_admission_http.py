@@ -71,7 +71,7 @@ def test_allowed_origin_oversized_upload_has_shared_error_cors_and_timing(app_fa
     try:
         response = oversized(client)
         assert_error(response, 413, "payload_too_large", "Image request is too large")
-        assert response.headers["access-control-allow-credentials"] == "true"
+        assert "access-control-allow-credentials" not in response.headers
         assert "origin" in response.headers["vary"].lower()
         parser.assert_not_called()
         assert log.info.call_args.kwargs["status_code"] == 413
