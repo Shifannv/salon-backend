@@ -13,6 +13,7 @@ from app.api.deps import (
     get_current_actor,
     get_mfa_checked_actor,
 )
+from app.api.v1.schemas.booking import VisitAvailabilityRequest, VisitAvailabilityResponse
 from app.api.v1.schemas.booking_changes import (
     BookingChangeCommitRequest,
     BookingChangeQuote,
@@ -41,6 +42,14 @@ from app.infrastructure.db.session import get_session
 from app.infrastructure.payments.resolver import get_payment_resolver
 
 router = APIRouter()
+
+
+@router.post("/availability/visit", response_model=list[VisitAvailabilityResponse], status_code=200)
+async def visit_availability(payload: VisitAvailabilityRequest, session: AsyncSession = Depends(get_session)) -> list[VisitAvailabilityResponse]:
+    rows = await _use_cases(session).visit_availability(
+        payload.salon_id, payload.date, [segment.model_dump() for segment in payload.segments])
+    return [VisitAvailabilityResponse(**row) for row in rows]
+
 
 
 @router.get("/bookings/{booking_id}/change-availability", response_model=list[AvailabilityResponse], status_code=200)

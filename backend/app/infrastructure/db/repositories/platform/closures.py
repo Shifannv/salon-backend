@@ -41,7 +41,12 @@ class ClosuresMixin:
             predicate = """
                 tstzrange(b.start_datetime, b.end_datetime, '[)')
                   && tstzrange(:start_datetime, :end_datetime, '[)')
-                and (cast(:staff_id as uuid) is null or b.staff_id = cast(:staff_id as uuid))
+                and (cast(:staff_id as uuid) is null or
+                  (not coalesce((to_jsonb(b)->>'is_multi_staff')::boolean,false) and b.staff_id = :staff_id)
+                  or exists(select 1 from jsonb_array_elements(coalesce(to_jsonb(b)->'itinerary','[]'::jsonb)) segment
+                    where (segment->>'staff_id')::uuid=:staff_id
+                    and tstzrange((segment->>'slot_start')::timestamptz,(segment->>'slot_end')::timestamptz,'[)')
+                        && tstzrange(:start_datetime,:end_datetime,'[)')))
             """
             params = {
                 "salon_id": salon_id,

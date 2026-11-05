@@ -1,6 +1,6 @@
 """Booking, availability and cancellation API schemas."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -39,18 +39,48 @@ class AvailabilityResponse(BaseModel):
     barberName: str | None = None  # camelCase to match the TS type verbatim
 
 
+class VisitSegmentRequest(BaseModel):
+    """An ordered group of services performed by one professional."""
+
+    staff_id: UuidParam
+    service_ids: list[UuidParam] = Field(min_length=1, max_length=30)
+
+
+class VisitAvailabilityRequest(BaseModel):
+    salon_id: UuidParam
+    date: date
+    segments: list[VisitSegmentRequest] = Field(min_length=1, max_length=30)
+
+
 class BookingCreateRequest(BaseModel):
     """Create booking request."""
 
     salon_id: UuidParam
     staff_id: UuidParam
-    service_ids: list[UuidParam] = Field(min_length=1)
+    service_ids: list[UuidParam] = Field(min_length=1, max_length=30)
+    segments: list[VisitSegmentRequest] | None = Field(default=None, min_length=1, max_length=30)
     start_datetime: AwareDatetime
     customer_name: str = Field(max_length=200)
     customer_phone: str | None = Field(default=None, max_length=32)
     source: Literal["app", "manual_walkin", "qr_walkin"] = "app"
     notes: str | None = Field(default=None, max_length=1000)
     payment_preference: Literal["pay_at_salon", "pay_advance", "pay_full"] | None = None
+
+
+class BookingSegmentResponse(BaseModel):
+    staff_name: str | None = None
+    ordinal: int
+    staff_id: str
+    service_ids: list[str]
+    slot_start: datetime
+    slot_end: datetime
+    price: Decimal
+    duration_minutes: int
+
+
+class VisitAvailabilityResponse(AvailabilityResponse):
+    segments: list[BookingSegmentResponse]
+    total_price: Decimal
 
 
 class BookingLineResponse(BaseModel):
@@ -108,6 +138,8 @@ class BookingResponse(BaseModel):
     cancellation_reason: str | None = None
     notes: str | None = None
     services: list[BookingLineResponse] = Field(default_factory=list)
+    segments: list[BookingSegmentResponse] = Field(default_factory=list)
+    is_multi_staff: bool = False
     # ── Denormalized display fields (joined from salons + staff) ──────────
     salon_name: str | None = None
     salon_address: str | None = None

@@ -15,6 +15,7 @@ from pydantic import (
     field_validator,
 )
 
+from app.api.v1.schemas.common import UuidParam
 from app.api.v1.schemas.media_urls import HostedMediaRequest
 
 _MAX_DURATION_MINUTES = 24 * 60
@@ -28,6 +29,8 @@ class ServiceResponse(BaseModel):
     id: str
     salon_id: str
     subcategory_id: str
+    menu_category_id: str | None = None
+    selection_group: str | None = "__category__"
     name: str
     duration_minutes: int
     price: Decimal
@@ -49,6 +52,7 @@ class ServicePresentationRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    selection_group: ServiceDisplayName | None = "__category__"
     category_name: ServiceDisplayName | None = None
     subcategory_name: ServiceDisplayName | None = None
     photo_url: str | None = Field(default=None, max_length=2048)
@@ -85,6 +89,10 @@ class ServiceCreateRequest(ServicePresentationRequest):
     duration_minutes: int = Field(gt=0, le=_MAX_DURATION_MINUTES)
     price: Decimal = Field(ge=0, **_MONEY)
     is_active: bool = True
+
+
+class ServiceBatchCreateRequest(BaseModel):
+    services: list[ServiceCreateRequest] = Field(min_length=1, max_length=30)
 
 
 class ServiceUpdateRequest(ServicePresentationRequest):
@@ -128,6 +136,7 @@ class StaffUpdateRequest(HostedMediaRequest):
 
 
 class StaffResponse(BaseModel):
+    languages: list[str] = Field(default_factory=list)
     """Staff response (owner-facing, includes full detail)."""
 
     id: str
@@ -143,6 +152,12 @@ class StaffResponse(BaseModel):
     updated_at: datetime
 
 
+class PublicStaffServiceResponse(BaseModel):
+    service_id: str
+    duration_minutes: int
+    price: Decimal
+
+
 class PublicStaffResponse(BaseModel):
     """Customer-facing staff/barber summary for salon detail and booking flow."""
 
@@ -150,6 +165,15 @@ class PublicStaffResponse(BaseModel):
     name: str
     photo_url: str | None = None
     specialization: str | None = None
+    experience: str | None = None
+    service_ids: list[str] = Field(default_factory=list)
+    services: list[PublicStaffServiceResponse] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
+
+
+class StaffCapabilitiesRequest(BaseModel):
+    service_ids: list[UuidParam] = Field(max_length=500)
+    languages: list[ServiceDisplayName] = Field(default_factory=list, max_length=50)
 
 
 class StaffServiceAssignRequest(BaseModel):

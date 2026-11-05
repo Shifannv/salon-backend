@@ -83,3 +83,7 @@ subscription (`details.active_subscriptions`). Also handle `contact_mismatch` (4
 booking is cancelled because the salon closed receive a `booking_cancelled` notification
 (`data.reason = "salon_closed"`) and the booking has `cancellation_reason = "salon_closed"`.
 Details: `backend/docs/ACCOUNT_DELETION.md`.
+
+
+Prepared locally: category-based staff menus, bulk services and consecutive multi-staff visits
+are documented in [the visit contract](../backend/docs/STAFF_SERVICE_VISITS.md). Migration/release approval and native acceptance remain separate.

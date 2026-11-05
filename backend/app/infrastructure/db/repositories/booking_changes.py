@@ -21,6 +21,7 @@ from app.core.exceptions import (
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 
 _MESSAGES = {
+    "visit_change_requires_full_itinerary": "This visit needs all professionals rescheduled together. Contact the salon to arrange a change.",
     "booking_change_policy_unsupported": "This booking uses an earlier policy and cannot use this change flow.",
     "booking_state_conflict": "Only pending or confirmed bookings can be changed.",
     "booking_change_cutoff": "Services and time can only be changed more than four hours before the appointment.",
@@ -38,6 +39,11 @@ class BookingChangeRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def _check_single_staff(self, booking_id: str) -> None:
+        multi = await self.session.scalar(text("select coalesce((to_jsonb(b)->>'is_multi_staff')::boolean,false) from bookings b where b.id=:id and b.customer_id=auth.uid()"), {"id":booking_id})
+        if multi:
+            raise BookingChangeError("visit_change_requires_full_itinerary", _MESSAGES["visit_change_requires_full_itinerary"])
+
     @staticmethod
     def parameters(booking_id: str, values: dict[str, Any]) -> dict[str, Any]:
         return {"booking": booking_id, "staff": str(values["staff_id"]),
@@ -45,6 +51,7 @@ class BookingChangeRepository:
                 "start": values["start_datetime"], "version": values["expected_version"]}
 
     async def availability(self, booking_id: str, staff_id: str, services: list[str], day: date) -> list[dict[str, Any]]:
+        await self._check_single_staff(booking_id)
         try:
             result = await self.session.execute(text("""
                 with q as materialized (
@@ -94,6 +101,7 @@ class BookingChangeRepository:
         raise BookingChangeError("booking_change_conflict", "This booking could not be changed") from exc
 
     async def quote(self, booking_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        await self._check_single_staff(booking_id)
         try:
             result = await self.session.scalar(text("""
                 select public.booking_change_quote(cast(:booking as uuid),cast(:staff as uuid),
@@ -109,6 +117,7 @@ class BookingChangeRepository:
             raise  # _failure always raises; retain an explicit failure path for typing.
 
     async def commit(self, booking_id: str, values: dict[str, Any], key: str) -> dict[str, Any]:
+        await self._check_single_staff(booking_id)
         try:
             await self.session.execute(text("""
                 select public.apply_customer_booking_change(cast(:booking as uuid),cast(:staff as uuid),

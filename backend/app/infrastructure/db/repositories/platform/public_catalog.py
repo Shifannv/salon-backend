@@ -177,7 +177,8 @@ class PublicCatalogMixin:
                   and sv2.is_active
                   and ss2.is_active
                   and sc2.is_active
-                  and coalesce(sv2.category_name, sc2.name) ilike cast(:category_pattern as text)
+                  and (coalesce(sv2.category_name, sv2.subcategory_name, ss2.name, sc2.name) ilike cast(:category_pattern as text)
+                       or (sv2.category_name is null and sc2.name ilike cast(:category_pattern as text)))
                   and exists (
                     select 1
                     from staff_services stsv2
@@ -259,9 +260,27 @@ class PublicCatalogMixin:
         result = await self.session.execute(
             text(
                 """
-                select id, name, photo_url, specialization
-                from staff
-                where salon_id = :salon_id and is_active
+                select st.id, st.name, st.photo_url, st.specialization, st.experience,
+                  coalesce((select jsonb_agg(sv.id::text order by sv.name)
+                    from staff_services ss join services sv on sv.id=ss.service_id
+                    join service_subcategories sub on sub.id=sv.subcategory_id and sub.is_active
+                    join service_categories cat on cat.id=sub.category_id and cat.is_active
+                    where ss.staff_id=st.id and ss.is_active and sv.is_active and sv.salon_id=st.salon_id),'[]'::jsonb) as service_ids,
+                  coalesce((select jsonb_agg(jsonb_build_object('service_id',sv.id,
+                    'duration_minutes',coalesce(ss.duration_minutes,sv.duration_minutes),
+                    'price',coalesce(ss.price_override,sv.price)) order by sv.name)
+                    from staff_services ss join services sv on sv.id=ss.service_id
+                    join service_subcategories sub on sub.id=sv.subcategory_id and sub.is_active
+                    join service_categories cat on cat.id=sub.category_id and cat.is_active
+                    where ss.staff_id=st.id and ss.is_active and sv.is_active and sv.salon_id=st.salon_id),'[]'::jsonb) as services,
+                  coalesce((select jsonb_agg(distinct l.name) from staff_service_languages ssl
+                    join languages l on l.code=ssl.language_code join staff_services ss on ss.id=ssl.staff_service_id
+                    join services sv on sv.id=ss.service_id
+                    join service_subcategories sub on sub.id=sv.subcategory_id and sub.is_active
+                    join service_categories cat on cat.id=sub.category_id and cat.is_active
+                    where ss.staff_id=st.id and ss.is_active and sv.is_active and sv.salon_id=st.salon_id),'[]'::jsonb) as languages
+                from staff st
+                where st.salon_id = :salon_id and st.is_active
                 order by name
                 """
             ),
@@ -280,7 +299,9 @@ class PublicCatalogMixin:
                 """
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
-                       coalesce(sv.category_name, sc.name) as category_name,
+                       to_jsonb(sv)->>'menu_category_id' as menu_category_id,
+                       case when to_jsonb(sv) ? 'selection_group' then to_jsonb(sv)->>'selection_group' else '__category__' end as selection_group,
+                       coalesce(sv.category_name, sv.subcategory_name, ss.name, sc.name) as category_name,
                        coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 join service_subcategories ss on ss.id = sv.subcategory_id
@@ -325,7 +346,9 @@ class PublicCatalogMixin:
                 """
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
-                       coalesce(sv.category_name, sc.name) as category_name,
+                       to_jsonb(sv)->>'menu_category_id' as menu_category_id,
+                       case when to_jsonb(sv) ? 'selection_group' then to_jsonb(sv)->>'selection_group' else '__category__' end as selection_group,
+                       coalesce(sv.category_name, sv.subcategory_name, ss.name, sc.name) as category_name,
                        coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 join service_subcategories ss on ss.id = sv.subcategory_id

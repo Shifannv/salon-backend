@@ -286,7 +286,9 @@ def test_direct_booking_needs_a_bearer_token_and_documents_it():
 def test_the_request_carries_no_price_duration_or_end_time():
     props = set(app.openapi()["components"]["schemas"]["BookingCreateRequest"]["properties"])
     assert props == {"salon_id", "staff_id", "service_ids", "start_datetime", "customer_name",
-                     "customer_phone", "source", "notes", "payment_preference"}
+                     "customer_phone", "source", "notes", "payment_preference", "segments"}
+    segment_props = set(app.openapi()["components"]["schemas"]["VisitSegmentRequest"]["properties"])
+    assert segment_props == {"staff_id", "service_ids"}
     parsed = BookingCreateRequest.model_validate({**BOOKING, "total_price": 1, "price": 1, "end_datetime": "x"})
     assert not {"total_price", "price", "end_datetime"} & set(parsed.model_dump())
 

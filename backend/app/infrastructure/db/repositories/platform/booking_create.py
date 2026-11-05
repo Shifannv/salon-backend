@@ -14,6 +14,8 @@ from app.core.exceptions import (
     ConflictError,
     IdempotencyKeyReuseError,
     NotFoundError,
+    ServiceUnavailableError,
+    SlotUnavailableError,
     ValidationError,
 )
 from app.infrastructure.db.repositories.platform._sql import (
@@ -80,6 +82,9 @@ class BookingCreateMixin:
     async def create_booking(self, values: dict[str, Any]) -> dict[str, Any]:
         """Call the database booking creation function and return the created booking."""
 
+        # Preserve the fingerprint of legacy requests that predate optional itineraries.
+        if values.get("segments") is None:
+            values = {key: value for key, value in values.items() if key != "segments"}
         try:
             key = values.get("_idempotency_key")
             scope = values.get("_idempotency_scope", "booking:create")
@@ -100,30 +105,19 @@ class BookingCreateMixin:
                 {"policy": settings.booking_checkout_policy_version},
             )
             service_ids_json = json.dumps(values["service_ids"])
-            result = await self.session.execute(
-                text(
-                    """
-                    select create_booking(
-                      :salon_id,
-                      :staff_id,
-                      array(
-                        select value::uuid
-                        from jsonb_array_elements_text(cast(:service_ids_json as jsonb)) value
-                      ),
-                      :start_datetime,
-                      :customer_name, :customer_phone, cast(:source as booking_source), :notes
-                    ) as booking_id
-                    """
-                ),
-                {**values, "service_ids_json": service_ids_json},
-            )
+            if values.get("segments"):
+                result = await self.session.execute(text("""
+                    select create_booking(:salon_id,cast(:segments as jsonb),:start_datetime,
+                      :customer_name,:customer_phone,cast(:source as booking_source),:notes)
+                """), {**values,"segments":json.dumps(values["segments"])})
+            else:
+                result = await self._create_single_booking(values, service_ids_json)
             booking_id = result.scalar_one()
             if settings.booking_checkout_policy_version != "customer_processing_v1":
                 stored = await self.session.scalar(
                     text("select checkout_policy_version from bookings where id=:id"), {"id": booking_id},
                 )
                 if stored != settings.booking_checkout_policy_version:
-                    from app.core.exceptions import ServiceUnavailableError
                     raise ServiceUnavailableError("Booking policy migration is not ready")
             if values.get("payment_preference") is not None:
                 # The deposit is derived here, in SQL, from the price create_booking
@@ -160,6 +154,11 @@ class BookingCreateMixin:
             await self.session.commit()
         except Exception as exc:
             await self.session.rollback()
+            state = getattr(getattr(exc, "orig", None), "sqlstate", None)
+            if state in {"42883", "42703", "42P01"} and values.get("segments"):
+                raise ServiceUnavailableError("This booking feature is not available yet") from exc
+            if state in {"23P01", "40P01", "40001"}:
+                raise SlotUnavailableError("Selected slot is no longer available") from exc
             if isinstance(exc, AppError) or not _is_business_error(exc):
                 # Outages, timeouts and unexpected errors surface as 500, never as a 409.
                 raise
@@ -216,3 +215,40 @@ class BookingCreateMixin:
                           where slot_start=:start)
         """), {"staff":staff_id,"day":day,"duration":int(duration),"start":start})
         return result.scalar_one()
+
+    async def _create_single_booking(self, values: dict, service_ids_json: str) -> Any:
+        return await self.session.execute(
+            text(
+                """
+                select create_booking(
+                  :salon_id,
+                  :staff_id,
+                  array(
+                    select value::uuid
+                    from jsonb_array_elements_text(cast(:service_ids_json as jsonb)) value
+                  ),
+                  :start_datetime,
+                  :customer_name, :customer_phone, cast(:source as booking_source), :notes
+                ) as booking_id
+                """
+            ),
+            {**values, "service_ids_json": service_ids_json},
+        )
+
+    async def get_visit_slots(self, salon_id: str, booking_date: date, segments: list[dict]) -> list[dict]:
+        await self.assert_public_salon(salon_id)
+        try:
+            result = await self.session.execute(text("""
+                select g.*,to_char(g.slot_start at time zone sl.timezone,'HH12:MI AM') as id,
+                  to_char(g.slot_start at time zone sl.timezone,'HH12:MI AM') as time
+                from salons sl cross join lateral get_available_slots(sl.id,cast(:day as date),cast(:segments as jsonb),true) g
+                where sl.id=:salon
+            """), {"salon":salon_id,"day":booking_date,"segments":json.dumps(segments)})
+            return [dict(row) for row in result.mappings().all()]
+        except Exception as exc:
+            await self.session.rollback()
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) in {"42883", "42703", "42P01"}:
+                raise ServiceUnavailableError("This booking feature is not available yet") from exc
+            if _is_business_error(exc):
+                raise ValidationError("Choose available services and professionals") from exc
+            raise

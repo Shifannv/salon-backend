@@ -37,6 +37,9 @@ class BookingUseCases:
 
         return await self.repository.get_available_slots(staff_id, booking_date, service_ids)
 
+    async def visit_availability(self, salon_id: str, booking_date: date, segments: list[dict]) -> list[dict]:
+        return await self.repository.get_visit_slots(salon_id, booking_date, segments)
+
     async def create_booking(
         self,
         actor: Profile,
@@ -64,6 +67,14 @@ class BookingUseCases:
             raise ForbiddenError("Customer app bookings require customer or owner access")
         if values.get("payment_preference") in {"pay_full", "pay_advance"} and not self.online_payments_enabled:
             raise OnlinePaymentUnavailableError("Online payment coming soon.")
+        if values.get("segments"):
+            segments = values["segments"]
+            flattened = [str(sid) for segment in segments for sid in segment["service_ids"]]
+            if (len(flattened) != len(set(flattened)) or sorted(flattened) != sorted(map(str, values["service_ids"]))
+                or str(segments[0]["staff_id"]) != str(values["staff_id"])):
+                raise ValidationError("Selected services must match the complete itinerary")
+            if values.get("payment_preference") not in {None,"pay_at_salon"}:
+                raise OnlinePaymentUnavailableError("Multi-professional visits support Pay at Salon")
         await self.repository.get_public_salon(str(values["salon_id"]))
         booking = await self.repository.create_booking({**values, "actor_id": actor.id})
         replayed = booking.pop("_idempotency_replay", False)

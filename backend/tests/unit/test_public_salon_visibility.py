@@ -66,13 +66,16 @@ class SQLiteSession:
             create table services (
                 id text, salon_id text, price real, is_active bool, subcategory_id text,
                 name text, description text, duration_minutes int, category_name text,
-                subcategory_name text, photo_url text
+                subcategory_name text, photo_url text, menu_category_id text, selection_group text default '__category__'
             );
             create table staff (
                 id text, salon_id text, name text, photo_url text,
-                specialization text, is_active bool
+                specialization text, experience text, is_active bool
             );
-            create table staff_services (staff_id text, service_id text, is_active bool);
+            create table staff_services (staff_id text, service_id text, is_active bool, id text,
+                duration_minutes int, price_override real);
+            create table languages(code text, name text);
+            create table staff_service_languages(staff_service_id text,language_code text);
             create table service_categories (id text, name text, sort_order int, is_active bool);
             create table service_subcategories (
                 id text, category_id text, name text, sort_order int, is_active bool
@@ -108,7 +111,7 @@ class SQLiteSession:
             )
             self.db.execute("insert into staff (id,salon_id,is_active,name) values (?,?,1,'Barber')",
                             (salon_id, salon_id))
-            self.db.execute("insert into staff_services values (?,?,1)", (salon_id, salon_id))
+            self.db.execute("insert into staff_services(staff_id,service_id,is_active) values (?,?,1)", (salon_id, salon_id))
 
     async def execute(self, statement, values=None):
         # ``compiled.params`` cannot be read after ``render_postcompile=True``
@@ -131,6 +134,13 @@ class SQLiteSession:
             sql, flags=re.DOTALL,
         )
         sql = sql.replace(" ilike ", " like ")
+        # Translate only Postgres JSON representation/aggregation, retaining the
+        # production visibility and capability predicates in this SQLite test.
+        sql = sql.replace("case when to_jsonb(sv) ? 'selection_group' then to_jsonb(sv)->>'selection_group' else '__category__' end", "sv.selection_group")
+        sql = sql.replace("to_jsonb(sv)->>'menu_category_id'", "sv.menu_category_id")
+        sql = sql.replace("::jsonb", "").replace("::text", "")
+        sql = sql.replace("jsonb_agg(", "json_group_array(").replace("jsonb_build_object(", "json_object(")
+        sql = sql.replace(" order by sv.name)", ")")
         # Publication tests use SQLite; transactional trial eligibility is tested on PostgreSQL.
         sql = re.sub(r"public\.salon_booking_eligible\(([^)]+)\)", "1", sql)
         # render_postcompile expands expanding bindparams (`:ids` → `:ids_1,
@@ -142,6 +152,9 @@ class SQLiteSession:
             record = dict(row)
             if "working_hours" in record:
                 record["working_hours"] = json.loads(record["working_hours"])
+            for field in ("service_ids", "services", "languages"):
+                if field in record and isinstance(record[field], str):
+                    record[field] = json.loads(record[field])
             records.append(record)
         return Rows(records)
 

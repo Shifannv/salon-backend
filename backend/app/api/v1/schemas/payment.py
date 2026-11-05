@@ -24,12 +24,16 @@ class PaymentConfigResponse(BaseModel):
     confirmation: str | None = None
 
 
+from app.api.v1.schemas.booking import VisitSegmentRequest
+
+
 class BookingQuoteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     salon_id: UUID
     staff_id: UUID
     service_ids: list[UUID] = Field(min_length=1, max_length=30)
     start_datetime: AwareDatetime
+    segments: list[VisitSegmentRequest] | None = Field(default=None, min_length=1, max_length=30)
     payment_mode: Literal["PAY_ONLINE", "PAY_AT_SALON"]
 
 

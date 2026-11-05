@@ -74,11 +74,15 @@ class BookingQueriesMixin:
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price, b.checkout_policy_version,
+                  coalesce((select jsonb_agg(part.value || jsonb_build_object('staff_name',person.name) order by (part.value->>'ordinal')::int)
+                    from jsonb_array_elements(coalesce(to_jsonb(b)->'itinerary','[]'::jsonb)) part(value)
+                    left join staff person on person.id=(part.value->>'staff_id')::uuid),'[]'::jsonb) as segments,
+                  coalesce((to_jsonb(b)->>'is_multi_staff')::boolean,false) as is_multi_staff,
                   (b.status in ('confirmed','checked_in','completed') and b.payment_status='unpaid'
                     and s.is_active and s.profile_completed and s.approval_status='approved'
                     and exists(select 1 from profiles ap where ap.id=:actor_id and ap.is_active and ap.role in ('owner','staff'))
                     and (s.owner_id=:actor_id or exists(select 1 from staff collect_staff
-                      where collect_staff.id=b.staff_id and collect_staff.profile_id=:actor_id and collect_staff.is_active))) as can_record_payment,
+                      where (collect_staff.id=b.staff_id or exists(select 1 from jsonb_array_elements(coalesce(to_jsonb(b)->'itinerary','[]'::jsonb)) collect_segment where (collect_segment->>'staff_id')::uuid=collect_staff.id)) and collect_staff.profile_id=:actor_id and collect_staff.is_active))) as can_record_payment,
                   coalesce((to_jsonb(b)->>'change_version')::integer,0) as change_version,
                   coalesce((to_jsonb(b)->>'committed_reschedules')::integer,0) as committed_reschedules,
                   (to_jsonb(b)->>'service_fulfilment_amount')::numeric as service_fulfilment_amount,
@@ -177,11 +181,15 @@ class BookingQueriesMixin:
                   b.source, b.status,
                   b.start_datetime, b.end_datetime, b.estimated_end_datetime,
                   b.total_duration_minutes, b.total_price, b.checkout_policy_version,
+                  coalesce((select jsonb_agg(part.value || jsonb_build_object('staff_name',person.name) order by (part.value->>'ordinal')::int)
+                    from jsonb_array_elements(coalesce(to_jsonb(b)->'itinerary','[]'::jsonb)) part(value)
+                    left join staff person on person.id=(part.value->>'staff_id')::uuid),'[]'::jsonb) as segments,
+                  coalesce((to_jsonb(b)->>'is_multi_staff')::boolean,false) as is_multi_staff,
                   (b.status in ('confirmed','checked_in','completed') and b.payment_status='unpaid'
                     and s.is_active and s.profile_completed and s.approval_status='approved'
                     and exists(select 1 from profiles ap where ap.id=:actor_id and ap.is_active and ap.role in ('owner','staff'))
                     and (s.owner_id=:actor_id or exists(select 1 from staff collect_staff
-                      where collect_staff.id=b.staff_id and collect_staff.profile_id=:actor_id and collect_staff.is_active))) as can_record_payment,
+                      where (collect_staff.id=b.staff_id or exists(select 1 from jsonb_array_elements(coalesce(to_jsonb(b)->'itinerary','[]'::jsonb)) collect_segment where (collect_segment->>'staff_id')::uuid=collect_staff.id)) and collect_staff.profile_id=:actor_id and collect_staff.is_active))) as can_record_payment,
                   coalesce((to_jsonb(b)->>'change_version')::integer,0) as change_version,
                   coalesce((to_jsonb(b)->>'committed_reschedules')::integer,0) as committed_reschedules,
                   (to_jsonb(b)->>'service_fulfilment_amount')::numeric as service_fulfilment_amount,

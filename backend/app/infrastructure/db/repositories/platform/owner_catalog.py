@@ -100,8 +100,10 @@ class OwnerCatalogMixin:
                 """
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
+                       to_jsonb(sv)->>'menu_category_id' as menu_category_id,
+                       case when to_jsonb(sv) ? 'selection_group' then to_jsonb(sv)->>'selection_group' else '__category__' end as selection_group,
                        sv.created_at, sv.updated_at,
-                       coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.category_name, sv.subcategory_name, ss.name, sc.name) as category_name,
                        coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 left join service_subcategories ss on ss.id = sv.subcategory_id
@@ -114,7 +116,7 @@ class OwnerCatalogMixin:
         )
         return [self._service_response(row) for row in result.mappings().all()]
 
-    async def create_owner_service(self, actor_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    async def create_owner_service(self, actor_id: str, values: dict[str, Any], *, commit: bool = True) -> dict[str, Any]:
         """Create a salon service and return it with category/subcategory names."""
 
         salon = await self.get_owner_salon(actor_id)
@@ -141,9 +143,27 @@ class OwnerCatalogMixin:
                 "is_active": values.get("is_active", True),
             },
         )
-        await self.session.commit()
         service_id = str(result.scalar_one())
+        if "selection_group" in values and values["selection_group"] != "__category__":
+            await self.session.execute(text("update services set selection_group=:group where id=:id"),
+                {"group": values["selection_group"], "id": service_id})
+        if commit:
+            await self.session.commit()
         return await self._get_service_with_categories(service_id)
+
+    async def create_owner_services(self, actor_id: str, items: list[dict]) -> list[dict]:
+        try:
+            salon = await self.get_owner_salon(actor_id)
+            await self.session.execute(text("select pg_advisory_xact_lock(hashtextextended(:id,0))"), {"id":str(salon["id"])})
+            names = [item["name"].strip().casefold() for item in items]
+            if len(names) != len(set(names)):
+                raise ValidationError("Use a different name for each service")
+            rows = [await self.create_owner_service(actor_id, item, commit=False) for item in items]
+            await self.session.commit()
+            return rows
+        except Exception:
+            await self.session.rollback()
+            raise
 
     @staticmethod
     def _service_response(row: Any) -> dict[str, Any]:
@@ -166,8 +186,10 @@ class OwnerCatalogMixin:
                 """
                 select sv.id, sv.salon_id, sv.subcategory_id, sv.name,
                        sv.duration_minutes, sv.price, sv.is_active,
+                       to_jsonb(sv)->>'menu_category_id' as menu_category_id,
+                       case when to_jsonb(sv) ? 'selection_group' then to_jsonb(sv)->>'selection_group' else '__category__' end as selection_group,
                        sv.created_at, sv.updated_at,
-                       coalesce(sv.category_name, sc.name) as category_name,
+                       coalesce(sv.category_name, sv.subcategory_name, ss.name, sc.name) as category_name,
                        coalesce(sv.subcategory_name, ss.name) as subcategory_name, sv.photo_url
                 from services sv
                 left join service_subcategories ss on ss.id = sv.subcategory_id
@@ -213,7 +235,7 @@ class OwnerCatalogMixin:
     def _service_write_values(values: dict[str, Any]) -> dict[str, Any]:
         writable = {
             "subcategory_id", "name", "duration_minutes", "price",
-            "is_active", "category_name", "subcategory_name", "photo_url",
+            "is_active", "category_name", "subcategory_name", "photo_url", "selection_group",
         }
         if values.keys() - writable:
             raise ValidationError("Unsupported service fields")
@@ -227,7 +249,7 @@ class OwnerCatalogMixin:
         salon = await self.get_owner_salon(actor_id)
         allowed = self._service_write_values(values)
         if any(value is None for key, value in allowed.items()
-               if key not in {"category_name", "subcategory_name", "photo_url"}):
+               if key not in {"category_name", "subcategory_name", "photo_url", "selection_group"}):
             raise ValidationError("Required service fields cannot be null")
         if not allowed:
             raise ValidationError("No service fields provided")
@@ -262,7 +284,10 @@ class OwnerCatalogMixin:
             text(
                 """
                 select id, salon_id, profile_id, name, photo_url, specialization, experience,
-                       working_hours, is_active, created_at, updated_at
+                       working_hours, is_active, created_at, updated_at,
+                       coalesce((select jsonb_agg(distinct l.name) from staff_service_languages ssl
+                         join staff_services ss on ss.id=ssl.staff_service_id join languages l on l.code=ssl.language_code
+                         join services sv on sv.id=ss.service_id where ss.staff_id=staff.id and ss.is_active and sv.is_active),'[]'::jsonb) as languages
                 from staff
                 where salon_id = :salon_id
                 order by is_active desc, name
@@ -496,3 +521,51 @@ class OwnerCatalogMixin:
             },
         )
         return bool(result.scalar_one())
+
+    async def get_staff_capabilities(self, actor_id: str, staff_id: str) -> dict:
+        salon = await self.get_owner_salon(actor_id)
+        result = await self.session.execute(text("""
+            select coalesce((select jsonb_agg(ss.service_id::text order by ss.service_id) from staff_services ss join services sv on sv.id=ss.service_id where ss.staff_id=st.id and ss.is_active and sv.is_active),'[]'::jsonb) as service_ids,
+              coalesce((select jsonb_agg(distinct l.name) from staff_service_languages ssl
+                join staff_services ss on ss.id=ssl.staff_service_id join languages l on l.code=ssl.language_code
+                where ss.staff_id=st.id and ss.is_active),'[]'::jsonb) as languages
+            from staff st where st.id=:staff and st.salon_id=:salon
+        """), {"staff":staff_id,"salon":salon["id"]})
+        row=result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Staff member not found")
+        return dict(row)
+
+    async def set_staff_capabilities(self, actor_id: str, staff_id: str, values: dict) -> dict:
+        import json
+        try:
+            salon = await self.get_owner_salon(actor_id)
+            await self.session.execute(text("select pg_advisory_xact_lock(hashtextextended(:salon,0))"), {"salon":str(salon["id"])})
+            member = await self.session.scalar(text("select id from staff where id=:staff and salon_id=:salon for update"), {"staff":staff_id,"salon":salon["id"]})
+            if member is None:
+                raise NotFoundError("Staff member not found")
+            ids=list(dict.fromkeys(values["service_ids"]))
+            names=list(dict.fromkeys(name.strip().casefold() for name in values["languages"]))
+            params={"staff":staff_id,"salon":salon["id"],"ids":json.dumps(ids),"names":json.dumps(names)}
+            count=await self.session.scalar(text("""select count(*) from services where salon_id=:salon and is_active
+                and id in(select value::uuid from jsonb_array_elements_text(cast(:ids as jsonb)))"""),params)
+            language_count=await self.session.scalar(text("""select count(*) from languages
+                where lower(name) in(select value from jsonb_array_elements_text(cast(:names as jsonb)))"""),params)
+            if count!=len(ids) or language_count!=len(names):
+                raise ValidationError("Choose services from this salon and supported languages")
+            await self.session.execute(text("""update staff_services set is_active=false where staff_id=:staff
+                and service_id not in(select value::uuid from jsonb_array_elements_text(cast(:ids as jsonb)))"""),params)
+            await self.session.execute(text("""insert into staff_services(staff_id,service_id)
+                select :staff,value::uuid from jsonb_array_elements_text(cast(:ids as jsonb))
+                on conflict(staff_id,service_id) do update set is_active=true"""),params)
+            await self.session.execute(text("""delete from staff_service_languages where staff_service_id in
+                (select id from staff_services where staff_id=:staff and is_active)"""),params)
+            await self.session.execute(text("""insert into staff_service_languages(staff_service_id,language_code)
+                select ss.id,l.code from staff_services ss cross join languages l where ss.staff_id=:staff and ss.is_active
+                and lower(l.name) in(select value from jsonb_array_elements_text(cast(:names as jsonb)))
+                on conflict do nothing"""),params)
+            await self.session.commit()
+            return await self.get_staff_capabilities(actor_id,staff_id)
+        except Exception:
+            await self.session.rollback()
+            raise

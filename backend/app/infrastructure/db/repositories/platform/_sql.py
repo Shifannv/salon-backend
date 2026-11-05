@@ -48,6 +48,8 @@ def _is_business_error(exc: BaseException) -> bool:
 _MessageRule = tuple[tuple[str, ...], bool, Callable[[], AppError]]
 
 _CREATE_BOOKING_ERROR_RULES: tuple[_MessageRule, ...] = (
+    (("invalid_service_selection", "invalid_visit_services", "invalid_visit_staff"), False,
+     lambda: ValidationError("Choose compatible services and professionals")),
     (("booking_window_exceeded",), False,
      lambda: BookingWindowExceededError("Bookings are available only through the next 30 days.")),
     (("pay_at_salon_daily_limit",), False,
@@ -87,7 +89,7 @@ def _booking_actor_sql(booking_alias: str) -> str:
 
     return f"""(
         exists (select 1 from salons s where s.id = {booking_alias}.salon_id and s.owner_id = :actor_id)
-        or exists (select 1 from staff st where st.id = {booking_alias}.staff_id and st.profile_id = :actor_id and st.is_active)
+        or exists (select 1 from staff st where (st.id = {booking_alias}.staff_id or exists(select 1 from jsonb_array_elements(coalesce(to_jsonb({booking_alias})->'itinerary','[]'::jsonb)) segment where (segment->>'staff_id')::uuid=st.id)) and st.profile_id = :actor_id and st.is_active)
       )"""
 
 

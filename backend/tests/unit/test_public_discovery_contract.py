@@ -41,7 +41,7 @@ def add_salon(session, key, name, *, city=None, address=None, services=(), accep
         staff_id = f"{service_id}-staff"
         session.db.execute("insert into staff (id,salon_id,is_active,name) values (?,?,?, 'Barber')",
                            (staff_id, salon_id, staff_active))
-        session.db.execute("insert into staff_services values (?,?,1)", (staff_id, service_id))
+        session.db.execute("insert into staff_services(staff_id,service_id,is_active) values (?,?,1)", (staff_id, service_id))
     return salon_id
 
 
