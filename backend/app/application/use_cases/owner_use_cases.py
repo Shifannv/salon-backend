@@ -301,6 +301,12 @@ class OwnerUseCases:
         self._assert_owner_workspace(actor)
         return await self.repository.list_owner_services(actor.id)
 
+    async def create_services(self, actor: Profile, items: list[dict]) -> list[dict]:
+        self._assert_owner_workspace(actor)
+        for item in items:
+            await self._validate_service_photo(actor, item)
+        return await self.repository.create_owner_services(actor.id, items)
+
     async def create_service(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
         """Create owner service."""
 
@@ -378,6 +384,14 @@ class OwnerUseCases:
 
         self._assert_owner_workspace(actor)
         return await self.repository.deactivate_owner_staff(actor.id, staff_id)
+
+    async def get_staff_capabilities(self, actor: Profile, staff_id: str) -> dict:
+        self._assert_owner_workspace(actor)
+        return await self.repository.get_staff_capabilities(actor.id, staff_id)
+
+    async def set_staff_capabilities(self, actor: Profile, staff_id: str, values: dict) -> dict:
+        self._assert_owner_workspace(actor)
+        return await self.repository.set_staff_capabilities(actor.id, staff_id, values)
 
     async def assign_staff_service(
         self, actor: Profile, staff_id: str, values: dict[str, Any]

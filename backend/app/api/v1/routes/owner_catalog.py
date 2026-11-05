@@ -12,6 +12,7 @@ from app.api.deps import (
     get_storage_gateway,
 )
 from app.api.v1.routes.owner_common import owner_use_cases
+from app.api.v1.schemas.catalog import ServiceBatchCreateRequest, StaffCapabilitiesRequest
 from app.api.v1.schemas.platform import (
     ImageUploadUrlRequest,
     ImageUploadUrlResponse,
@@ -32,6 +33,31 @@ from app.core.config import settings
 from app.domain.entities.profile import Profile
 
 router = APIRouter()
+
+
+@router.get("/me/staff/{staff_id}/capabilities", response_model=StaffCapabilitiesRequest, status_code=200)
+async def get_staff_capabilities(staff_id: UUID, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> StaffCapabilitiesRequest:
+    return StaffCapabilitiesRequest(**await owner_use_cases(session).get_staff_capabilities(actor,str(staff_id)))
+
+
+@router.put("/me/staff/{staff_id}/capabilities", response_model=StaffCapabilitiesRequest, status_code=200)
+async def set_staff_capabilities(staff_id: UUID, payload: StaffCapabilitiesRequest, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> StaffCapabilitiesRequest:
+    return StaffCapabilitiesRequest(**await owner_use_cases(session).set_staff_capabilities(actor,str(staff_id),payload.model_dump()))
+
+
+
+@router.post("/me/services/batch", response_model=list[ServiceResponse], status_code=status.HTTP_201_CREATED)
+async def create_services(payload: ServiceBatchCreateRequest, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session), cache: CacheGateway = Depends(get_cache)) -> list[ServiceResponse]:
+    rows = await owner_use_cases(session).create_services(actor, [item.model_dump() for item in payload.services])
+    if rows:
+        await cache.delete(f"salon:{rows[0]['salon_id']}:services")
+        await cache.delete(f"salon:{rows[0]['salon_id']}:detail")
+        await cache.delete_prefix("walkin:qr:")
+    return [ServiceResponse(**row) for row in rows]
+
 
 
 # ── Services ──────────────────────────────────────────────────────────────────

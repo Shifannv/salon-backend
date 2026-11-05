@@ -77,3 +77,7 @@ enforced in `BookingUseCases.record_payment` (owner/staff only; super admins no 
 
 BUILT: ledger, manual receipt, derived columns. DORMANT: online intents, confirm, refund,
 webhooks (no provider configured). NOT BUILT: auto-cancelling an unpaid-deposit booking.
+
+
+Prepared locally: category-based staff menus, bulk services and consecutive multi-staff visits
+are documented in [STAFF_SERVICE_VISITS.md](STAFF_SERVICE_VISITS.md). Migration/release approval and native acceptance remain separate.

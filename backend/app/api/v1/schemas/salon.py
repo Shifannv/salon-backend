@@ -114,6 +114,8 @@ class ServiceResponse(BaseModel):
     id: str
     salon_id: str
     subcategory_id: str
+    menu_category_id: str | None = None
+    selection_group: str | None = "__category__"
     name: str
     duration_minutes: int
     price: Decimal
