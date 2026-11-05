@@ -4,7 +4,8 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.core.exceptions import ForbiddenError, SlotUnavailableError
+from app.application.use_cases.booking_use_cases import validate_visit_itinerary
+from app.core.exceptions import ForbiddenError, OnlinePaymentUnavailableError, SlotUnavailableError
 from app.domain.entities.profile import Profile, Role
 from app.domain.services.checkout import checkout_quote, online_checkout_available
 
@@ -20,6 +21,11 @@ class BookingCheckoutUseCases:
     async def quote(self, actor: Profile, values: dict[str, Any]) -> dict[str, Any]:
         if actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer access required")
+        segmented = bool(values.get("segments"))
+        if segmented:
+            validate_visit_itinerary(values)
+            if values["payment_mode"] != "PAY_AT_SALON":
+                raise OnlinePaymentUnavailableError("Multi-professional visits support Pay at Salon")
         salon = await self.repository.checkout_salon(values["salon_id"])
         start = values["start_datetime"]
         day = start.astimezone(ZoneInfo(salon["timezone"])).date()
@@ -34,11 +40,14 @@ class BookingCheckoutUseCases:
             services = await self.repository.quote_services(values["salon_id"], values["staff_id"], values["service_ids"])
             if not await self.repository.quoted_slot_available(values["staff_id"], day, services["duration"], start):
                 raise SlotUnavailableError("Selected slot is no longer available")
-        online = online_checkout_available(self.resolver.enabled, self.policy_version) and salon["accepting_bookings"]
+        online = not segmented and online_checkout_available(self.resolver.enabled, self.policy_version) and salon["accepting_bookings"]
         return {
             **checkout_quote(services["amount"], values["payment_mode"], policy_version=self.policy_version),
             "accepts_bookings": salon["accepting_bookings"],
             "payment_options": ["PAY_AT_SALON", "PAY_ONLINE"] if online else ["PAY_AT_SALON"],
             "online_payment_available": online,
-            "online_payment_unavailable_reason": None if online else "Online payment coming soon.",
+            "online_payment_unavailable_reason": (
+                "Multi-professional visits support Pay at Salon" if segmented
+                else None if online else "Online payment coming soon."
+            ),
         }

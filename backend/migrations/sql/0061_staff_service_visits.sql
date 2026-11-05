@@ -1,6 +1,8 @@
 -- Prepared only. Review before applying. No production migration is authorized.
 SET LOCAL lock_timeout = '5s';
 -- statement --
+SET LOCAL statement_timeout = '60s';
+-- statement --
 CREATE TABLE public.salon_service_categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   salon_id uuid NOT NULL REFERENCES public.salons(id) ON DELETE RESTRICT,
@@ -13,9 +15,9 @@ CREATE UNIQUE INDEX salon_service_category_name ON public.salon_service_categori
 -- statement --
 ALTER TABLE public.salon_service_categories ENABLE ROW LEVEL SECURITY;
 -- statement --
-REVOKE ALL ON public.salon_service_categories FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.salon_service_categories FROM PUBLIC, anon, authenticated, service_role;
 -- statement --
-GRANT ALL ON public.salon_service_categories TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.salon_service_categories TO service_role;
 -- statement --
 ALTER TABLE public.services ADD COLUMN menu_category_id uuid,
   ADD COLUMN selection_group text DEFAULT '__category__' CHECK (selection_group IS NULL OR length(selection_group) BETWEEN 1 AND 80);
@@ -26,10 +28,16 @@ SELECT DISTINCT ON (sv.salon_id, lower(trim(coalesce(nullif(sv.category_name,'')
 FROM public.services sv LEFT JOIN public.service_subcategories ss ON ss.id=sv.subcategory_id
 LEFT JOIN public.service_categories sc ON sc.id=ss.category_id;
 -- statement --
+WITH labels AS (
+  SELECT sv.id,sv.salon_id,
+    trim(coalesce(nullif(sv.category_name,''),nullif(sv.subcategory_name,''),ss.name,sc.name,'Other')) AS name
+  FROM public.services sv LEFT JOIN public.service_subcategories ss ON ss.id=sv.subcategory_id
+  LEFT JOIN public.service_categories sc ON sc.id=ss.category_id
+)
 UPDATE public.services sv SET menu_category_id=mc.id
-FROM public.salon_service_categories mc, public.service_subcategories ss, public.service_categories sc
-WHERE ss.id=sv.subcategory_id AND sc.id=ss.category_id AND mc.salon_id=sv.salon_id
-  AND lower(trim(mc.name))=lower(trim(coalesce(nullif(sv.category_name,''),nullif(sv.subcategory_name,''),ss.name,sc.name,'Other')));
+FROM labels l JOIN public.salon_service_categories mc
+  ON mc.salon_id=l.salon_id AND lower(trim(mc.name))=lower(trim(l.name))
+WHERE sv.id=l.id;
 -- statement --
 ALTER TABLE public.services ADD CONSTRAINT services_menu_category_salon_fk
   FOREIGN KEY (menu_category_id,salon_id) REFERENCES public.salon_service_categories(id,salon_id);
@@ -43,8 +51,8 @@ BEGIN
   IF TG_OP='INSERT' OR NEW.category_name IS DISTINCT FROM OLD.category_name
      OR NEW.subcategory_name IS DISTINCT FROM OLD.subcategory_name OR NEW.subcategory_id IS DISTINCT FROM OLD.subcategory_id THEN
     SELECT trim(coalesce(nullif(NEW.category_name,''),nullif(NEW.subcategory_name,''),ss.name,sc.name,'Other')) INTO label
-    FROM public.service_subcategories ss JOIN public.service_categories sc ON sc.id=ss.category_id
-    WHERE ss.id=NEW.subcategory_id;
+    FROM (SELECT 1) seed LEFT JOIN public.service_subcategories ss ON ss.id=NEW.subcategory_id
+    LEFT JOIN public.service_categories sc ON sc.id=ss.category_id;
     INSERT INTO public.salon_service_categories(salon_id,name) VALUES(NEW.salon_id,label)
       ON CONFLICT (salon_id,lower(trim(name))) DO UPDATE SET is_active=true
       RETURNING id INTO NEW.menu_category_id;
@@ -74,9 +82,9 @@ CREATE INDEX booking_segments_staff ON public.booking_segments(staff_id);
 -- statement --
 ALTER TABLE public.booking_segments ENABLE ROW LEVEL SECURITY;
 -- statement --
-REVOKE ALL ON public.booking_segments FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.booking_segments FROM PUBLIC, anon, authenticated, service_role;
 -- statement --
-GRANT ALL ON public.booking_segments TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.booking_segments TO service_role;
 -- statement --
 ALTER TABLE public.bookings DROP CONSTRAINT bookings_no_overlap;
 -- statement --
@@ -158,14 +166,24 @@ END $$;
 CREATE TRIGGER visit_status AFTER UPDATE ON public.bookings FOR EACH ROW EXECUTE FUNCTION public.sync_visit_status();
 -- statement --
 -- Patch the current slot authority to include each visit segment. No client/Python slot arithmetic.
-DO $$ DECLARE definition text;
+DO $$ DECLARE definition text; signature text;
 BEGIN
-  SELECT pg_get_functiondef('public.get_available_slots(uuid,date,integer)'::regprocedure) INTO definition;
-  definition:=replace(definition,'from bookings b','from booking_staff_reservations b');
-  EXECUTE definition;
-  SELECT pg_get_functiondef('public.get_available_slots(uuid,date,integer,uuid)'::regprocedure) INTO definition;
-  definition:=replace(definition,'from bookings b','from (select booking_id as id,staff_id,start_datetime,end_datetime,status from booking_staff_reservations) b');
-  EXECUTE definition;
+  FOREACH signature IN ARRAY ARRAY[
+    'public.get_available_slots(uuid,date,integer)',
+    'public.get_available_slots(uuid,date,integer,uuid)'
+  ] LOOP
+    SELECT pg_get_functiondef(signature::regprocedure) INTO definition;
+    IF (length(definition)-length(replace(definition,'from bookings b','')))
+       /length('from bookings b') <> 1 THEN
+      RAISE EXCEPTION 'availability_definition_mismatch';
+    END IF;
+    definition:=replace(definition,'from bookings b',
+      'from (select booking_id as id,staff_id,start_datetime,end_datetime,status from public.booking_staff_reservations) b');
+    EXECUTE definition;
+    IF position('public.booking_staff_reservations' IN pg_get_functiondef(signature::regprocedure))=0 THEN
+      RAISE EXCEPTION 'availability_definition_mismatch';
+    END IF;
+  END LOOP;
 END $$;
 -- statement --
 CREATE FUNCTION public.visit_plan(p_salon uuid,p_start timestamptz,p_segments jsonb)
@@ -350,3 +368,29 @@ END $$;
 CREATE TRIGGER closed_menu_categories AFTER UPDATE ON public.salons FOR EACH ROW EXECUTE FUNCTION public.scrub_closed_menu_categories();
 -- statement --
 REVOKE ALL ON FUNCTION public.scrub_closed_menu_categories() FROM PUBLIC,anon,authenticated;
+
+-- statement --
+-- Preserve the existing explicitly confirmed admin-erasure operation for the new children.
+-- Refuse unexpected prior function bodies rather than silently leaving RESTRICT references behind.
+DO $$ DECLARE definition text; marker text;
+BEGIN
+  SELECT pg_get_functiondef('public.erase_salon(uuid)'::regprocedure) INTO definition;
+  FOREACH marker IN ARRAY ARRAY[
+    'DELETE FROM public.bookings WHERE salon_id = p_salon;',
+    'DELETE FROM public.staff WHERE salon_id = p_salon;',
+    '''staff_services'', ''services'', ''staff'', ''salons'''
+  ] LOOP
+    IF (length(definition)-length(replace(definition,marker,'')))/length(marker)<>1 THEN
+      RAISE EXCEPTION 'salon_erasure_definition_mismatch';
+    END IF;
+  END LOOP;
+  definition:=replace(definition,'DELETE FROM public.bookings WHERE salon_id = p_salon;',
+    'DELETE FROM public.booking_segments WHERE booking_id IN (SELECT id FROM public.bookings WHERE salon_id = p_salon);'
+    || E'\n  DELETE FROM public.bookings WHERE salon_id = p_salon;');
+  definition:=replace(definition,'DELETE FROM public.staff WHERE salon_id = p_salon;',
+    'DELETE FROM public.salon_service_categories WHERE salon_id = p_salon;'
+    || E'\n  DELETE FROM public.staff WHERE salon_id = p_salon;');
+  definition:=replace(definition,'''staff_services'', ''services'', ''staff'', ''salons''',
+    '''staff_services'', ''services'', ''salon_service_categories'', ''booking_segments'', ''staff'', ''salons''');
+  EXECUTE definition;
+END $$;

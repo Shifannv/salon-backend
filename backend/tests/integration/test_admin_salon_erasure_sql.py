@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 
 from tests.integration import salon_erasure_support as support
-from tests.integration.salon_erasure_support import SQL_DIR, count, seed_money
+from tests.integration.salon_erasure_support import count, seed_money
 from tests.integration.test_payment_ledger_sql import TEST_DB
 
 env = support.env
@@ -93,8 +93,11 @@ async def test_a_failure_part_way_rolls_everything_back_and_keeps_the_guards(env
 
 async def test_every_table_that_blocks_a_salon_delete_is_handled_by_erase_salon(env):
     """Walk the foreign-key graph: a table with a non-cascading reference toward salons must be listed."""
+    definition = (await env.sql(
+        "select pg_get_functiondef('public.erase_salon(uuid)'::regprocedure) as body"
+    ))[0]["body"]
     handled = set(re.findall(r"'([a-z_]+)'", re.search(
-        r"v_tables text\[\] := ARRAY\[(.*?)\];", (SQL_DIR / "0058_admin_salon_erasure.sql").read_text(encoding="utf-8"), re.DOTALL).group(1)))
+        r"v_tables text\[\] := ARRAY\[(.*?)\];", definition, re.DOTALL).group(1)))
     from app.infrastructure.db.repositories.platform.admin_salon_erasure import _ERASURE_TABLES
 
     assert handled <= set(_ERASURE_TABLES), "Acquire erase trigger table locks before checking readiness"

@@ -23,6 +23,18 @@ from app.infrastructure.db.repositories.platform_repository import PlatformRepos
 _log = logging.getLogger(__name__)
 
 
+def validate_visit_itinerary(values: dict[str, Any]) -> None:
+    """Keep quote and creation tied to the same complete, duplicate-free itinerary."""
+
+    segments = values.get("segments")
+    if not segments:
+        return
+    flattened = [str(sid) for segment in segments for sid in segment["service_ids"]]
+    if (len(flattened) != len(set(flattened)) or sorted(flattened) != sorted(map(str, values["service_ids"]))
+        or str(segments[0]["staff_id"]) != str(values["staff_id"])):
+        raise ValidationError("Selected services must match the complete itinerary")
+
+
 class BookingUseCases:
     """Booking and availability use cases."""
 
@@ -68,11 +80,7 @@ class BookingUseCases:
         if values.get("payment_preference") in {"pay_full", "pay_advance"} and not self.online_payments_enabled:
             raise OnlinePaymentUnavailableError("Online payment coming soon.")
         if values.get("segments"):
-            segments = values["segments"]
-            flattened = [str(sid) for segment in segments for sid in segment["service_ids"]]
-            if (len(flattened) != len(set(flattened)) or sorted(flattened) != sorted(map(str, values["service_ids"]))
-                or str(segments[0]["staff_id"]) != str(values["staff_id"])):
-                raise ValidationError("Selected services must match the complete itinerary")
+            validate_visit_itinerary(values)
             if values.get("payment_preference") not in {None,"pay_at_salon"}:
                 raise OnlinePaymentUnavailableError("Multi-professional visits support Pay at Salon")
         await self.repository.get_public_salon(str(values["salon_id"]))

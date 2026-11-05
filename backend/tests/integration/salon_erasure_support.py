@@ -12,11 +12,11 @@ from tests.integration.test_checkout_safety_sql import SafetyEnv
 from tests.integration.test_payment_ledger_sql import TEST_DB, _build, _drop
 
 SQL_DIR = Path(__file__).parents[2] / "migrations/sql"
-LAST_PREPARED = 58
+LAST_PREPARED = 61
 
 
 @pytest.fixture(scope="module")
-def prepared_db():
+def prepared_db(request):
     name = "salon_erasure_" + uuid4().hex
     asyncio.run(_build(name))
     url = make_url(TEST_DB).set(database=name, drivername="postgresql+asyncpg").render_as_string(hide_password=False)
@@ -25,7 +25,7 @@ def prepared_db():
         environment = SafetyEnv(url)
         try:
             await environment.sql("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role")
-            for number in range(38, LAST_PREPARED + 1):
+            for number in range(38, getattr(request, "param", LAST_PREPARED) + 1):
                 files = list(SQL_DIR.glob(f"{number:04d}_*.sql"))
                 assert len(files) == 1, number
                 async with environment.session() as session:

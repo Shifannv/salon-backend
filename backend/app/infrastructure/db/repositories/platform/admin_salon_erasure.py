@@ -33,7 +33,7 @@ _ERASURE_TABLES = (
     "support_messages", "support_tickets", "subscription_events", "subscription_billing_records",
     "salon_subscriptions", "subscription_provider_accounts", "payment_provider_account_audit",
     "payment_provider_accounts", "salon_reports", "staff_services", "services", "staff", "salons",
-    "account_deletion_requests",
+    "account_deletion_requests", "booking_segments", "salon_service_categories",
 )
 # A payment still owed back to the customer: online, taken, not fully refunded, on a booking that is
 # still open or was cancelled because the salon is closing.
