@@ -6,34 +6,43 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.exceptions import AppError
 from app.infrastructure.db.repositories.platform_repository import PlatformRepository
 from app.infrastructure.db.session import set_actor_context
+from tests.integration.salon_erasure_support import prepared_db  # noqa: F401
 from tests.integration.test_booking_changes_sql import changes_db  # noqa: F401
 from tests.integration.test_checkout_safety_sql import SafetyEnv
 from tests.integration.test_payment_ledger_sql import TEST_DB
-from tests.integration.test_staff_earnings_sql import staff_db  # noqa: F401
 
-pytestmark = pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL")
+pytestmark = [
+    pytest.mark.skipif(not TEST_DB, reason="Requires disposable local PostgreSQL"),
+    # Seed legacy rows before applying the migration being tested.
+    pytest.mark.parametrize("prepared_db", [60], indirect=True, scope="module"),
+]
 
 
 @pytest.fixture(scope="module")
-def visit_db(staff_db):  # noqa: F811
+def visit_db(prepared_db):  # noqa: F811
     async def install():
-        env = SafetyEnv(staff_db)
+        env = SafetyEnv(prepared_db)
         try:
             async with env.session() as session:
+                await env.seed()
                 source = Path(__file__).parents[2] / "migrations/sql/0061_staff_service_visits.sql"
                 for statement in source.read_text(encoding="utf-8").split("\n-- statement --\n"):
                     if statement.strip():
                         await session.execute(text(statement))
+                # Check every legacy row immediately, before later erasure tests scrub data.
+                assert await session.scalar(text("""select count(*) from services sv
+                    left join salon_service_categories mc on mc.id=sv.menu_category_id
+                    where mc.id is null or mc.salon_id<>sv.salon_id""")) == 0
                 await session.commit()
         finally:
             await env.engine.dispose()
     asyncio.run(install())
-    return staff_db
+    return prepared_db
 
 
 @pytest.fixture
@@ -267,3 +276,46 @@ async def test_owner_erasure_scrubs_new_category_and_selection_labels(visits):
     rows = await visits.sql('select name,is_active from salon_service_categories where salon_id=:id',id=f['salon'])
     assert rows and all(row['name'].startswith('Removed category ') and not row['is_active'] for row in rows)
     assert (await visits.sql('select selection_group from services where id=:id',id=f['service']))[0]['selection_group'] is None
+
+
+async def test_admin_erasure_removes_visit_and_category_rows_only_for_the_target(visits):
+    f = await menu(visits)
+    other = await menu(visits)
+    booking = await create(visits, f)
+    assert isinstance(booking, dict), booking
+    await visits.sql("update bookings set status='cancelled' where id=:id", id=booking['id'])
+    async with visits.session() as session:
+        repo = PlatformRepository(session)
+        await repo.lock_salon_for_erasure(f['salon'])
+        await session.execute(text("select erase_salon(cast(:id as uuid))"), {'id': f['salon']})
+        await session.commit()
+    assert not await visits.sql('select 1 from bookings where id=:id', id=booking['id'])
+    assert not await visits.sql('select 1 from booking_segments where booking_id=:id', id=booking['id'])
+    assert not await visits.sql('select 1 from salon_service_categories where salon_id=:id', id=f['salon'])
+    assert await visits.sql('select 1 from salons where id=:id', id=other['salon'])
+    assert await visits.sql('select 1 from salon_service_categories where salon_id=:id', id=other['salon'])
+
+
+async def test_availability_patch_refuses_an_unexpected_function_definition(visits):
+    source = Path(__file__).parents[2] / 'migrations/sql/0061_staff_service_visits.sql'
+    patch_sql = next(part for part in source.read_text(encoding='utf-8').split('\n-- statement --\n')
+                     if 'availability_definition_mismatch' in part)
+    # The already-upgraded function no longer contains the expected legacy fragment.
+    async with visits.session() as session:
+        with pytest.raises(DBAPIError, match='availability_definition_mismatch'):
+            await session.execute(text(patch_sql))
+        await session.rollback()
+
+
+async def test_migration_backfills_categories_and_keeps_new_tables_private(visits):
+    # visit_db verifies complete, same-salon backfilling immediately after migration.
+    # Later owner-erasure tests deliberately clear catalog references in this shared database.
+    for table in ('salon_service_categories', 'booking_segments'):
+        row = (await visits.sql("""select
+            has_table_privilege('anon',:name,'select,insert,update,delete,truncate') as anon,
+            has_table_privilege('authenticated',:name,'select,insert,update,delete,truncate') as authenticated,
+            has_table_privilege('service_role',:name,'delete,truncate') as destructive,
+            (select relrowsecurity from pg_class where oid=cast(:name as regclass)) as rls""", name='public.'+table))[0]
+        assert row == {'anon': False, 'authenticated': False, 'destructive': False, 'rls': True}
+    row = (await visits.sql("select reloptions from pg_class where oid='public.booking_staff_reservations'::regclass"))[0]
+    assert 'security_invoker=true' in row['reloptions']

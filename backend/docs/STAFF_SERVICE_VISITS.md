@@ -59,6 +59,14 @@ The completion action is labelled for the whole visit and shown on the final sta
 
 ## Boundaries and release
 
+- Migration execution is bounded by five-second lock acquisition and sixty-second statements.
+  Availability and salon-erasure function updates refuse unexpected prior definitions. Legacy
+  services without a shared subcategory are included in category backfilling. New tables grant
+  backend read/insert/update access; direct delete/truncate and browser access are revoked.
+- The existing confirmed admin salon-erasure operation removes visit segments before bookings
+  and menu categories after services. Its application lock list includes both new tables.
+  Checkout quotes validate the same complete itinerary as booking creation and offer only
+  Pay at Salon for segmented visits, even when online payment is enabled elsewhere.
 - Multi-professional visits currently support Pay at Salon. Online collection is unchanged.
 - The existing single-professional reschedule flow is blocked for multi-professional visits;
   customers are told to contact the salon to arrange the complete schedule. Cancellation
