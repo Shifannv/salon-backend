@@ -1,8 +1,9 @@
+import asyncio
+from pathlib import Path
+
 """U08 policy snapshots and manual finance records on disposable local Postgres."""
 
-import asyncio
 from decimal import Decimal
-from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -251,11 +252,39 @@ async def test_checked_in_collection_capability_is_owner_scoped(finance,monkeypa
         assert not owner.json()['can_confirm_payment']
 
 
-async def test_legacy_policy_keeps_original_cancellation_cutoff(finance,monkeypatch):
+async def test_legacy_policy_allows_direct_cancellation_before_start(finance,monkeypatch):
     monkeypatch.setattr(settings,'booking_checkout_policy_version','customer_processing_v1')
     _,b,app,_,_,_=await setup(finance,monkeypatch)
     await finance.sql("update bookings set start_datetime=now()+interval '1 hour',end_datetime=now()+interval '90 minutes' where id=:id",id=b['id'])
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://local.test') as client:
         result=await client.post(f"/v1/bookings/{b['id']}/cancel",json={})
-        assert result.status_code==409
+        assert result.status_code==200, result.text
+        assert result.json()['status']=='cancelled'
     assert not await finance.sql('select booking_id from booking_financial_outcomes where booking_id=:id',id=b['id'])
+
+
+async def test_cancellation_quote_uses_verified_funds_and_is_customer_scoped(finance, monkeypatch):
+    _f,b,app,identity,_,_=await setup(finance,monkeypatch,'250')
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://local.test') as client:
+        response=await client.get(f"/v1/bookings/{b['id']}/cancellation-quote")
+        assert response.status_code==200,response.text
+        quote=response.json()
+        assert quote['can_cancel'] and quote['paid_online'] and not quote['requires_review']
+        assert D(quote['refund_amount'])==230 and D(quote['deduction_amount'])==20
+        assert not await finance.sql('select id from payment_refunds where booking_id=:id',id=b['id'])
+        outsider=await finance.seed()
+        identity['actor']=_customer(outsider['customer'])
+        hidden=await client.get(f"/v1/bookings/{b['id']}/cancellation-quote")
+        assert hidden.status_code==404
+
+
+async def test_unpaid_cancellation_quote_does_not_promise_a_refund(finance,monkeypatch):
+    f=await finance.seed()
+    b=await finance.book(f)
+    app,_=local_app(finance,monkeypatch,_customer(f['customer']))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://local.test') as client:
+        response=await client.get(f"/v1/bookings/{b['id']}/cancellation-quote")
+        assert response.status_code==200,response.text
+        quote=response.json()
+        assert quote['can_cancel'] and not quote['paid_online']
+        assert D(quote['refund_amount'])==0 and D(quote['amount_paid'])==0

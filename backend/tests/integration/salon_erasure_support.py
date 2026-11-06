@@ -12,7 +12,7 @@ from tests.integration.test_checkout_safety_sql import SafetyEnv
 from tests.integration.test_payment_ledger_sql import TEST_DB, _build, _drop
 
 SQL_DIR = Path(__file__).parents[2] / "migrations/sql"
-LAST_PREPARED = 61
+LAST_PREPARED = 62
 
 
 @pytest.fixture(scope="module")

@@ -35,7 +35,8 @@ MUMBAI = f"postgresql+asyncpg://postgres:synthetic@db.{MUMBAI_PROJECT}.supabase.
 
 
 def test_repository_head_and_portable_boundary_are_distinct_and_linear():
-    assert SCRIPT.get_heads() == ["0061_staff_service_visits"]
+    assert SCRIPT.get_heads() == ["0062_booking_management"]
+    assert SCRIPT.get_revision("0062_booking_management").down_revision == "0061_staff_service_visits"
     assert SCRIPT.get_revision("0061_staff_service_visits").down_revision == "0060_user_consents"
     assert SCRIPT.get_revision("0060_user_consents").down_revision == "0059_payout_account_encryption"
     assert SCRIPT.get_revision("0057_payout_proof").down_revision == "0056_platform_payment_settings"

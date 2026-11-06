@@ -149,20 +149,20 @@ async def test_invalid_owner_transition_does_not_write() -> None:
 
 
 @pytest.mark.asyncio
-async def test_immediate_cancel_rejects_late_request() -> None:
+async def test_immediate_cancel_rejects_started_booking() -> None:
     now = datetime.now(UTC)
     repository, session = _repository(
         _Result(
             {
                 "id": "booking-1",
                 "status": "confirmed",
-                "start_datetime": now + timedelta(minutes=30),
+                "start_datetime": now - timedelta(minutes=1),
                 "database_now": now,
             }
         )
     )
 
-    with pytest.raises(ConflictError, match="cutoff has passed"):
+    with pytest.raises(ConflictError, match="started"):
         await repository.cancel_customer_booking("customer-1", "booking-1", None, 120)
 
     assert session.execute.await_count == 1

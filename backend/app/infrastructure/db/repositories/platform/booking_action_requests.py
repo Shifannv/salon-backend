@@ -12,7 +12,6 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
-from app.domain.services.booking_finance_policy import POLICY_VERSION
 from app.infrastructure.db.repositories.platform._sql import _salon_actor_sql, page_bounds
 
 
@@ -84,7 +83,7 @@ class BookingActionRequestsMixin:
         if booking is None:
             raise NotFoundError("Booking not found")
 
-        if kind == "cancellation" and booking.get("checkout_policy_version") == POLICY_VERSION:
+        if kind == "cancellation":
             raise BookingChangeError("direct_cancellation_required", "Cancel this booking directly to apply its stored cancellation policy")
 
         if kind == "payment_confirmation":

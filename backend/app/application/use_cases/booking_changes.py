@@ -26,6 +26,10 @@ class BookingChangeUseCases:
         self.authorize(actor)
         return await self.repository.availability(booking_id, staff_id, services, day)
 
+    async def visit_availability(self, actor: Profile, booking_id: str, segments: list[dict[str, Any]], day: date) -> list[dict[str, Any]]:
+        self.authorize(actor)
+        return await self.repository.visit_availability(booking_id, segments, day)
+
     async def commit(self, actor: Profile, booking_id: str, values: dict[str, Any], key: str | None) -> dict[str, Any]:
         self.authorize(actor)
         check_idempotency_key_length(key, max_len=128)

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AppError,
+    BookingChangeError,
     BookingWindowExceededError,
     PayAtSalonBlockedError,
     PayAtSalonDailyLimitError,
@@ -53,7 +54,13 @@ _CREATE_BOOKING_ERROR_RULES: tuple[_MessageRule, ...] = (
     (("booking_window_exceeded",), False,
      lambda: BookingWindowExceededError("Bookings are available only through the next 30 days.")),
     (("pay_at_salon_daily_limit",), False,
-     lambda: PayAtSalonDailyLimitError("You can keep only 1 active Pay at Salon booking per day.")),
+     lambda: PayAtSalonDailyLimitError("You have reached the Pay at Salon limit for this date.")),
+    (("pay_at_salon_upcoming_limit",), False,
+     lambda: BookingChangeError("pay_at_salon_upcoming_limit", "You have reached your upcoming Pay at Salon booking limit.")),
+    (("pay_at_salon_weekly_limit",), False,
+     lambda: BookingChangeError("pay_at_salon_weekly_limit", "You have reached your rolling 7-day Pay at Salon reservation limit. Customer cancellations still count.")),
+    (("customer_booking_overlap",), False,
+     lambda: BookingChangeError("customer_booking_overlap", "You already have an appointment at this time. Choose a non-overlapping time.")),
     (("pay_at_salon_temporarily_blocked",), False,
      lambda: PayAtSalonBlockedError("Pay at Salon is blocked for 7 days after two no-shows. Online payment remains available where enabled.")),
     (("salon_not_accepting_bookings",), False,
