@@ -48,6 +48,7 @@ class _BookingMixin:
             ids = [str(r[0]) for r in rows]
             notified = 0
             if ids:
+                await s.execute(text("select set_config('app.booking_cancel_origin','salon',true)"))
                 await s.execute(
                     text("""
                         update bookings

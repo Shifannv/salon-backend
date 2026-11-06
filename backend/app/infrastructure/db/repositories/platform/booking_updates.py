@@ -1,7 +1,7 @@
 """Booking status changes, cancellation and delay."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -89,9 +89,8 @@ class BookingUpdatesMixin:
         if status == "cancelled":
             if current.get("checkout_policy_version") == POLICY_VERSION and current["status"] == "checked_in":
                 raise BookingChangeError("cancellation_review_required", "Cancellation after check-in requires finance review")
-            if current.get("checkout_policy_version") == POLICY_VERSION:
-                await self.session.execute(text("select set_config('app.booking_cancel_origin',:origin,true)"),
-                                           {"origin": "customer" if customer_only else "salon"})
+            await self.session.execute(text("select set_config('app.booking_cancel_origin',:origin,true)"),
+                                       {"origin": "customer" if customer_only else "salon"})
 
         await self.session.execute(
             text(
@@ -176,6 +175,20 @@ class BookingUpdatesMixin:
         await self.session.commit()
         return booking
 
+    async def cancellation_payment_summary(self, actor_id: str, booking_id: str) -> dict[str, Any]:
+        result = await self.session.execute(text("""
+          SELECT statement_timestamp() database_now,
+            coalesce((SELECT sum(amount-overcollected_amount) FROM public.booking_payments
+              WHERE booking_id=b.id AND channel='gateway' AND status IN ('captured','partially_refunded','refunded')),0) captured,
+            coalesce((SELECT sum(r.amount) FROM public.payment_refunds r JOIN public.booking_payments p ON p.id=r.payment_id
+              WHERE r.booking_id=b.id AND p.channel='gateway' AND r.status='processed' AND NOT r.applies_to_excess),0) refunded
+          FROM public.bookings b WHERE b.id=:id AND b.customer_id=:actor
+        """), {"id": booking_id, "actor": actor_id})
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise NotFoundError("Booking not found")
+        return dict(row)
+
     async def cancel_customer_booking(
         self,
         actor_id: str,
@@ -183,18 +196,19 @@ class BookingUpdatesMixin:
         cancellation_reason: str | None,
         cutoff_minutes: int,
     ) -> dict[str, Any]:
-        """Cancel an owned booking before the server cancellation cutoff."""
+        """Cancel an owned booking before its start, using the database wall clock."""
 
         result = await self.session.execute(
             text(
                 """
-                select b.id, b.status, b.start_datetime, b.customer_name, b.checkout_policy_version,
-                       s.owner_id,
-                       now() as database_now
-                from bookings b
-                join salons s on s.id = b.salon_id
-                where b.id = :booking_id and b.customer_id = :actor_id
-                for update of b
+                with locked as materialized (
+                    select b.id, b.status, b.start_datetime, b.customer_name, b.checkout_policy_version,
+                           s.owner_id
+                    from bookings b
+                    join salons s on s.id = b.salon_id
+                    where b.id = :booking_id and b.customer_id = :actor_id
+                    for update of b
+                ) select locked.*, clock_timestamp() as database_now from locked
                 """
             ),
             {"actor_id": actor_id, "booking_id": booking_id},
@@ -204,15 +218,11 @@ class BookingUpdatesMixin:
             raise NotFoundError("Booking not found")
         if row["status"] not in {"pending", "confirmed"}:
             raise ConflictError("Booking can no longer be cancelled")
-        cutoff = row["start_datetime"] - timedelta(minutes=cutoff_minutes)
-        if row.get("checkout_policy_version") != POLICY_VERSION and row["database_now"] >= cutoff:
-            raise ConflictError(
-                "Immediate cancellation cutoff has passed; submit a cancellation request"
-            )
+        if row["database_now"] >= row["start_datetime"]:
+            raise ConflictError("This appointment has started. Contact the salon for help.")
 
         # Trusted provenance also distinguishes an owner cancelling a self-booked visit.
-        if row.get("checkout_policy_version") == POLICY_VERSION:
-            await self.session.execute(text("select set_config('app.booking_cancel_origin','customer',true)"))
+        await self.session.execute(text("select set_config('app.booking_cancel_origin','customer',true)"))
 
         await self.session.execute(
             text(

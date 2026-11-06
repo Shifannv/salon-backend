@@ -1,9 +1,10 @@
+from pathlib import Path
+
 """Customer changes against isolated local Postgres; no provider or remote data."""
 
 import asyncio
 from datetime import timedelta
 from decimal import Decimal
-from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -12,6 +13,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.domain.services.booking_finance_policy import POLICY_VERSION
+from tests.integration.salon_erasure_support import prepared_db
 from tests.integration.test_booking_contract_sql import _customer
 from tests.integration.test_booking_journeys_e2e import local_app
 from tests.integration.test_checkout_safety_sql import SafetyEnv
@@ -56,10 +58,15 @@ def changes_db():
         asyncio.run(_drop(name))
 
 
+@pytest.fixture(scope="module")
+def changes_current_db(request):
+    yield from prepared_db.__wrapped__(request)
+
+
 @pytest.fixture
-async def changes(changes_db, monkeypatch):
+async def changes(changes_current_db, monkeypatch):
     monkeypatch.setattr(settings, "booking_checkout_policy_version", POLICY_VERSION)
-    env = SafetyEnv(changes_db)
+    env = SafetyEnv(changes_current_db)
     yield env
     await env.engine.dispose()
 
@@ -174,9 +181,15 @@ async def test_cheaper_service_keeps_history_and_prepaid_money_but_reduces_unpai
         payload,quote = await reviewed(client,b['id'],body)
         assert Decimal(quote['total_payable']) == (250 if prepaid else 100)
         result = await client.post(f"/v1/bookings/{b['id']}/change",json=payload,headers={'Idempotency-Key':'cheaper-service'})
+        if prepaid:
+            assert quote['can_commit'] is False
+            assert result.status_code == 409, result.text
+            assert result.json()['error']['code'] == 'prepaid_change_amount_mismatch'
+            assert not await changes.sql('select id from booking_customer_changes where booking_id=:id', id=b['id'])
+            return
         assert result.status_code == 200,result.text
         data = result.json()
-        assert Decimal(data['total_price']) == (250 if prepaid else 100)
+        assert Decimal(data['total_price']) == 100
         assert Decimal(data['service_fulfilment_amount']) == 100
         assert [line['service_id'] for line in data['services']] == [cheap]
     lines = await changes.sql('select service_id,is_active from booking_services where booking_id=:id',id=b['id'])
@@ -198,7 +211,7 @@ async def test_prepaid_upgrade_never_commits_without_verified_extra_money(change
         payload,quote=await reviewed(client,b['id'],body)
         assert Decimal(quote['additional_payment_required'])==100
         result=await client.post(f"/v1/bookings/{b['id']}/change",json=payload,headers={'Idempotency-Key':'unverified-extra'})
-        assert result.status_code==409 and result.json()['error']['code']=='additional_payment_required'
+        assert result.status_code==409 and result.json()['error']['code']=='prepaid_change_amount_mismatch'
     stored=await changes.sql('select change_version,total_price,start_datetime from bookings where id=:id',id=b['id'])
     assert stored[0]['change_version']==0 and stored[0]['total_price']==250 and stored[0]['start_datetime']==f['start']
     assert not await changes.sql('select id from booking_customer_changes where booking_id=:id',id=b['id'])
@@ -306,3 +319,21 @@ async def test_booking_change_requires_key_and_rejects_key_reuse(changes,monkeyp
         assert (await client.post(f"/v1/bookings/{b['id']}/change",json=payload,headers={'Idempotency-Key':'same-key-test'})).status_code==200
         changed=await client.post(f"/v1/bookings/{b['id']}/change",json={**payload,'expected_version':1},headers={'Idempotency-Key':'same-key-test'})
         assert changed.status_code==409 and changed.json()['error']['code']=='idempotency_key_reuse'
+
+
+async def test_prepaid_equal_total_legacy_request_updates_itinerary(changes, monkeypatch):
+    f, b, app, _, body = await setup_client(changes, monkeypatch)
+    await changes.sql("update bookings set payment_preference='pay_full' where id=:id", id=b['id'])
+    await changes.sql("""insert into booking_payments(booking_id,salon_id,channel,purpose,method,
+        provider,amount,status,intent_reference,captured_at,settlement_model)
+        values(:id,:salon,'gateway','full','online','cashfree',250,'captured',:ref,now(),'platform_collect')""",
+        id=b['id'],salon=f['salon'],ref='test-'+uuid4().hex)
+    body['service_ids'] = [await new_service(changes, f, '250')]
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://local.test') as client:
+        payload, quote = await reviewed(client, b['id'], body)
+        assert quote['can_commit'] is True
+        response = await client.post(f"/v1/bookings/{b['id']}/change", json=payload, headers={'Idempotency-Key': 'equal-prepaid'})
+        assert response.status_code == 200, response.text
+    itinerary = (await changes.sql('select itinerary from bookings where id=:id', id=b['id']))[0]['itinerary']
+    assert itinerary[0]['service_ids'] == body['service_ids']
+    assert itinerary[0]['staff_id'] == body['staff_id']

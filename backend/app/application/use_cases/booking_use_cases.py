@@ -231,6 +231,44 @@ class BookingUseCases:
         self._schedule_booking_outbox(booking, background_tasks)
         return booking
 
+    async def cancellation_quote(self, actor: Profile, booking_id: str) -> dict[str, Any]:
+        from decimal import Decimal
+
+        from app.domain.services.booking_finance_policy import POLICY_VERSION, cancellation_quote
+
+        if actor.role not in {Role.customer, Role.owner}:
+            raise ForbiddenError("Customer booking access required")
+        booking = await self.repository.get_booking(booking_id, actor.id)
+        if booking is None or str(booking.get("customer_id")) != actor.id:
+            raise NotFoundError("Booking not found")
+        funds = await self.repository.cancellation_payment_summary(actor.id, booking_id)
+        captured, refunded = funds["captured"], funds["refunded"]
+        refund = Decimal("0")
+        deduction = Decimal("0")
+        message = "No online payment was collected. There is no online refund to process."
+        review = False
+        if captured > 0:
+            if booking.get("checkout_policy_version") == POLICY_VERSION:
+                quote = cancellation_quote(captured, booking["start_datetime"], funds["database_now"], Decimal("0"))
+                refund = max(Decimal("0"), min(captured-refunded, quote.customer_refund-refunded))
+                deduction = quote.penalty
+                message = "Refund eligibility is estimated now and recalculated when you confirm. Cancellation releases the slot; refund processing is separate."
+            else:
+                refund = None
+                deduction = None
+                review = True
+                message = "This booking uses an earlier payment policy. Refund details require review; cancelling does not mean a refund has completed."
+        elif booking.get("paid_amount", Decimal("0")) > 0:
+            review = True
+            refund = None
+            deduction = None
+            message = "Payment was recorded at the salon. Contact the salon about returning that payment; this app will not issue an online refund for it."
+        return {"booking_id": booking_id,
+            "can_cancel": booking["status"] in {"pending", "confirmed"} and funds["database_now"] < booking["start_datetime"],
+            "payment_preference": booking.get("payment_preference"), "paid_online": captured>0,
+            "currency": booking.get("currency", "INR"), "amount_paid": captured, "already_refunded": refunded,
+            "refund_amount": refund, "deduction_amount": deduction, "message": message, "requires_review": review}
+
     async def cancel(
         self,
         actor: Profile,

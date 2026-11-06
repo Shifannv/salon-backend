@@ -28,7 +28,7 @@ def test_booking_response_can_cancel_only_before_start_time():
     past_response = BookingResponse(
         **{
             **booking,
-            "start_datetime": future - timedelta(hours=2),
+            "start_datetime": datetime.now(UTC) - timedelta(minutes=1),
             "end_datetime": future - timedelta(hours=1, minutes=30),
         }
     )
@@ -52,8 +52,8 @@ def test_booking_response_exposes_late_cancellation_and_cash_claim_eligibility(
             "payment_preference": "pay_at_salon",
         }
     )
-    assert response.can_cancel is False
-    assert response.can_request_cancellation is True
+    assert response.can_cancel is True
+    assert response.can_request_cancellation is False
     assert response.can_confirm_payment is False
 
     after_start = BookingResponse(
@@ -65,7 +65,7 @@ def test_booking_response_exposes_late_cancellation_and_cash_claim_eligibility(
         }
     )
     assert after_start.can_confirm_payment is True
-    assert after_start.can_request_cancellation is True
+    assert after_start.can_request_cancellation is False
 
     pending_claim = after_start.model_copy(
         update={"latest_payment_request_status": "pending"}

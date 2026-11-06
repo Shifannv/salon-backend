@@ -190,6 +190,7 @@ class ClosuresMixin:
 
         outbox_ids: list[str] = []
         if actual_ids:
+            await self.session.execute(text("select set_config('app.booking_cancel_origin','salon',true)"))
             ids_json = json.dumps(sorted(actual_ids))
             await self.session.execute(
                 text(

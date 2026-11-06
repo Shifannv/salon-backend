@@ -13,11 +13,16 @@ from app.api.deps import (
     get_current_actor,
     get_mfa_checked_actor,
 )
-from app.api.v1.schemas.booking import VisitAvailabilityRequest, VisitAvailabilityResponse
+from app.api.v1.schemas.booking import (
+    CancellationQuoteResponse,
+    VisitAvailabilityRequest,
+    VisitAvailabilityResponse,
+)
 from app.api.v1.schemas.booking_changes import (
     BookingChangeCommitRequest,
     BookingChangeQuote,
     BookingChangeRequest,
+    BookingVisitChangeAvailabilityRequest,
 )
 from app.api.v1.schemas.platform import (
     AvailabilityResponse,
@@ -62,6 +67,16 @@ async def booking_change_availability(
         actor, str(booking_id), str(staff_id), [str(s) for s in service_ids], booking_date,
     )
     return [AvailabilityResponse(**row) for row in rows]
+
+
+@router.post("/bookings/{booking_id}/change-availability", response_model=list[VisitAvailabilityResponse], status_code=200)
+async def booking_visit_change_availability(
+    booking_id: UUID, payload: BookingVisitChangeAvailabilityRequest,
+    actor: Profile = Depends(get_current_actor), session: AsyncSession = Depends(get_authenticated_session),
+) -> list[VisitAvailabilityResponse]:
+    rows = await BookingChangeUseCases(BookingChangeRepository(session)).visit_availability(
+        actor, str(booking_id), [part.model_dump() for part in payload.segments], payload.date)
+    return [VisitAvailabilityResponse(**row) for row in rows]
 
 
 @router.post("/bookings/{booking_id}/change-quote", response_model=BookingChangeQuote, status_code=200)
@@ -291,6 +306,13 @@ async def delay_booking(
         background_tasks,
     )
     return BookingResponse(**row)
+
+
+@router.get("/bookings/{booking_id}/cancellation-quote", response_model=CancellationQuoteResponse, status_code=200)
+async def customer_cancellation_quote(booking_id: UUID, actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> CancellationQuoteResponse:
+    row = await _use_cases(session).cancellation_quote(actor, str(booking_id))
+    return CancellationQuoteResponse(**row)
 
 
 @router.post(

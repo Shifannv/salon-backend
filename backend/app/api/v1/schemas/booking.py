@@ -1,6 +1,6 @@
 """Booking, availability and cancellation API schemas."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -14,9 +14,7 @@ from pydantic import (
 )
 
 from app.api.v1.schemas.common import UuidParam
-from app.core.config import settings
 from app.domain.entities.payment import derive_payment_state
-from app.domain.services.booking_finance_policy import POLICY_VERSION
 
 
 class AvailabilityResponse(BaseModel):
@@ -166,20 +164,8 @@ class BookingResponse(BaseModel):
 
         now = datetime.now(tz=self.start_datetime.tzinfo)
         active = self.status in _CANCELLABLE_STATUSES
-        cutoff = self.start_datetime - timedelta(
-            minutes=settings.customer_cancellation_cutoff_minutes
-        )
-        self.can_cancel = active and now < cutoff
-        if self.checkout_policy_version == POLICY_VERSION:
-            self.can_cancel = active
-        self.can_request_cancellation = (
-            settings.allow_late_cancellation_requests
-            and active
-            and cutoff <= now < self.end_datetime
-            and self.latest_cancellation_request_status != "pending"
-        )
-        if self.checkout_policy_version == POLICY_VERSION:
-            self.can_request_cancellation = False
+        self.can_cancel = active and now < self.start_datetime
+        self.can_request_cancellation = False
         self.payment_state = derive_payment_state(
             self.payment_status, self.paid_amount, self.refunded_amount
         ).value
@@ -202,6 +188,20 @@ class BookingResponse(BaseModel):
             and self.latest_payment_request_status != "pending"
         )
         return self
+
+
+class CancellationQuoteResponse(BaseModel):
+    booking_id: UuidParam
+    can_cancel: bool
+    payment_preference: str | None
+    paid_online: bool
+    currency: str
+    amount_paid: Decimal
+    already_refunded: Decimal
+    refund_amount: Decimal | None
+    deduction_amount: Decimal | None
+    message: str
+    requires_review: bool
 
 
 class DelayBookingRequest(BaseModel):
