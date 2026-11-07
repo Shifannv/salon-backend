@@ -159,6 +159,7 @@ class BookingUseCases:
         actor: Profile,
         *,
         booking_statuses: list[str] | None = None,
+        include_archived: bool = False,
         source: str | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
@@ -175,6 +176,7 @@ class BookingUseCases:
             actor.id,
             actor.role.value,
             booking_statuses=booking_statuses,
+            include_archived=include_archived,
             source=source,
             date_from=date_from,
             date_to=date_to,
@@ -193,6 +195,14 @@ class BookingUseCases:
         ):
             await assert_approved_workspace(self.repository, actor)
         return booking
+
+    async def set_archived(self, actor: Profile, booking_id: str, archived: bool) -> dict[str, Any]:
+        """Let the salon owner hide or restore a finished booking in the workspace list."""
+
+        if actor.role != Role.owner:
+            raise ForbiddenError("Salon owner access required")
+        await assert_approved_workspace(self.repository, actor)
+        return await self.repository.set_booking_archived(actor.id, booking_id, archived)
 
     async def approve(
         self,

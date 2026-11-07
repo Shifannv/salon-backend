@@ -52,3 +52,21 @@ async def test_customer_role_still_sees_only_own_bookings():
     sql = await _list_sql("customer")
     assert "b.customer_id = :actor_id" in sql
     assert "s2.owner_id" not in sql
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["owner", "staff"])
+async def test_workspace_roles_skip_archived_bookings_unless_asked(role):
+    assert "owner_archived_at' is null" in await _list_sql(role)
+
+    session = AsyncMock()
+    result = MagicMock()
+    result.mappings.return_value.all.return_value = []
+    session.execute.return_value = result
+    await PlatformRepository(session).list_bookings("actor-1", role, include_archived=True)
+    assert "owner_archived_at is null" not in str(session.execute.await_args.args[0])
+
+
+@pytest.mark.asyncio
+async def test_customers_are_never_filtered_by_the_owner_archive():
+    assert "owner_archived_at is null" not in await _list_sql("customer")

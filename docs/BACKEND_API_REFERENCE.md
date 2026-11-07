@@ -1983,6 +1983,8 @@ Returns all active subcategories for the given category. Used by the owner app t
 | POST | `/v1/bookings` | Create booking | 201 |
 | GET | `/v1/bookings` | List role-scoped bookings | 200 |
 | GET | `/v1/bookings/{booking_id}` | Get booking details | 200 |
+| POST | `/v1/bookings/{booking_id}/archive` | Hide a finished booking from the salon list | 200 |
+| POST | `/v1/bookings/{booking_id}/unarchive` | Show an archived booking in the salon list again | 200 |
 | POST | `/v1/bookings/{booking_id}/approve` | Approve booking | 200 |
 | POST | `/v1/bookings/{booking_id}/reject` | Reject booking | 200 |
 | POST | `/v1/bookings/{booking_id}/complete` | Complete booking | 200 |
@@ -2085,6 +2087,7 @@ Owners see all bookings in their salon. Customers see only their own bookings.
 | Parameter | Location | Required | Type | Declared constraints/default |
 | --- | --- | --- | --- | --- |
 | `status` | query | no | one or more of `pending`, `confirmed`, `checked_in`, `no_show`, `rejected`, `completed`, `cancelled`, as `?status=a,b` or repeated `?status=a&status=b`; unknown value is 422 | `?status=cancelled,rejected,no_show` for the owner "Cancelled" tab |
+| `include_archived` | query | no | boolean | default=false; owners and staff also get bookings they archived |
 | `source` | query | no | `"app" \| "manual_walkin" \| "qr_walkin"` or null |  |
 | `date_from` | query | no | string (date) or null |  |
 | `date_to` | query | no | string (date) or null |  |
@@ -2114,6 +2117,24 @@ Return a booking visible to the actor.
 **Success 200:** `application/json`: [BookingResponse](#model-bookingresponse).
 
 **Source:** [backend/app/api/v1/routes/bookings.py](../backend/app/api/v1/routes/bookings.py) (`get_booking`).
+
+### POST `/v1/bookings/{booking_id}/archive` and `/unarchive`
+
+**Purpose:** Let the salon owner hide a finished booking from their list (for example test bookings) and restore it.
+
+**Access:** Bearer; the salon owner only (approved workspace). Staff and customers get 403; another salon's booking is 404.
+
+Only `cancelled`, `rejected`, `no_show` and `completed` bookings can be archived; any other status is 409. Status, payment and refund fields never change, and the customer's own list is not affected. Repeating a call is safe. Archived bookings are left out of `GET /v1/bookings` for owners and staff unless `include_archived=true`; `BookingResponse.is_archived` reports the state. Requires migration 0063; apply it before deploying the API that serves these routes.
+
+| Parameter | Location | Required | Type | Declared constraints/default |
+| --- | --- | --- | --- | --- |
+| `booking_id` | path | yes | string (UUID) |  |
+
+**Body:** No declared request-body model.
+
+**Success 200:** `application/json`: [BookingResponse](#model-bookingresponse).
+
+**Source:** [backend/app/api/v1/routes/bookings.py](../backend/app/api/v1/routes/bookings.py) (`archive_booking`, `unarchive_booking`).
 
 ### POST `/v1/bookings/{booking_id}/approve`
 

@@ -18,11 +18,47 @@ from app.domain.services.booking_finance_policy import POLICY_VERSION, validate_
 from app.infrastructure.db.repositories.platform._sql import _booking_actor_sql
 from app.infrastructure.db.repositories.staff_earnings_repository import record_staff_earnings
 
+_ARCHIVABLE_STATUSES = frozenset({"cancelled", "rejected", "no_show", "completed"})
+
 
 class BookingUpdatesMixin:
     """Booking status changes, cancellation and delay."""
 
     session: AsyncSession
+
+    async def set_booking_archived(self, actor_id: str, booking_id: str, archived: bool) -> dict[str, Any]:
+        """Let the salon owner hide or show a finished booking; status and money are never touched."""
+
+        result = await self.session.execute(
+            text(
+                """
+                select status, owner_archived_at is not null as is_archived from bookings
+                where id = :booking_id
+                  and exists (select 1 from salons s where s.id = bookings.salon_id and s.owner_id = :actor_id)
+                for update
+                """
+            ),
+            {"actor_id": actor_id, "booking_id": booking_id},
+        )
+        current = result.mappings().one_or_none()
+        if current is None:
+            raise NotFoundError("Booking not found")
+        if current["status"] not in _ARCHIVABLE_STATUSES:
+            raise ConflictError("Only finished bookings can be archived")
+        if current["is_archived"] != archived:
+            await self.session.execute(
+                text(
+                    "update bookings set owner_archived_at = case when cast(:archived as boolean) then now() else null end "
+                    "where id = :booking_id"
+                ),
+                {"archived": archived, "booking_id": booking_id},
+            )
+        booking = await self.get_booking(booking_id, actor_id)
+        if booking is None:
+            raise NotFoundError("Booking not found")
+        # Commit only after the re-read succeeds so a failed read never leaves a half-applied change.
+        await self.session.commit()
+        return booking
 
     async def update_booking_status(
         self,

@@ -131,6 +131,7 @@ def make_mock_repo() -> MagicMock:
         "list_bookings",
         "get_booking",
         "update_booking_status",
+        "set_booking_archived",
         "delay_booking",
         "list_delay_affected_bookings",
         "record_payment",

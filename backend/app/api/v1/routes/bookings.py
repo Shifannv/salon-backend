@@ -206,6 +206,9 @@ async def list_bookings(
             "cancelled, as comma-separated values or repeated parameters"
         ),
     ),
+    include_archived: bool = Query(
+        default=False, description="Salon owners and staff: also return bookings they archived"
+    ),
     source: Literal["app", "manual_walkin", "qr_walkin"] | None = None,
     date_from: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
     date_to: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
@@ -219,6 +222,7 @@ async def list_bookings(
     rows = await _use_cases(session).list_bookings(
         actor,
         booking_statuses=parse_booking_statuses(booking_status),
+        include_archived=include_archived,
         source=source,
         date_from=date_from,
         date_to=date_to,
@@ -242,6 +246,40 @@ async def get_booking(
     """Return a booking visible to the actor."""
 
     row = await _use_cases(session).get_booking(actor, str(booking_id))
+    return BookingResponse(**row)
+
+
+@router.post(
+    "/bookings/{booking_id}/archive",
+    response_model=BookingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Hide a finished booking from the salon list",
+)
+async def archive_booking(
+    booking_id: UUID,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> BookingResponse:
+    """Archive a cancelled, rejected, no-show or completed booking. Status and money are unchanged."""
+
+    row = await _use_cases(session).set_archived(actor, str(booking_id), True)
+    return BookingResponse(**row)
+
+
+@router.post(
+    "/bookings/{booking_id}/unarchive",
+    response_model=BookingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Show an archived booking in the salon list again",
+)
+async def unarchive_booking(
+    booking_id: UUID,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> BookingResponse:
+    """Undo an archive."""
+
+    row = await _use_cases(session).set_archived(actor, str(booking_id), False)
     return BookingResponse(**row)
 
 

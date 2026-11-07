@@ -141,3 +141,56 @@ async def test_change_cannot_exclude_someone_elses_booking(env):
             await BookingChangeRepository(session).quote(b['id'],{'segments':[{'staff_id':f['staff'],'service_ids':[f['service']]}],
                 'start_datetime':f['start'],'expected_version':0})
     assert caught.value.code=='not_found'
+
+
+async def archive(env, actor, booking, archived):
+    async with env.session() as session:
+        await set_actor_context(session, actor)
+        try:
+            return await PlatformRepository(session).set_booking_archived(actor, booking['id'], archived)
+        except AppError as error:
+            return error
+
+
+async def owner_list(env, actor, **kwargs):
+    async with env.session() as session:
+        await set_actor_context(session, actor)
+        return [row['id'] for row in await PlatformRepository(session).list_bookings(actor, 'owner', **kwargs)]
+
+
+async def test_owner_archive_hides_a_finished_booking_without_changing_it(env):
+    f = await env.seed()
+    booking = await env.book(f)
+    pending = await archive(env, f['owner'], booking, True)
+    assert isinstance(pending, AppError) and pending.status_code == 409, 'a pending booking cannot be archived'
+    await cancel(env, f, booking)
+    before = (await env.sql("select status, paid_amount, refunded_amount, cancellation_reason from bookings where id=:b", b=booking['id']))[0]
+
+    archived = await archive(env, f['owner'], booking, True)
+    again = await archive(env, f['owner'], booking, True)
+
+    assert archived['is_archived'] is True and again['is_archived'] is True
+    after = (await env.sql("select status, paid_amount, refunded_amount, cancellation_reason from bookings where id=:b", b=booking['id']))[0]
+    assert after == before
+    assert booking['id'] not in await owner_list(env, f['owner'])
+    assert booking['id'] in await owner_list(env, f['owner'], include_archived=True)
+    async with env.session() as session:
+        await set_actor_context(session, f['customer'])
+        mine = await PlatformRepository(session).list_bookings(f['customer'], 'customer')
+    assert booking['id'] in [row['id'] for row in mine] and not any(row['is_archived'] for row in mine)
+
+    restored = await archive(env, f['owner'], booking, False)
+    assert restored['is_archived'] is False and booking['id'] in await owner_list(env, f['owner'])
+
+
+async def test_only_the_salons_own_workspace_can_archive(env):
+    f = await env.seed()
+    booking = await env.book(f)
+    await cancel(env, f, booking)
+    other = await env.seed()
+
+    stranger = await archive(env, other['owner'], booking, True)
+    customer = await archive(env, f['customer'], booking, True)
+
+    assert isinstance(stranger, AppError) and stranger.status_code == 404
+    assert isinstance(customer, AppError) and customer.status_code == 404
