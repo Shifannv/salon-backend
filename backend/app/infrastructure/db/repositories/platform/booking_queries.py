@@ -20,6 +20,7 @@ class BookingQueriesMixin:
         role: str,
         *,
         booking_statuses: list[str] | None = None,
+        include_archived: bool = False,
         source: str | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
@@ -45,6 +46,10 @@ class BookingQueriesMixin:
             predicate = "true"
 
         filters = [f"({predicate})"]
+        if role in {"owner", "staff"} and not include_archived:
+            # Read through to_jsonb like change_version: API images stay usable on a database
+            # that has not received 0063 yet. Drop once 0063 is applied everywhere.
+            filters.append("to_jsonb(b)->>'owner_archived_at' is null")
         params: dict[str, Any] = {"actor_id": actor_id}
         if booking_statuses:
             filters.append("b.status = any(cast(:booking_statuses as booking_status[]))")
@@ -91,6 +96,7 @@ class BookingQueriesMixin:
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
+                  (to_jsonb(b)->>'owner_archived_at' is not null and b.customer_id is distinct from :actor_id) as is_archived,
                   s.name  as salon_name,
                   s.owner_id as salon_owner_id,
                   s.address as salon_address,
@@ -198,6 +204,7 @@ class BookingQueriesMixin:
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
                   b.created_at, b.updated_at,
+                  (to_jsonb(b)->>'owner_archived_at' is not null and b.customer_id is distinct from :actor_id) as is_archived,
                   s.name   as salon_name,
                   s.owner_id as salon_owner_id,
                   s.address as salon_address,

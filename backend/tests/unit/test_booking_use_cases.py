@@ -262,6 +262,7 @@ async def test_list_bookings_passes_optional_filters():
     await uc.list_bookings(
         actor,
         booking_statuses=["confirmed", "completed"],
+        include_archived=True,
         source="app",
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
@@ -273,6 +274,7 @@ async def test_list_bookings_passes_optional_filters():
         actor.id,
         actor.role.value,
         booking_statuses=["confirmed", "completed"],
+        include_archived=True,
         source="app",
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
@@ -493,3 +495,31 @@ async def test_record_payment_requires_owner():
 
     with pytest.raises(ForbiddenError):
         await uc.record_payment(actor, "booking-001", "cash")
+
+
+# ---------------------------------------------------------------------------
+# Archive
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("archived", [True, False])
+async def test_owner_archives_and_restores_through_the_repository(archived):
+    repo = make_mock_repo()
+    repo.set_booking_archived.return_value = make_booking(status="cancelled")
+    actor = make_owner()
+
+    await BookingUseCases(repo).set_archived(actor, "booking-001", archived)
+
+    repo.set_booking_archived.assert_awaited_once_with(actor.id, "booking-001", archived)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", [Role.customer, Role.staff, Role.super_admin])
+async def test_only_the_salon_owner_can_archive(role):
+    repo = make_mock_repo()
+
+    with pytest.raises(ForbiddenError):
+        await BookingUseCases(repo).set_archived(make_profile(role=role), "booking-001", True)
+
+    repo.set_booking_archived.assert_not_awaited()

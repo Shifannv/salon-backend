@@ -138,6 +138,7 @@ class BookingResponse(BaseModel):
     services: list[BookingLineResponse] = Field(default_factory=list)
     segments: list[BookingSegmentResponse] = Field(default_factory=list)
     is_multi_staff: bool = False
+    is_archived: bool = False
     # ── Denormalized display fields (joined from salons + staff) ──────────
     salon_name: str | None = None
     salon_address: str | None = None
