@@ -26,6 +26,28 @@ async def test_salon_roles_are_not_matched_on_their_personal_customer_bookings(r
 
 
 @pytest.mark.asyncio
+async def test_multiple_statuses_are_bound_as_one_enum_array():
+    session = AsyncMock()
+    result = MagicMock()
+    result.mappings.return_value.all.return_value = []
+    session.execute.return_value = result
+
+    await PlatformRepository(session).list_bookings(
+        "actor-1", "owner", booking_statuses=["cancelled", "rejected", "no_show"]
+    )
+
+    statement, params = session.execute.await_args.args
+    assert "b.status = any(cast(:booking_statuses as booking_status[]))" in str(statement)
+    assert params["booking_statuses"] == ["cancelled", "rejected", "no_show"]
+
+
+@pytest.mark.asyncio
+async def test_no_status_filter_adds_no_status_predicate():
+    sql = await _list_sql("owner")
+    assert "booking_statuses" not in sql
+
+
+@pytest.mark.asyncio
 async def test_customer_role_still_sees_only_own_bookings():
     sql = await _list_sql("customer")
     assert "b.customer_id = :actor_id" in sql

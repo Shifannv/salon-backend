@@ -19,7 +19,7 @@ class BookingQueriesMixin:
         actor_id: str,
         role: str,
         *,
-        booking_status: str | None = None,
+        booking_statuses: list[str] | None = None,
         source: str | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
@@ -46,9 +46,9 @@ class BookingQueriesMixin:
 
         filters = [f"({predicate})"]
         params: dict[str, Any] = {"actor_id": actor_id}
-        if booking_status is not None:
-            filters.append("b.status = cast(:booking_status as booking_status)")
-            params["booking_status"] = booking_status
+        if booking_statuses:
+            filters.append("b.status = any(cast(:booking_statuses as booking_status[]))")
+            params["booking_statuses"] = booking_statuses
         if source is not None:
             filters.append("b.source = cast(:source as booking_source)")
             params["source"] = source

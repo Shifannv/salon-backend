@@ -22,6 +22,42 @@ from app.infrastructure.db.repositories.platform_repository import PlatformRepos
 
 _log = logging.getLogger(__name__)
 
+_CUSTOMER_REASON_LABELS: dict[str, str] = {
+    "schedule_conflict": "Schedule conflict",
+    "found_better": "Found a better option",
+    "personal_emergency": "Personal emergency",
+    "booked_by_mistake": "Booked by mistake",
+    "service_not_needed": "Service no longer needed",
+    "other": "Other reason",
+}
+_BARBER_REASON_LABELS: dict[str, str] = {
+    "barber_unavailable": "Barber unavailable",
+    "salon_emergency": "Salon emergency",
+    "overbooking": "Overbooking",
+    "customer_no_show": "Customer no-show",
+    "equipment_issue": "Equipment issue",
+    "other": "Other reason",
+}
+
+
+def _reason_key(value: str) -> str:
+    return " ".join(value.replace("_", " ").replace("-", " ").casefold().split())
+
+
+def compose_cancellation_reason(
+    label: str | None, reason_code: str | None, reason_text: str | None
+) -> str | None:
+    """Join label and free text, dropping text that only repeats the code or label."""
+
+    text = (reason_text or "").strip()
+    if not text:
+        return label
+    if label is None:
+        return text
+    if _reason_key(text) in {_reason_key(label), _reason_key(reason_code or "")}:
+        return label
+    return f"{label} — {text}"
+
 
 def validate_visit_itinerary(values: dict[str, Any]) -> None:
     """Keep quote and creation tied to the same complete, duplicate-free itinerary."""
@@ -122,7 +158,7 @@ class BookingUseCases:
         self,
         actor: Profile,
         *,
-        booking_status: str | None = None,
+        booking_statuses: list[str] | None = None,
         source: str | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
@@ -138,7 +174,7 @@ class BookingUseCases:
         return await self.repository.list_bookings(
             actor.id,
             actor.role.value,
-            booking_status=booking_status,
+            booking_statuses=booking_statuses,
             source=source,
             date_from=date_from,
             date_to=date_to,
@@ -280,21 +316,11 @@ class BookingUseCases:
     ) -> dict[str, Any]:
         """Cancel a visible booking and persist an optional audit-friendly reason."""
 
-        reason_labels = {
-            "schedule_conflict": "Schedule conflict",
-            "found_better": "Found a better option",
-            "personal_emergency": "Personal emergency",
-            "booked_by_mistake": "Booked by mistake",
-            "service_not_needed": "Service no longer needed",
-            "other": "Other reason",
-        }
-        label = reason_labels.get(
+        label = _CUSTOMER_REASON_LABELS.get(
             reason_code,
             reason_code.replace("_", " ").capitalize() if reason_code else None,
         )
-        cancellation_reason = (
-            f"{label} — {reason_text}" if label and reason_text else label or reason_text
-        )
+        cancellation_reason = compose_cancellation_reason(label, reason_code, reason_text)
 
         if actor.role not in {Role.customer, Role.owner}:
             raise ForbiddenError("Customer booking access required")
@@ -358,17 +384,8 @@ class BookingUseCases:
 
         await assert_approved_workspace(self.repository, actor)
 
-        # Build human-readable label from the structured code.
-        _reason_labels: dict[str, str] = {
-            "barber_unavailable": "Barber unavailable",
-            "salon_emergency": "Salon emergency",
-            "overbooking": "Overbooking",
-            "customer_no_show": "Customer no-show",
-            "equipment_issue": "Equipment issue",
-            "other": "Other reason",
-        }
-        label = _reason_labels.get(reason_code, reason_code.replace("_", " ").capitalize())
-        cancellation_reason = f"{label} — {reason_text}" if reason_text else label
+        label = _BARBER_REASON_LABELS.get(reason_code, reason_code.replace("_", " ").capitalize())
+        cancellation_reason = compose_cancellation_reason(label, reason_code, reason_text)
 
         booking = await self.repository.update_booking_status(
             actor.id,
