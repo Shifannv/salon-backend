@@ -16,7 +16,10 @@ Both are implemented and tested:
 This review also added:
 
 - `POST /v1/notifications/read-all`
-- optional filters and pagination on `GET /v1/bookings`
+- optional filters and pagination on `GET /v1/bookings` (`status` accepts a comma list,
+  for example `?status=cancelled,rejected,no_show`)
+- cancel with a chip only: send `reason_code` and `reason_text: null`. The backend also
+  drops free text that repeats the reason code or label.
 - owner notifications when a customer creates or cancels a booking
 - `can_cancel=false` once a booking start time has passed
 - one consistent validation-error envelope

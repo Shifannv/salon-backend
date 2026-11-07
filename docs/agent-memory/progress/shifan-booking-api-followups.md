@@ -4,7 +4,7 @@
 Deliver the backend part of the owner/customer app requests: cancellation reason dedupe, multi-status booking filter, and owner archive of finished bookings.
 
 ## Status
-in progress (code complete, review running, not committed)
+shipped (PR #64 merged; migration 0063 applied and API live in production on 2026-11-07). Client docs updated, uncommitted.
 
 ## Done
 - Cancellation reason: `compose_cancellation_reason` in `booking_use_cases.py` drops free text that repeats the reason code or label (case, `_`, `-` ignored); label dicts are module constants. Used by `cancel` and `barber_cancel`.
@@ -19,10 +19,8 @@ in progress (code complete, review running, not committed)
 - Review done; fixes applied (archive is owner-only, comments, test gaps). Items 1 and 2 were committed by the user as f3d3310 on `shifan`.
 
 ## Next steps
-1. Fix review findings, then run `bash scripts/check-ci.sh` from `backend/`.
-2. Commit on this branch (user pushes manually). Apply 0063 to production through the reviewed procedure BEFORE deploying the API image that serves the archive routes.
-3. Update the Salon-Owner and Customer API documents and `CLIENT_DEVELOPER_HANDOFF.md` for the status filter and archive routes.
-4. Hand off to frontends: customer app sends `reason_text: null` for chip-only cancel; owner app uses `POST /v1/notifications/read-all` and the new archive routes; owner scoping already exists in `GET /v1/bookings`.
+1. Commit the client doc updates (Owner, Customer, handoff) and push.
+2. Hand off to frontends: customer app sends `reason_text: null` for chip-only cancel; owner app uses `POST /v1/notifications/read-all` and the new archive routes; owner scoping already exists in `GET /v1/bookings`.
 
 ## Decisions
 - 2026-11-07: no `DELETE /v1/test/bookings` purge endpoint, because project rules 2 and 5 forbid direct booking writes and hard delete outside erasure; use disposable-DB cleanup instead.
