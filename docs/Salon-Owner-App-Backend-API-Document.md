@@ -103,12 +103,23 @@ longer close availability or block booking creation.
 | POST | `/v1/bookings/{booking_id}/delay` | Record delayed estimate |
 | POST | `/v1/bookings/{booking_id}/cancel/barber` | Cancel with owner reason |
 | POST | `/v1/bookings/{booking_id}/payment` | Mark payment recorded |
+| POST | `/v1/bookings/{booking_id}/archive` | Hide a finished booking (owner only) |
+| POST | `/v1/bookings/{booking_id}/unarchive` | Show an archived booking again (owner only) |
 | GET | `/v1/booking-action-requests` | List pending/resolved customer requests |
 | POST | `/v1/booking-action-requests/{request_id}/respond` | Resolve a request |
 
 `GET /v1/bookings` accepts optional `status`, `source`, `date_from`, `date_to`,
 `limit`, and `offset` parameters. Existing clients can omit all parameters and continue
 receiving the complete role-scoped list.
+
+`status` takes one value or several: `?status=cancelled,rejected,no_show` or repeated
+`?status=cancelled&status=rejected`. An unknown value returns 422.
+
+Archived bookings are left out of the owner and staff list by default. Send
+`include_archived=true` to include them. Each booking carries `is_archived`.
+`POST .../archive` works only on `cancelled`, `rejected`, `no_show` and `completed`
+bookings (409 otherwise). It changes neither status nor money, and customers never see
+it. Staff receive 403; another salon's booking returns 404.
 
 Delay request:
 

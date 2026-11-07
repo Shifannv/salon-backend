@@ -332,7 +332,9 @@ with service/staff management accessible. Staff need role-appropriate controls.
 
 | Operation | API |
 | --- | --- |
-| Read bookings | `GET /v1/bookings`, `GET /v1/bookings/{id}` |
+| Read bookings | `GET /v1/bookings` (`status` accepts a comma list; `include_archived=true` shows hidden ones), `GET /v1/bookings/{id}` |
+| Hide/unhide finished booking | `POST .../archive`, `.../unarchive` (owner only) |
+| Mark notifications read | `POST /v1/notifications/read-all` |
 | Approve/reject | `POST /v1/bookings/{id}/approve`, `/reject` |
 | Arrival/no-show | `POST .../check-in`, `.../no-show` |
 | Collection/completion | `POST .../payment`, `.../complete` |
