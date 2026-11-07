@@ -2084,7 +2084,7 @@ Owners see all bookings in their salon. Customers see only their own bookings.
 
 | Parameter | Location | Required | Type | Declared constraints/default |
 | --- | --- | --- | --- | --- |
-| `status` | query | no | `"pending" \| "confirmed" \| "checked_in" \| "no_show" \| "rejected" \| "completed" \| "cancelled"` or null |  |
+| `status` | query | no | one or more of `pending`, `confirmed`, `checked_in`, `no_show`, `rejected`, `completed`, `cancelled`, as `?status=a,b` or repeated `?status=a&status=b`; unknown value is 422 | `?status=cancelled,rejected,no_show` for the owner "Cancelled" tab |
 | `source` | query | no | `"app" \| "manual_walkin" \| "qr_walkin"` or null |  |
 | `date_from` | query | no | string (date) or null |  |
 | `date_to` | query | no | string (date) or null |  |

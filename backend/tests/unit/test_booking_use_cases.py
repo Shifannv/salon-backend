@@ -261,7 +261,7 @@ async def test_list_bookings_passes_optional_filters():
 
     await uc.list_bookings(
         actor,
-        booking_status="confirmed",
+        booking_statuses=["confirmed", "completed"],
         source="app",
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
@@ -272,7 +272,7 @@ async def test_list_bookings_passes_optional_filters():
     repo.list_bookings.assert_awaited_once_with(
         actor.id,
         actor.role.value,
-        booking_status="confirmed",
+        booking_statuses=["confirmed", "completed"],
         source="app",
         date_from=date(2026, 9, 1),
         date_to=date(2026, 9, 30),
@@ -370,6 +370,64 @@ async def test_cancel_by_customer_uses_customer_only_flag():
         "booking-001",
         "Schedule conflict — Work meeting",
         settings.customer_cancellation_cutoff_minutes,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason_text", [None, "", "   ", "schedule_conflict", "Schedule_Conflict", "Schedule conflict", "schedule-conflict"])
+async def test_cancel_by_customer_does_not_repeat_the_reason_label(reason_text):
+    repo = make_mock_repo()
+    repo.cancel_customer_booking.return_value = make_booking(status="cancelled")
+    uc = BookingUseCases(repo)
+    actor = make_profile(role=Role.customer)
+
+    await uc.cancel(actor, "booking-001", reason_code="schedule_conflict", reason_text=reason_text)
+
+    repo.cancel_customer_booking.assert_awaited_once_with(
+        actor.id, "booking-001", "Schedule conflict", settings.customer_cancellation_cutoff_minutes
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancel_by_customer_keeps_free_text_without_a_code():
+    repo = make_mock_repo()
+    repo.cancel_customer_booking.return_value = make_booking(status="cancelled")
+    uc = BookingUseCases(repo)
+    actor = make_profile(role=Role.customer)
+
+    await uc.cancel(actor, "booking-001", reason_text="Moved cities")
+
+    repo.cancel_customer_booking.assert_awaited_once_with(
+        actor.id, "booking-001", "Moved cities", settings.customer_cancellation_cutoff_minutes
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason_text", [None, "equipment_issue", "Equipment issue"])
+async def test_barber_cancel_does_not_repeat_the_reason_label(reason_text):
+    repo = make_mock_repo()
+    repo.update_booking_status.return_value = make_booking(status="cancelled")
+    uc = BookingUseCases(repo)
+    actor = make_owner()
+
+    await uc.barber_cancel(actor, "booking-001", reason_code="equipment_issue", reason_text=reason_text)
+
+    repo.update_booking_status.assert_awaited_once_with(
+        actor.id, "booking-001", "cancelled", cancellation_reason="Equipment issue"
+    )
+
+
+@pytest.mark.asyncio
+async def test_barber_cancel_keeps_real_free_text():
+    repo = make_mock_repo()
+    repo.update_booking_status.return_value = make_booking(status="cancelled")
+    uc = BookingUseCases(repo)
+    actor = make_owner()
+
+    await uc.barber_cancel(actor, "booking-001", reason_code="equipment_issue", reason_text="Dryer broke")
+
+    repo.update_booking_status.assert_awaited_once_with(
+        actor.id, "booking-001", "cancelled", cancellation_reason="Equipment issue — Dryer broke"
     )
 
 

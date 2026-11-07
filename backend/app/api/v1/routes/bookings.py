@@ -39,6 +39,7 @@ from app.application.ports.cache_gateway import CacheGateway
 from app.application.use_cases.booking_changes import BookingChangeUseCases
 from app.application.use_cases.platform import BookingUseCases
 from app.core.config import settings
+from app.core.exceptions import ValidationError
 from app.domain.entities.profile import Profile
 from app.domain.services.checkout import online_checkout_available
 from app.infrastructure.db.repositories.booking_changes import BookingChangeRepository
@@ -47,6 +48,19 @@ from app.infrastructure.db.session import get_session
 from app.infrastructure.payments.resolver import get_payment_resolver
 
 router = APIRouter()
+
+BOOKING_STATUSES = frozenset(
+    {"pending", "confirmed", "checked_in", "no_show", "rejected", "completed", "cancelled"}
+)
+
+
+def parse_booking_statuses(raw: list[str] | None) -> list[str] | None:
+    """Accept ``status=a,b`` and repeated ``status=a&status=b``; keep first-seen order."""
+
+    values = list(dict.fromkeys(p.strip() for item in raw or [] for p in item.split(",") if p.strip()))
+    if unknown := [v for v in values if v not in BOOKING_STATUSES]:
+        raise ValidationError(f"Unknown booking status: {', '.join(unknown)}")
+    return values or None
 
 
 @router.post("/availability/visit", response_model=list[VisitAvailabilityResponse], status_code=200)
@@ -184,8 +198,14 @@ async def create_booking(
     ),
 )
 async def list_bookings(
-    booking_status: Literal["pending", "confirmed", "checked_in", "no_show", "rejected", "completed", "cancelled"]
-    | None = Query(default=None, alias="status"),
+    booking_status: list[str] | None = Query(
+        default=None,
+        alias="status",
+        description=(
+            "One or more of pending, confirmed, checked_in, no_show, rejected, completed, "
+            "cancelled, as comma-separated values or repeated parameters"
+        ),
+    ),
     source: Literal["app", "manual_walkin", "qr_walkin"] | None = None,
     date_from: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
     date_to: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
@@ -198,7 +218,7 @@ async def list_bookings(
 
     rows = await _use_cases(session).list_bookings(
         actor,
-        booking_status=booking_status,
+        booking_statuses=parse_booking_statuses(booking_status),
         source=source,
         date_from=date_from,
         date_to=date_to,
