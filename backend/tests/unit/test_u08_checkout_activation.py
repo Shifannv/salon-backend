@@ -20,7 +20,7 @@ def test_u08_checkout_has_no_customer_surcharge_and_reports_its_version():
     assert quote['online_processing_charge'] == quote['online_processing_charge_percent'] == 0
     assert quote['charge_label'] is None
     assert quote['checkout_policy_version'] == POLICY_VERSION
-    assert checkout_quote(Decimal('250'), 'PAY_ONLINE')['total_payable'] == Decimal('262.50')
+    assert checkout_quote(Decimal('250'), 'PAY_ONLINE')['total_payable'] == Decimal('255.90')
 
 
 def test_policy_selection_is_explicit_and_rejects_unknown_versions():
@@ -69,7 +69,7 @@ async def test_new_booking_policy_selection_does_not_reprice_legacy_payment():
         return payment_id
     ledger.insert_intent = insert_with_legacy_charge
     result = await uc.create_intent(CUSTOMER, 'b1', KEY, None)
-    assert result['amount'] == '1050.00'
+    assert result['amount'] == '1023.60'
     assert len(gateway.requests) == 1
     payment = ledger.payments[result['payment_id']]
-    assert payment['platform_commission_amount'] == Decimal('105')
+    assert payment['platform_commission_amount'] == Decimal('102.36')

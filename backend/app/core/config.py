@@ -192,6 +192,11 @@ class Settings(BaseSettings):
     # The SALON bears the payment gateway fee (never shown to customers). Snapshotted per
     # payment at intent time and deducted from the Easy Split payee share.
     payment_gateway_fee_percent: Decimal = Field(default=Decimal("2.0"), ge=0, le=100)
+    # What the customer pays on top when they pay online: the gateway's own rate plus the GST the
+    # gateway charges on its fee, shown as one line before payment. Set the rate to the one on the
+    # gateway contract (Cashfree) and change it when the contract changes. Not a platform margin.
+    online_charge_gateway_percent: Decimal = Field(default=Decimal("2.00"), ge=0, le=20)
+    online_charge_gst_percent: Decimal = Field(default=Decimal("18.00"), ge=0, le=40)
     # Customer-initiated cancellation of a PAID-ONLINE booking keeps this deduction. The owner
     # still has to confirm Rs 10 flat vs 10 percent, so both are supported.
     cancellation_deduction_type: Literal["percent", "flat"] = "percent"
@@ -297,6 +302,12 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @property
+    def online_charge_percent(self) -> Decimal:
+        """Gateway rate with GST on the fee included, e.g. 2.00 and 18 give 2.36."""
+
+        return (self.online_charge_gateway_percent * (Decimal(100) + self.online_charge_gst_percent) / Decimal(100)).quantize(Decimal("0.01"))
 
     @field_validator("payment_platform_fee_percent", "payment_commission_base", mode="before")
     @classmethod
