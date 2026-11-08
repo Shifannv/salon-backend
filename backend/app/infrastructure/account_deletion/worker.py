@@ -3,6 +3,9 @@
 import asyncio
 import logging
 import sys
+import time
+
+from sqlalchemy import text
 
 from app.application.use_cases.account_erasure import AccountErasureService
 from app.core.config import Settings, settings
@@ -96,6 +99,27 @@ async def drain_account_deletions(cache, limit: int = 20) -> int:
     return processed
 
 
+_REDACTION_INTERVAL_SECONDS = 3600
+
+
+async def redact_expired_payout_proofs() -> int:
+    """Remove payout proof files of owners deleted longer ago than the retention window."""
+
+    async with AsyncSessionLocal() as session:
+        try:
+            removed = (await session.execute(
+                text("select public.redact_expired_payout_proofs(:months)"),
+                {"months": settings.payout_proof_retention_months},
+            )).scalar_one()
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            raise
+    if removed:
+        logger.info("Removed %s expired payout proof file(s)", removed)
+    return int(removed)
+
+
 async def run_forever() -> None:
     problems = validate_worker_configuration(settings)
     if problems:
@@ -103,7 +127,14 @@ async def run_forever() -> None:
             logger.critical("Account deletion worker misconfigured: %s", problem)
         raise SystemExit(1)
     cache = await init_redis_cache(settings.redis_url)
+    next_redaction = 0.0
     while True:
+        if time.monotonic() >= next_redaction:
+            next_redaction = time.monotonic() + _REDACTION_INTERVAL_SECONDS
+            try:
+                await redact_expired_payout_proofs()
+            except Exception:
+                logger.exception("Payout proof redaction failed; erasure continues")
         try:
             if settings.redis_url and not await cache.ping():
                 # Do not start a destructive step the cache step could not finish: accounts

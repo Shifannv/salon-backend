@@ -292,6 +292,18 @@ it is only anonymised once erasure completes.
 | FCM / Expo | tokens deleted; no other provider-side user records are held |
 | Ledger `account_deletion_requests` | retained for the super admin: role, salon id, status, attempts, timestamps; `step_state` emptied and salon name/city anonymised on completion |
 
+## Payout records after an owner deletes their account
+
+| Data | Rule |
+|------|------|
+| Bank account, IFSC, UPI and holder name (`salon_payout_accounts` and history) | deleted at once with the account |
+| Payout amount, date, method, reference, corrections and the audit trail | **kept** as the platform's accounting records. Indian tax and company rules generally expect financial records to be kept for several years (about 6 for GST and income tax, 8 under the Companies Act). Confirm the period with your accountant before deleting any of them |
+| Payout proof file (screenshot or PDF, can show the owner's name and bank account) | **removed `PAYOUT_PROOF_RETENTION_MONTHS` months (default 12) after the owner's deletion completes**. The file is replaced by one placeholder byte and `redacted_at` is stamped; the admin proof view then answers "removed under the retention rule" |
+
+Migration 0064 adds `payout_proofs.redacted_at`, relaxes the append-only guard for that single
+change, and adds `redact_expired_payout_proofs(months)`. The account-deletion worker runs it hourly.
+Nothing else in the payout tables can be edited or deleted.
+
 ## Boundaries (what is NOT erased)
 
 - Supabase and R2 **backups/snapshots**, provider logs and CDN caches until they expire.
@@ -354,7 +366,7 @@ the status endpoint. Until it exists the Play requirement is not satisfied.
 
 ## Verification
 
-### Prepared booking-change and finance audit privacy (0047, not deployed)
+### Prepared booking-change and finance audit privacy (0047, deployed)
 
 The approved policy removes personal free text and hashes request/reference
 identifiers in `booking_customer_changes` and `booking_finance_commands`. Migration
@@ -385,7 +397,7 @@ service-role execution, numeric JSON allowlists, rollback and uniqueness on loca
 PostgreSQL. Its explicit classification covers those two tables only. It does
 not replace the older whole-schema classification/worker acceptance suite below.
 
-### Prepared selective support and benefit privacy (0048, not deployed)
+### Prepared selective support and benefit privacy (0048, deployed)
 
 User-approved policy `support-erasure-v1` retains closed-salon support cases for
 operational retention review, without inventing a legal retention period. It removes

@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 # Before application imports: developer .env files must never configure test collection.
 os.environ["SALON_ENV_FILE"] = str(__import__("pathlib").Path(__file__).with_name("no-test-env-file"))
 os.environ["ENVIRONMENT"] = "test"
+os.environ["AGE_GATE_ENFORCED"] = "false"  # age tests switch it on explicitly
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/salon_platform")
 
 from app.domain.entities.profile import Profile, Role

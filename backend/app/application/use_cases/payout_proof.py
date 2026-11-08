@@ -224,6 +224,8 @@ class PayoutProofUseCases:
         file = await self.repository.proof_file(request_id)
         if file is None:
             raise NotFoundError("No payment proof is recorded for this payout")
+        if file["redacted_at"] is not None:
+            raise NotFoundError("This proof file was removed under the retention rule; the payment record is kept")
         await self.repository.audit(request_id, "view_proof", str(actor.id))
         await self.repository.commit()
         return {"mime_type": file["mime_type"], "content": bytes(file["content"])}
@@ -233,6 +235,8 @@ class PayoutProofUseCases:
         file = await self.repository.correction_proof_file(request_id, correction_id)
         if file is None:
             raise NotFoundError("No proof is recorded for this correction")
+        if file["redacted_at"] is not None:
+            raise NotFoundError("This proof file was removed under the retention rule; the payment record is kept")
         await self.repository.audit(request_id, "view_proof", str(actor.id))
         await self.repository.commit()
         return {"mime_type": file["mime_type"], "content": bytes(file["content"])}

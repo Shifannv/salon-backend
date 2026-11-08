@@ -13,6 +13,7 @@ from app.api.deps import (
     get_current_actor,
     get_mfa_checked_actor,
 )
+from app.api.v1.routes.age import guardian_use_cases
 from app.api.v1.schemas.booking import (
     CancellationQuoteResponse,
     VisitAvailabilityRequest,
@@ -180,6 +181,8 @@ async def create_booking(
 ) -> BookingResponse:
     """Create a booking through the database booking function."""
 
+    if settings.age_gate_enforced and payload.source == "app":
+        await guardian_use_cases(session).assert_can_book(actor)
     row = await _use_cases(session).create_booking(
         actor, {**payload.model_dump(), "_idempotency_key": idempotency_key}, background_tasks
     )

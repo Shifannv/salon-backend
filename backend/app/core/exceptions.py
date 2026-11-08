@@ -55,6 +55,24 @@ class AdminMFARequiredError(ForbiddenError):
     code = "mfa_required"
 
 
+class BirthDateRequiredError(ForbiddenError):
+    """A booking needs a date of birth on file."""
+
+    code = "birth_date_required"
+
+
+class UnderMinimumAgeError(ForbiddenError):
+    """The person is younger than the minimum age for an account."""
+
+    code = "under_minimum_age"
+
+
+class GuardianConsentRequiredError(ForbiddenError):
+    """A 13 to 17 year old needs a guardian's approval before booking."""
+
+    code = "guardian_consent_required"
+
+
 class UnauthorizedError(AppError):
     """Raised when authentication is missing or invalid."""
 

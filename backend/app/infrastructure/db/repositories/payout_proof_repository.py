@@ -125,7 +125,7 @@ class PayoutProofRepository(WalletRepository):
 
         result = await self.session.execute(
             text(
-                """select pf.mime_type, pf.content from salon_payout_payments pp
+                """select pf.mime_type, pf.content, pf.redacted_at from salon_payout_payments pp
                    join payout_proofs pf on pf.id = pp.proof_id where pp.payout_id = cast(:id as uuid)"""
             ),
             {"id": payout_id},
@@ -136,7 +136,7 @@ class PayoutProofRepository(WalletRepository):
     async def correction_proof_file(self, payout_id: str, correction_id: str) -> dict[str, Any] | None:
         result = await self.session.execute(
             text(
-                """select pf.mime_type, pf.content from salon_payout_corrections c
+                """select pf.mime_type, pf.content, pf.redacted_at from salon_payout_corrections c
                    join payout_proofs pf on pf.id = c.proof_id
                    where c.payout_id = cast(:p as uuid) and c.id = cast(:c as uuid)"""
             ),

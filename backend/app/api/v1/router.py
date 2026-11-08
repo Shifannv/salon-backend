@@ -6,6 +6,7 @@ from app.api.v1.routes import (
     account_deletion,
     admin,
     admin_insights,
+    age,
     auth,
     booking_actions,
     booking_finance,
@@ -59,6 +60,7 @@ api_v1_router.include_router(booking_finance.router, tags=["booking finance"])
 api_v1_router.include_router(booking_actions.router, tags=["booking actions"])
 api_v1_router.include_router(notifications.router, tags=["notifications"])
 api_v1_router.include_router(consents.router, tags=["consents"])
+api_v1_router.include_router(age.router, tags=["age"])
 api_v1_router.include_router(walkin.router, prefix="/walkin", tags=["walkin"])
 api_v1_router.include_router(subscriptions.router, prefix="/admin", tags=["subscriptions"])
 api_v1_router.include_router(admin_insights.router, prefix="/admin", tags=["admin insights"])

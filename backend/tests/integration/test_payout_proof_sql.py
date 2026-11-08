@@ -29,7 +29,7 @@ def proof_db(changes_db):  # noqa: F811
         env = SafetyEnv(changes_db)
         try:
             async with env.session() as session:
-                for file in ("0053_salon_payout_requests.sql", "0057_payout_proof.sql"):
+                for file in ("0053_salon_payout_requests.sql", "0057_payout_proof.sql", "0064_payout_proof_redaction.sql"):
                     for statement in (SQL / file).read_text(encoding="utf-8").split("\n-- statement --\n"):
                         if statement.strip():
                             await session.execute(text(statement))

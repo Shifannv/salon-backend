@@ -199,6 +199,7 @@ async def test_erasure_worker_probes_retained_client_before_destructive_work(mon
     monkeypatch.setattr(worker, "validate_worker_configuration", lambda config: [])
     monkeypatch.setattr(worker, "init_redis_cache", AsyncMock(return_value=cache))
     monkeypatch.setattr(worker, "drain_account_deletions", drain)
+    monkeypatch.setattr(worker, "redact_expired_payout_proofs", AsyncMock(return_value=0))
     monkeypatch.setattr(worker, "touch", touch)
     monkeypatch.setattr(worker.asyncio, "sleep", stop_loop)
     with pytest.raises(StopLoop):

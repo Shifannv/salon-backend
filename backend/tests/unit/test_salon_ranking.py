@@ -232,3 +232,25 @@ def test_random_placement_is_stable_with_seed_and_page_boundaries(ranked):
     for offset in (0, 3, 6):
         pages.extend(ids(client.get(f"/v1/salons?surface=home&shuffle_seed=a&limit=3&offset={offset}")))
     assert pages == first
+
+
+def promoted(response):
+    assert response.status_code == 200
+    return {row["id"]: row["is_promoted"] for row in response.json()}
+
+
+def test_paid_boost_and_top_placement_are_flagged_promoted_and_nothing_else_is(ranked):
+    client, session = ranked
+    paid = add_salon(session, 1, "Paid")
+    top = add_salon(session, 2, "Top")
+    plain = add_salon(session, 3, "Plain")
+    _subscribe(session, paid, weight=50)
+    session.db.execute("update salons set home_placement='top' where id=?", (top,))
+    assert promoted(client.get("/v1/salons")) == {paid: True, top: True, plain: False}
+
+
+def test_a_lapsed_subscription_is_not_flagged_promoted(ranked):
+    client, session = ranked
+    lapsed = add_salon(session, 1, "Lapsed")
+    _subscribe(session, lapsed, weight=50, status="expired")
+    assert promoted(client.get("/v1/salons")) == {lapsed: False}
