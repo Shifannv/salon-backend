@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
 from importlib.util import find_spec
@@ -114,6 +115,17 @@ class Settings(BaseSettings):
     account_deletion_max_attempts: int = Field(default=5, ge=1, le=10)
     account_deletion_max_resends: int = Field(default=3, ge=0, le=10)
     account_deletion_max_challenges_per_hour: int = Field(default=5, ge=1, le=50)
+    # Months after an owner deletes their account before their payout proof files (screenshots or
+    # PDFs that can show bank details) are removed. Amounts, dates and references are kept.
+    payout_proof_retention_months: int = Field(default=12, ge=1, le=120)
+    # Date of birth and guardian approval. With the gate on, an app booking needs a date of birth on
+    # file and, for 13 to 17 year olds, an approved guardian. Turn it off only for local work.
+    age_gate_enforced: bool = True
+    # Fixed guardian codes for testing before an SMS provider is connected, like Supabase's test
+    # numbers: "+919999999999=123456,+918888888888=654321". Honoured only until
+    # GUARDIAN_TEST_OTPS_UNTIL (ISO date-time with zone), and never sent to anyone.
+    guardian_test_otps: str = ""
+    guardian_test_otps_until: datetime | None = None
     account_deletion_worker_poll_seconds: int = Field(default=15, ge=1, le=3600)
     account_deletion_stale_processing_seconds: int = Field(default=600, ge=60)
     # Claims after which a still-unsettled (or un-issuable) closure refund is recorded as
@@ -308,6 +320,21 @@ class Settings(BaseSettings):
             if host.endswith(suffix):
                 self.r2_account_id = host.removesuffix(suffix)
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_guardian_test_otps(self) -> "Settings":
+        """Test codes must be well formed and, outside local/test, carry an expiry."""
+
+        raw = (self.guardian_test_otps or "").strip()
+        if not raw:
+            return self
+        for pair in raw.split(","):
+            if not re.fullmatch(r"\s*\+[1-9][0-9]{7,14}=[0-9]{6}\s*", pair):
+                raise ValueError("GUARDIAN_TEST_OTPS must look like +919999999999=123456,+918888888888=654321")
+        no_expiry = self.guardian_test_otps_until is None or self.guardian_test_otps_until.tzinfo is None
+        if self.environment not in {"local", "test"} and no_expiry:
+            raise ValueError("GUARDIAN_TEST_OTPS needs GUARDIAN_TEST_OTPS_UNTIL with a time zone outside local/test")
         return self
 
     @model_validator(mode="after")

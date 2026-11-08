@@ -107,7 +107,7 @@ class FakeRepo:
 
     async def proof_file(self, payout_id):
         payment = self.payments.get(payout_id)
-        return {"mime_type": "image/png", "content": memoryview(self.proofs[payment["proof_id"]])} if payment else None
+        return {"mime_type": "image/png", "redacted_at": None, "content": memoryview(self.proofs[payment["proof_id"]])} if payment else None
 
     async def correction_proof_file(self, payout_id, correction_id):
         return None

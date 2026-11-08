@@ -81,6 +81,13 @@ class SalonSummaryResponse(CustomerAvailabilityResponse):
     image_url: str | None = None
     starting_price: Decimal | None = None
     distance_km: float | None = None
+    is_promoted: bool = Field(
+        default=False,
+        description=(
+            "True when the salon is listed higher because of a paid plan or an admin placement. "
+            "Customer apps must label these listings as Featured."
+        ),
+    )
 
 
 class SalonImageResponse(BaseModel):

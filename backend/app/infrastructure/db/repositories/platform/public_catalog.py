@@ -93,6 +93,7 @@ class PublicCatalogMixin:
               s.id, s.name, s.address, s.city,
               s.lat, s.lng, s.timezone, s.approval_mode, s.accepting_bookings, s.profile_completed,
               s.is_active, img.url as image_url, min(sv.price) as starting_price,
+              (coalesce(promo.weight, 0) > 0 or s.home_placement = 'top') as is_promoted,
               case
                 when cast(:lat as double precision) is not null
                      and cast(:lng as double precision) is not null
