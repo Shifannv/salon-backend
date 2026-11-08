@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.infrastructure.db.repositories.platform._sql import page_bounds
 
 
@@ -50,7 +51,7 @@ class BookingQueriesMixin:
             # Read through to_jsonb like change_version: API images stay usable on a database
             # that has not received 0063 yet. Drop once 0063 is applied everywhere.
             filters.append("to_jsonb(b)->>'owner_archived_at' is null")
-        params: dict[str, Any] = {"actor_id": actor_id}
+        params: dict[str, Any] = {"actor_id": actor_id, "online_charge_percent": settings.online_charge_percent}
         if booking_statuses:
             filters.append("b.status = any(cast(:booking_statuses as booking_status[]))")
             params["booking_statuses"] = booking_statuses
@@ -91,7 +92,7 @@ class BookingQueriesMixin:
                   coalesce((to_jsonb(b)->>'change_version')::integer,0) as change_version,
                   coalesce((to_jsonb(b)->>'committed_reschedules')::integer,0) as committed_reschedules,
                   (to_jsonb(b)->>'service_fulfilment_amount')::numeric as service_fulfilment_amount,
-                  case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * 0.05, 2) else 0 end as online_processing_charge,
+                  case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * :online_charge_percent / 100, 2) else 0 end as online_processing_charge,
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
@@ -199,7 +200,7 @@ class BookingQueriesMixin:
                   coalesce((to_jsonb(b)->>'change_version')::integer,0) as change_version,
                   coalesce((to_jsonb(b)->>'committed_reschedules')::integer,0) as committed_reschedules,
                   (to_jsonb(b)->>'service_fulfilment_amount')::numeric as service_fulfilment_amount,
-                  case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * 0.05, 2) else 0 end as online_processing_charge,
+                  case when b.payment_preference <> 'pay_at_salon' and b.checkout_policy_version = 'customer_processing_v1' then round(b.total_price * :online_charge_percent / 100, 2) else 0 end as online_processing_charge,
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
@@ -276,7 +277,7 @@ class BookingQueriesMixin:
                 group by b.id, s.name, s.owner_id, s.address, s.is_active, s.profile_completed, s.approval_status, img.url, st.name, st.photo_url
                 """
             ),
-            {"booking_id": booking_id, "actor_id": actor_id},
+            {"booking_id": booking_id, "actor_id": actor_id, "online_charge_percent": settings.online_charge_percent},
         )
         row = result.mappings().one_or_none()
         if not row:

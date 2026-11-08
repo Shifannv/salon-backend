@@ -260,7 +260,7 @@ async def test_api_quote_auth_ownership_support_idempotency_and_safe_disabled_co
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url="http://local.test") as client:
         quote=await client.post("/v1/bookings/quote",json={k:v for k,v in safety.values(f).items() if k in {"salon_id","staff_id","service_ids"}} | {"start_datetime":f["start"].isoformat(),"payment_mode":"PAY_ONLINE"})
         assert quote.status_code==200,quote.text
-        assert quote.json()["online_processing_charge"]=="12.50" and quote.json()["total_payable"]=="262.50"
+        assert quote.json()["online_processing_charge"]=="5.90" and quote.json()["total_payable"]=="255.90"
         assert quote.json()["online_payment_available"] is False
         body={k:v for k,v in safety.values(f).items() if k not in {"actor_id","_idempotency_key"}}
         body["start_datetime"]=f["start"].isoformat()

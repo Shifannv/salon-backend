@@ -20,11 +20,11 @@ from app.infrastructure.supabase.auth_gateway import SupabaseAuthGateway
 from app.main import create_app
 
 
-@pytest.mark.parametrize("amount,fee,total",[("250","12.50","262.50"),("0.10","0.01","0.11"),("0","0.00","0.00"),("999.99","50.00","1049.99")])
+@pytest.mark.parametrize("amount,fee,total",[("250","5.90","255.90"),("0.10","0.00","0.10"),("0","0.00","0.00"),("999.99","23.60","1023.59")])
 def test_online_charge_uses_decimal_half_up(amount,fee,total):
     quote=checkout_quote(Decimal(amount),"PAY_ONLINE")
     assert quote["online_processing_charge"]==Decimal(fee) and quote["total_payable"]==Decimal(total)
-    assert quote["charge_label"]=="Online payment processing charge"
+    assert quote["charge_label"]=="Payment gateway charge (incl. GST)"
 
 
 def test_pay_at_salon_is_fee_free_with_exact_instructions():
