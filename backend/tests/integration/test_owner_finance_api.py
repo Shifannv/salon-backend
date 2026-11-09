@@ -398,7 +398,7 @@ async def test_the_ledger_never_exposes_internal_split_or_provider_fields(env, m
     async with http:
         raw = (await http.get("/v1/salons/me/ledger/daily", params={"date": today().isoformat()})).text.lower()
     for forbidden in ("owner_net", "salon_share", "platform", "gateway_fee", "staff_percent", "commission",
-                      "profit", "bank", "token", "secret"):
+                      "bank", "token", "secret"):
         assert forbidden not in raw
 
 

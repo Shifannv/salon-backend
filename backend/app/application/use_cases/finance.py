@@ -39,8 +39,11 @@ from app.domain.services.feature_access import (
 )
 from app.domain.services.finance_ledger import (
     MAX_RANGE_DAYS,
+    daily_balance,
+    daily_profit,
     expected_closing_cash,
     finance_allowed,
+    group_receipts_by_staff,
     local_day_bounds,
     month_bounds,
     reason_is_written,
@@ -143,11 +146,37 @@ class FinanceUseCases:
     async def daily_ledger(self, actor: Profile, local_date: date) -> dict[str, Any]:
         salon = await self._salon(actor)
         salon_id, timezone = str(salon["id"]), salon["timezone"]
-        figures = await self._figures(salon_id, timezone, local_date)
+        start, end = local_day_bounds(local_date, timezone)
+        figures = await self.repository.day_figures(salon_id, start, end)
         opening, source = await self.repository.opening_cash(salon_id, local_date, timezone)
         close = await self.repository.latest_close(salon_id, local_date)
         if close is not None and source != "previous_close":
             opening, source = int(close["opening_cash_paise"]), "entered_at_close"
+
+        expenses_total = _paise(figures, "cash_expenses") + _paise(figures, "non_cash_expenses")
+        balance = daily_balance(
+            cash_collected=_paise(figures, "cash_collected"),
+            non_cash_received=_paise(figures, "non_cash_received"),
+            expenses_total=expenses_total,
+        )
+        profit = daily_profit(
+            balance_paise=balance,
+            cash_refunds=_paise(figures, "cash_refunds"),
+            non_cash_refunds=_paise(figures, "non_cash_refunds"),
+        )
+
+        # Staff lists are gated on STAFF_EARNINGS; silently empty if the feature is locked.
+        now = self._clock()
+        access = await self.repository.plan_access(salon_id, now)
+        resolved = access.pop("feature_access", None)
+        if resolved is not None and is_enabled(resolved, STAFF_EARNINGS):
+            receipts = await self.repository.receipts_by_staff(salon_id, start, end)
+            cash_by_staff = group_receipts_by_staff(receipts, _paise(figures, "cash_collected"), "cash_paise")
+            non_cash_by_staff = group_receipts_by_staff(receipts, _paise(figures, "non_cash_received"), "non_cash_paise")
+        else:
+            cash_by_staff = []
+            non_cash_by_staff = []
+
         return {
             "date": local_date,
             "timezone": timezone,
@@ -165,7 +194,7 @@ class FinanceUseCases:
                 "non_cash_paise": _paise(figures, "non_cash_expenses"),
             },
             # Summed here so no client ever has to add two money figures together.
-            "expenses_total_paise": _paise(figures, "cash_expenses") + _paise(figures, "non_cash_expenses"),
+            "expenses_total_paise": expenses_total,
             "cash_adjustments": {
                 "in_paise": _paise(figures, "adjustments_in"),
                 "out_paise": _paise(figures, "adjustments_out"),
@@ -177,6 +206,10 @@ class FinanceUseCases:
             "needs_review": bool(figures["paid_without_receipt"] or figures["refund_pending"]),
             # False once the trial or plan has ended: the records stay readable, nothing can be added.
             "can_write": salon["can_write"],
+            "balance_paise": balance,
+            "profit_paise": profit,
+            "cash_by_staff": cash_by_staff,
+            "non_cash_by_staff": non_cash_by_staff,
         }
 
     async def ledger_range(self, actor: Profile, first: date, last: date) -> dict[str, Any]:

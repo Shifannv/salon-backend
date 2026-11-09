@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import IdempotencyKeyReuseError, ValidationError
 from app.domain.entities.subscription import derive_entitlement
 from app.domain.services.finance_ledger import TrialState, local_day_bounds
+from app.domain.services.staff_earnings import collected_by_staff
 from app.infrastructure.db.repositories.feature_access_repository import FeatureAccessRepository
 from app.infrastructure.db.repositories.subscription_billing_repository import (
     SubscriptionBillingRepository,
@@ -146,6 +147,94 @@ class FinanceRepository:
     async def day_figures(self, salon_id: str, start: datetime, end: datetime) -> dict[str, Any]:
         result = await self.session.execute(_DAY_SQL, {"salon": salon_id, "a": start, "b": end})
         return _row(result.mappings().one())
+
+    async def receipts_by_staff(
+        self, salon_id: str, start: datetime, end: datetime
+    ) -> list[dict[str, Any]]:
+        """Per-staff cash/non-cash receipts for payments captured in [start, end).
+
+        Uses the same manual-channel / _RECEIVED filter as day_figures so the two reconcile.
+        Each payment is split across its booking's staff_earnings lines proportionally.
+        Payments on bookings with no staff_earnings rows accumulate in the 'unassigned' sentinel.
+        """
+        result = await self.session.execute(
+            text(
+                f"""
+                select p.id::text as payment_id,
+                       p.collection_method,
+                       {_PAISE.format(col="p.amount")} as amount_paise,
+                       e.staff_id::text as staff_id,
+                       s.name as staff_name,
+                       e.service_value_paise
+                from booking_payments p
+                join bookings b on b.id = p.booking_id
+                left join staff_earnings e on e.booking_id = p.booking_id
+                                          and e.salon_id = p.salon_id
+                left join staff s on s.id = e.staff_id
+                where p.salon_id = :salon
+                  and p.channel = 'manual'
+                  and p.status in {_RECEIVED}
+                  and p.captured_at >= :a and p.captured_at < :b
+                order by p.id, e.staff_id
+                """
+            ),
+            {"salon": salon_id, "a": start, "b": end},
+        )
+        rows = [_row(r) for r in result.mappings().all()]
+        if not rows:
+            return []
+
+        # Group rows by payment; each payment's lines may be from different staff members.
+        by_payment: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            by_payment.setdefault(row["payment_id"], []).append(row)
+
+        per_staff: dict[str, dict[str, Any]] = {}
+
+        for payment_rows in by_payment.values():
+            first = payment_rows[0]
+            amount = int(first["amount_paise"])
+            is_cash = first["collection_method"] == "CASH"
+            lines = [
+                (r["staff_id"], int(r["service_value_paise"]))
+                for r in payment_rows
+                if r["staff_id"] is not None
+            ]
+            if not lines:
+                sentinel = per_staff.setdefault(
+                    "unassigned",
+                    {"staff_id": "unassigned", "staff_name": "Unassigned", "cash_paise": 0, "non_cash_paise": 0},
+                )
+                if is_cash:
+                    sentinel["cash_paise"] += amount
+                else:
+                    sentinel["non_cash_paise"] += amount
+                continue
+
+            shares = collected_by_staff(
+                lines,
+                cash_paise=amount if is_cash else 0,
+                upi_paise=0 if is_cash else amount,
+            )
+            for staff_id, (cash_share, upi_share) in shares.items():
+                if staff_id not in per_staff:
+                    name = next(r["staff_name"] for r in payment_rows if r["staff_id"] == staff_id)
+                    per_staff[staff_id] = {
+                        "staff_id": staff_id,
+                        "staff_name": name or "",
+                        "cash_paise": 0,
+                        "non_cash_paise": 0,
+                    }
+                per_staff[staff_id]["cash_paise"] += cash_share
+                per_staff[staff_id]["non_cash_paise"] += upi_share
+
+        named = sorted(
+            (v for k, v in per_staff.items() if k != "unassigned"),
+            key=lambda r: r["staff_name"],
+        )
+        if "unassigned" in per_staff:
+            named.append(per_staff["unassigned"])
+        return named
 
     async def outstanding_due(self, salon_id: str) -> int:
         result = await self.session.execute(
