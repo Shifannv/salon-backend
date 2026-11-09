@@ -26,7 +26,7 @@ class NotificationsDevicesMixin:
                 """
                 select id, user_id, booking_id, type, title, body, read, read_at, created_at
                 from notifications
-                where user_id = :actor_id
+                where user_id = :actor_id and deleted_at is null
                 order by created_at desc, id desc
                 limit :limit offset :offset
                 """
@@ -50,7 +50,7 @@ class NotificationsDevicesMixin:
                 """
                 update notifications
                 set read = true
-                where id = :notification_id and user_id = :actor_id
+                where id = :notification_id and user_id = :actor_id and deleted_at is null
                 returning id, user_id, booking_id, type, title, body, read, read_at, created_at
                 """
             ),
@@ -75,7 +75,7 @@ class NotificationsDevicesMixin:
                 with updated as (
                   update notifications
                   set read = true
-                  where user_id = :actor_id and not read
+                  where user_id = :actor_id and not read and deleted_at is null
                   returning 1
                 )
                 select count(*) from updated
@@ -86,6 +86,56 @@ class NotificationsDevicesMixin:
         updated_count = int(result.scalar_one())
         await self.session.commit()
         return updated_count
+
+    async def delete_notifications(self, actor_id: str, ids: list[str]) -> None:
+        """Dismiss the actor's own notifications; ids that are unknown, foreign or gone are ignored."""
+
+        await self.session.execute(
+            text(
+                """
+                update notifications
+                set deleted_at = now()
+                where id = any(cast(:ids as uuid[])) and user_id = :actor_id and deleted_at is null
+                """
+            ),
+            {"actor_id": actor_id, "ids": ids},
+        )
+        await self.session.commit()
+
+    async def purge_notifications(
+        self, *, dismissed_days: int, max_age_days: int, limit: int
+    ) -> int:
+        """Delete up to ``limit`` dismissed or expired notifications; returns the rows removed.
+
+        Outbox and delivery rows go with them through their ON DELETE CASCADE keys.
+        """
+
+        # Two statements, each served by its own index (an OR would force a full bitmap scan).
+        # The conditions are fixed constants; never build one from caller input.
+        conditions = (
+            ("deleted_at < now() - make_interval(days => :days)", dismissed_days),
+            ("created_at < now() - make_interval(days => :days)", max_age_days),
+        )
+        removed = 0
+        for condition, days in conditions:
+            if removed >= limit:
+                break
+            result = await self.session.execute(
+                text(
+                    f"""
+                    with doomed as (
+                      select id from notifications where {condition} limit :limit
+                    ), removed as (
+                      delete from notifications n using doomed d where n.id = d.id returning 1
+                    )
+                    select count(*) from removed
+                    """
+                ),
+                {"days": days, "limit": limit - removed},
+            )
+            removed += int(result.scalar_one())
+        await self.session.commit()
+        return removed
 
     # register_device with actor_id is defined in the section below (line ~1334)
 

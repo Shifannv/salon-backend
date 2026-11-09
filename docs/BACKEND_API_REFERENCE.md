@@ -165,7 +165,7 @@ variants must be interpreted per response model, not globally.
 | [catalog](#group-catalog) | 2 |
 | [bookings](#group-bookings) | 13 |
 | [booking actions](#group-booking-actions) | 6 |
-| [notifications](#group-notifications) | 5 |
+| [notifications](#group-notifications) | 6 |
 | [walkin](#group-walkin) | 4 |
 | [subscriptions](#group-subscriptions) | 9 |
 | [subscription billing](#group-subscription-billing) | 8 |
@@ -2386,6 +2386,7 @@ Block the interval and cancel/notify exactly the confirmed impact set.
 | GET | `/v1/notifications` | List notifications | 200 |
 | POST | `/v1/notifications/{notification_id}/read` | Mark notification read | 200 |
 | POST | `/v1/notifications/read-all` | Mark all notifications read | 200 |
+| DELETE | `/v1/notifications` | Delete notifications | 204 |
 | POST | `/v1/devices` | Register device token | 200 |
 | DELETE | `/v1/devices/{token}` | Deactivate device token | 204 |
 
@@ -2434,6 +2435,26 @@ Mark every unread notification owned by the actor.
 **Success 200:** `application/json`: [MarkAllNotificationsReadResponse](#model-markallnotificationsreadresponse).
 
 **Source:** [backend/app/api/v1/routes/notifications.py](../backend/app/api/v1/routes/notifications.py) (`mark_all_notifications_read`).
+
+### DELETE `/v1/notifications`
+
+**Purpose:** Delete notifications.
+
+**Access:** Bearer; the same route serves customers, owners and staff. Each notification belongs to one recipient and only that recipient can delete it.
+
+Permanently dismiss up to 100 of the caller's notifications in one call. The apps remove a card locally, then send the dismissed ids once, so a card does not return after reinstall or on a second device.
+
+**Body:** `application/json`, required; [DeleteNotificationsRequest](#model-deletenotificationsrequest).
+
+**Success 204:** No response body. Idempotent: ids that are unknown, owned by someone else or already deleted are skipped silently, so the answer is 204 even if no id matched and never reveals who owns an id. There is no 403 or 404.
+
+**Errors:** 401 without a valid token; 422 if `ids` is missing, empty, longer than 100, or holds a value that is not a UUID.
+
+**Retention:** deleted notifications are hidden at once (soft delete, `deleted_at`) and purged after 30 days. Any notification is purged after 60 days. A deleted notification cannot be marked read, and "read all" ignores it.
+
+**Note for clients:** this DELETE carries a JSON body. Some HTTP clients and OpenAPI generators drop it unless asked (for example axios needs `data:`).
+
+**Source:** [backend/app/api/v1/routes/notifications.py](../backend/app/api/v1/routes/notifications.py) (`delete_notifications`).
 
 ### POST `/v1/devices`
 
@@ -3868,6 +3889,16 @@ Manual/test activation — admin only.
 | `starts_at` | no | string (date-time) or null |  |  |
 | `current_period_start` | no | string (date-time) or null |  |  |
 | `current_period_end` | no | string (date-time) or null |  |  |
+
+<a id="model-deletenotificationsrequest"></a>
+
+### DeleteNotificationsRequest
+
+Notifications the caller dismissed; ids that are not theirs are ignored.
+
+| Field | Required | Type | Constraints/default | Description |
+| --- | --- | --- | --- | --- |
+| `ids` | yes | array of string (uuid) | minItems=1, maxItems=100 |  |
 
 <a id="model-markallnotificationsreadresponse"></a>
 

@@ -1,8 +1,9 @@
 """Notification and device API schemas."""
 
 from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.v1.schemas.common import IdStr
 
@@ -20,6 +21,14 @@ class NotificationResponse(BaseModel):
     read_at: datetime | None = None  # set when read flips true (migration 0002)
     created_at: datetime
 
+
+
+class DeleteNotificationsRequest(BaseModel):
+    """Notifications the caller dismissed; ids that are not theirs are ignored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: list[UUID] = Field(min_length=1, max_length=100)
 
 
 class MarkAllNotificationsReadResponse(BaseModel):
