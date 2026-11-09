@@ -34,6 +34,11 @@ class NotificationUseCases:
 
         return await self.repository.mark_all_notifications_read(actor.id)
 
+    async def delete_many(self, actor: Profile, notification_ids: list[str]) -> None:
+        """Dismiss the actor's own notifications; others' ids are ignored, not reported."""
+
+        await self.repository.delete_notifications(actor.id, list(dict.fromkeys(notification_ids)))
+
     async def register_device(
         self,
         actor: Profile,
