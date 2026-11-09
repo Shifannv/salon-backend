@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_session, get_current_actor
 from app.api.v1.schemas.platform import (
+    DeleteNotificationsRequest,
     DeviceRegisterRequest,
     DeviceRegisterResponse,
     MarkAllNotificationsReadResponse,
@@ -72,6 +73,26 @@ async def mark_all_notifications_read(
 
     updated_count = await _use_cases(session).mark_all_read(actor)
     return MarkAllNotificationsReadResponse(updated_count=updated_count)
+
+
+@router.delete(
+    "/notifications",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete notifications",
+)
+async def delete_notifications(
+    payload: DeleteNotificationsRequest,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+) -> Response:
+    """Dismiss up to 100 of the actor's notifications; they are purged later.
+
+    Ids that are unknown, owned by someone else or already deleted are skipped
+    silently, so the answer is always 204 and never reveals who owns an id.
+    """
+
+    await _use_cases(session).delete_many(actor, [str(i) for i in payload.ids])
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

@@ -12,7 +12,32 @@ import json
 import time
 from collections.abc import Awaitable, Callable
 
-TASKS = ("account-deletion", "email", "media-cleanup")
+TASKS = ("account-deletion", "email", "media-cleanup", "notification-retention")
+
+# Dismissed cards go quickly because the user already chose to remove them; everything
+# else expires so the table stays small and personal data is not kept indefinitely.
+SOFT_DELETED_RETENTION_DAYS = 30
+NOTIFICATION_RETENTION_DAYS = 60
+
+
+async def purge_notifications(limit: int, stop_at: float) -> dict:
+    """Delete expired notifications in batches of ``limit`` until none are left or time is up."""
+
+    from app.infrastructure.db.repositories.platform_repository import PlatformRepository
+    from app.infrastructure.db.session import AsyncSessionLocal
+
+    deleted = 0
+    while time.monotonic() < stop_at:
+        async with AsyncSessionLocal() as session:
+            removed = await PlatformRepository(session).purge_notifications(
+                dismissed_days=SOFT_DELETED_RETENTION_DAYS,
+                max_age_days=NOTIFICATION_RETENTION_DAYS,
+                limit=limit,
+            )
+        deleted += removed
+        if removed < limit:
+            break
+    return {"deleted": deleted, "budget_exhausted": time.monotonic() >= stop_at}
 
 
 async def drain_queue(deliver: Callable[[], Awaitable[bool]], limit: int, stop_at: float) -> dict:
@@ -29,6 +54,9 @@ async def drain_queue(deliver: Callable[[], Awaitable[bool]], limit: int, stop_a
 async def run_pass(task: str, limit: int, stop_at: float) -> dict:
     if task not in TASKS or not 1 <= limit <= 100:
         raise ValueError("Unknown task or invalid batch limit")
+
+    if task == "notification-retention":
+        return await purge_notifications(limit, stop_at)
 
     from app.core.config import settings
 
@@ -104,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("task", choices=TASKS)
     parser.add_argument("--limit", type=int, default=20,
-                        help="Maximum queue attempts or media candidates (1–100)")
+                        help="Maximum queue attempts, media candidates or notifications per batch (1–100)")
     parser.add_argument("--timeout-seconds", type=int, default=240,
                         help="Cooperative budget (1–900); finish in-flight work before stopping")
     args = parser.parse_args(argv)

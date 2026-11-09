@@ -148,6 +148,8 @@ def make_mock_repo() -> MagicMock:
         "list_notifications",
         "mark_notification_read",
         "mark_all_notifications_read",
+        "delete_notifications",
+        "purge_notifications",
         "create_notification",
         "register_device",
         "deactivate_device_for_actor",

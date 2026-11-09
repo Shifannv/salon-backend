@@ -215,3 +215,44 @@ async def test_notification_use_case_forwards_only_paging_the_caller_set():
     repo.list_notifications.assert_awaited_with(actor.id, limit=5, offset=10)
     await use_cases.list_notifications(actor, offset=3)
     repo.list_notifications.assert_awaited_with(actor.id, offset=3)
+
+
+# -- e. batch notification delete ------------------------------------------------
+
+
+def _delete_notifications(client, body):
+    return client.request("DELETE", "/v1/notifications", json=body)
+
+
+@pytest.mark.parametrize("body", [
+    {}, {"ids": []}, {"ids": ["nope"]}, {"ids": [LOWER] * 101}, {"ids": [LOWER], "extra": 1}, {"ids": LOWER},
+])
+def test_notification_batch_delete_rejects_a_bad_body(body):
+    assert _delete_notifications(_client(notifications.router), body).status_code == 422
+
+
+def test_notification_batch_delete_without_a_body_is_422():
+    assert _client(notifications.router).delete("/v1/notifications").status_code == 422
+
+
+def test_notification_batch_delete_answers_204_and_hands_over_lowercase_ids():
+    use_cases = SimpleNamespace(delete_many=AsyncMock(return_value=None))
+    with patch.object(notifications, "_use_cases", lambda session: use_cases):
+        response = _delete_notifications(_client(notifications.router), {"ids": [UPPER, LOWER]})
+    assert response.status_code == 204 and response.content == b""
+    assert use_cases.delete_many.await_args.args[1] == [LOWER, LOWER]
+
+
+def test_notification_batch_delete_accepts_exactly_one_hundred_ids():
+    use_cases = SimpleNamespace(delete_many=AsyncMock(return_value=None))
+    with patch.object(notifications, "_use_cases", lambda session: use_cases):
+        response = _delete_notifications(_client(notifications.router), {"ids": [LOWER] * 100})
+    assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_notification_use_case_deletes_each_id_once_for_the_actor():
+    repo = SimpleNamespace(delete_notifications=AsyncMock(return_value=None))
+    actor = make_owner()
+    await NotificationUseCases(repo).delete_many(actor, [LOWER, "b", LOWER])
+    repo.delete_notifications.assert_awaited_once_with(actor.id, [LOWER, "b"])

@@ -206,3 +206,43 @@ async def test_media_job_refuses_unreachable_checkpoint_store_before_sweeping(mo
     with pytest.raises(RuntimeError, match="checkpoint storage is unreachable"):
         await job.run_pass("media-cleanup", 20, time.monotonic() + 20)
     sweep.assert_not_awaited()
+
+
+async def test_notification_retention_purges_in_batches_until_a_short_batch(monkeypatch):
+    from app.infrastructure.db import session as db_session
+    from app.infrastructure.db.repositories import platform_repository
+
+    purge = AsyncMock(side_effect=[5, 5, 2])
+    opened = []
+
+    class Session:
+        async def __aenter__(self):
+            opened.append(self)
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(db_session, "AsyncSessionLocal", Session)
+    monkeypatch.setattr(platform_repository, "PlatformRepository",
+                        lambda _session: SimpleNamespace(purge_notifications=purge))
+    result = await job.run_pass("notification-retention", 5, time.monotonic() + 20)
+    assert result == {"deleted": 12, "budget_exhausted": False}
+    assert len(opened) == 3
+    assert purge.await_args.kwargs == {
+        "dismissed_days": job.SOFT_DELETED_RETENTION_DAYS,
+        "max_age_days": job.NOTIFICATION_RETENTION_DAYS,
+        "limit": 5,
+    }
+
+
+async def test_notification_retention_starts_no_batch_after_the_budget(monkeypatch):
+    from app.infrastructure.db import session as db_session
+
+    monkeypatch.setattr(db_session, "AsyncSessionLocal", AsyncMock(side_effect=AssertionError("no batch")))
+    result = await job.run_pass("notification-retention", 5, time.monotonic() - 1)
+    assert result == {"deleted": 0, "budget_exhausted": True}
+
+
+def test_notification_retention_windows_are_thirty_and_sixty_days():
+    assert (job.SOFT_DELETED_RETENTION_DAYS, job.NOTIFICATION_RETENTION_DAYS) == (30, 60)

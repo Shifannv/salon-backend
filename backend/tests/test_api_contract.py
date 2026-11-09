@@ -11,6 +11,11 @@ def test_openapi_contains_new_cross_app_endpoints() -> None:
     assert "/v1/bookings/{booking_id}/delay" in paths
     assert "/v1/notifications/read-all" in paths
     assert paths["/v1/salons/me/holidays/{holiday_id}"]["delete"]["responses"].get("204")
+    batch_delete = paths["/v1/notifications"]["delete"]
+    assert batch_delete["responses"].get("204")
+    assert batch_delete["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/DeleteNotificationsRequest"
+    )
     assert "/v1/booking-action-requests" in paths
     assert "/v1/booking-action-requests/{request_id}/respond" in paths
     assert "/v1/bookings/{booking_id}/payment-confirmation-requests" in paths

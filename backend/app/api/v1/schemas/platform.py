@@ -35,6 +35,7 @@ from app.api.v1.schemas.catalog import (
 )
 from app.api.v1.schemas.media_urls import HostedMediaRequest
 from app.api.v1.schemas.notification import (
+    DeleteNotificationsRequest,
     DeviceRegisterRequest,
     DeviceRegisterResponse,
     MarkAllNotificationsReadResponse,
@@ -86,6 +87,7 @@ __all__ = [
     "CustomerAvailabilityResponse",
     "CustomerCancellationReasonCode",
     "DelayBookingRequest",
+    "DeleteNotificationsRequest",
     "DeviceRegisterRequest",
     "DeviceRegisterResponse",
     "HolidayCreateRequest",
