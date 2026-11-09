@@ -211,6 +211,18 @@ class DayCloseView(_Response):
     closed_at: datetime
 
 
+class NonCashStaffLine(_Response):
+    staff_id: str
+    staff_name: str
+    non_cash_paise: int
+
+
+class CashStaffLine(_Response):
+    staff_id: str
+    staff_name: str
+    cash_paise: int
+
+
 class DailyLedgerResponse(_Response):
     date: date
     timezone: str
@@ -233,6 +245,14 @@ class DailyLedgerResponse(_Response):
     needs_review: bool
     # False when the trial or plan has ended: records stay readable, every write is refused.
     can_write: bool = True
+    # Computed operational figures. balance = received - expenses; profit = balance - refunds.
+    # Cash adjustments are excluded from profit: they correct counting errors, not trading outcomes.
+    balance_paise: int = 0
+    profit_paise: int = 0
+    # Non-cash (UPI) and cash receipts attributed to each staff member. Empty when the
+    # staff_earnings feature is not enabled for this salon.
+    non_cash_by_staff: list[NonCashStaffLine] = []
+    cash_by_staff: list[CashStaffLine] = []
 
 
 class LedgerRangeDay(_Response):

@@ -106,6 +106,39 @@ def expected_closing_cash(
     )
 
 
+def daily_balance(*, cash_collected: int, non_cash_received: int, expenses_total: int) -> int:
+    """Cash and non-cash received minus total expenses paid out today (integer paise)."""
+    return cash_collected + non_cash_received - expenses_total
+
+
+def daily_profit(*, balance_paise: int, cash_refunds: int, non_cash_refunds: int) -> int:
+    """Balance minus all refunds processed today.
+
+    Cash adjustments are excluded: they correct counting errors, not the day's trading outcome.
+    """
+    return balance_paise - cash_refunds - non_cash_refunds
+
+
+def group_receipts_by_staff(
+    receipts: list[dict[str, Any]],
+    total: int,
+    amount_key: str,
+) -> list[dict[str, Any]]:
+    """Project per-staff receipt rows to one amount key; append an Unassigned row for any gap.
+
+    ``amount_key`` is ``'cash_paise'`` or ``'non_cash_paise'``. Zero rows are dropped.
+    The result always sums to ``total`` via an 'unassigned' sentinel for any attribution gap.
+    """
+    rows = [
+        {"staff_id": r["staff_id"], "staff_name": r["staff_name"], amount_key: r[amount_key]}
+        for r in receipts if r.get(amount_key, 0) > 0
+    ]
+    gap = total - sum(r[amount_key] for r in rows)
+    if gap > 0:
+        rows.append({"staff_id": "unassigned", "staff_name": "Unassigned", amount_key: gap})
+    return rows
+
+
 def close_difference(expected: int, actual: int, reason: str | None) -> int:
     """Counted minus expected. Returns the difference; the caller refuses a missing reason."""
 
