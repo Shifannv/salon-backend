@@ -105,7 +105,7 @@ class FCMGateway(PushGateway):
         result = await self.session.execute(
             text(
                 """
-                select id, booking_id, type, title, body, data
+                select id, user_id, booking_id, type, title, body, data
                 from notifications
                 where id = :notification_id
                 """
@@ -288,6 +288,8 @@ class FCMGateway(PushGateway):
         data = {
             **extra,
             "notification_id": notification.get("id"),
+            # The recipient, so a shared phone can ignore an alert meant for another signed-in account.
+            "user_id": notification.get("user_id"),
             "booking_id": notification.get("booking_id"),
             "type": notification.get("type"),
         }

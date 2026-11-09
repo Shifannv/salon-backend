@@ -10,6 +10,7 @@ from app.infrastructure.push.fcm_gateway import FCMGateway
 
 NOTIFICATION = {
     "id": "11111111-1111-1111-1111-111111111111",
+    "user_id": "33333333-3333-3333-3333-333333333333",
     "booking_id": "22222222-2222-2222-2222-222222222222",
     "type": "booking_status",
     "title": "Booking Confirmed",
@@ -123,6 +124,7 @@ async def test_expo_push_includes_notification_payload(monkeypatch: pytest.Monke
     assert payload["body"] == "Your appointment has been confirmed."
     assert payload["data"] == {
         "notification_id": NOTIFICATION["id"],
+        "user_id": NOTIFICATION["user_id"],
         "booking_id": NOTIFICATION["booking_id"],
         "type": "booking_status",
     }
