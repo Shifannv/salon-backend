@@ -10,6 +10,15 @@ from fastapi import FastAPI
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1.router import api_v1_router
+from app.api.v1.routes.health import router as health_router
+from app.core.config import settings
+from app.core.exceptions import register_exception_handlers
+from app.core.logging import configure_logging
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.telemetry import TimingMiddleware, init_sentry
+from app.infrastructure.media.admission import UploadAdmissionMiddleware
 
 load_dotenv()
 
@@ -29,17 +38,6 @@ threading.Thread(target=_prefetch_env_file, name="env-prefetch", daemon=True).st
 # startup. Collection is paused here and resumed once the app is built (end of file).
 gc.disable()
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.api.v1.router import api_v1_router
-from app.api.v1.routes.health import router as health_router
-from app.core.config import settings
-from app.core.exceptions import register_exception_handlers
-from app.core.logging import configure_logging
-from app.core.security_headers import SecurityHeadersMiddleware
-from app.core.telemetry import TimingMiddleware, init_sentry
-from app.infrastructure.media.admission import UploadAdmissionMiddleware
 
 _log = logging.getLogger(__name__)
 
