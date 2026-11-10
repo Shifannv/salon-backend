@@ -29,9 +29,15 @@ def cashbook_db(changes_db):  # noqa: F811
         env = SafetyEnv(changes_db)
         try:
             async with env.session() as session:
-                for statement in SIDECAR.read_text(encoding="utf-8").split("\n-- statement --\n"):
-                    if statement.strip():
-                        await session.execute(text(statement))
+                # 0054 must precede 0051 so receipts_by_staff can join staff_earnings.
+                for file in [
+                    "0054_staff_earnings.sql",
+                    SIDECAR.name,
+                ]:
+                    source = SIDECAR.parent / file
+                    for statement in source.read_text(encoding="utf-8").split("\n-- statement --\n"):
+                        if statement.strip():
+                            await session.execute(text(statement))
                 await session.commit()
         finally:
             await env.engine.dispose()

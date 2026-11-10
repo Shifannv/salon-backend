@@ -1,5 +1,57 @@
 # Progress: shifan
 
+## Batch notification delete + daily ledger computed fields — 9 November 2026
+
+### Status
+**DONE — both PRs merged to main.**
+- PR #70 (`notifications-batch-delete`, commit `3c5fe88`): merged.
+- PR #71 (`ledger-computed-fields`, commit `f4a4614`): merged.
+- Ruff: clean. Tests: 2356 passed / 526 skipped / 0 failed.
+
+### What was done
+**Task A — `notifications-batch-delete`:**
+- `DELETE /v1/notifications` with JSON body `{"ids": [uuid, ...], max 100}` — always 204, idempotent.
+- Soft delete via new `deleted_at timestamptz` column; all read paths filter `and deleted_at is null`.
+- Migration `0066_notification_soft_delete`: adds column + partial index on `deleted_at` (WHERE NOT NULL) + full index on `created_at`.
+- Maintenance job task `notification-retention`: 30-day purge for dismissed rows, 60-day purge for all rows; bounded single-pass via `limit`.
+- 6 integration SQL tests (skip without `TEST_DB`); unit tests for use case, schema, job task.
+
+**Task B — `ledger-computed-fields`:**
+- `GET /v1/salons/me/ledger/daily` gains `profit_paise`, `balance_paise`, `non_cash_by_staff`, `cash_by_staff`.
+- All fields default to `0`/`[]` — backward-compatible.
+- Staff lists gated on `STAFF_EARNINGS` feature flag; silently `[]` if locked.
+- New repo method `receipts_by_staff` queries `booking_payments` by `captured_at` window, joins to `staff_earnings`, splits proportionally using `collected_by_staff`; unassigned sentinel ensures sum == total.
+- No migration; purely computed at read time.
+- 19 new unit tests; `profit` removed from forbidden-substring list in integration test.
+
+### Decisions
+- Soft delete via `deleted_at` (not `is_active`) because notifications are not "resources" — the existing `is_active` pattern is for salons/staff/bookings.
+- Double `plan_access` call in `daily_ledger`: `_salon` pops `feature_access` in-place; easier than adding an extra return value to `_salon`.
+- Attribution for staff lists uses `captured_at` (matches ledger totals), not `completed_at` (used by `staff_earnings` itself).
+- `receipts_by_staff` mock must use `side_effect` returning a fresh dict each call, not `return_value`, because `plan_access` dict is mutated in-place by `_salon`.
+
+### Files touched
+- `migrations/sql/0066_notification_soft_delete.sql`, `migrations/versions/0066_notification_soft_delete.py`
+- `infrastructure/db/repositories/platform/notifications_devices.py`
+- `api/v1/schemas/notification.py`, `api/v1/schemas/platform.py`
+- `application/use_cases/notification_use_cases.py`
+- `api/v1/routes/notifications.py`
+- `infrastructure/maintenance_job.py`
+- `tests/integration/test_notification_delete_sql.py` (new)
+- `domain/services/finance_ledger.py`
+- `api/v1/schemas/finance.py`
+- `infrastructure/db/repositories/finance_repository.py`
+- `application/use_cases/finance.py`
+- `tests/integration/test_owner_finance_api.py`
+- `tests/unit/test_daily_ledger_fields.py` (new)
+
+### Next steps
+1. Run `TEST_DB` integration tests for Task A (`tests/integration/test_notification_delete_sql.py`) when Docker is available.
+2. Update finance docs (`FINANCE_PHASE1_DESIGN.md`, `FINANCE_PHASE2_IMPLEMENTATION.md`, `FINANCE_PHASE3_OWNER_APP.md`, `MARKETPLACE_CONTRACT.md`) to reflect the new `profit_paise`/`balance_paise` fields — not done.
+3. Wire up `notification-retention` Cloud Run Job schedule (command: `python -m app.infrastructure.maintenance_job notification-retention --limit 100`, daily).
+
+---
+
 ## Superadmin salon erasure, disposable local verification — 2 November 2026
 
 - User explicitly selected disposable local test databases only. No production/shared database,
