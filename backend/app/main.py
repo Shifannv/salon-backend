@@ -6,8 +6,12 @@ import gc
 import logging
 import os
 import threading
+from fastapi import FastAPI
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def _prefetch_env_file() -> None:
@@ -91,10 +95,12 @@ def create_app() -> FastAPI:
     configure_logging()
     sentry_enabled = init_sentry(settings)
 
+    is_prod = os.getenv("ENVIRONMENT" ,"").lower() == "production"  # swagger disbaling prod created
+
     app = FastAPI(
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
+        docs_url=None if is_prod else "/docs",    #swagger deployement production api disabled and local get the api docs  seen it 
+        redoc_url=None if is_prod else "/redoc",   #redocs disabled production view too but the local run it 
+        openapi_url=None if is_prod else "/openapi.json", #openapi.json disabled in the production but in the local run it
         title=settings.app_name,
         version="0.1.0",
         lifespan=lifespan,
