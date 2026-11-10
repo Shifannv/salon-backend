@@ -1,6 +1,7 @@
 """Notification dismissal and retention (0066) on disposable local PostgreSQL."""
 
 import asyncio
+from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -43,12 +44,20 @@ async def env(notifications_db):
 
 
 async def notify(env, user, **overrides):
-    values = {"id": str(uuid4()), "user": user, "age": "0 days", "gone": None, **overrides}
+    raw = {"id": str(uuid4()), "user": user, "age": "0 days", "gone": None, **overrides}
+
+    def _days(s: str) -> timedelta:
+        return timedelta(days=int(s.split()[0]))
+
+    values = {
+        **raw,
+        "age": _days(raw["age"]),
+        "gone": _days(raw["gone"]) if raw["gone"] is not None else None,
+    }
     await env.sql(
         """insert into notifications(id, user_id, title, created_at, deleted_at)
-           values(:id, :user, 'Synthetic', now() - cast(:age as interval),
-                  case when cast(:gone as text) is null then null
-                       else now() - cast(:gone as interval) end)""",
+           values(:id, :user, 'Synthetic', now() - :age,
+                  case when :gone is null then null else now() - :gone end)""",
         **values,
     )
     return values["id"]
