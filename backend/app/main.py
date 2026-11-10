@@ -92,6 +92,9 @@ def create_app() -> FastAPI:
     sentry_enabled = init_sentry(settings)
 
     app = FastAPI(
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
         title=settings.app_name,
         version="0.1.0",
         lifespan=lifespan,
