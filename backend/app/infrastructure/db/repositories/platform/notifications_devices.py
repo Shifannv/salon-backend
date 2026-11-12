@@ -17,21 +17,34 @@ class NotificationsDevicesMixin:
     session: AsyncSession
 
     async def list_notifications(
-        self, actor_id: str, *, limit: int | None = None, offset: int = 0
+        self,
+        actor_id: str,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+        audience: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List actor notifications, newest first, bounded by the list safety ceiling."""
+        """List actor notifications, newest first, bounded by the list safety ceiling.
+
+        When ``audience`` is provided only rows with that audience (or NULL audience
+        for legacy rows) are returned, so the Owner App and Customer App each receive
+        only their own notifications.
+        """
 
         result = await self.session.execute(
             text(
                 """
-                select id, user_id, booking_id, type, title, body, read, read_at, created_at
+                select id, user_id, booking_id, type, title, body, read, read_at, created_at,
+                       audience
                 from notifications
-                where user_id = :actor_id and deleted_at is null
+                where user_id = :actor_id
+                  and deleted_at is null
+                  and (cast(:audience as varchar) is null or audience is null or audience = :audience)
                 order by created_at desc, id desc
                 limit :limit offset :offset
                 """
             ),
-            {"actor_id": actor_id, **page_bounds(limit, offset)},
+            {"actor_id": actor_id, "audience": audience, **page_bounds(limit, offset)},
         )
         rows = []
         for row in result.mappings().all():
@@ -51,7 +64,8 @@ class NotificationsDevicesMixin:
                 update notifications
                 set read = true
                 where id = :notification_id and user_id = :actor_id and deleted_at is null
-                returning id, user_id, booking_id, type, title, body, read, read_at, created_at
+                returning id, user_id, booking_id, type, title, body, read, read_at, created_at,
+                          audience
                 """
             ),
             {"actor_id": actor_id, "notification_id": notification_id},
@@ -174,24 +188,27 @@ class NotificationsDevicesMixin:
         token: str,
         platform: str | None,
         device_name: str | None,
+        app: str | None = None,
     ) -> dict[str, Any]:
-        """Register (or reactivate) a device token, linked to actor_id."""
+        """Register (or reactivate) a device token, linked to actor_id.
 
-        # We use a direct upsert rather than the DB function so we can pass
-        # the actor_id without relying on auth.uid() (which doesn't work via
-        # the privileged Postgres role).
+        ``app`` identifies which client registered the token ('owner' or 'customer').
+        It is used by the push gateway to route notifications to the correct app.
+        """
+
         result = await self.session.execute(
             text(
                 """
-                insert into device_tokens (user_id, token, platform, device_name, is_active, last_seen_at)
-                values (:user_id, :token, :platform, :device_name, true, now())
+                insert into device_tokens (user_id, token, platform, device_name, app, is_active, last_seen_at)
+                values (:user_id, :token, :platform, :device_name, :app, true, now())
                 on conflict (token) do update
                   set user_id      = :user_id,
                       is_active    = true,
                       platform     = coalesce(:platform, device_tokens.platform),
                       device_name  = coalesce(:device_name, device_tokens.device_name),
+                      app          = coalesce(:app, device_tokens.app),
                       last_seen_at = now()
-                returning id, token, platform
+                returning id, token, platform, app
                 """
             ),
             {
@@ -199,6 +216,7 @@ class NotificationsDevicesMixin:
                 "token": token,
                 "platform": platform,
                 "device_name": device_name,
+                "app": app,
             },
         )
         await self.session.commit()

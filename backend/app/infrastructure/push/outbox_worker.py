@@ -47,6 +47,7 @@ async def enqueue_and_deliver_notification(
     title: str,
     body: str,
     data: dict[str, Any] | None = None,
+    audience: str | None = None,
 ) -> None:
     """Persist a notification (booking-linked or not), then attempt push delivery."""
 
@@ -59,6 +60,7 @@ async def enqueue_and_deliver_notification(
             title=title,
             body=body,
             data=data,
+            audience=audience,
         )
     await deliver_notification_outbox_event(outbox_id)
 

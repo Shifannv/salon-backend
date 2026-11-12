@@ -14,15 +14,23 @@ class NotificationUseCases:
         self.repository = repository
 
     async def list_notifications(
-        self, actor: Profile, *, limit: int | None = None, offset: int = 0
+        self,
+        actor: Profile,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+        audience: str | None = None,
     ) -> list[dict[str, Any]]:
         """List actor notifications, newest first.
 
-        Without ``limit`` the repository applies its safety ceiling; ``limit`` and
-        ``offset`` are forwarded only when the caller set them.
+        Without ``limit`` the repository applies its safety ceiling.  Pass
+        ``audience='owner'`` or ``audience='customer'`` so each app receives
+        only its own rows.
         """
 
-        return await self.repository.list_notifications(actor.id, **paging_kwargs(limit, offset))
+        return await self.repository.list_notifications(
+            actor.id, audience=audience, **paging_kwargs(limit, offset)
+        )
 
     async def mark_read(self, actor: Profile, notification_id: str) -> dict[str, Any]:
         """Mark notification as read."""
@@ -45,10 +53,11 @@ class NotificationUseCases:
         token: str,
         platform: str | None,
         device_name: str | None,
+        app: str | None = None,
     ) -> dict[str, Any]:
         """Register actor device token (idempotent — reactivates if it already exists)."""
 
-        return await self.repository.register_device(actor.id, token, platform, device_name)
+        return await self.repository.register_device(actor.id, token, platform, device_name, app)
 
     async def deactivate_device(self, actor: Profile, token: str) -> None:
         """Deactivate this specific device token for the actor."""

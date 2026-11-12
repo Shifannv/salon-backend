@@ -200,8 +200,8 @@ def test_notifications_route_forwards_paging_by_keyword():
         assert client.get("/v1/notifications").status_code == 200
         assert client.get("/v1/notifications?limit=5&offset=10").status_code == 200
     calls = use_cases.list_notifications.await_args_list
-    assert calls[0].kwargs == {"limit": None, "offset": 0}
-    assert calls[1].kwargs == {"limit": 5, "offset": 10}
+    assert calls[0].kwargs == {"limit": None, "offset": 0, "audience": None}
+    assert calls[1].kwargs == {"limit": 5, "offset": 10, "audience": None}
 
 
 @pytest.mark.asyncio
@@ -210,11 +210,11 @@ async def test_notification_use_case_forwards_only_paging_the_caller_set():
     use_cases = NotificationUseCases(repo)
     actor = make_owner()
     await use_cases.list_notifications(actor)
-    repo.list_notifications.assert_awaited_with(actor.id)
+    repo.list_notifications.assert_awaited_with(actor.id, audience=None)
     await use_cases.list_notifications(actor, limit=5, offset=10)
-    repo.list_notifications.assert_awaited_with(actor.id, limit=5, offset=10)
+    repo.list_notifications.assert_awaited_with(actor.id, limit=5, offset=10, audience=None)
     await use_cases.list_notifications(actor, offset=3)
-    repo.list_notifications.assert_awaited_with(actor.id, offset=3)
+    repo.list_notifications.assert_awaited_with(actor.id, offset=3, audience=None)
 
 
 # -- e. batch notification delete ------------------------------------------------

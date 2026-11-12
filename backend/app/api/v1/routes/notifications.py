@@ -33,12 +33,19 @@ def _use_cases(session: AsyncSession) -> NotificationUseCases:
 async def list_notifications(
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    audience: str | None = Query(default=None, pattern="^(owner|customer)$"),
     actor: Profile = Depends(get_current_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[NotificationResponse]:
-    """List notifications owned by the actor."""
+    """List notifications owned by the actor.
 
-    rows = await _use_cases(session).list_notifications(actor, limit=limit, offset=offset)
+    Pass ``?audience=owner`` or ``?audience=customer`` to receive only the rows
+    for that app.  Legacy rows without an audience are always included.
+    """
+
+    rows = await _use_cases(session).list_notifications(
+        actor, limit=limit, offset=offset, audience=audience
+    )
     return [NotificationResponse(**row) for row in rows]
 
 
@@ -109,7 +116,7 @@ async def register_device(
     """Register or reactivate one device token for the authenticated user."""
 
     row = await _use_cases(session).register_device(
-        actor, payload.token, payload.platform, payload.device_name
+        actor, payload.token, payload.platform, payload.device_name, payload.app
     )
     return DeviceRegisterResponse(**row)
 

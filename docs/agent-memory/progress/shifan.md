@@ -1,5 +1,80 @@
 # Progress: shifan
 
+## Notification audience routing + Cashfree payout activation — 12 November 2026
+
+### Status
+**DONE — uncommitted backend, uncommitted QR web. Ruff clean. 2458 passed / 552 skipped / 0 failed.**
+All backend changes are ready to commit in one pass: 0067 (break times), 0068 (auto payouts), 0069 (notification audience), audience routing, booking-409 fix, and config alias.
+
+### What was done
+- **Migration 0069** (`notification_audience`): adds `audience varchar(32)` to `notifications` and `app varchar(32)` to `device_tokens`; both applied to production Supabase DB via `execute_sql`. Partial index on `(user_id, audience)` applied. Alembic stub chains from 0068. Files: `migrations/sql/0069_notification_audience.sql`, `migrations/versions/0069_notification_audience.py`, `domain/notification_audience.py`.
+- **Notification audience routing** (backend): `GET /notifications` accepts `?audience=owner|customer`; `POST /devices` passes `app` tag through to registration; FCM gateway and outbox worker filter by token app; `NotificationListRequest`, `DeviceRegistrationRequest` schemas updated. Tests: `test_notification_use_cases.py`, `test_api_input_bounds.py` updated.
+- **Owner app**: `registerThisDevice` sends `app: 'owner'` (both call sites); notification list requests `audience=owner`. Tests updated.
+- **Customer app**: device registration sends `app: 'customer'`; notification list requests `audience=customer`.
+- **Config alias**: `CASHFREE_PAYOUT_SECERET_KEY` (typo) added to `cashfree_payout_client_secret` `AliasChoices` in `app/core/config.py`. Verified Settings loads from that env var name.
+- **QR web contact page** (`salon-QR-Walking-Web`): `lib/legal.ts` gains `BUSINESS_EMAIL = "salonesbank@gmail.com"`. `app/contact/page.tsx` adds "Payments and billing" list item. 16 legal-unit tests pass. Needed for Cashfree payout-activation review.
+
+### Next steps
+1. **User action** — commit and push QR web (`lib/legal.ts`, `app/contact/page.tsx`) and wait for Vercel deploy, then reply to Cashfree review with `https://www.salones.in/contact`.
+2. Run `bash scripts/check-ci.sh` from `backend/` (requires Docker).
+3. Stage and commit all backend changes by name (not `git add .`): notification files, config.py, booking-409 files, 0067/0068/0069 migration files, updated tests.
+4. Open PR `shifan` → `main`; tag `migration-reviewer` for 0068 and 0069 before merge.
+5. After PR merges → Codex deploys Cloud Run; verify `/health/ready` and `/version`.
+6. **User action** — Cashfree Payouts activation: complete 2FA (IP whitelist or RSA), fund Payouts balance, register webhook `https://api.salones.in/v1/webhooks/payouts/cashfree`.
+7. Set `ADMIN_REQUIRE_MFA=true` in production env if not already set.
+
+### Files touched (this session)
+- `backend/app/core/config.py` — CASHFREE payout secret alias
+- `backend/app/api/v1/routes/notifications.py`, `schemas/notification.py`
+- `backend/app/application/use_cases/notification_use_cases.py`
+- `backend/app/infrastructure/db/repositories/platform/notification_outbox.py`, `notifications_devices.py`, `booking_updates.py`
+- `backend/app/infrastructure/push/fcm_gateway.py`, `outbox_worker.py`
+- `backend/app/domain/notification_audience.py` (new)
+- `backend/migrations/sql/0069_notification_audience.sql` (new), `migrations/versions/0069_notification_audience.py` (new)
+- `backend/tests/unit/test_api_input_bounds.py`, `test_migration_policy.py`, `test_notification_use_cases.py`, `test_payment_flows.py`
+- `salon-QR-Walking-Web/lib/legal.ts`, `app/contact/page.tsx` (uncommitted in that repo)
+
+### Blockers
+- None on backend. Cashfree payout activation and QR web deploy are user-side actions.
+- Warn: `ANTHROPIC_API_KEY` is plaintext in `C:\Users\Lenovo\.claude\settings.json` (the OpenRouter key `sk-or-v1-…`). Recommend rotating it or moving to an env manager.
+
+---
+
+## Booking 409 fix for new customer accounts — 12 November 2026
+
+### Status
+**DONE — uncommitted, all tests passing. Ready to commit alongside 0067/0068/0069 work.**
+- Ruff: clean. Tests: 2458 passed / 552 skipped / 0 failed.
+
+### Root cause
+`get_authenticated_session` calls `set_actor_context(session, actor.id)` once, setting transaction-local (`true`) Postgres `request.jwt.claim.sub`. For `source=app` bookings, `assert_can_book` runs first and calls `rollback()` on the shared session for the customer role — this wipes all transaction-local `set_config` values. When `create_booking` SQL runs next, `auth.uid()` returns NULL, so `v_customer := auth.uid()` is NULL, violating `bookings_customer_or_walkin_check`. Owner accounts don't hit the rollback path, explaining why owner logins always succeed.
+
+### Fix
+Re-arm `set_actor_context` inside `create_booking` repo method, right before the booking SQL executes. Added at [booking_create.py:144-146](backend/app/infrastructure/db/repositories/platform/booking_create.py#L144).
+
+### Hardening also done
+- `_error_for_message` now matches `exc.orig` message only (not `str(exc)` which embeds SQL+params — customer note containing "slot" could spoof the slot rule).
+- Warning log before generic ConflictError fallback: logs SQLSTATE, Postgres message, actor_id, salon_id.
+- Three new error rules in `_CREATE_BOOKING_ERROR_RULES`: `Salon is closed on this date` → `SalonClosedError` (code `salon_closed`), `No valid services selected` → `ValidationError`, `Salon not found or inactive` → `NotFoundError`.
+- `SalonClosedError` added to `core/exceptions.py`.
+
+### Files touched
+- `backend/app/infrastructure/db/repositories/platform/booking_create.py`
+- `backend/app/infrastructure/db/repositories/platform/_sql.py`
+- `backend/app/core/exceptions.py`
+- `backend/tests/unit/test_booking_error_classification.py`
+
+### Next steps
+1. Commit alongside 0067/0068/0069 work when migrations are applied.
+2. After deploy: test with a fresh Google account to confirm booking succeeds.
+3. If customer app still shows "check your connection" for 409 (instead of the API `message`/`code`): write the customer-app prompt for proper 409 error handling (`slot_unavailable`, `salon_closed`, limit codes vs. real network failures).
+
+### Decisions
+- Fix is Python-only: re-arm in the repo, not by restructuring the route to avoid the rollback. Restructuring would require touching the guardian use case and all similar flows.
+- The same rollback-drops-actor pattern could affect other customer-only endpoints that run the age check; only booking creation was fixed here.
+
+---
+
 ## Break-times enforcement (migration 0067) — 12 November 2026
 
 ### Status

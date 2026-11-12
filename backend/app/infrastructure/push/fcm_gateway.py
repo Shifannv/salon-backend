@@ -92,7 +92,7 @@ class FCMGateway(PushGateway):
             logger.warning("Notification %s not found; skipping push fan-out", notification_id)
             return
 
-        tokens = await self._get_active_tokens(user_id, notification_id)
+        tokens = await self._get_active_tokens(user_id, notification_id, notification.get("audience"))
         if not tokens:
             return
 
@@ -105,7 +105,7 @@ class FCMGateway(PushGateway):
         result = await self.session.execute(
             text(
                 """
-                select id, user_id, booking_id, type, title, body, data
+                select id, user_id, booking_id, type, title, body, data, audience
                 from notifications
                 where id = :notification_id
                 """
@@ -116,15 +116,22 @@ class FCMGateway(PushGateway):
         return dict(row) if row else None
 
     async def _get_active_tokens(
-        self, user_id: str, notification_id: str
+        self, user_id: str, notification_id: str, audience: str | None
     ) -> list[tuple[str, str | None]]:
-        """Return active tokens without resending already delivered events."""
+        """Return active tokens without resending already delivered events.
+
+        When ``audience`` is set, only tokens registered for that app (or tokens
+        with no app set, for backward compatibility) are returned.  Tokens for
+        the other app are skipped so a customer notification is never pushed to
+        the Owner App and vice-versa.
+        """
 
         result = await self.session.execute(
             text(
                 """
                 select active.token, active.platform
                 from get_active_tokens(:user_id) active
+                join device_tokens dt on dt.token = active.token
                 where not exists (
                   select 1 from notification_deliveries delivery
                   join device_tokens device on device.id = delivery.device_token_id
@@ -132,9 +139,10 @@ class FCMGateway(PushGateway):
                     and device.token = active.token
                     and delivery.delivered
                 )
+                and (cast(:audience as varchar) is null or dt.app is null or dt.app = :audience)
                 """
             ),
-            {"user_id": user_id, "notification_id": notification_id},
+            {"user_id": user_id, "notification_id": notification_id, "audience": audience},
         )
         return [(row.token, row.platform) for row in result]
 

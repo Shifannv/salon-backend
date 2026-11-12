@@ -201,6 +201,7 @@ class BookingUpdatesMixin:
                         "The salon cancelled your appointment: "
                         f"{cancellation_reason or 'Please contact the salon for details.'}"
                     ),
+                    audience="customer",
                 )
             )
         booking = await self.get_booking(booking_id, actor_id)
@@ -291,6 +292,7 @@ class BookingUpdatesMixin:
             notification_type="booking_cancelled",
             title="Booking cancelled",
             body=f"{row['customer_name']} cancelled their appointment.",
+            audience="owner",
         )
         booking = await self.get_booking(booking_id, actor_id)
         if booking is None:
