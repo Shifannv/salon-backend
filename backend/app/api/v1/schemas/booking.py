@@ -113,6 +113,16 @@ class BookingLineResponse(BaseModel):
 _CANCELLABLE_STATUSES = frozenset({"pending", "confirmed"})
 
 
+class NoShowWarningResponse(BaseModel):
+    """The open "customer has not arrived" warning on a booking."""
+
+    grace_minutes: int
+    warned_at: datetime
+    deadline_at: datetime
+    customer_response: Literal["on_the_way", "not_coming"] | None = None
+    response_reason_text: str | None = None
+
+
 class BookingResponse(BaseModel):
     """Booking response."""
 
@@ -173,6 +183,7 @@ class BookingResponse(BaseModel):
     latest_cancellation_request_status: str | None = None
     latest_cancellation_request_decision: str | None = None
     latest_cancellation_request_reason: str | None = None
+    no_show_warning: NoShowWarningResponse | None = None
     can_cancel: bool = False
     can_request_cancellation: bool = False
     can_confirm_payment: bool = False
@@ -325,6 +336,26 @@ class NoShowBookingRequest(BaseModel):
     """Explicit salon attendance decision; the server enforces the grace period."""
 
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class NoShowWarningRequest(BaseModel):
+    """How long the salon will wait before the booking is marked a no-show."""
+
+    grace_minutes: Literal[5, 10, 15]
+
+
+class NoShowWarningReplyRequest(BaseModel):
+    """The customer's answer to an arrival warning."""
+
+    response: Literal["on_the_way", "not_coming"]
+    reason_code: CustomerCancellationReasonCode | None = None
+    reason_text: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _reason_only_when_not_coming(self) -> "NoShowWarningReplyRequest":
+        if self.response == "on_the_way" and (self.reason_code or self.reason_text):
+            raise ValueError("A reason is only accepted when the customer is not coming")
+        return self
 
 
 class PaymentRequest(BaseModel):

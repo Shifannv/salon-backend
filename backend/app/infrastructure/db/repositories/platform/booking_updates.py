@@ -85,7 +85,10 @@ class BookingUpdatesMixin:
             text(
                 f"""
                 select id, status, customer_id, customer_name, payment_status, payment_preference, checkout_policy_version,
-                       start_datetime, now() as database_now from bookings
+                       start_datetime, now() as database_now,
+                       (select w.deadline_at from booking_no_show_warnings w
+                         where w.booking_id = bookings.id and w.resolved_at is null) as warning_deadline
+                from bookings
                 where id = :booking_id and ({predicate})
                 for update
                 """
@@ -110,7 +113,8 @@ class BookingUpdatesMixin:
                 raise ConflictError("A checked-in customer cannot be marked as a no-show")
             try:
                 cancellation_reason = validate_no_show(
-                    current["start_datetime"], current["database_now"], cancellation_reason
+                    current["start_datetime"], current["database_now"], cancellation_reason,
+                    current.get("warning_deadline"),
                 )
             except ValueError as error:
                 message = (
@@ -146,6 +150,18 @@ class BookingUpdatesMixin:
                 "cancellation_reason": cancellation_reason,
             },
         )
+        if status in {"checked_in", "rejected", "cancelled", "completed", "no_show"}:
+            resolution = (
+                "arrived" if status == "checked_in" else "no_show" if status == "no_show"
+                else "customer_cancelled" if status == "cancelled" and customer_only else "withdrawn"
+            )
+            await self.session.execute(
+                text(
+                    "update booking_no_show_warnings set resolved_at = now(), resolution = :resolution "
+                    "where booking_id = :booking_id and resolved_at is null"
+                ),
+                {"booking_id": booking_id, "resolution": resolution},
+            )
         if status == "completed":
             # What each service earned its staff member, written in this same transaction (S1a).
             await record_staff_earnings(self.session, booking_id)

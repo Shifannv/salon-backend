@@ -279,6 +279,49 @@ class BookingUseCases:
         self._schedule_booking_outbox(booking, background_tasks)
         return booking
 
+    async def warn_no_show(
+        self, actor: Profile, booking_id: str, grace_minutes: int, *, idempotency_key: str | None,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
+        """Warn a late customer that the booking will be cancelled when the wait runs out."""
+
+        await assert_approved_workspace(self.repository, actor)
+        booking = await self.repository.create_no_show_warning(
+            actor.id, booking_id, grace_minutes, idempotency_key
+        )
+        if not booking.pop("_idempotency_replay", False):
+            self._schedule_booking_outbox(booking, background_tasks)
+        return booking
+
+    async def withdraw_no_show_warning(
+        self, actor: Profile, booking_id: str, background_tasks: BackgroundTasks | None = None
+    ) -> dict[str, Any]:
+        await assert_approved_workspace(self.repository, actor)
+        booking = await self.repository.withdraw_no_show_warning(actor.id, booking_id)
+        self._schedule_booking_outbox(booking, background_tasks)
+        return booking
+
+    async def reply_to_no_show_warning(
+        self, actor: Profile, booking_id: str, response: str, *,
+        reason_code: str | None = None, reason_text: str | None = None,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
+        """Record "on my way", or cancel the booking when the customer cannot come."""
+
+        if actor.role not in {Role.customer, Role.owner}:
+            raise ForbiddenError("Customer booking access required")
+        cancellation_reason = None
+        if response == "not_coming":
+            label = _CUSTOMER_REASON_LABELS.get(
+                reason_code, reason_code.replace("_", " ").capitalize() if reason_code else None
+            )
+            cancellation_reason = compose_cancellation_reason(label, reason_code, reason_text) or "Customer is not coming"
+        booking = await self.repository.respond_to_no_show_warning(
+            actor.id, booking_id, response, cancellation_reason, reason_code, reason_text
+        )
+        self._schedule_booking_outbox(booking, background_tasks)
+        return booking
+
     async def cancellation_quote(self, actor: Profile, booking_id: str) -> dict[str, Any]:
         from decimal import Decimal
 

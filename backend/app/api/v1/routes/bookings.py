@@ -35,6 +35,8 @@ from app.api.v1.schemas.platform import (
     CancelBookingRequest,
     DelayBookingRequest,
     NoShowBookingRequest,
+    NoShowWarningReplyRequest,
+    NoShowWarningRequest,
     PaymentRequest,
     RejectBookingRequest,
 )
@@ -130,6 +132,35 @@ async def no_show(booking_id: UUID, payload: NoShowBookingRequest, background_ta
     return BookingResponse(**await _use_cases(session).mark_attendance(
         actor, str(booking_id), no_show=True, idempotency_key=key,
         reason=payload.reason, background_tasks=background_tasks,
+    ))
+
+
+@router.post("/bookings/{booking_id}/no-show-warning", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def warn_no_show(booking_id: UUID, payload: NoShowWarningRequest, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).warn_no_show(
+        actor, str(booking_id), payload.grace_minutes, idempotency_key=key, background_tasks=background_tasks,
+    ))
+
+
+@router.delete("/bookings/{booking_id}/no-show-warning", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def withdraw_no_show_warning(booking_id: UUID, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).withdraw_no_show_warning(
+        actor, str(booking_id), background_tasks,
+    ))
+
+
+@router.post("/bookings/{booking_id}/no-show-warning/response", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def reply_to_no_show_warning(booking_id: UUID, payload: NoShowWarningReplyRequest, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).reply_to_no_show_warning(
+        actor, str(booking_id), payload.response, reason_code=payload.reason_code,
+        reason_text=payload.reason_text, background_tasks=background_tasks,
     ))
 
 

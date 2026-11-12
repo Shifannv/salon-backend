@@ -96,6 +96,10 @@ class BookingQueriesMixin:
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
+                  (select jsonb_build_object('grace_minutes', w.grace_minutes, 'warned_at', w.warned_at,
+                      'deadline_at', w.deadline_at, 'customer_response', w.customer_response,
+                      'response_reason_text', w.response_reason_text)
+                    from booking_no_show_warnings w where w.booking_id = b.id and w.resolved_at is null) as no_show_warning,
                   b.created_at, b.updated_at,
                   (to_jsonb(b)->>'owner_archived_at' is not null and b.customer_id is distinct from :actor_id) as is_archived,
                   s.name  as salon_name,
@@ -204,6 +208,10 @@ class BookingQueriesMixin:
                   b.payment_status, b.payment_method, b.payment_preference,
                   b.currency, b.deposit_amount, b.paid_amount, b.refunded_amount,
                   b.rejection_reason, b.cancellation_reason, b.notes,
+                  (select jsonb_build_object('grace_minutes', w.grace_minutes, 'warned_at', w.warned_at,
+                      'deadline_at', w.deadline_at, 'customer_response', w.customer_response,
+                      'response_reason_text', w.response_reason_text)
+                    from booking_no_show_warnings w where w.booking_id = b.id and w.resolved_at is null) as no_show_warning,
                   b.created_at, b.updated_at,
                   (to_jsonb(b)->>'owner_archived_at' is not null and b.customer_id is distinct from :actor_id) as is_archived,
                   s.name   as salon_name,
