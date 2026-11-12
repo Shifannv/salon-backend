@@ -120,7 +120,7 @@ class WalkinMixin:
         result = await self.session.execute(
             text(
                 """
-                select st.id, st.name, st.photo_url, st.specialization,
+                select st.id, st.name, st.photo_url, st.specialization, st.working_hours,
                        array(select cast(ss.service_id as text)
                              from staff_services ss join services sv on sv.id = ss.service_id
                              where ss.staff_id = st.id and ss.is_active and sv.is_active

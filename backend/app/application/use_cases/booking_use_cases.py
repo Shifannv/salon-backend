@@ -80,10 +80,12 @@ class BookingUseCases:
 
     async def availability(
         self, staff_id: str, booking_date: date, service_ids: list[str]
-    ) -> list[dict[str, Any]]:
-        """Return available slots from the database function."""
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Return bookable slots from the database function plus that day's break windows."""
 
-        return await self.repository.get_available_slots(staff_id, booking_date, service_ids)
+        slots = await self.repository.get_available_slots(staff_id, booking_date, service_ids)
+        breaks = await self.repository.get_break_windows(staff_id, booking_date)
+        return {"slots": slots, "breaks": breaks}
 
     async def visit_availability(self, salon_id: str, booking_date: date, segments: list[dict]) -> list[dict]:
         return await self.repository.get_visit_slots(salon_id, booking_date, segments)

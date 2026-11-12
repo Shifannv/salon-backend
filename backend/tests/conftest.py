@@ -128,6 +128,7 @@ def make_mock_repo() -> MagicMock:
         "create_blocked_slot",
         "delete_blocked_slot",
         "get_available_slots",
+        "get_break_windows",
         "create_booking",
         "list_bookings",
         "get_booking",

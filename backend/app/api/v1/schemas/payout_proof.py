@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.v1.schemas.wallet import AdminPayoutAccount, WalletEntryResponse
 
@@ -18,8 +18,10 @@ class PayoutPaymentResponse(BaseModel):
     amount_paid_paise: int
     adjustment_reason: str | None
     note: str | None
-    proof_mime: str
-    proof_size: int
+    #: Absent for a payout the provider sent: the transfer record is the evidence.
+    proof_mime: str | None = None
+    proof_size: int | None = None
+    source: Literal["manual", "transfer"] = "manual"
 
 
 class PayoutCorrectionResponse(BaseModel):
@@ -31,7 +33,10 @@ class PayoutCorrectionResponse(BaseModel):
 
 
 class PayoutTimelineItem(BaseModel):
-    action: Literal["reveal", "pay", "decline", "correct", "view_proof"]
+    action: Literal[
+        "reveal", "pay", "decline", "correct", "view_proof",
+        "send_transfer", "transfer_success", "transfer_failed", "transfer_reversed", "transfer_conflict",
+    ]
     created_at: datetime
     actor_name: str | None
 
@@ -46,6 +51,20 @@ class BalanceAtRequest(BaseModel):
     available_paise: int
 
 
+class PayoutTransferResponse(BaseModel):
+    """One provider transfer for a payout. ``pending`` money may already be on its way."""
+
+    transfer_id: str
+    mode: Literal["upi", "imps"]
+    amount_paise: int
+    status: Literal["pending", "success", "failed", "reversed"]
+    provider_status: str | None
+    utr: str | None
+    failure_reason: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class PayoutDetailResponse(WalletEntryResponse):
     salon_id: str
     salon_name: str | None
@@ -54,6 +73,8 @@ class PayoutDetailResponse(WalletEntryResponse):
     payout_account: AdminPayoutAccount
     balance_at_request: BalanceAtRequest | None
     payment: PayoutPaymentResponse | None
+    transfer: PayoutTransferResponse | None = None
+    transfers: list[PayoutTransferResponse] = Field(default_factory=list)
     corrections: list[PayoutCorrectionResponse]
     timeline: list[PayoutTimelineItem]
 

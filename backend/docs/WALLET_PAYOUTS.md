@@ -78,3 +78,61 @@ A payout can only become `paid` with a recorded payment and a proof file. The da
 - Payout requests keep a `balance_snapshot` taken when the owner asked, so the commission shown later is the one that applied then.
 - Not built: a second admin approving large payouts (single admin today).
 - Deploy order: apply 0057 before the code that reads it (the owner wallet history joins `salon_payout_payments`).
+
+## Automatic payout through Cashfree Payouts (migration 0068, prepared, not applied)
+The super admin chooses per request: pay by hand (above) or send the transfer through Cashfree. Both end in the
+same `paid` state, and the owner's balance drops the same way (a request that is `requested` or `paid` is held).
+Off unless `PAYOUT_PROVIDER=cashfree` with the Payouts keys; without it the routes answer `payout_provider_unavailable`
+and the admin pays by hand. Cashfree Payouts is a separate product from the Payment Gateway, with its own keys.
+
+| Route (super admin + MFA) | Purpose |
+|---|---|
+| `POST /v1/admin/wallet/payout-requests/{id}/send-transfer` | 202. Registers the account at Cashfree, records a `pending` transfer, then asks Cashfree to send it. Returns the payout detail with a `transfer` block |
+| `POST /v1/admin/wallet/payout-requests/{id}/transfer/refresh` | Asks Cashfree where the transfer stands and applies the answer (the same code the webhook runs). Safe to repeat |
+| `POST /v1/webhooks/payouts/cashfree` | Cashfree's signed event (`TRANSFER_SUCCESS`, `_FAILED`, `_REJECTED`, `_REVERSED`, `_ACKNOWLEDGED`). Bad signature: 400, nothing stored |
+
+Env (`backend/.env`, never in Git): `PAYOUT_PROVIDER=cashfree`, `CASHFREE_PAYOUT_CLIENT_ID`,
+`CASHFREE_PAYOUT_CLIENT_SECRET`, `CASHFREE_PAYOUT_ENV` (`sandbox` or `production`; production also needs
+`PAYMENT_ALLOW_LIVE=true`), `CASHFREE_PAYOUT_API_VERSION` (default `2024-01-01`).
+
+How it keeps the money safe (enforced by the database where it can be):
+- **One live transfer per request.** A partial unique index allows only one `pending` or `success` transfer per request.
+- **Nothing else can move a request while a transfer is live.** The owner cannot cancel it, the admin cannot decline it
+  or mark it paid by hand (`transfer_in_progress`); a database trigger refuses it too. The owner's wallet entry shows
+  `processing: true` and `can_cancel: false`.
+- **The pending row is committed before Cashfree is called.** A crash leaves a row to look up, never an unrecorded transfer.
+- **A timeout or 5xx is never "failed".** The transfer is looked up by its id. The id is ours (`po_<request>_<attempt>`) and
+  idempotent at Cashfree, so the only retry ever made is the same id again (Refresh does it when Cashfree has no record).
+- **Paid only on success.** The request becomes `paid` when Cashfree reports `SUCCESS`; the payment row has
+  `source = 'transfer'`, the UTR as its reference and no proof file (the transfer record is the evidence). A `FAILED` or
+  `REJECTED` transfer leaves the request waiting: send again, pay by hand, or decline.
+- **The provider is the source of truth.** A transfer we recorded as failed that the provider later reports as
+  successful still pays the request (and a success for a request already handled is audited as
+  `transfer_conflict` for the admin to review, never paid twice). Before any new attempt the previous failed one is
+  looked up once more, so one payout is never sent twice.
+- **A bank reversal after success** is recorded (`reversed`, audited, logged as an error). The wallet is not changed on its
+  own; the admin reviews it and adds a correction.
+- **A provider refusal is not proof of failure.** A transfer is recorded `failed` only when the provider reports a failed
+  status, or after a refusal when a lookup confirms the provider holds no such transfer. If the lookup cannot be made the
+  transfer stays `pending`. Before a new attempt, every earlier failed attempt is looked up again.
+- **An account changed after the request is never paid automatically** (`payout_transfer_invalid`): check the new details and
+  pay by hand, or ask the owner to request again.
+- **Fail-closed config:** outside `local` and `test`, `PAYOUT_PROVIDER` is refused unless `ADMIN_REQUIRE_MFA=true` and
+  `PAYOUT_ENCRYPTION_KEY` are set.
+- Known gaps (not built): pay-by-hand, decline and cancel after a transfer recorded as `failed` do not re-ask the provider;
+  a success for an already-handled request is audited (`transfer_conflict`) and logged but has no alert; `erase_salon` does not
+  wait for a pending transfer and the provider keeps the beneficiary after erasure.
+- The transfer insert takes `FOR SHARE` on the request, so a cancel or decline in another transaction either finishes
+  first (the transfer is refused) or waits for the transfer (the cancel is refused). Both orders are tested with two
+  real connections.
+- The account number goes to the provider only to register the beneficiary; the beneficiary id stored here is keyed with
+  `PAYOUT_ENCRYPTION_KEY`, so it cannot be used to guess an account number.
+- Known gap: if the push telling the owner "Payout sent" fails after the commit it is not retried (the wallet history
+  still shows the payout as paid).
+- The transfer amount must equal the request amount (trigger). Mode: UPI when the salon saved a UPI id and the amount is
+  at most ₹1,00,000, otherwise IMPS to the saved bank account (at most ₹5,00,000).
+
+Go-live prerequisites (not done by code): production Payouts keys; Payouts **2FA** (Cloud Run egress IPs are dynamic, so
+IP allow-listing will not work: use Cashfree's public-key signature or a static NAT IP); **fund the Payouts balance**
+(Payment Gateway collections do not top it up); register `https://api.salones.in/v1/webhooks/payouts/cashfree` in the
+Payouts dashboard; add `PAYOUT_ENCRYPTION_KEY` already used for accounts (the transfer decrypts the account number).

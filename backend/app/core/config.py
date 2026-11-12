@@ -234,6 +234,14 @@ class Settings(BaseSettings):
     # Authenticity is the HMAC; replays are stopped by per-provider event-id dedupe. Cashfree retries
     # for a long time and may reuse the original timestamp, so a tight window would drop real retries.
     cashfree_webhook_tolerance_seconds: int = Field(default=86400, ge=60, le=86400)
+    # Automatic payout to a salon's bank or UPI: PAYOUT_PROVIDER=cashfree turns it on (needs the Payouts keys
+    # below, a separate Cashfree product from the Payment Gateway). Independent of PAYMENT_PROVIDER. With
+    # 'none' the super admin still pays payouts by hand (reference + proof).
+    payout_provider: str = Field(default="none", validation_alias=AliasChoices("PAYOUT_PROVIDER", "payout_provider"))
+    cashfree_payout_client_id: str | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_PAYOUT_CLIENT_ID", "CASHFREE_PAYOUTS_CLIENT_ID", "CASHFREE_PAYOUT_APP_ID", "CASHFREE_PAYOUTS_APP_ID", "cashfree_payout_client_id"))
+    cashfree_payout_client_secret: SecretStr | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_PAYOUT_CLIENT_SECRET", "CASHFREE_PAYOUTS_CLIENT_SECRET", "CASHFREE_PAYOUT_SECRET_KEY", "CASHFREE_PAYOUTS_SECRET_KEY", "CASHFREE_PAYOUT_SECRET", "CASHFREE_PAYOUTS_SECRET", "CASHFREE_PAYOUT_API_SECRET", "cashfree_payout_client_secret"))
+    cashfree_payout_environment: Literal["sandbox", "production"] = Field(default="sandbox", validation_alias=AliasChoices("CASHFREE_PAYOUT_ENV", "CASHFREE_PAYOUTS_ENV", "cashfree_payout_environment"))
+    cashfree_payout_api_version: str = Field(default="2024-01-01", min_length=8, max_length=20)
     # Outbound provider calls: seconds before a call is treated as an unknown outcome.
     payment_provider_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
     # Worker pass that would release unpaid bookings after payment failure/expiry. NOT built:
@@ -486,6 +494,39 @@ class Settings(BaseSettings):
             and self.environment in {"local", "test"}
             and not self.payment_allow_live and not self.cashfree_enabled
         )
+
+    @model_validator(mode="after")
+    def validate_cashfree_payout_settings(self) -> "Settings":
+        """Fail closed on a half-configured or live-by-accident Cashfree Payouts setup."""
+
+        self.payout_provider = (self.payout_provider or "none").strip().lower()
+        if self.payout_provider == "none":
+            return self
+        if self.payout_provider != "cashfree":
+            return self  # another adapter validates its own keys; an unknown name fails when it is loaded
+        secret = self.cashfree_payout_client_secret
+        missing = [
+            name
+            for name, value in {
+                "CASHFREE_PAYOUT_CLIENT_ID": self.cashfree_payout_client_id,
+                "CASHFREE_PAYOUT_CLIENT_SECRET": secret.get_secret_value() if secret else None,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ValueError("PAYOUT_PROVIDER=cashfree is missing: " + ", ".join(missing))
+        if self.environment not in {"local", "test"}:
+            # Moving money needs the second factor and the account encryption: never optional.
+            if not self.admin_require_mfa:
+                raise ValueError("PAYOUT_PROVIDER requires ADMIN_REQUIRE_MFA=true outside local and test")
+            if not (self.payout_encryption_key and self.payout_encryption_key.get_secret_value()):
+                raise ValueError("PAYOUT_PROVIDER requires PAYOUT_ENCRYPTION_KEY outside local and test")
+        if self.cashfree_payout_environment == "production" and not self.payment_allow_live:
+            raise ValueError(
+                "CASHFREE_PAYOUT_ENV=production requires PAYMENT_ALLOW_LIVE=true "
+                "(live payouts are an explicit, reviewed decision)"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_subscription_settings(self) -> "Settings":

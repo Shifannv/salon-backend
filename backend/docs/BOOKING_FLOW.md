@@ -75,8 +75,10 @@ booking `unpaid` with `payment_state: partially_paid`. Cash plus an online captu
 would exceed the total is refused (`payment_overcollection`). `can_record_payment` is now
 enforced in `BookingUseCases.record_payment` (owner/staff only; super admins no longer pass).
 
-BUILT: ledger, manual receipt, derived columns. DORMANT: online intents, confirm, refund,
-webhooks (no provider configured). NOT BUILT: auto-cancelling an unpaid-deposit booking.
+BUILT & ACTIVE: Cashfree standard PG online intents (`POST /bookings/{id}/payments/intent`),
+server-side refresh (`POST /bookings/{id}/payments/refresh`), HMAC-SHA256 webhooks
+(`POST /webhooks/cashfree`), ledger, manual receipts, derived columns.
+NOT BUILT: auto-cancelling an unpaid-deposit booking.
 
 
 Prepared locally: category-based staff menus, bulk services and consecutive multi-staff visits

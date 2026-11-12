@@ -25,6 +25,7 @@ from app.core.exceptions import (
     PayoutPaymentInvalidError,
     PayoutProofInvalidError,
     PayoutReferenceUsedError,
+    PayoutTransferInProgressError,
     ValidationError,
 )
 from app.domain.entities.profile import Profile
@@ -104,6 +105,20 @@ def _entry(row: dict[str, Any], payment: dict[str, Any] | None) -> dict[str, Any
     }
 
 
+def _transfer_view(row: dict[str, Any]) -> dict[str, Any]:
+    """One transfer as the admin sees it. Never the account."""
+
+    return {
+        "transfer_id": row["transfer_id"], "mode": row["mode"], "amount_paise": int(row["amount_paise"]),
+        "status": row["status"], "provider_status": row["provider_status"], "utr": row["utr"],
+        "failure_reason": row["failure_reason"], "created_at": row["created_at"], "updated_at": row["updated_at"],
+    }
+
+
+def _latest_transfer(transfers: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return _transfer_view(transfers[-1]) if transfers else None
+
+
 class PayoutProofUseCases:
     def __init__(
         self, repository: Any, *, notices: PayoutNotices | None = None, clock: Callable[[], datetime] | None = None
@@ -150,6 +165,10 @@ class PayoutProofUseCases:
             raise PayoutAlreadyProcessedError("This payout request has already been handled")
         if row["status"] != "requested":
             raise PayoutAlreadyProcessedError("This payout request has already been handled")
+        if await self.repository.live_transfer(request_id) is not None:
+            raise PayoutTransferInProgressError(
+                "A payout transfer is already on its way for this payout; refresh its status instead"
+            )
 
         try:
             when = check_paid_at(paid_at, requested_at=row["created_at"], now=self._clock())
@@ -192,8 +211,11 @@ class PayoutProofUseCases:
         if row is None:
             raise NotFoundError("Payout request not found")
         payment = await self.repository.payment(request_id)
+        transfers = await self.repository.transfers(request_id)
+        live = any(t["status"] in ("pending", "success") for t in transfers)
         return {
             **_entry(row, payment),
+            "processing": row["status"] == "requested" and live,
             "salon_id": row["salon_id"],
             "salon_name": row["salon_name"],
             "owner_name": row["owner_name"],
@@ -210,8 +232,12 @@ class PayoutProofUseCases:
                 "reference": payment["reference"], "method": payment["method"],
                 "paid_at": payment["paid_at"], "amount_paid_paise": int(payment["amount_paid_paise"]),
                 "adjustment_reason": payment["adjustment_reason"], "note": payment["note"],
-                "proof_mime": payment["proof_mime"], "proof_size": int(payment["proof_size"]),
+                "proof_mime": payment["proof_mime"],
+                "proof_size": int(payment["proof_size"]) if payment["proof_size"] is not None else None,
+                "source": payment["source"],
             },
+            "transfer": _latest_transfer(transfers),
+            "transfers": [_transfer_view(t) for t in transfers],
             "corrections": [
                 {**c, "delta_paise": int(c["delta_paise"])} for c in await self.repository.corrections(request_id)
             ],

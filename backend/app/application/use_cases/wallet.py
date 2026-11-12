@@ -27,6 +27,7 @@ from app.core.exceptions import (
     PayoutBelowMinimumError,
     PayoutDayInvalidError,
     PayoutNotCancellableError,
+    PayoutTransferInProgressError,
     SalonApprovalRequiredError,
     ValidationError,
 )
@@ -66,7 +67,8 @@ def _payout_entry(row: dict[str, Any]) -> dict[str, Any]:
         "reference": row["reference"],
         "reject_reason": row["reject_reason"],
         "scheduled_for": row["scheduled_for"],
-        "can_cancel": can_cancel(row["status"]),
+        "can_cancel": can_cancel(row["status"]) and not row.get("processing"),
+        "processing": bool(row.get("processing")),
         "created_at": row["created_at"],
         "paid_at": row.get("paid_at"),
         "method": row.get("method"),
@@ -148,6 +150,7 @@ class WalletUseCases:
                 "amount_paise": int(row["amount_paise"]), "status": row["status"],
                 "reference": row["reference"], "reject_reason": row["reject_reason"],
                 "scheduled_for": row["scheduled_for"], "can_cancel": bool(row["can_cancel"]),
+                "processing": bool(row.get("processing")),
                 "created_at": row["happened_at"], "paid_at": row.get("paid_at"), "method": row.get("method"),
             }
             for row in rows
@@ -207,6 +210,8 @@ class WalletUseCases:
             return _payout_entry(row)  # a retry of a cancel that already worked
         if not can_cancel(row["status"]):
             raise PayoutNotCancellableError("This payout is already being handled and can no longer be cancelled")
+        if await self.repository.live_transfer(request_id) is not None:
+            raise PayoutTransferInProgressError("This payout is already on its way and can no longer be cancelled")
         done = await self.repository.cancel_request(request_id)
         await self.repository.commit()
         return _payout_entry(done)
@@ -298,6 +303,8 @@ class WalletAdminUseCases:
             return _payout_entry(row)
         if row["status"] != "requested":
             raise PayoutAlreadyProcessedError("This payout request has already been handled")
+        if await self.repository.live_transfer(request_id) is not None:
+            raise PayoutTransferInProgressError("A transfer for this payout is already on its way")
         done = await self.repository.finish_request(
             request_id, status="rejected", admin_id=str(actor.id), reference=None, reject_reason=why
         )

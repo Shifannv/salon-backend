@@ -15,6 +15,8 @@ from app.api.deps import (
 )
 from app.api.v1.routes.age import guardian_use_cases
 from app.api.v1.schemas.booking import (
+    AvailabilityBreakWindow,
+    AvailabilityEnvelope,
     CancellationQuoteResponse,
     VisitAvailabilityRequest,
     VisitAvailabilityResponse,
@@ -139,12 +141,13 @@ def _use_cases(session: AsyncSession) -> BookingUseCases:
 
 @router.get(
     "/availability",
-    response_model=list[AvailabilityResponse],
+    response_model=AvailabilityEnvelope,
     status_code=status.HTTP_200_OK,
     summary="Get available booking slots",
     description=(
         "Delegates to the `get_available_slots` Postgres function. Returns slots only "
-        "from the salon's local today through 30 days ahead. Never cached. Public — no auth required."
+        "from the salon's local today through 30 days ahead, plus that day's salon and "
+        "staff break windows. Never cached. Public — no auth required."
     ),
 )
 async def availability(
@@ -152,13 +155,16 @@ async def availability(
     booking_date: date = Query(alias="date"),
     service_ids: list[UUID] = Query(min_length=1),
     session: AsyncSession = Depends(get_session),
-) -> list[AvailabilityResponse]:
+) -> AvailabilityEnvelope:
     """Return availability from the database slot function — public, no auth required."""
 
-    rows = await _use_cases(session).availability(
+    result = await _use_cases(session).availability(
         str(staff_id), booking_date, [str(s) for s in service_ids]
     )
-    return [AvailabilityResponse(**row) for row in rows]
+    return AvailabilityEnvelope(
+        slots=[AvailabilityResponse(**row) for row in result["slots"]],
+        breaks=[AvailabilityBreakWindow(**row) for row in result["breaks"]],
+    )
 
 
 @router.post(

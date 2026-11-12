@@ -14,6 +14,7 @@ Visibility is unchanged:
 | --- | --- |
 | Owner | UPI ID, IFSC, bank name, holder name, account number as last four digits |
 | Super admin, paying a request | The full account number (decrypted for that one reveal, which is audited) |
+| The backend, sending a payout through Cashfree | The full account number, decrypted in memory for one `send-via-cashfree` call and sent to Cashfree to register the account. Never stored, logged or returned. See `WALLET_PAYOUTS.md` |
 | Anyone else | Nothing; the table has no browser-facing grants |
 
 UPI ID, IFSC and bank name are stored as before; they are not enough to move money.
@@ -22,6 +23,8 @@ UPI ID, IFSC and bank name are stored as before; they are not enough to move mon
 
 * New column `bank_account_last4`, written by the API with every number. Masking, the history
   trigger and the owner and admin screens use it, so none of them ever decrypt.
+* The only decryption sites are `reveal-account` and `send-via-cashfree`, both super admin + MFA and both through
+  `WalletRepository.payout_account_for_request`. Keep it that way: a new reader of the full number is a security review.
 * `bank_account_number` holds `enc:v1:<token>`. The token also carries the salon id, so a
   ciphertext copied onto another row will not open.
 * Rows written before this change stay plain digits and keep working until converted.

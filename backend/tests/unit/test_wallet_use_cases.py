@@ -19,6 +19,7 @@ from app.core.exceptions import (
     PayoutBelowMinimumError,
     PayoutDayInvalidError,
     PayoutNotCancellableError,
+    PayoutTransferInProgressError,
     SalonApprovalRequiredError,
     ValidationError,
 )
@@ -46,6 +47,7 @@ class FakeWallet:
         self.locks = 0
         self.minimum: int | None = None  # None: the admin has not set one
         self.account_changed = False
+        self.live: dict[str, Any] | None = None  # a pending or successful Cashfree transfer
 
     async def commit(self) -> None:
         self.commits += 1
@@ -106,6 +108,9 @@ class FakeWallet:
 
     async def min_payout_paise(self):
         return self.minimum
+
+    async def live_transfer(self, request_id: str):
+        return self.live
 
     async def payout_account_for_request(self, request_id: str):
         if request_id not in self.requests or not self.account:
@@ -281,6 +286,14 @@ class TestCancel:
         settle(repo, made["id"], "UTR9")
         with pytest.raises(PayoutNotCancellableError):
             await uc(repo).cancel_payout(owner(), made["id"])
+
+    async def test_a_payout_already_on_its_way_through_cashfree_cannot_be_cancelled(self):
+        repo = FakeWallet()
+        made = await ask(repo)
+        repo.live = {"id": "t1", "transfer_id": "po_1", "status": "pending"}
+        with pytest.raises(PayoutTransferInProgressError):
+            await uc(repo).cancel_payout(owner(), made["id"])
+        assert repo.requests[made["id"]]["status"] == "requested"
 
     async def test_another_salons_request_is_not_found(self):
         repo = FakeWallet()

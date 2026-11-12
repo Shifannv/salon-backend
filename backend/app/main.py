@@ -22,7 +22,8 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.telemetry import TimingMiddleware, init_sentry
 from app.infrastructure.media.admission import UploadAdmissionMiddleware
 
-load_dotenv()
+if os.environ.get("ENVIRONMENT") != "test":
+    load_dotenv()
 
 
 def _prefetch_env_file() -> None:
