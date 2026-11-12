@@ -3,8 +3,9 @@
 ## Notification audience routing + Cashfree payout activation — 12 November 2026
 
 ### Status
-**DONE — uncommitted backend, uncommitted QR web. Ruff clean. 2458 passed / 552 skipped / 0 failed.**
+**DONE — uncommitted backend, uncommitted QR web. Ruff clean. 2442 unit tests pass. Full check-ci.sh in progress (all preflight checks passed; pytest suite still running).**
 All backend changes are ready to commit in one pass: 0067 (break times), 0068 (auto payouts), 0069 (notification audience), audience routing, booking-409 fix, and config alias.
+Integration test _build updated: 0069 ADD COLUMN statements applied after the portable CI revision so the audience column is present in all fixture databases.
 
 ### What was done
 - **Migration 0069** (`notification_audience`): adds `audience varchar(32)` to `notifications` and `app varchar(32)` to `device_tokens`; both applied to production Supabase DB via `execute_sql`. Partial index on `(user_id, audience)` applied. Alembic stub chains from 0068. Files: `migrations/sql/0069_notification_audience.sql`, `migrations/versions/0069_notification_audience.py`, `domain/notification_audience.py`.
@@ -15,13 +16,14 @@ All backend changes are ready to commit in one pass: 0067 (break times), 0068 (a
 - **QR web contact page** (`salon-QR-Walking-Web`): `lib/legal.ts` gains `BUSINESS_EMAIL = "salonesbank@gmail.com"`. `app/contact/page.tsx` adds "Payments and billing" list item. 16 legal-unit tests pass. Needed for Cashfree payout-activation review.
 
 ### Next steps
-1. **User action** — commit and push QR web (`lib/legal.ts`, `app/contact/page.tsx`) and wait for Vercel deploy, then reply to Cashfree review with `https://www.salones.in/contact`.
-2. Run `bash scripts/check-ci.sh` from `backend/` (requires Docker).
-3. Stage and commit all backend changes by name (not `git add .`): notification files, config.py, booking-409 files, 0067/0068/0069 migration files, updated tests.
+1. **Wait for check-ci.sh result** — script is running; confirm full pytest pass (or fix failures).
+2. **User action** — commit and push QR web (`lib/legal.ts`, `app/contact/page.tsx`) and wait for Vercel deploy, then reply to Cashfree review with `https://www.salones.in/contact`.
+3. Stage and commit all backend changes by name (not `git add .`): notification files, config.py, booking-409 files, 0067/0068/0069 migration files, updated tests (including `test_payment_ledger_sql.py`).
 4. Open PR `shifan` → `main`; tag `migration-reviewer` for 0068 and 0069 before merge.
 5. After PR merges → Codex deploys Cloud Run; verify `/health/ready` and `/version`.
 6. **User action** — Cashfree Payouts activation: complete 2FA (IP whitelist or RSA), fund Payouts balance, register webhook `https://api.salones.in/v1/webhooks/payouts/cashfree`.
 7. Set `ADMIN_REQUIRE_MFA=true` in production env if not already set.
+8. **Owner app payout API** (item 4 from user) — owner app UI is not yet wired to backend payout transfer routes; needs a separate session to implement.
 
 ### Files touched (this session)
 - `backend/app/core/config.py` — CASHFREE payout secret alias
@@ -33,9 +35,13 @@ All backend changes are ready to commit in one pass: 0067 (break times), 0068 (a
 - `backend/migrations/sql/0069_notification_audience.sql` (new), `migrations/versions/0069_notification_audience.py` (new)
 - `backend/tests/unit/test_api_input_bounds.py`, `test_migration_policy.py`, `test_notification_use_cases.py`, `test_payment_flows.py`
 - `salon-QR-Walking-Web/lib/legal.ts`, `app/contact/page.tsx` (uncommitted in that repo)
+- `backend/tests/integration/test_payment_ledger_sql.py` (_build: apply 0069 ADD COLUMN statements after portable CI revision)
+- `backend/tests/unit/test_notification_audience.py` (new)
+- `backend/tests/unit/test_fcm_gateway.py` (FakeSession extended; 3 new audience-filter tests)
 
 ### Blockers
-- None on backend. Cashfree payout activation and QR web deploy are user-side actions.
+- Full check-ci.sh result pending (started, preflight passed, pytest suite still running at time of wrap).
+- Owner app payout API not yet connected to backend routes — separate session needed.
 - Warn: `ANTHROPIC_API_KEY` is plaintext in `C:\Users\Lenovo\.claude\settings.json` (the OpenRouter key `sk-or-v1-…`). Recommend rotating it or moving to an env manager.
 
 ---
@@ -543,6 +549,7 @@ Earlier queued work (reassess after these gates):
 - [open] low, backend/migrations/reviews/migration-inspection-2026-10-15.md:363, historical report still names backend/migrations/README.md; left as written.
 
 ## Session log
+- 2026-11-12: session started
 - 2026-10-23 continuation: approved category release promoted after 22 checks; native category results and favorite add/remove verified; canonical report section 19 and frontend API reference updated.
 - 2026-10-23: native owner/customer cross-app booking checks, scoped approval rendering fix and staff role/experience update verified; category mismatch reproduced and corrected locally; durable skill routing configured, deployment unchanged.
 
@@ -749,6 +756,7 @@ Earlier queued work (reassess after these gates):
 - Session log: 2026-10-29 session started and wrapped with read-only gateway verification; no application code changes.
 
 - 2026-10-29 backend-only Cashfree follow-up: production auth/control404-vs401 confirmed; vendor API says vendor absent, not settlement evidence. Connected browser requires sign-in; no Cashfree plugin found. Full1615pass/180skip/Ruffclean; additional71 real-PG payment/checkout/subscription/finance/U08 tests pass on task-isolated localhost55439. Disposable container cleaned up. U08 guards explicitly block collection and current adapter static splits cannot implement approved held-funds/admin-release policy. No provider flag, environment file, shared state or application code changed. Next: merchant session and sandbox acceptance, then held-funds/release implementation before backend activation. Receipt CASHFREE_VERIFICATION_2026-10-29.md updated.
+- 2026-11-12 (S525): Notification audience routing (0069) + integration test _build fix: 47 CI failures fixed (booking inserts failed on missing audience column in fixture DBs); 155 integration tests pass on throwaway postgres:18; FCM gateway audience-filter tests added; check-ci.sh re-run launched (all preflight passed, full pytest in progress). Owner app + customer app wired to send app/audience tags. Nothing committed.
 - 2026-11-12: break-times enforcement implemented (migration 0067, all tests passing); client-side prompt (break contract + notification fix) delivered; nothing committed.
 - 2026-11-03: session started — fix CI for merged payout-encryption work, apply reviewed 0059, deploy the exact latest API, configure the production key, convert existing payout rows, and verify production.
 
