@@ -232,6 +232,27 @@ async def test_create_order_request_shape_rupees_decimal_and_split():
     assert intent.amount.amount == Decimal("199.99")
 
 
+async def test_create_order_without_easy_split_omits_order_splits():
+    seen = {}
+
+    def handler(request):
+        seen["raw"] = request.content.decode()
+        return httpx.Response(
+            200,
+            json={
+                "order_id": json.loads(request.content)["order_id"],
+                "order_amount": 199.99,
+                "payment_session_id": "sess_nosplit",
+            },
+        )
+
+    g = gateway(handler, cashfree_easy_split_enabled=False)
+    intent = await g.create_payment_intent(intent_request())
+    body = json.loads(seen["raw"])
+    assert "order_splits" not in body
+    assert intent.client_payload["payment_session_id"] == "sess_nosplit"
+
+
 async def test_create_order_idempotency_key_is_stable_for_the_same_order():
     keys = []
 

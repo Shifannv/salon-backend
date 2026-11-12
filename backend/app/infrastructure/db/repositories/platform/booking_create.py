@@ -1,6 +1,7 @@
 """Availability, quoting and booking creation."""
 
 import json
+import logging
 from datetime import date
 from typing import Any
 
@@ -24,6 +25,9 @@ from app.infrastructure.db.repositories.platform._sql import (
     _is_business_error,
     _request_fingerprint,
 )
+from app.infrastructure.db.session import set_actor_context
+
+_log = logging.getLogger(__name__)
 
 
 class BookingCreateMixin:
@@ -79,6 +83,44 @@ class BookingCreateMixin:
         )
         return [dict(row) for row in result.mappings().all()]
 
+    async def get_break_windows(self, staff_id: str, booking_date: date) -> list[dict[str, str]]:
+        """Return the salon-wide and staff break windows for a day, formatted like slot times."""
+
+        result = await self.session.execute(
+            text(
+                """
+                with info as (
+                  select sl.working_hours as salon_hours,
+                         st.working_hours as staff_hours,
+                         lower(to_char(cast(:booking_date as date), 'dy')) as dow
+                  from staff st
+                  join salons sl on sl.id = st.salon_id
+                  where st.id = :staff_id and st.is_active and sl.is_active
+                ),
+                all_breaks as (
+                  select b.value as brk
+                  from info, jsonb_array_elements(
+                    coalesce(info.salon_hours -> info.dow -> 'breaks', '[]'::jsonb)) b
+                  union
+                  select b.value as brk
+                  from info, jsonb_array_elements(
+                    coalesce(info.staff_hours -> info.dow -> 'breaks', '[]'::jsonb)) b
+                )
+                select
+                  to_char((brk->>'start')::time, 'HH12:MI AM') as start,
+                  to_char((brk->>'end')::time, 'HH12:MI AM') as "end",
+                  (brk->>'start')::time as sort_key
+                from all_breaks
+                order by sort_key
+                """
+            ),
+            {"staff_id": staff_id, "booking_date": booking_date},
+        )
+        return [
+            {"start": row["start"], "end": row["end"], "reason": "Break"}
+            for row in result.mappings().all()
+        ]
+
     async def create_booking(self, values: dict[str, Any]) -> dict[str, Any]:
         """Call the database booking creation function and return the created booking."""
 
@@ -96,6 +138,12 @@ class BookingCreateMixin:
                 ) from exc
             if replay is not None:
                 return {**replay, "_idempotency_replay": True}
+            # set_config(..., true) dies with every commit or rollback. The age check and the
+            # idempotency step run first for customers, so re-arm the actor here: without it
+            # auth.uid() is NULL and the row is inserted with no customer_id.
+            actor_id = values.get("actor_id")
+            if actor_id:
+                await set_actor_context(self.session, str(actor_id))
             await self.session.execute(
                 text("select set_config('app.payment_preference', :preference, true)"),
                 {"preference": values.get("payment_preference") or "pay_at_salon"},
@@ -162,9 +210,16 @@ class BookingCreateMixin:
             if isinstance(exc, AppError) or not _is_business_error(exc):
                 # Outages, timeouts and unexpected errors surface as 500, never as a 409.
                 raise
-            mapped = _error_for_message(str(exc), _CREATE_BOOKING_ERROR_RULES)
+            # Match the Postgres message only: str(exc) also embeds the SQL and bound
+            # parameters (customer name, notes), which a user could use to spoof a rule.
+            db_message = str(getattr(exc, "orig", exc))
+            mapped = _error_for_message(db_message, _CREATE_BOOKING_ERROR_RULES)
             if mapped is not None:
                 raise mapped from exc
+            _log.warning(
+                "booking create rejected without a specific rule: sqlstate=%s message=%s actor=%s salon=%s",
+                state, db_message, values.get("actor_id"), values.get("salon_id"),
+            )
             raise ConflictError("Booking could not be created") from exc
 
         return booking

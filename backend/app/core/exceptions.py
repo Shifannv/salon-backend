@@ -99,6 +99,25 @@ class SlotUnavailableError(ConflictError):
     code = "slot_unavailable"
 
 
+class SalonClosedError(ConflictError):
+    """Raised when the salon has an active holiday on the requested date."""
+
+    code = "salon_closed"
+
+
+class BreakConflictError(ConflictError):
+    """Raised when a requested booking time falls inside a scheduled salon or staff break."""
+
+    code = "break_conflict"
+
+    def __init__(
+        self,
+        message: str = "The selected time collides with a scheduled break",
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details)
+
+
 class BookingChangeError(ConflictError):
     """A sanitized, explicitly classified booking-change conflict."""
 
@@ -528,3 +547,37 @@ class PayoutPaymentInvalidError(ValidationError):
     """The payment details (date, method or amount) are not acceptable."""
 
     code = "payment_details_invalid"
+
+
+class PayoutProviderUnavailableError(ServiceUnavailableError):
+    """Automatic payout is not configured, so the admin pays this payout by hand."""
+
+    code = "payout_provider_unavailable"
+
+
+class PayoutProviderError(AppError):
+    """The payout provider refused the request or returned something unusable."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    code = "payout_provider_error"
+
+
+class PayoutOutcomeUnknownError(PayoutProviderError):
+    """The provider call timed out or failed in transit: the money may or may not be on its way.
+
+    Callers must look the transfer up by its id before deciding anything, and never send it again.
+    """
+
+    code = "payout_outcome_unknown"
+
+
+class PayoutTransferInProgressError(ConflictError):
+    """A transfer for this payout is already on its way or done."""
+
+    code = "transfer_in_progress"
+
+
+class PayoutTransferInvalidError(ValidationError):
+    """The payout cannot be sent through the provider (account, amount or owner details)."""
+
+    code = "payout_transfer_invalid"

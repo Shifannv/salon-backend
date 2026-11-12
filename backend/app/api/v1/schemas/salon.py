@@ -18,6 +18,7 @@ from pydantic import (
 
 from app.api.v1.schemas.common import IdStr, UuidAsStr, UuidParam
 from app.api.v1.schemas.media_urls import HostedMediaRequest
+from app.api.v1.schemas.working_hours import WorkingHoursMap
 from app.application.salon_photos import visible_salon_photos
 from app.core.config import settings
 from app.domain.services.checkout import online_checkout_available
@@ -196,7 +197,7 @@ class OwnerSalonUpdateRequest(BaseModel):
     lat: float | None = None
     lng: float | None = None
     timezone: str | None = None
-    working_hours: dict[str, Any] | None = None
+    working_hours: WorkingHoursMap | None = None
     approval_mode: Literal["auto", "manual"] | None = None
 
 
@@ -223,7 +224,7 @@ class OwnerSalonSettingsRequest(BaseModel):
     """Owner salon settings request."""
 
     approval_mode: Literal["auto", "manual"] | None = None
-    working_hours: dict[str, Any] | None = None
+    working_hours: WorkingHoursMap | None = None
     accepting_bookings: StrictBool | None = None
 
 

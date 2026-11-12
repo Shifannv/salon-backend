@@ -1,5 +1,60 @@
 # Progress: shifan
 
+## Break-times enforcement (migration 0067) — 12 November 2026
+
+### Status
+**DONE — uncommitted, all tests passing. Ready to commit.**
+- Ruff: clean. Tests: 2364 passed / 534 skipped / 0 failed.
+
+### What was done
+- `working_hours` JSONB extended with per-day `breaks: [{id?,start,end}]` on salons and staff.
+- New Pydantic module `app/api/v1/schemas/working_hours.py`: `BreakInterval`, `DaySchedule`, `WorkingHoursMap`. Validates HH:MM, end>start, breaks inside hours, non-overlapping.
+- Write schemas for salon (`OwnerSalonUpdateRequest`, `OwnerSalonSettingsRequest`) and staff (`StaffCreateRequest`, `StaffUpdateRequest`) updated to `WorkingHoursMap | None`.
+- `BreakConflictError` added to `core/exceptions.py` (HTTP 409, code `break_conflict`).
+- `_CREATE_BOOKING_ERROR_RULES` in `_sql.py` gains a `break_conflict` rule ahead of the slot rule.
+- `get_break_windows(staff_id, booking_date)` added to `BookingCreateMixin` — merges salon + staff breaks, formats like slot `time` ("01:00 PM").
+- `AvailabilityBreakWindow` and `AvailabilityEnvelope` added to `schemas/booking.py`; availability route returns the envelope `{slots, breaks}`.
+- `WalkInStaffSummary.working_hours` added; `_list_walkin_staff` selects `st.working_hours`.
+- Migration `0067_working_hours_breaks.sql`: recreates both `get_available_slots` overloads, `visit_plan` and both `create_booking` overloads with break-window checks. `create_booking` raises `break_conflict` (P0001) on a break collision.
+- Alembic stub `migrations/versions/0067_working_hours_breaks.py` chained to `0066`.
+- Tests: `tests/unit/test_working_hours_schema.py` (7 cases), `tests/integration/test_working_hours_breaks_sql.py` (8 cases; skip without TEST_DB), unit availability test updated for envelope, head assertions updated to 0067, `test_booking_changes_sql.py` reads `result['slots']`.
+- `get_break_windows` mock added to `conftest.py`.
+- Prompt for Customer App / Owner App / QR Walk-in Web / Admin Web delivered (chat text — covers break contract and cross-app notification fix). No commit.
+
+### Decisions
+- Break validation is in Pydantic (API layer), not a DB CHECK constraint. Reason: a NOT VALID CHECK on legacy rows that pre-date the `breaks` key would fire on any JSONB-touching UPDATE, breaking unrelated rows. Pydantic enforces writes going forward; legacy rows pass vacuously.
+- `visit_plan` returns NULL (not RAISE) on a break collision; `create_booking` raises `break_conflict`. Reason: `visit_plan` is called per-segment in a loop — a RAISE there would abort the loop and mislabel unrelated segment failures.
+- `get_break_windows` formats `(brk->>'start')::time` directly with `to_char(..., 'HH12:MI AM')`, never casting to `timestamptz`. Reason: session-timezone `to_char` on a timestamptz returns stale wall-clock times.
+- Notification cross-app bug: diagnosed (no `audience` column on notifications, no `app` column on device_tokens). Backend fix spec written into the prompt but not implemented — it needs its own migration and PR.
+
+### Files touched
+- `app/api/v1/schemas/working_hours.py` (new)
+- `app/api/v1/schemas/salon.py`, `catalog.py`, `booking.py`, `walkin.py`
+- `app/core/exceptions.py`
+- `app/infrastructure/db/repositories/platform/_sql.py`, `booking_create.py`, `walkin.py`
+- `app/application/use_cases/booking_use_cases.py`
+- `app/api/v1/routes/bookings.py`
+- `migrations/sql/0067_working_hours_breaks.sql` (new)
+- `migrations/versions/0067_working_hours_breaks.py` (new)
+- `tests/conftest.py`, `tests/unit/test_booking_use_cases.py`, `tests/unit/test_migration_policy.py`, `tests/unit/test_payment_flows.py`
+- `tests/integration/test_booking_changes_sql.py`
+- `tests/integration/test_working_hours_breaks_sql.py` (new)
+- `tests/unit/test_working_hours_schema.py` (new — not yet seen in git diff, verify present)
+
+### Next steps
+1. Run `bash scripts/check-ci.sh` from `backend/` before commit.
+2. Commit with: `feat: salon & staff break times enforcement (migration 0067)` — stage by name, not `git add .` (there are pre-existing deletions and unrelated modifications in the working tree).
+3. Open PR `feat: salon & staff break times enforcement (migration 0067)` from `shifan` to `main`.
+4. Have `migration-reviewer` review `0067_working_hours_breaks.sql` before merge.
+5. Deploy backend with 0067 applied BEFORE shipping client-side break changes.
+6. Notification backend fix (audience + app columns) → separate branch + migration + PR, only when ready.
+7. Delete leftover empty branch `shifan-0067-working-hours-breaks` (no commits, safe to delete).
+
+### Blockers
+- None. CI check not yet run this session (`check-ci.sh` requires Docker).
+
+---
+
 ## Batch notification delete + daily ledger computed fields — 9 November 2026
 
 ### Status
@@ -619,6 +674,7 @@ Earlier queued work (reassess after these gates):
 - Session log: 2026-10-29 session started and wrapped with read-only gateway verification; no application code changes.
 
 - 2026-10-29 backend-only Cashfree follow-up: production auth/control404-vs401 confirmed; vendor API says vendor absent, not settlement evidence. Connected browser requires sign-in; no Cashfree plugin found. Full1615pass/180skip/Ruffclean; additional71 real-PG payment/checkout/subscription/finance/U08 tests pass on task-isolated localhost55439. Disposable container cleaned up. U08 guards explicitly block collection and current adapter static splits cannot implement approved held-funds/admin-release policy. No provider flag, environment file, shared state or application code changed. Next: merchant session and sandbox acceptance, then held-funds/release implementation before backend activation. Receipt CASHFREE_VERIFICATION_2026-10-29.md updated.
+- 2026-11-12: break-times enforcement implemented (migration 0067, all tests passing); client-side prompt (break contract + notification fix) delivered; nothing committed.
 - 2026-11-03: session started — fix CI for merged payout-encryption work, apply reviewed 0059, deploy the exact latest API, configure the production key, convert existing payout rows, and verify production.
 
 ## 2026-11-03 payout encryption and consent production release

@@ -115,7 +115,7 @@ _UNVERIFIED_VENDOR_INITIAL_STATUS = "ACTIVE"
 # UNVERIFIED: confirm in Cashfree sandbox (HTTP status meaning "vendor/refund already exists")
 _UNVERIFIED_ALREADY_EXISTS_STATUS = 409
 # UNVERIFIED: confirm in Cashfree sandbox (minimum order expiry)
-_UNVERIFIED_MIN_EXPIRY_SECONDS = 900
+_UNVERIFIED_MIN_EXPIRY_SECONDS = 1800
 
 _PAYMENT_STATUS = {
     "SUCCESS": LedgerStatus.captured,
@@ -352,7 +352,7 @@ class CashfreeGateway(PaymentGateway):
         }
         if meta:
             body["order_meta"] = meta
-        if request.settlement_account_ref:
+        if self._easy_split and request.settlement_account_ref:
             # The vendor's share; the remainder (the platform commission) settles to the
             # platform. Cashfree's PG fee is borne by the platform.
             body["order_splits"] = [
@@ -567,7 +567,7 @@ class CashfreeGateway(PaymentGateway):
             "refund_note": (request.reason or "Refund")[:100],
             "refund_speed": "STANDARD",
         }
-        if _UNVERIFIED_SEND_REFUND_SPLITS and request.settlement_account_ref:
+        if _UNVERIFIED_SEND_REFUND_SPLITS and self._easy_split and request.settlement_account_ref:
             body["refund_splits"] = [
                 {
                     "vendor_id": request.settlement_account_ref,

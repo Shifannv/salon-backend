@@ -45,6 +45,8 @@ class WalletEntryResponse(BaseModel):
     reject_reason: str | None
     scheduled_for: date | None
     can_cancel: bool
+    #: A provider transfer is on its way: the request cannot be cancelled or declined now.
+    processing: bool = False
     created_at: datetime
     paid_at: datetime | None = None
     method: Literal["upi", "imps", "neft", "rtgs", "other"] | None = None

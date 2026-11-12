@@ -21,6 +21,7 @@ from app.api.v1.routes import (
     payment_settings,
     payments,
     payout_proof,
+    payout_transfer,
     profiles,
     reports,
     staff_earnings,
@@ -52,6 +53,7 @@ api_v1_router.include_router(staff_earnings.router, tags=["staff earnings"])
 api_v1_router.include_router(wallet.router, tags=["owner wallet"])
 api_v1_router.include_router(wallet.admin_router, prefix="/admin", tags=["admin wallet"])
 api_v1_router.include_router(payout_proof.admin_router, prefix="/admin", tags=["admin wallet"])
+api_v1_router.include_router(payout_transfer.admin_router, prefix="/admin", tags=["admin wallet"])
 api_v1_router.include_router(support.router, tags=["support"])
 api_v1_router.include_router(customer.salons_router, tags=["salons"])
 api_v1_router.include_router(customer.catalog_router, prefix="/catalog", tags=["catalog"])
@@ -67,6 +69,9 @@ api_v1_router.include_router(admin_insights.router, prefix="/admin", tags=["admi
 api_v1_router.include_router(feature_access.router, prefix="/admin", tags=["feature access"])
 api_v1_router.include_router(payment_settings.router, prefix="/admin", tags=["payment settings"])
 api_v1_router.include_router(subscription_billing.router, tags=["subscription billing"])
+
+# Registered before the generic /webhooks/{provider} route so the specific path wins.
+api_v1_router.include_router(payout_transfer.webhook_router, tags=["webhooks"])
 
 # The webhook path 404s unless a payment OR subscription webhook provider is configured.
 if settings.booking_payments_enabled or settings.subscription_webhook_provider is not None:

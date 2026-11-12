@@ -253,7 +253,7 @@ async def test_change_availability_excludes_only_own_booking_and_preserves_publi
         assert any(datetime.fromisoformat(row['slot_start'])==f['start'] for row in response.json())
         regular=await client.get('/v1/availability',params=params)
         assert regular.status_code==200,regular.text
-        assert all(datetime.fromisoformat(row['slot_start'])!=f['start'] for row in regular.json())
+        assert all(datetime.fromisoformat(row['slot_start'])!=f['start'] for row in regular.json()['slots'])
         other=await changes.seed();identity['actor']=_customer(other['customer'])
         response=await client.get(f"/v1/bookings/{b['id']}/change-availability",params=params)
         assert response.status_code==404,response.text

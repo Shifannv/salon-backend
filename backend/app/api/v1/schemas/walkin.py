@@ -15,6 +15,7 @@ class WalkInStaffSummary(BaseModel):
     photo_url: str | None = None
     specialization: str | None = None
     service_ids: list[str] = Field(default_factory=list)
+    working_hours: dict | None = None
 
 
 class WalkInServiceSummary(BaseModel):

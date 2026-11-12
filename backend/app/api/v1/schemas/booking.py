@@ -37,6 +37,25 @@ class AvailabilityResponse(BaseModel):
     barberName: str | None = None  # camelCase to match the TS type verbatim
 
 
+class AvailabilityBreakWindow(BaseModel):
+    """A break window returned alongside available slots.
+
+    ``start`` and ``end`` are pre-formatted in the same style as ``AvailabilityResponse.time``
+    (e.g. "01:00 PM") so the client can render "On break" bands without extra conversion.
+    """
+
+    start: str
+    end: str
+    reason: str = "Break"
+
+
+class AvailabilityEnvelope(BaseModel):
+    """Availability response — slots that can be booked plus break windows that cannot."""
+
+    slots: list[AvailabilityResponse]
+    breaks: list[AvailabilityBreakWindow]
+
+
 class VisitSegmentRequest(BaseModel):
     """An ordered group of services performed by one professional."""
 

@@ -83,14 +83,19 @@ async def test_availability_delegates_to_repo():
     repo.get_available_slots.return_value = [
         {"slot_start": "2025-06-01T10:00:00", "slot_end": "2025-06-01T10:30:00"}
     ]
+    repo.get_break_windows.return_value = [
+        {"start": "01:00 PM", "end": "02:00 PM", "reason": "Break"}
+    ]
     uc = BookingUseCases(repo)
 
-    slots = await uc.availability("staff-001", date(2025, 6, 1), ["service-001"])
+    result = await uc.availability("staff-001", date(2025, 6, 1), ["service-001"])
 
     repo.get_available_slots.assert_awaited_once_with(
         "staff-001", date(2025, 6, 1), ["service-001"]
     )
-    assert len(slots) == 1
+    repo.get_break_windows.assert_awaited_once_with("staff-001", date(2025, 6, 1))
+    assert len(result["slots"]) == 1
+    assert result["breaks"] == [{"start": "01:00 PM", "end": "02:00 PM", "reason": "Break"}]
 
 
 # ---------------------------------------------------------------------------

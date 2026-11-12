@@ -17,6 +17,7 @@ from pydantic import (
 
 from app.api.v1.schemas.common import UuidParam
 from app.api.v1.schemas.media_urls import HostedMediaRequest
+from app.api.v1.schemas.working_hours import WorkingHoursMap
 
 _MAX_DURATION_MINUTES = 24 * 60
 # Money inputs: at most 10 digits with 2 decimals (numeric(10,2)); never NaN or Infinity.
@@ -120,7 +121,7 @@ class StaffCreateRequest(HostedMediaRequest):
     photo_url: str | None = None
     specialization: str | None = None
     experience: str | None = None
-    working_hours: dict[str, Any] | None = None
+    working_hours: WorkingHoursMap | None = None
 
 
 class StaffUpdateRequest(HostedMediaRequest):
@@ -131,7 +132,7 @@ class StaffUpdateRequest(HostedMediaRequest):
     photo_url: str | None = None
     specialization: str | None = None
     experience: str | None = None
-    working_hours: dict[str, Any] | None = None
+    working_hours: WorkingHoursMap | None = None
     is_active: bool | None = None
 
 

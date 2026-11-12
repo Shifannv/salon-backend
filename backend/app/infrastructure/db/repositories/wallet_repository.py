@@ -15,9 +15,14 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import IdempotencyKeyReuseError, ValidationError
+from app.core.exceptions import (
+    IdempotencyKeyReuseError,
+    PayoutTransferInProgressError,
+    ValidationError,
+)
 from app.core.field_crypto import decrypt_field
 from app.infrastructure.db.repositories.finance_repository import FinanceRepository
 
@@ -57,20 +62,21 @@ _FEED_SQL = text(
              'completed'::text as status, null::text as reference, null::text as reject_reason,
              null::date as scheduled_for, false as can_cancel,
              coalesce(p.captured_at, p.created_at) as happened_at,
-             null::timestamptz as paid_at, null::text as method
+             null::timestamptz as paid_at, null::text as method, false as processing
       from booking_payments p
       where p.salon_id = :s and p.channel = 'gateway' and p.settlement_model = 'platform_collect'
         and p.status in {_SETTLED}
       union all
       select r.id::text, 'refund', 'debit',
              {_PAISE.format(expr='r.amount - r.commission_reversal_amount')},
-             'completed', null, null, null, false, coalesce(r.processed_at, r.created_at), null, null
+             'completed', null, null, null, false, coalesce(r.processed_at, r.created_at), null, null, false
       from payment_refunds r join booking_payments p on p.id = r.payment_id
       where p.salon_id = :s and p.channel = 'gateway' and p.settlement_model = 'platform_collect'
         and r.status = 'processed' and not r.applies_to_excess
       union all
       select q.id::text, 'payout', 'debit', q.amount_paise, q.status, q.reference, q.reject_reason,
-             q.scheduled_for, q.status = 'requested', q.created_at, pp.paid_at, pp.method
+             q.scheduled_for, q.status = 'requested' and not exists (select 1 from salon_payout_transfers t where t.request_id = q.id and t.status in ('pending', 'success')), q.created_at, pp.paid_at, pp.method,
+             q.status = 'requested' and exists (select 1 from salon_payout_transfers t where t.request_id = q.id and t.status in ('pending', 'success'))
       from salon_payout_requests q
       left join salon_payout_payments pp on pp.payout_id = q.id
       where q.salon_id = :s
@@ -108,6 +114,14 @@ def decode_cursor(cursor: str | None) -> tuple[datetime | None, str | None]:
         return datetime.fromisoformat(moment), row_id
     except (ValueError, binascii.Error, UnicodeDecodeError) as error:
         raise ValidationError("The page cursor is not valid") from error
+
+
+def transfer_refusal(error: DBAPIError) -> PayoutTransferInProgressError | None:
+    """A database guard that refused a change because a transfer is live, as a domain error (never the SQL text)."""
+
+    if "payout_transfer_in_progress" in str(error.orig or error):
+        return PayoutTransferInProgressError("A payout transfer is already on its way for this payout")
+    return None
 
 
 class WalletRepository:
@@ -196,6 +210,19 @@ class WalletRepository:
         account["bank_account_number"] = decrypt_field(account["bank_account_number"], account.pop("salon_id"))
         return account
 
+    async def live_transfer(self, request_id: str) -> dict[str, Any] | None:
+        """The transfer that is pending or successful for a request, if any: money may be on its way."""
+
+        result = await self.session.execute(
+            text(
+                """select id::text as id, transfer_id, status from salon_payout_transfers
+                   where request_id = cast(:id as uuid) and status in ('pending', 'success')"""
+            ),
+            {"id": request_id},
+        )
+        row = result.mappings().first()
+        return dict(row) if row else None
+
     async def min_payout_paise(self) -> int | None:
         """The minimum the super admin set (``platform_payment_settings``), or None if the row is missing."""
 
@@ -241,13 +268,16 @@ class WalletRepository:
         return row
 
     async def cancel_request(self, request_id: str) -> dict[str, Any]:
-        await self.session.execute(
-            text(
-                """update salon_payout_requests set status = 'cancelled', cancelled_at = now()
-                   where id = cast(:id as uuid) and status = 'requested'"""
-            ),
-            {"id": request_id},
-        )
+        try:
+            await self.session.execute(
+                text(
+                    """update salon_payout_requests set status = 'cancelled', cancelled_at = now()
+                       where id = cast(:id as uuid) and status = 'requested'"""
+                ),
+                {"id": request_id},
+            )
+        except DBAPIError as error:
+            raise transfer_refusal(error) or error from error
         row = await self.get_request(request_id)
         assert row is not None
         return row
@@ -257,15 +287,18 @@ class WalletRepository:
     ) -> dict[str, Any]:
         """Move a waiting request to 'paid' or 'rejected'. The status guard keeps it to one move."""
 
-        await self.session.execute(
-            text(
-                """update salon_payout_requests
-                   set status = :status, reference = :reference, reject_reason = :reason,
-                       processed_by = cast(:admin as uuid), processed_at = now()
-                   where id = cast(:id as uuid) and status = 'requested'"""
-            ),
-            {"id": request_id, "status": status, "admin": admin_id, "reference": reference, "reason": reject_reason},
-        )
+        try:
+            await self.session.execute(
+                text(
+                    """update salon_payout_requests
+                       set status = :status, reference = :reference, reject_reason = :reason,
+                           processed_by = cast(:admin as uuid), processed_at = now()
+                       where id = cast(:id as uuid) and status = 'requested'"""
+                ),
+                {"id": request_id, "status": status, "admin": admin_id, "reference": reference, "reason": reject_reason},
+            )
+        except DBAPIError as error:
+            raise transfer_refusal(error) or error from error
         row = await self.get_request(request_id)
         assert row is not None
         return row
@@ -277,7 +310,8 @@ class WalletRepository:
         result = await self.session.execute(
             text(
                 f"""select {_REQUEST_COLUMNS}, s.name as salon_name,
-                           pp.paid_at, pp.method, pp.amount_paid_paise, (pp.payout_id is not null) as proof_attached,
+                           pp.paid_at, pp.method, pp.amount_paid_paise, (pp.proof_id is not null) as proof_attached,
+                           q.status = 'requested' and exists (select 1 from salon_payout_transfers t where t.request_id = q.id and t.status in ('pending', 'success')) as processing,
                            a.account_holder_name, a.upi_id, a.bank_name, a.bank_account_last4, a.ifsc
                     from salon_payout_requests q join salons s on s.id = q.salon_id
                     left join salon_payout_payments pp on pp.payout_id = q.id

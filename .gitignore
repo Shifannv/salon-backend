@@ -72,3 +72,7 @@ backend\graphify-out\cache
 # Release receipts are generated after a clean-source preflight, never source inputs.
 /candidate-result.json
 /.release-image/
+.claude/skills/
+.agents/skills/cashfree-skills/
+.gemini/skills/cashfree-skills/
+.agent/skills/cashfree-skills/

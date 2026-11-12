@@ -53,6 +53,7 @@ class FakeRepo:
         self.audits: list[tuple[str, str, str]] = []
         self.commits = 0
         self.duplicate_on_insert = False
+        self.live: dict[str, Any] | None = None
 
     async def commit(self) -> None:
         self.commits += 1
@@ -62,6 +63,12 @@ class FakeRepo:
 
     async def request_detail(self, request_id):
         return dict(self.row) if request_id == REQUEST else None
+
+    async def live_transfer(self, request_id):
+        return self.live
+
+    async def transfers(self, request_id):
+        return [self.live] if self.live else []
 
     async def reference_taken(self, reference):
         return any(p["reference"].lower() == reference.lower() for p in self.payments.values())
@@ -80,6 +87,7 @@ class FakeRepo:
             "reference": reference, "method": method, "paid_at": paid_at, "amount_paid_paise": amount_paid_paise,
             "adjustment_reason": adjustment_reason, "note": note, "proof_id": proof_id,
             "proof_mime": "image/png", "proof_size": len(self.proofs[proof_id]),
+            "source": "manual", "transfer_id": None,
         }
 
     async def payment(self, payout_id):

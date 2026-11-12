@@ -29,9 +29,13 @@ def proof_db(changes_db):  # noqa: F811
         env = SafetyEnv(changes_db)
         try:
             async with env.session() as session:
-                for file in ("0053_salon_payout_requests.sql", "0057_payout_proof.sql", "0064_payout_proof_redaction.sql"):
+                for file in (
+                    "0053_salon_payout_requests.sql", "0057_payout_proof.sql", "0064_payout_proof_redaction.sql",
+                    "0068_payout_transfers.sql",
+                ):
                     for statement in (SQL / file).read_text(encoding="utf-8").split("\n-- statement --\n"):
-                        if statement.strip():
+                        # This schema predates erase_salon (0058); the erasure patch is tested on the full chain.
+                        if statement.strip() and "erase_salon(uuid)" not in statement:
                             await session.execute(text(statement))
                 await session.commit()
         finally:
