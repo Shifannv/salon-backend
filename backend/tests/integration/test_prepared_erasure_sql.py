@@ -102,6 +102,12 @@ POST_BASELINE_COLUMN_TREATMENT = {
     "support_erasure_events.case_type": "machine-code",
     "support_erasure_events.policy_version": "policy-code",
     "support_erasure_events.retention_reason": "retention-code",
+    # booking_no_show_warnings (migration 0070) — cascade-deleted with the booking row;
+    # response_reason_text is free customer text and must be scrubbed if it survives erasure.
+    "booking_no_show_warnings.customer_response": "machine-code",
+    "booking_no_show_warnings.resolution": "machine-code",
+    "booking_no_show_warnings.response_reason_code": "machine-code",
+    "booking_no_show_warnings.response_reason_text": "scrubbed",
 }
 
 REMOVED_COLUMN_TREATMENT = {"salons.category", "salons.description", "services.description"}
