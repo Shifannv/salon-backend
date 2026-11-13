@@ -349,3 +349,32 @@ async def test_staff_cannot_answer_for_the_customer():
         await BookingUseCases(repo).reply_to_no_show_warning(
             make_profile(role=Role.staff), "b1", "on_the_way"
         )
+
+
+async def test_ten_minute_floor_sets_the_deadline_and_the_message_states_the_real_time_left():
+    repo, session = _repo(_R(_booking()), _R({"total": 0, "open": 0}), _R(scalar=NOW + timedelta(minutes=8)))
+    await repo.create_no_show_warning("owner-1", "b1", 5, None)
+    insert_sql = str(session.execute.await_args_list[2].args[0])
+    assert "greatest(" in insert_sql and "interval '10 minutes'" in insert_sql
+    assert session.execute.await_args_list[2].args[1]["start"] == START
+    body = repo._insert_notification_outbox.await_args.kwargs["body"]
+    assert "8 minutes" in body and "5 minutes" not in body
+
+
+async def test_delay_tells_the_delayed_customer_only_when_asked(approved):
+    end = NOW + timedelta(minutes=30)
+    repo = make_mock_repo()
+    repo.get_booking = AsyncMock(return_value={**_booking(), "end_datetime": end, "customer_id": "cust-1"})
+    repo.delay_booking = AsyncMock(return_value={"id": "b1", "customer_id": "cust-1"})
+    use_cases = BookingUseCases(repo)
+    tasks = MagicMock()
+    await use_cases.delay(
+        make_owner(), "b1", end + timedelta(minutes=15), False, tasks, notify_booking_customer=True
+    )
+    task = tasks.add_task.call_args
+    assert task.args[1:4] == ("cust-1", "b1", "booking_delayed")
+    assert "15 minutes" in task.args[5] and "apologise" in task.args[5]
+
+    tasks.reset_mock()
+    await use_cases.delay(make_owner(), "b1", end + timedelta(minutes=15), False, tasks)
+    tasks.add_task.assert_not_called()

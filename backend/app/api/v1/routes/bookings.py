@@ -407,6 +407,7 @@ async def delay_booking(
         payload.estimated_end_datetime,
         payload.notify_affected_customers,
         background_tasks,
+        notify_booking_customer=payload.notify_booking_customer,
     )
     return BookingResponse(**row)
 

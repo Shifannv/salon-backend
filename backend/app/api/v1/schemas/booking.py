@@ -240,6 +240,8 @@ class DelayBookingRequest(BaseModel):
 
     estimated_end_datetime: datetime
     notify_affected_customers: bool = True
+    # Also tell this booking's own customer that their appointment will start later.
+    notify_booking_customer: bool = False
 
     @field_validator("estimated_end_datetime")
     @classmethod

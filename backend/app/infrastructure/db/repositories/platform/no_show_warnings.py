@@ -1,6 +1,7 @@
 """No-show warnings: the salon warns a late customer, the customer replies, the clock auto-resolves."""
 
 import logging
+import math
 from typing import Any
 
 from sqlalchemy import text
@@ -67,22 +68,25 @@ class NoShowWarningsMixin:
             text(
                 """
                 insert into booking_no_show_warnings (booking_id, salon_id, staff_id, warned_by, grace_minutes, deadline_at)
-                values (:booking_id, :salon_id, :staff_id, :actor_id, :grace, now() + make_interval(mins => :grace))
+                values (:booking_id, :salon_id, :staff_id, :actor_id, :grace,
+                        greatest(now() + make_interval(mins => :grace), cast(:start as timestamptz) + interval '10 minutes'))
                 returning deadline_at
                 """
             ),
             {
                 "booking_id": booking_id, "salon_id": booking["salon_id"], "staff_id": booking["staff_id"],
-                "actor_id": actor_id, "grace": grace_minutes,
+                "actor_id": actor_id, "grace": grace_minutes, "start": booking["start_datetime"],
             },
         )
         deadline_at = inserted.scalar_one()
+        # The usual ten-minute grace after the start is a floor: a short wait never cuts it shorter.
+        minutes_left = max(1, math.ceil((deadline_at - booking["database_now"]).total_seconds() / 60))
         outbox_id = await self._insert_notification_outbox(  # type: ignore[attr-defined]
             user_id=str(booking["customer_id"]),
             booking_id=booking_id,
             notification_type="booking_no_show_warning",
             title="The salon is waiting for you",
-            body=f"Your booking will be cancelled in {grace_minutes} minutes unless you reply.",
+            body=f"Your booking will be cancelled in {minutes_left} minutes unless you reply.",
             data={"booking_id": booking_id, "deadline_at": deadline_at.isoformat(), "grace_minutes": grace_minutes},
         )
         return await self._finish_warning_change(actor_id, booking_id, scope, idempotency_key, [outbox_id])
