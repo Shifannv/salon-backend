@@ -22,7 +22,7 @@ RESOURCE = "projects/saloon-505509/locations/asia-south1/services/salon-api-prod
 API = "https://run.googleapis.com/v2/"
 REVISION = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
 SMOKES = {"/health/ready", "/version", "/health", "/health/db", "/health/redis", "/docs", "/openapi.json"}
-PUBLIC_CHECKS = [(host, path) for host in ("https://api.salones.in", "https://apiv1.mudassirmhd.in")
+PUBLIC_CHECKS = [(host, path) for host in ("https://api.salones.in",)
                  for path in ("/health/ready", "/version", "/health", "/health/db", "/health/redis")]
 
 
