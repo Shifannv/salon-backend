@@ -87,6 +87,13 @@ async def _build(database: str, *, revision: str = PORTABLE_CI_REVISION) -> None
         for statement in audience_sql.read_text(encoding="utf-8").split("\n-- statement --\n"):
             if "ADD COLUMN" in statement:
                 await conn.execute(statement)
+        # booking_queries.py and booking_updates.py reference booking_no_show_warnings in every
+        # list/update query; the table must exist even on the portable-0037 schema.
+        warnings_sql = BACKEND / "migrations/sql/0070_booking_no_show_warnings.sql"
+        for statement in warnings_sql.read_text(encoding="utf-8").split("\n-- statement --\n"):
+            stmt = statement.strip()
+            if stmt and not stmt.startswith("SET LOCAL"):
+                await conn.execute(stmt)
     finally:
         await conn.close()
 
