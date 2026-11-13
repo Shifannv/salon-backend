@@ -397,6 +397,8 @@ class BookingUseCases:
         estimated_end_datetime: datetime,
         notify_affected_customers: bool,
         background_tasks: BackgroundTasks | None = None,
+        *,
+        notify_booking_customer: bool = False,
     ) -> dict[str, Any]:
         """Record a delayed completion estimate and optionally notify later customers."""
 
@@ -412,6 +414,17 @@ class BookingUseCases:
                 self._notify_delay_affected_customers,
                 booking_id,
                 estimated_end_datetime,
+            )
+        if notify_booking_customer and background_tasks is not None and booking.get("customer_id"):
+            minutes = round((estimated_end_datetime - current["end_datetime"]).total_seconds() / 60)
+            background_tasks.add_task(
+                self._notify_user,
+                str(booking["customer_id"]),
+                booking_id,
+                "booking_delayed",
+                "Your appointment is running late",
+                f"Your appointment at {booking.get('salon_name') or 'the salon'} is running about "
+                f"{minutes} minutes behind schedule. We apologise for the wait.",
             )
         return booking
 
