@@ -1,5 +1,40 @@
 # Progress: shifan
 
+## CI fix: booking_no_show_warnings in integration test schema — 13 November 2026
+
+### Status
+**DONE — committed and pushed (a0d206a). Ruff clean. 2505 unit tests pass.**
+PR `shifan` → `main` can be opened; CI should now be green.
+
+### What was done
+- Root cause: `booking_queries.py` and `booking_updates.py` unconditionally reference
+  `booking_no_show_warnings` in every list/update query. The portable-0037 integration
+  schema (used by ~20 test suites) lacked this table (added in migration 0070), causing
+  `UndefinedTableError` across all suites.
+- Fix 1: `test_payment_ledger_sql.py` `_build()` now installs the 0070 SQL after the 0069
+  audience columns, filtering `SET LOCAL` statements that require an open transaction block.
+- Fix 2: `test_prepared_erasure_sql.py` `POST_BASELINE_COLUMN_TREATMENT` classifies the four
+  new text columns (`customer_response`, `resolution`, `response_reason_code` → `machine-code`;
+  `response_reason_text` → `scrubbed`).
+- Committed as a0d206a and pushed to `origin/shifan`.
+
+### Files touched
+- `backend/tests/integration/test_payment_ledger_sql.py` — 0070 SQL install in `_build()`
+- `backend/tests/integration/test_prepared_erasure_sql.py` — 4 column treatments added
+
+### Next steps
+1. Open PR `shifan` → `main` and confirm GitHub CI is green.
+2. Apply pending production migrations 0053–0070 via Alembic with the Supabase pooler URL
+   (see gotchas.md for the PowerShell env var syntax; rotate the DB password first).
+3. After merge + Cloud Run deploy: verify `/health/ready` and `/version`.
+4. Owner app payout API UI still not wired to backend routes — separate session.
+
+### Blockers
+- Production migrations 0053–0070 not yet applied (user must run from PowerShell with pooler URL).
+- The Supabase DB password was exposed in this chat session — rotate it in the Supabase dashboard before applying migrations.
+
+---
+
 ## Notification audience routing + Cashfree payout activation — 12 November 2026
 
 ### Status
