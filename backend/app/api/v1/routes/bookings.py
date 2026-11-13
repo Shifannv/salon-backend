@@ -254,6 +254,10 @@ async def list_bookings(
     date_to: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    scope: Literal["customer"] | None = Query(
+        default=None,
+        description="customer: only the caller's own bookings, whatever their role (customer app)",
+    ),
     actor: Profile = Depends(get_mfa_checked_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[BookingResponse]:
@@ -261,6 +265,7 @@ async def list_bookings(
 
     rows = await _use_cases(session).list_bookings(
         actor,
+        scope=scope,
         booking_statuses=parse_booking_statuses(booking_status),
         include_archived=include_archived,
         source=source,

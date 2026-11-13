@@ -70,8 +70,13 @@ class BookingUpdatesMixin:
         cancellation_reason: str | None = None,
         customer_only: bool = False,
         idempotency_key: str | None = None,
+        only_unanswered_warning: bool = False,
     ) -> dict[str, Any]:
-        """Apply an authorized, valid booking transition under a row lock."""
+        """Apply an authorized, valid booking transition under a row lock.
+
+        ``only_unanswered_warning`` is for the automatic no-show: it proceeds only if the booking's
+        warning is still open and the customer has not replied, checked after the lock is held.
+        """
         scope = f"booking:{booking_id}:{status}"
         replay = await self.begin_booking_operation(actor_id, scope, idempotency_key, {
             "status": status, "rejection_reason": rejection_reason, "cancellation_reason": cancellation_reason,
@@ -105,7 +110,19 @@ class BookingUpdatesMixin:
         }
         if status not in allowed.get(current["status"], set()):
             raise ConflictError("Booking state changed; refresh before deciding")
-        no_show = status == "no_show" or (
+        if only_unanswered_warning:
+            # A new statement after the lock sees any reply that committed while this call waited.
+            open_warning = await self.session.execute(
+                text(
+                    "select customer_response from booking_no_show_warnings "
+                    "where booking_id = :booking_id and resolved_at is null"
+                ),
+                {"booking_id": booking_id},
+            )
+            warning = open_warning.mappings().one_or_none()
+            if warning is None or warning["customer_response"] is not None:
+                raise ConflictError("The customer replied to the warning")
+        no_show =status == "no_show" or (
             status == "cancelled" and (cancellation_reason or "").startswith("Customer no-show")
         )
         if no_show:

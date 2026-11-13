@@ -167,16 +167,18 @@ class BookingUseCases:
         date_to: date | None = None,
         limit: int | None = None,
         offset: int = 0,
+        scope: str | None = None,
     ) -> list[dict[str, Any]]:
-        """List role-scoped bookings."""
+        """List role-scoped bookings; ``scope="customer"`` returns only the actor's own bookings."""
 
-        if actor.role in {Role.owner, Role.staff}:
+        personal = scope == "customer"
+        if not personal and actor.role in {Role.owner, Role.staff}:
             await assert_approved_workspace(self.repository, actor)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ValidationError("date_from must be on or before date_to")
         return await self.repository.list_bookings(
             actor.id,
-            actor.role.value,
+            Role.customer.value if personal else actor.role.value,
             booking_statuses=booking_statuses,
             include_archived=include_archived,
             source=source,

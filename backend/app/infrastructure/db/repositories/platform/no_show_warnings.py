@@ -1,5 +1,6 @@
 """No-show warnings: the salon warns a late customer, the customer replies, the clock auto-resolves."""
 
+import logging
 from typing import Any
 
 from sqlalchemy import text
@@ -8,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.infrastructure.db.repositories.platform._sql import _booking_actor_sql
 
+_log = logging.getLogger(__name__)
+
+MAX_WARNINGS_PER_BOOKING = 2
 AUTO_NO_SHOW_REASON = "Customer no-show: no reply to the arrival warning"
 
 
@@ -47,12 +51,18 @@ class NoShowWarningsMixin:
             raise ValidationError("This booking has no customer account to warn")
         if booking["database_now"] < booking["start_datetime"]:
             raise ValidationError("Wait until the appointment time before warning the customer")
-        open_warning = await self.session.execute(
-            text("select 1 from booking_no_show_warnings where booking_id = :booking_id and resolved_at is null"),
+        history = await self.session.execute(
+            text(
+                "select count(*) as total, count(*) filter (where resolved_at is null) as open "
+                "from booking_no_show_warnings where booking_id = :booking_id"
+            ),
             {"booking_id": booking_id},
         )
-        if open_warning.first() is not None:
+        counts = history.mappings().one()
+        if counts["open"]:
             raise ConflictError("The customer has already been warned")
+        if counts["total"] >= MAX_WARNINGS_PER_BOOKING:
+            raise ConflictError("The customer has already been warned twice for this booking")
         inserted = await self.session.execute(
             text(
                 """
@@ -215,11 +225,17 @@ class NoShowWarningsMixin:
             booking_id = str(row["booking_id"])
             try:
                 booking = await self.update_booking_status(  # type: ignore[attr-defined]
-                    str(row["owner_id"]), booking_id, "no_show", cancellation_reason=AUTO_NO_SHOW_REASON
+                    str(row["owner_id"]), booking_id, "no_show", cancellation_reason=AUTO_NO_SHOW_REASON,
+                    only_unanswered_warning=True,
                 )
             except (ConflictError, NotFoundError, ValidationError):
                 await self.session.rollback()
-                await self._close_stale_warning(str(row["warning_id"]))
+                await self._close_stale_warning(str(row["warning_id"]), booking_id)
+                continue
+            except Exception:
+                # A database rule (for example a finance review hold) must not stop the other warnings.
+                await self.session.rollback()
+                _log.exception("Automatic no-show failed for booking %s", booking_id)
                 continue
             await self._notify_staff_of_auto_no_show(booking_id, booking["customer_name"])
             processed += 1
@@ -273,13 +289,15 @@ class NoShowWarningsMixin:
         )
         return [str(row[0]) for row in result.all()]
 
-    async def _close_stale_warning(self, warning_id: str) -> None:
+    async def _close_stale_warning(self, warning_id: str, booking_id: str) -> None:
+        # Only once the booking has left "confirmed"; a customer reply that won the race keeps its warning open.
         await self.session.execute(
             text(
                 "update booking_no_show_warnings set resolved_at = now(), resolution = 'withdrawn' "
-                "where id = :id and resolved_at is null"
+                "where id = :id and resolved_at is null "
+                "and not exists (select 1 from bookings b where b.id = :booking_id and b.status = 'confirmed')"
             ),
-            {"id": warning_id},
+            {"id": warning_id, "booking_id": booking_id},
         )
         await self.session.commit()
 

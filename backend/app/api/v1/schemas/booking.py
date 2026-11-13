@@ -351,6 +351,20 @@ class NoShowWarningReplyRequest(BaseModel):
     reason_code: CustomerCancellationReasonCode | None = None
     reason_text: str | None = Field(default=None, max_length=500)
 
+    @field_validator("reason_text")
+    @classmethod
+    def _clean_reason_text(cls, value: str | None) -> str | None:
+        """One plain line: it is shown in a push and must not imitate the system's no-show wording."""
+
+        if value is None:
+            return None
+        text = " ".join(value.split())
+        if any(ord(char) < 32 or ord(char) == 127 for char in text):
+            raise ValueError("Reason contains unsupported characters")
+        if text.casefold().startswith("customer no-show"):
+            raise ValueError("Describe the reason in your own words")
+        return text or None
+
     @model_validator(mode="after")
     def _reason_only_when_not_coming(self) -> "NoShowWarningReplyRequest":
         if self.response == "on_the_way" and (self.reason_code or self.reason_text):

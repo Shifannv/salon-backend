@@ -32,6 +32,9 @@ class _R:
     def one_or_none(self):
         return self._row
 
+    def one(self):
+        return self._row
+
     def all(self):
         return self._rows
 
@@ -96,6 +99,14 @@ def test_on_the_way_reply_cannot_carry_a_reason():
         NoShowWarningReplyRequest(response="on_the_way", reason_text="traffic")
 
 
+def test_reply_text_is_one_clean_line_and_cannot_fake_a_no_show():
+    reply = NoShowWarningReplyRequest(response="not_coming", reason_text="  stuck\n in   traffic ")
+    assert reply.reason_text == "stuck in traffic"
+    assert NoShowWarningReplyRequest(response="not_coming", reason_text="   ").reason_text is None
+    with pytest.raises(SchemaError):
+        NoShowWarningReplyRequest(response="not_coming", reason_text="Customer no-show: oops")
+
+
 def test_notification_audiences_route_to_the_right_app():
     assert audience_for("booking_no_show_warning") == "customer"
     assert audience_for("booking_no_show_warning_withdrawn") == "customer"
@@ -106,7 +117,7 @@ def test_notification_audiences_route_to_the_right_app():
 # ── create ────────────────────────────────────────────────────────────────────
 
 async def test_warning_opens_and_notifies_the_customer():
-    repo, session = _repo(_R(_booking()), _R(None), _R(scalar=NOW + timedelta(minutes=10)))
+    repo, session = _repo(_R(_booking()), _R({"total": 0, "open": 0}), _R(scalar=NOW + timedelta(minutes=10)))
     booking = await repo.create_no_show_warning("owner-1", "b1", 10, "idem-key-1")
     assert booking["_outbox_ids"] == ["outbox-1"]
     sent = repo._insert_notification_outbox.await_args.kwargs
@@ -135,8 +146,15 @@ async def test_warning_is_refused_when_the_booking_cannot_be_warned(row, error):
 
 
 async def test_second_warning_on_the_same_booking_is_refused():
-    repo, session = _repo(_R(_booking()), _R(row=(1,)))
+    repo, session = _repo(_R(_booking()), _R({"total": 1, "open": 1}))
     with pytest.raises(ConflictError, match="already been warned"):
+        await repo.create_no_show_warning("owner-1", "b1", 5, None)
+    session.commit.assert_not_awaited()
+
+
+async def test_third_warning_on_one_booking_is_refused():
+    repo, session = _repo(_R(_booking()), _R({"total": 2, "open": 0}))
+    with pytest.raises(ConflictError, match="twice"):
         await repo.create_no_show_warning("owner-1", "b1", 5, None)
     session.commit.assert_not_awaited()
 
@@ -235,6 +253,7 @@ async def test_expiry_marks_each_due_booking_no_show_and_tells_the_salon():
     args = repo.update_booking_status.await_args
     assert args.args == ("owner-1", "b1", "no_show")
     assert args.kwargs["cancellation_reason"].startswith("Customer no-show")
+    assert args.kwargs["only_unanswered_warning"] is True
     repo._notify_staff_of_auto_no_show.assert_awaited_once_with("b1", "Asha")
 
 
@@ -245,7 +264,7 @@ async def test_expiry_closes_a_stale_warning_instead_of_retrying_forever():
     repo._close_stale_warning = AsyncMock()
     repo._notify_staff_of_auto_no_show = AsyncMock()
     assert await repo.expire_no_show_warnings() == 0
-    repo._close_stale_warning.assert_awaited_once_with("w1")
+    repo._close_stale_warning.assert_awaited_once_with("w1", "b1")
     repo._notify_staff_of_auto_no_show.assert_not_awaited()
 
 

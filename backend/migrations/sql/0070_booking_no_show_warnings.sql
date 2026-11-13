@@ -36,6 +36,10 @@ ALTER TABLE public.booking_no_show_warnings ENABLE ROW LEVEL SECURITY;
 -- statement --
 REVOKE ALL ON public.booking_no_show_warnings FROM PUBLIC, anon, authenticated;
 -- statement --
+GRANT ALL ON public.booking_no_show_warnings TO postgres, service_role;
+-- statement --
+REVOKE TRUNCATE ON public.booking_no_show_warnings FROM service_role;
+-- statement --
 -- A no-show is allowed ten minutes after the start (existing rule) or once a salon warning has run out.
 CREATE OR REPLACE FUNCTION public.guard_no_show_attendance()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
