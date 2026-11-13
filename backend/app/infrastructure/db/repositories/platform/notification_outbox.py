@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.notification_audience import audience_for
+
 
 class NotificationOutboxMixin:
     """Notification outbox writes and worker reads."""
@@ -21,16 +23,22 @@ class NotificationOutboxMixin:
         title: str,
         body: str,
         data: dict[str, Any] | None = None,
+        audience: str | None = None,
     ) -> str:
-        """Persist a notification and retryable push event in this transaction."""
+        """Persist a notification and retryable push event in this transaction.
 
+        ``audience`` defaults to the type mapping in ``notification_audience``;
+        pass it explicitly for types that are ambiguous (e.g. ``booking_cancelled``).
+        """
+
+        resolved_audience = audience if audience is not None else audience_for(notification_type)
         result = await self.session.execute(
             text(
                 """
                 with created_notification as (
-                  insert into notifications (user_id, booking_id, type, title, body, data)
+                  insert into notifications (user_id, booking_id, type, title, body, data, audience)
                   values (:user_id, :booking_id, :notification_type, :title, :body,
-                          cast(:data as jsonb))
+                          cast(:data as jsonb), :audience)
                   returning id, user_id
                 )
                 insert into notification_outbox (notification_id, user_id)
@@ -45,6 +53,7 @@ class NotificationOutboxMixin:
                 "title": title,
                 "body": body,
                 "data": json.dumps(data) if data else None,
+                "audience": resolved_audience,
             },
         )
         return str(result.scalar_one())
@@ -58,6 +67,7 @@ class NotificationOutboxMixin:
         title: str,
         body: str,
         data: dict[str, Any] | None = None,
+        audience: str | None = None,
     ) -> str:
         """Persist a notification/outbox pair outside another state transaction."""
 
@@ -68,6 +78,7 @@ class NotificationOutboxMixin:
             title=title,
             body=body,
             data=data,
+            audience=audience,
         )
         await self.session.commit()
         return outbox_id

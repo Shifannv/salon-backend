@@ -81,6 +81,12 @@ async def _build(database: str, *, revision: str = PORTABLE_CI_REVISION) -> None
         await conn.execute(await asyncio.to_thread(
             _alembic, url, "upgrade", "0004_service_duration_slot_steps:0014_repair_cancel_reason", "--sql"))
         await asyncio.to_thread(_alembic, url, "upgrade", revision)
+        # Notification writes now store the audience. Only the columns are added: the 0069 index needs
+        # notifications.deleted_at, which these older revisions do not have.
+        audience_sql = BACKEND / "migrations/sql/0069_notification_audience.sql"
+        for statement in audience_sql.read_text(encoding="utf-8").split("\n-- statement --\n"):
+            if "ADD COLUMN" in statement:
+                await conn.execute(statement)
     finally:
         await conn.close()
 

@@ -91,13 +91,18 @@ class GuardianConsentUseCases:
         return self.provider_connected or bool((self.settings.guardian_test_otps or "").strip())
 
     @staticmethod
-    def _require_customer(actor: Profile) -> None:
-        if actor.role != Role.customer:
+    def _is_customer_surface(actor: Profile) -> bool:
+        # An owner who signs into the customer app books as a customer and gets the same age gate.
+        return actor.role in {Role.customer, Role.owner}
+
+    @classmethod
+    def _require_customer(cls, actor: Profile) -> None:
+        if not cls._is_customer_surface(actor):
             raise ForbiddenError("Age checks apply to customer accounts")
 
     # ---------------------------------------------------------------- status
     async def access(self, actor: Profile) -> BookingAccess:
-        if actor.role != Role.customer:
+        if not self._is_customer_surface(actor):
             return BookingAccess(True, "adult")
         birth = await self.repository.birth_date(actor.id)
         row = await self.repository.open_guardian_request(actor.id)
@@ -105,7 +110,7 @@ class GuardianConsentUseCases:
         return booking_access(birth, bool(row and row["status"] == "approved"), self._today())
 
     async def status(self, actor: Profile) -> dict:
-        if actor.role != Role.customer:
+        if not self._is_customer_surface(actor):
             return {"age_band": "adult", "booking_allowed": True, "block_reason": None,
                     "guardian_state": "none", "guardian_phone_last4": None, "guardian_code_available": True}
         birth = await self.repository.birth_date(actor.id)

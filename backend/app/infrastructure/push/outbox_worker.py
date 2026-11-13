@@ -47,6 +47,7 @@ async def enqueue_and_deliver_notification(
     title: str,
     body: str,
     data: dict[str, Any] | None = None,
+    audience: str | None = None,
 ) -> None:
     """Persist a notification (booking-linked or not), then attempt push delivery."""
 
@@ -59,6 +60,7 @@ async def enqueue_and_deliver_notification(
             title=title,
             body=body,
             data=data,
+            audience=audience,
         )
     await deliver_notification_outbox_event(outbox_id)
 
@@ -73,10 +75,21 @@ async def drain_notification_outbox(limit: int = 50) -> int:
     return len(ids)
 
 
+async def expire_no_show_warnings(limit: int = 20) -> int:
+    """Turn unanswered arrival warnings into no-shows once their wait has run out."""
+
+    async with AsyncSessionLocal() as session:
+        return await PlatformRepository(session).expire_no_show_warnings(limit)
+
+
 async def run_forever() -> None:
-    """Poll the durable queue for missed and failed push deliveries."""
+    """Poll the durable queue for missed and failed push deliveries, and for expired warnings."""
 
     while True:
+        try:
+            await expire_no_show_warnings()
+        except Exception:
+            _log.exception("No-show warning expiry failed")
         try:
             await drain_notification_outbox()
         except Exception:

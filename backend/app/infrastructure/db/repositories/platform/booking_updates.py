@@ -70,8 +70,13 @@ class BookingUpdatesMixin:
         cancellation_reason: str | None = None,
         customer_only: bool = False,
         idempotency_key: str | None = None,
+        only_unanswered_warning: bool = False,
     ) -> dict[str, Any]:
-        """Apply an authorized, valid booking transition under a row lock."""
+        """Apply an authorized, valid booking transition under a row lock.
+
+        ``only_unanswered_warning`` is for the automatic no-show: it proceeds only if the booking's
+        warning is still open and the customer has not replied, checked after the lock is held.
+        """
         scope = f"booking:{booking_id}:{status}"
         replay = await self.begin_booking_operation(actor_id, scope, idempotency_key, {
             "status": status, "rejection_reason": rejection_reason, "cancellation_reason": cancellation_reason,
@@ -85,7 +90,10 @@ class BookingUpdatesMixin:
             text(
                 f"""
                 select id, status, customer_id, customer_name, payment_status, payment_preference, checkout_policy_version,
-                       start_datetime, now() as database_now from bookings
+                       start_datetime, now() as database_now,
+                       (select w.deadline_at from booking_no_show_warnings w
+                         where w.booking_id = bookings.id and w.resolved_at is null) as warning_deadline
+                from bookings
                 where id = :booking_id and ({predicate})
                 for update
                 """
@@ -102,7 +110,19 @@ class BookingUpdatesMixin:
         }
         if status not in allowed.get(current["status"], set()):
             raise ConflictError("Booking state changed; refresh before deciding")
-        no_show = status == "no_show" or (
+        if only_unanswered_warning:
+            # A new statement after the lock sees any reply that committed while this call waited.
+            open_warning = await self.session.execute(
+                text(
+                    "select customer_response from booking_no_show_warnings "
+                    "where booking_id = :booking_id and resolved_at is null"
+                ),
+                {"booking_id": booking_id},
+            )
+            warning = open_warning.mappings().one_or_none()
+            if warning is None or warning["customer_response"] is not None:
+                raise ConflictError("The customer replied to the warning")
+        no_show =status == "no_show" or (
             status == "cancelled" and (cancellation_reason or "").startswith("Customer no-show")
         )
         if no_show:
@@ -110,7 +130,8 @@ class BookingUpdatesMixin:
                 raise ConflictError("A checked-in customer cannot be marked as a no-show")
             try:
                 cancellation_reason = validate_no_show(
-                    current["start_datetime"], current["database_now"], cancellation_reason
+                    current["start_datetime"], current["database_now"], cancellation_reason,
+                    current.get("warning_deadline"),
                 )
             except ValueError as error:
                 message = (
@@ -146,6 +167,18 @@ class BookingUpdatesMixin:
                 "cancellation_reason": cancellation_reason,
             },
         )
+        if status in {"checked_in", "rejected", "cancelled", "completed", "no_show"}:
+            resolution = (
+                "arrived" if status == "checked_in" else "no_show" if status == "no_show"
+                else "customer_cancelled" if status == "cancelled" and customer_only else "withdrawn"
+            )
+            await self.session.execute(
+                text(
+                    "update booking_no_show_warnings set resolved_at = now(), resolution = :resolution "
+                    "where booking_id = :booking_id and resolved_at is null"
+                ),
+                {"booking_id": booking_id, "resolution": resolution},
+            )
         if status == "completed":
             # What each service earned its staff member, written in this same transaction (S1a).
             await record_staff_earnings(self.session, booking_id)
@@ -201,6 +234,7 @@ class BookingUpdatesMixin:
                         "The salon cancelled your appointment: "
                         f"{cancellation_reason or 'Please contact the salon for details.'}"
                     ),
+                    audience="customer",
                 )
             )
         booking = await self.get_booking(booking_id, actor_id)
@@ -291,6 +325,7 @@ class BookingUpdatesMixin:
             notification_type="booking_cancelled",
             title="Booking cancelled",
             body=f"{row['customer_name']} cancelled their appointment.",
+            audience="owner",
         )
         booking = await self.get_booking(booking_id, actor_id)
         if booking is None:

@@ -239,7 +239,7 @@ class Settings(BaseSettings):
     # 'none' the super admin still pays payouts by hand (reference + proof).
     payout_provider: str = Field(default="none", validation_alias=AliasChoices("PAYOUT_PROVIDER", "payout_provider"))
     cashfree_payout_client_id: str | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_PAYOUT_CLIENT_ID", "CASHFREE_PAYOUTS_CLIENT_ID", "CASHFREE_PAYOUT_APP_ID", "CASHFREE_PAYOUTS_APP_ID", "cashfree_payout_client_id"))
-    cashfree_payout_client_secret: SecretStr | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_PAYOUT_CLIENT_SECRET", "CASHFREE_PAYOUTS_CLIENT_SECRET", "CASHFREE_PAYOUT_SECRET_KEY", "CASHFREE_PAYOUTS_SECRET_KEY", "CASHFREE_PAYOUT_SECRET", "CASHFREE_PAYOUTS_SECRET", "CASHFREE_PAYOUT_API_SECRET", "cashfree_payout_client_secret"))
+    cashfree_payout_client_secret: SecretStr | None = Field(default=None, validation_alias=AliasChoices("CASHFREE_PAYOUT_CLIENT_SECRET", "CASHFREE_PAYOUTS_CLIENT_SECRET", "CASHFREE_PAYOUT_SECRET_KEY", "CASHFREE_PAYOUTS_SECRET_KEY", "CASHFREE_PAYOUT_SECERET_KEY", "CASHFREE_PAYOUTS_SECERET_KEY", "CASHFREE_PAYOUT_SECRET", "CASHFREE_PAYOUTS_SECRET", "CASHFREE_PAYOUT_API_SECRET", "cashfree_payout_client_secret"))
     cashfree_payout_environment: Literal["sandbox", "production"] = Field(default="sandbox", validation_alias=AliasChoices("CASHFREE_PAYOUT_ENV", "CASHFREE_PAYOUTS_ENV", "cashfree_payout_environment"))
     cashfree_payout_api_version: str = Field(default="2024-01-01", min_length=8, max_length=20)
     # Outbound provider calls: seconds before a call is treated as an unknown outcome.

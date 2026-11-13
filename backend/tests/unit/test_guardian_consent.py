@@ -175,12 +175,22 @@ async def test_future_dates_are_refused():
         await uc.set_birth_date(CUSTOMER, date(2027, 1, 1))
 
 
-async def test_only_customers_have_an_age_check():
+async def test_staff_have_no_age_check():
+    staff = make_profile(role=Role.staff)
+    uc, _, _ = make(None)
+    await uc.assert_can_book(staff)
+    with pytest.raises(ForbiddenError):
+        await uc.set_birth_date(staff, ADULT)
+
+
+async def test_an_owner_booking_as_a_customer_gets_the_same_age_gate_as_a_new_customer():
     owner = make_profile(role=Role.owner)
     uc, _, _ = make(None)
+    with pytest.raises(BirthDateRequiredError):
+        await uc.assert_can_book(owner)
+    status = await uc.set_birth_date(owner, ADULT)
+    assert status["booking_allowed"] is True
     await uc.assert_can_book(owner)
-    with pytest.raises(ForbiddenError):
-        await uc.set_birth_date(owner, ADULT)
 
 
 # ------------------------------------------------------------------ guardian flow

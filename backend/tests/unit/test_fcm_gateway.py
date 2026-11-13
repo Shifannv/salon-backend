@@ -44,19 +44,33 @@ class FakeResult:
 
 
 class FakeSession:
-    def __init__(self, token: str, platform: str | None = "ios") -> None:
+    def __init__(
+        self,
+        token: str,
+        platform: str | None = "ios",
+        *,
+        notification: dict[str, Any] | None = None,
+        token_app: str | None = None,
+    ) -> None:
         self.token = token
         self.platform = platform
         self.executions: list[dict[str, Any]] = []
         self.commits = 0
+        self.notification = notification if notification is not None else NOTIFICATION
+        self.token_app = token_app
 
     async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> FakeResult:
         sql = str(statement)
         self.executions.append({"sql": sql, "params": params or {}})
 
         if "from notifications" in sql:
-            return FakeResult(row=NOTIFICATION)
+            return FakeResult(row=self.notification)
         if "get_active_tokens" in sql:
+            audience = (params or {}).get("audience")
+            # Mirror the SQL filter: a mismatched app is excluded unless the
+            # token (or the notification) has no app/audience to compare against.
+            if audience is not None and self.token_app is not None and self.token_app != audience:
+                return FakeResult(rows=[])
             return FakeResult(rows=[SimpleNamespace(token=self.token, platform=self.platform)])
         return FakeResult()
 
@@ -184,3 +198,64 @@ async def test_raw_fcm_receives_notification_payload_when_configured(
     }
     assert session.delivery_params["delivered"] is True
     assert session.delivery_params["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_owner_audience_notification_skips_customer_app_token() -> None:
+    """A notification meant for the Owner App is never pushed to a Customer App token."""
+
+    owner_notification = {**NOTIFICATION, "audience": "owner"}
+    session = FakeSession(
+        "raw-fcm-token", platform="android", notification=owner_notification, token_app="customer"
+    )
+    gateway = FCMGateway(
+        Settings(environment="test", firebase_credentials_json=None),  # type: ignore[arg-type]
+        session,
+    )
+
+    await gateway.fan_out(owner_notification["id"], "user-001")
+
+    delivery_inserts = [e for e in session.executions if "insert into notification_deliveries" in e["sql"]]
+    assert delivery_inserts == []
+
+
+@pytest.mark.asyncio
+async def test_owner_audience_notification_reaches_owner_app_token() -> None:
+    """A notification meant for the Owner App still reaches an Owner App token."""
+
+    owner_notification = {**NOTIFICATION, "audience": "owner"}
+    session = FakeSession(
+        "raw-fcm-token", platform="android", notification=owner_notification, token_app="owner"
+    )
+    gateway = FCMGateway(
+        Settings(environment="test", firebase_credentials_json=None),  # type: ignore[arg-type]
+        session,
+    )
+
+    await gateway.fan_out(owner_notification["id"], "user-001")
+
+    assert session.delivery_params["delivered"] is False  # no FCM credentials in this test
+    assert session.delivery_params["error"] == (
+        "FCM not configured; FIREBASE_CREDENTIALS_JSON is missing"
+    )
+
+
+@pytest.mark.asyncio
+async def test_legacy_null_audience_still_reaches_any_token() -> None:
+    """A pre-migration notification with no audience is delivered to every active token."""
+
+    legacy_notification = {**NOTIFICATION, "audience": None}
+    session = FakeSession(
+        "raw-fcm-token", platform="android", notification=legacy_notification, token_app="customer"
+    )
+    gateway = FCMGateway(
+        Settings(environment="test", firebase_credentials_json=None),  # type: ignore[arg-type]
+        session,
+    )
+
+    await gateway.fan_out(legacy_notification["id"], "user-001")
+
+    assert session.delivery_params["delivered"] is False
+    assert session.delivery_params["error"] == (
+        "FCM not configured; FIREBASE_CREDENTIALS_JSON is missing"
+    )

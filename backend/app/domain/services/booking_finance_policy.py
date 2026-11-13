@@ -151,9 +151,16 @@ def validate_customer_change(
         raise ValueError("booking_change_limit")
 
 
-def validate_no_show(appointment_start: datetime, decision_at: datetime, reason: str | None) -> str:
-    """Validate the ten-minute grace and normalize the required explicit reason."""
-    if _remaining(appointment_start, decision_at) > -timedelta(minutes=10):
+def validate_no_show(
+    appointment_start: datetime, decision_at: datetime, reason: str | None,
+    warning_deadline: datetime | None = None,
+) -> str:
+    """Validate the grace period and normalize the required explicit reason.
+
+    The grace is ten minutes after the start, or the salon's own warning once it has run out.
+    """
+    warned = warning_deadline is not None and decision_at >= warning_deadline
+    if not warned and _remaining(appointment_start, decision_at) > -timedelta(minutes=10):
         raise ValueError("no_show_grace_period")
     if not isinstance(reason, str) or not reason.strip():
         raise ValueError("no_show_reason_required")

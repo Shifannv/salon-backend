@@ -20,6 +20,7 @@ class NotificationResponse(BaseModel):
     read: bool
     read_at: datetime | None = None  # set when read flips true (migration 0002)
     created_at: datetime
+    audience: str | None = None
 
 
 
@@ -43,6 +44,7 @@ class DeviceRegisterRequest(BaseModel):
     token: str
     platform: str | None = None
     device_name: str | None = None
+    app: str | None = None
 
 
 class DeviceRegisterResponse(BaseModel):

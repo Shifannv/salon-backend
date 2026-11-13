@@ -59,6 +59,7 @@ POST_BASELINE_COLUMN_TREATMENT = {
     "booking_payments.provider_session_id": "retained-provider-reference",
     "booking_policy_refund_jobs.status": "machine-code",
     "bookings.checkout_policy_version": "policy-code",
+    "device_tokens.app": "machine-code",
     "email_events.body": "removed-with-subject-or-copy",
     "email_events.event_key": "removed-with-subject-or-copy",
     "email_events.event_type": "machine-code",

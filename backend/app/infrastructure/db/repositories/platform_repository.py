@@ -27,6 +27,7 @@ from app.infrastructure.db.repositories.platform.categories import CategoriesMix
 from app.infrastructure.db.repositories.platform.closures import ClosuresMixin
 from app.infrastructure.db.repositories.platform.languages_slots import LanguagesSlotsMixin
 from app.infrastructure.db.repositories.platform.media_refs import MediaRefsMixin
+from app.infrastructure.db.repositories.platform.no_show_warnings import NoShowWarningsMixin
 from app.infrastructure.db.repositories.platform.notification_outbox import NotificationOutboxMixin
 from app.infrastructure.db.repositories.platform.notifications_devices import (
     NotificationsDevicesMixin,
@@ -62,6 +63,7 @@ class PlatformRepository(
     BookingUpdatesMixin,
     BookingPaymentsMixin,
     NotificationOutboxMixin,
+    NoShowWarningsMixin,
     BookingActionRequestsMixin,
     ClosuresMixin,
     NotificationsDevicesMixin,

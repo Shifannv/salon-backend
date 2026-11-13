@@ -17,7 +17,7 @@ async def test_list_notifications_delegates():
 
     notifs = await uc.list_notifications(actor)
     assert len(notifs) == 1
-    repo.list_notifications.assert_awaited_once_with(actor.id)
+    repo.list_notifications.assert_awaited_once_with(actor.id, audience=None)
 
 
 @pytest.mark.asyncio
@@ -54,7 +54,7 @@ async def test_register_device_passes_actor_id():
 
     result = await uc.register_device(actor, "tok123", "ios", "iPhone 14")
     assert result["token"] == "tok123"
-    repo.register_device.assert_awaited_once_with("user-999", "tok123", "ios", "iPhone 14")
+    repo.register_device.assert_awaited_once_with("user-999", "tok123", "ios", "iPhone 14", None)
 
 
 @pytest.mark.asyncio

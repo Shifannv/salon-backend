@@ -35,6 +35,8 @@ from app.api.v1.schemas.platform import (
     CancelBookingRequest,
     DelayBookingRequest,
     NoShowBookingRequest,
+    NoShowWarningReplyRequest,
+    NoShowWarningRequest,
     PaymentRequest,
     RejectBookingRequest,
 )
@@ -133,6 +135,35 @@ async def no_show(booking_id: UUID, payload: NoShowBookingRequest, background_ta
     ))
 
 
+@router.post("/bookings/{booking_id}/no-show-warning", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def warn_no_show(booking_id: UUID, payload: NoShowWarningRequest, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session),
+    key: str | None = Header(default=None, alias="Idempotency-Key")) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).warn_no_show(
+        actor, str(booking_id), payload.grace_minutes, idempotency_key=key, background_tasks=background_tasks,
+    ))
+
+
+@router.delete("/bookings/{booking_id}/no-show-warning", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def withdraw_no_show_warning(booking_id: UUID, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).withdraw_no_show_warning(
+        actor, str(booking_id), background_tasks,
+    ))
+
+
+@router.post("/bookings/{booking_id}/no-show-warning/response", response_model=BookingResponse, status_code=status.HTTP_200_OK)
+async def reply_to_no_show_warning(booking_id: UUID, payload: NoShowWarningReplyRequest, background_tasks: BackgroundTasks,
+    actor: Profile = Depends(get_current_actor),
+    session: AsyncSession = Depends(get_authenticated_session)) -> BookingResponse:
+    return BookingResponse(**await _use_cases(session).reply_to_no_show_warning(
+        actor, str(booking_id), payload.response, reason_code=payload.reason_code,
+        reason_text=payload.reason_text, background_tasks=background_tasks,
+    ))
+
+
 def _use_cases(session: AsyncSession) -> BookingUseCases:
     return BookingUseCases(PlatformRepository(session), online_payments_enabled=online_checkout_available(
         get_payment_resolver().enabled, settings.booking_checkout_policy_version,
@@ -223,6 +254,10 @@ async def list_bookings(
     date_to: date | None = Query(default=None, description="Inclusive calendar date in each booking salon's timezone"),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    scope: Literal["customer"] | None = Query(
+        default=None,
+        description="customer: only the caller's own bookings, whatever their role (customer app)",
+    ),
     actor: Profile = Depends(get_mfa_checked_actor),
     session: AsyncSession = Depends(get_authenticated_session),
 ) -> list[BookingResponse]:
@@ -230,6 +265,7 @@ async def list_bookings(
 
     rows = await _use_cases(session).list_bookings(
         actor,
+        scope=scope,
         booking_statuses=parse_booking_statuses(booking_status),
         include_archived=include_archived,
         source=source,

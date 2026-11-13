@@ -288,6 +288,55 @@ async def test_list_bookings_passes_optional_filters():
     )
 
 
+def _unapproved(repo):
+    repo.get_workspace_salon.return_value = {
+        "id": "salon-001", "is_active": True, "profile_completed": True, "approval_status": "pending",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", [Role.owner, Role.staff])
+async def test_customer_scope_lists_own_bookings_without_salon_approval(role):
+    repo = make_mock_repo()
+    _unapproved(repo)
+    repo.list_bookings.return_value = []
+    uc = BookingUseCases(repo)
+    actor = make_profile(role=role)
+
+    assert await uc.list_bookings(actor, scope="customer", limit=50) == []
+
+    repo.list_bookings.assert_awaited_once()
+    args = repo.list_bookings.await_args
+    assert args.args == (actor.id, "customer")
+    repo.get_workspace_salon.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_workspace_listing_still_requires_salon_approval_without_scope():
+    from app.core.exceptions import SalonApprovalRequiredError
+
+    repo = make_mock_repo()
+    _unapproved(repo)
+    uc = BookingUseCases(repo)
+
+    with pytest.raises(SalonApprovalRequiredError):
+        await uc.list_bookings(make_owner())
+    repo.list_bookings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unapproved_owner_can_open_their_own_customer_booking():
+    repo = make_mock_repo()
+    _unapproved(repo)
+    actor = make_owner()
+    repo.get_booking.return_value = make_booking(customer_id=actor.id)
+    uc = BookingUseCases(repo)
+
+    booking = await uc.get_booking(actor, "booking-001")
+
+    assert booking["customer_id"] == actor.id
+
+
 @pytest.mark.asyncio
 async def test_list_bookings_rejects_reversed_date_range():
     from app.core.exceptions import ValidationError
