@@ -42,10 +42,28 @@ def hours(breaks=None):
 
 async def _install_breaks(url: str) -> None:
     engine = create_async_engine(url, connect_args={"statement_cache_size": 0})
-    source = Path(__file__).parents[2] / "migrations" / "sql" / "0067_working_hours_breaks.sql"
+    migrations = Path(__file__).parents[2] / "migrations"
     try:
         async with engine.begin() as connection:
+            source = migrations / "sql" / "0067_working_hours_breaks.sql"
             for statement in source.read_text(encoding="utf-8").split("\n-- statement --\n"):
+                if statement.strip():
+                    await connection.execute(text(statement))
+
+            # Recreate the observed production drift: the revision history is advanced, but
+            # the break helper is absent and the segmented conflict function is stale.
+            await connection.execute(text(
+                "DROP FUNCTION public.staff_break_overlaps(uuid, timestamptz, timestamptz)"
+            ))
+            await connection.execute(text("""
+                CREATE OR REPLACE FUNCTION public.visit_break_conflict(
+                    p_start timestamptz, p_segments jsonb
+                ) RETURNS boolean LANGUAGE sql STABLE
+                SET search_path = pg_catalog, public AS $fn$ SELECT false $fn$;
+            """))
+
+            repair = migrations / "sql" / "0071_restore_working_hours_break_functions.sql"
+            for statement in repair.read_text(encoding="utf-8").split("\n-- statement --\n"):
                 if statement.strip():
                     await connection.execute(text(statement))
     finally:

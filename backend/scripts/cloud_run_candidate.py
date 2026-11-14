@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 DEPLOYMENT_STARTED = False
 SCHEMA_COMPATIBILITY = None
 SCHEMA_RECEIPT_PATH = "backend/deployments/schema-0053-0055-20261101.json"
+SCHEMA_REPAIR_RECEIPT_PATH = "backend/deployments/schema-0067-0071-20261114.json"
 REPOSITORY = "Shifannv/salon-backend"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
@@ -192,9 +193,59 @@ def identity(*, automatic: bool = False) -> str:
     return commit
 
 
+
+def approved_schema_repair_release(baseline: str, commit: str, changes: list[str]) -> dict:
+    """Admit the exact approved 0067-0071 schema repair for the proven serving baseline."""
+    message = "Production schema receipt does not match the reviewed repair; candidate refused"
+    require(baseline == "52197d54be9313ef6e1bdb5fdc6ca0792a5dd5a8", message)
+    raw = git_blob(commit, SCHEMA_REPAIR_RECEIPT_PATH)
+    data = json.loads(raw)
+    source = "f26e8fd01c676702b9457330cf176e7a787ea40c"
+    names = [
+        "0067_working_hours_breaks",
+        "0068_payout_transfers",
+        "0069_notification_audience",
+        "0070_booking_no_show_warnings",
+        "0071_restore_working_hours_break_functions",
+    ]
+    expected_paths = {f"backend/migrations/{folder}/{name}.{extension}"
+                      for name in names for folder, extension in [("sql", "sql"), ("versions", "py")]}
+    require(data.get("schema_version") == 1 and data.get("status") == "PRODUCTION_SQL_VERIFIED"
+            and data.get("repository") == REPOSITORY and data.get("baseline_commit") == baseline
+            and data.get("sql_source_commit") == source and data.get("gcp_project") == "saloon-505509"
+            and data.get("region") == "asia-south1" and data.get("service") == "salon-api-production"
+            and data.get("database_project") == "wqjlgpnbiapcrlkxumcp"
+            and data.get("release_mode") == "owner-approved-auto-promotion"
+            and data.get("migration_target") == "0071_restore_working_hours_break_functions"
+            and data.get("previous_revision") == "salon-api-production-credential-v4-20261113"
+            and data.get("previous_image") == "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:8ee466a3808d8077d332a8188d13f3e080ae69970334793938199b26d17d6418"
+            and set(changes) == set(data.get("files", {})) == expected_paths, message)
+    command("git", "merge-base", "--is-ancestor", source, commit)
+    evidence = {"backend/docs/verification/PRODUCTION_0067_0071_SCHEMA_REPAIR_2026-11-14.md"}
+    require(set(data.get("evidence", {})) == evidence, message)
+    for path, digest in data["files"].items():
+        require(re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+                and hashlib.sha256(git_blob(commit, path)).hexdigest() == digest, message)
+        if path.endswith(("_0067_working_hours_breaks.sql", "_0067_working_hours_breaks.py",
+                          "_0068_payout_transfers.sql", "_0068_payout_transfers.py",
+                          "_0069_notification_audience.sql", "_0069_notification_audience.py",
+                          "_0070_booking_no_show_warnings.sql", "_0070_booking_no_show_warnings.py")):
+            require(hashlib.sha256(git_blob(source, path)).hexdigest() == digest, message)
+    for path, digest in data["evidence"].items():
+        require(re.fullmatch(r"[0-9a-f]{64}", digest) is not None
+                and hashlib.sha256(git_blob(commit, path)).hexdigest() == digest, message)
+    return {"receipt_sha256": hashlib.sha256(raw).hexdigest(),
+            "migration_target": data["migration_target"],
+            "previous_revision": data["previous_revision"], "previous_image": data["previous_image"],
+            "reviewed_migration_differences": sorted(changes),
+            "requires_supervised_promotion": False}
+
+
 def approved_schema_release(baseline: str, commit: str, changes: list[str]) -> dict:
     """Admit only the independently executed 0053-0055 delta, candidate-only."""
     message = "Migration differences require separate reviewed backup, target and approval; candidate refused"
+    if baseline == "52197d54be9313ef6e1bdb5fdc6ca0792a5dd5a8":
+        return approved_schema_repair_release(baseline, commit, changes)
     require(baseline == "6fefff404b148af4798105228418d96f03ad8e4c", message)
     raw = git_blob(commit, SCHEMA_RECEIPT_PATH)
     data = json.loads(raw)
@@ -402,7 +453,7 @@ def candidate(*, automatic: bool = False, tested_bundle: Path | None = None,
                "rollback_command": f"gcloud run services update-traffic {service} --project={project} --region={region} --to-revisions={previous}=100"}
     if SCHEMA_COMPATIBILITY is not None:
         receipt["schema_compatibility"] = copy.deepcopy(SCHEMA_COMPATIBILITY)
-        receipt["requires_supervised_promotion"] = True
+        receipt["requires_supervised_promotion"] = SCHEMA_COMPATIBILITY["requires_supervised_promotion"]
         receipt["migration_target"] = SCHEMA_COMPATIBILITY["migration_target"]
     if tested_registry is not None:
         receipt["ci_registry_provenance"] = ci_metadata
