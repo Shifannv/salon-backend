@@ -217,8 +217,8 @@ def approved_schema_repair_release(baseline: str, commit: str, changes: list[str
             and data.get("database_project") == "wqjlgpnbiapcrlkxumcp"
             and data.get("release_mode") == "owner-approved-auto-promotion"
             and data.get("migration_target") == "0071_restore_working_hours_break_functions"
-            and data.get("previous_revision") == "salon-api-production-age-guardian-0065"
-            and data.get("previous_image") == "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:ce1bcc05094db90dce3499d8cbb02702addbb6c4eee80dc136d7f1b942ad4603"
+            and data.get("previous_revision") == "salon-api-production-credential-v4-20261113"
+            and data.get("previous_image") == "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:8ee466a3808d8077d332a8188d13f3e080ae69970334793938199b26d17d6418"
             and set(changes) == set(data.get("files", {})) == expected_paths, message)
     command("git", "merge-base", "--is-ancestor", source, commit)
     evidence = {"backend/docs/verification/PRODUCTION_0067_0071_SCHEMA_REPAIR_2026-11-14.md"}

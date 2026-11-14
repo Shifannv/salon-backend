@@ -34,8 +34,12 @@ and does not alter migration history.
 This evidence authorizes only the hash-bound migration set 0067-0071 against
 the established healthy baseline commit
 `52197d54be9313ef6e1bdb5fdc6ca0792a5dd5a8`, revision
-`salon-api-production-age-guardian-0065`, and immutable image
-`asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:ce1bcc05094db90dce3499d8cbb02702addbb6c4eee80dc136d7f1b942ad4603`.
+`salon-api-production-credential-v4-20261113`, and immutable image
+`asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:8ee466a3808d8077d332a8188d13f3e080ae69970334793938199b26d17d6418`.
+
+This baseline superseded the earlier `age-guardian-0065` revision when the
+production credential bundle was rotated. Read-only inspection on November 14
+confirmed the same exact API source commit on the public `/version` endpoint.
 
 It is not a general migration bypass. The normal GitHub Actions workflow must
 still build and test the exact receipt commit, validate image provenance and
