@@ -111,6 +111,75 @@ def test_schema_receipt_does_not_authorize_other_source_changes(schema_receipt, 
         release.approved_schema_release(baseline, "a" * 40, paths)
 
 
+@pytest.fixture
+def schema_repair_receipt(monkeypatch):
+    root = Path(__file__).resolve().parents[3]
+    source = "f26e8fd01c676702b9457330cf176e7a787ea40c"
+    evidence_path = "backend/docs/verification/PRODUCTION_0067_0071_SCHEMA_REPAIR_2026-11-14.md"
+    names = [
+        "0067_working_hours_breaks", "0068_payout_transfers",
+        "0069_notification_audience", "0070_booking_no_show_warnings",
+        "0071_restore_working_hours_break_functions",
+    ]
+    paths = {f"backend/migrations/{folder}/{name}.{extension}"
+             for name in names for folder, extension in [("sql", "sql"), ("versions", "py")]}
+    files = {path: (root / path).read_bytes().replace(b"\r\n", b"\n") for path in paths}
+    evidence = b"Production SQL verification evidence."
+    data = {
+        "schema_version": 1,
+        "status": "PRODUCTION_SQL_VERIFIED",
+        "repository": release.REPOSITORY,
+        "gcp_project": "saloon-505509",
+        "region": "asia-south1",
+        "service": "salon-api-production",
+        "database_project": "wqjlgpnbiapcrlkxumcp",
+        "baseline_commit": "52197d54be9313ef6e1bdb5fdc6ca0792a5dd5a8",
+        "sql_source_commit": source,
+        "previous_revision": "salon-api-production-age-guardian-0065",
+        "previous_image": "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:ce1bcc05094db90dce3499d8cbb02702addbb6c4eee80dc136d7f1b942ad4603",
+        "migration_target": "0071_restore_working_hours_break_functions",
+        "release_mode": "owner-approved-auto-promotion",
+        "files": {path: hashlib.sha256(content).hexdigest() for path, content in files.items()},
+        "evidence": {evidence_path: hashlib.sha256(evidence).hexdigest()},
+    }
+    raw = json.dumps(data).encode()
+    blobs = {**files, evidence_path: evidence}
+    monkeypatch.setattr(release, "command", lambda *args: "")
+    monkeypatch.setattr(release, "git_blob",
+                        lambda commit, path: raw if path == release.SCHEMA_REPAIR_RECEIPT_PATH else blobs[path])
+    return data
+
+
+def test_exact_verified_repair_is_admitted_for_auto_promotion(schema_repair_receipt):
+    data = schema_repair_receipt
+    receipt = release.approved_schema_repair_release(
+        data["baseline_commit"], "a" * 40, list(data["files"])
+    )
+    assert receipt["migration_target"] == "0071_restore_working_hours_break_functions"
+    assert receipt["requires_supervised_promotion"] is False
+
+
+@pytest.mark.parametrize("change", ["other_baseline", "extra_migration", "changed_sql", "changed_evidence"])
+def test_schema_repair_receipt_refuses_unreviewed_differences(schema_repair_receipt, change, monkeypatch):
+    data = schema_repair_receipt
+    baseline = data["baseline_commit"]
+    paths = list(data["files"])
+    if change == "other_baseline":
+        baseline = "f" * 40
+    elif change == "extra_migration":
+        paths.append("backend/migrations/sql/0072_unapproved.sql")
+    else:
+        path = next(iter(data["evidence"])) if change == "changed_evidence" else next(
+            path for path in paths if path.endswith(".sql")
+        )
+        original = release.git_blob
+        monkeypatch.setattr(release, "git_blob",
+                            lambda commit, name: original(commit, name) + b"changed" if name == path
+                            else original(commit, name))
+    with pytest.raises(RuntimeError, match="Production schema receipt"):
+        release.approved_schema_repair_release(baseline, "a" * 40, paths)
+
+
 def service():
     return {"metadata": {"annotations": {"run.googleapis.com/maxScale": "1"}},
             "status": {"traffic": [{"revisionName": "previous", "percent": 100}]},
