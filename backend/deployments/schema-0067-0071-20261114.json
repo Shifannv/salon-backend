@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "PRODUCTION_SQL_VERIFIED",
+  "repository": "Shifannv/salon-backend",
+  "gcp_project": "saloon-505509",
+  "region": "asia-south1",
+  "service": "salon-api-production",
+  "database_project": "wqjlgpnbiapcrlkxumcp",
+  "baseline_commit": "52197d54be9313ef6e1bdb5fdc6ca0792a5dd5a8",
+  "sql_source_commit": "f26e8fd01c676702b9457330cf176e7a787ea40c",
+  "previous_revision": "salon-api-production-age-guardian-0065",
+  "previous_image": "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:ce1bcc05094db90dce3499d8cbb02702addbb6c4eee80dc136d7f1b942ad4603",
+  "migration_target": "0071_restore_working_hours_break_functions",
+  "release_mode": "owner-approved-auto-promotion",
+  "files": {
+    "backend/migrations/sql/0067_working_hours_breaks.sql": "58aef708e8048f80794dee20ce4dd24563947808da95de00dfe53b7aa3931dc8",
+    "backend/migrations/versions/0067_working_hours_breaks.py": "f9e76d44f491b3cc966f11e5ebab927176daf7bb33219f3e16b1f0de38e92e66",
+    "backend/migrations/sql/0068_payout_transfers.sql": "95598bc607009ac823d3b489fb6b4527406c2e691855c0a6c2d88f9f23077155",
+    "backend/migrations/versions/0068_payout_transfers.py": "b3e54acf62c80840a73a227af197b637f18b7eaee20e7da9f0b443e923579370",
+    "backend/migrations/sql/0069_notification_audience.sql": "3030e7387cb177f084cb26890e5738fba0d35d8f3a95368bd825c683dfd055ef",
+    "backend/migrations/versions/0069_notification_audience.py": "f31514460bcd1250afe6555465775b9e83e1141e4f69c055513709b7d8bc3d37",
+    "backend/migrations/sql/0070_booking_no_show_warnings.sql": "fb07920d8f76bb0bb6795d6e6a190ee2513eb9a064db5f8bd4e3e87494b820ab",
+    "backend/migrations/versions/0070_booking_no_show_warnings.py": "af07f6f38c44dbd684ec62172f75b7d9f090720700f39456bf56195ef74a048d",
+    "backend/migrations/sql/0071_restore_working_hours_break_functions.sql": "d872f7e013de2295ad4e77e08bdf5dd405e75bd21f413110e7c51a21d7acac27",
+    "backend/migrations/versions/0071_restore_working_hours_break_functions.py": "02373112f351fbfee20b94dee345d611a30231c85f36a289c461da9a29ed7056"
+  },
+  "evidence": {
+    "backend/docs/verification/PRODUCTION_0067_0071_SCHEMA_REPAIR_2026-11-14.md": "790c78cbfb1cc64c702963d7ed3428a780afb11b0659b1add8014173798edc14"
+  }
+}
