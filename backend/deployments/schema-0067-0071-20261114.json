@@ -8,8 +8,8 @@
   "database_project": "wqjlgpnbiapcrlkxumcp",
   "baseline_commit": "52197d54be9313ef6e1bdb5fdc6ca0792a5dd5a8",
   "sql_source_commit": "f26e8fd01c676702b9457330cf176e7a787ea40c",
-  "previous_revision": "salon-api-production-age-guardian-0065",
-  "previous_image": "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:ce1bcc05094db90dce3499d8cbb02702addbb6c4eee80dc136d7f1b942ad4603",
+  "previous_revision": "salon-api-production-credential-v4-20261113",
+  "previous_image": "asia-south1-docker.pkg.dev/saloon-505509/salon-production/api@sha256:8ee466a3808d8077d332a8188d13f3e080ae69970334793938199b26d17d6418",
   "migration_target": "0071_restore_working_hours_break_functions",
   "release_mode": "owner-approved-auto-promotion",
   "files": {
@@ -25,6 +25,6 @@
     "backend/migrations/versions/0071_restore_working_hours_break_functions.py": "02373112f351fbfee20b94dee345d611a30231c85f36a289c461da9a29ed7056"
   },
   "evidence": {
-    "backend/docs/verification/PRODUCTION_0067_0071_SCHEMA_REPAIR_2026-11-14.md": "790c78cbfb1cc64c702963d7ed3428a780afb11b0659b1add8014173798edc14"
+    "backend/docs/verification/PRODUCTION_0067_0071_SCHEMA_REPAIR_2026-11-14.md": "0360315bcdda788f1bb9a50e01560f61f89f3af88685686e99487ce8c59f0f79"
   }
 }
