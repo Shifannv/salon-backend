@@ -23,7 +23,7 @@ Get the full shifan branch work (migrations 0053–0070, booking-409 fix, break-
 - Main merged back into shifan (commit `0d0cb69`).
 
 ## In progress
-- Verifying that Cloud Run auto-deploy succeeded after the credential baseline fix.
+- PR #92 open (shifan → main); waiting for CI to go green before merge.
 
 ## Next steps
 1. Check `https://api.salones.in/version` — confirm it returns a commit SHA from after PR #90.
@@ -51,3 +51,4 @@ Get the full shifan branch work (migrations 0053–0070, booking-409 fix, break-
 - 2026-11-13: CI fix for booking_no_show_warnings; committed a0d206a
 - 2026-11-13: fix/remove-unconfigured-secondary-domain branch work; health-gate fix committed 2c5a7ac
 - 2026-11-14: merged fix/remove-unconfigured-secondary-domain → main; Cloud Run deploy failed (approved_schema_release gate); user fixed via PRs #88/#89/#90; main merged back into shifan; wrap
+- 2026-11-14: fix make_interval type conflict in no_show_warnings; added integration tests; pushed to trigger clean CI

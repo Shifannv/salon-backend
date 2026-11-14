@@ -69,13 +69,16 @@ class NoShowWarningsMixin:
                 """
                 insert into booking_no_show_warnings (booking_id, salon_id, staff_id, warned_by, grace_minutes, deadline_at)
                 values (:booking_id, :salon_id, :staff_id, :actor_id, :grace,
-                        greatest(now() + make_interval(mins => :grace), cast(:start as timestamptz) + interval '10 minutes'))
+                        greatest(now() + make_interval(mins => cast(:grace_wait as integer)),
+                                 cast(:start as timestamptz) + interval '10 minutes'))
                 returning deadline_at
                 """
             ),
             {
+                # Two bind names: one value used as smallint (column) and integer (make_interval) is ambiguous.
                 "booking_id": booking_id, "salon_id": booking["salon_id"], "staff_id": booking["staff_id"],
-                "actor_id": actor_id, "grace": grace_minutes, "start": booking["start_datetime"],
+                "actor_id": actor_id, "grace": grace_minutes, "grace_wait": grace_minutes,
+                "start": booking["start_datetime"],
             },
         )
         deadline_at = inserted.scalar_one()
